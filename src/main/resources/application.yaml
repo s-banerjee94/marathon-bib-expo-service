@@ -1,3 +1,46 @@
 spring:
   application:
     name: marathon-bib-expo
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: ${SHOW_SQL:true}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+  devtools:
+    restart:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: marathon-bib-expo-service
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# Root user configuration
+root:
+  username: ${ROOT_USERNAME:root}
+  password: ${ROOT_PASSWORD:root}
+
+logging:
+  level:
+    org.springframework.web.servlet.handler.HandlerMappingIntrospector: ERROR

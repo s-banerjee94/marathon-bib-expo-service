@@ -1,0 +1,130 @@
+package com.timekeeper.bibexpo.model.dto.response;
+
+import com.timekeeper.bibexpo.model.entity.Organization;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Schema(description = "Organization response payload")
+public class OrganizationResponse {
+
+    @Schema(description = "Organization ID", example = "1")
+    private Long id;
+
+    @Schema(description = "Organization name", example = "India Book Expo Pvt Ltd")
+    private String organizerName;
+
+    @Schema(description = "Organization email", example = "contact@indiabookexpo.in")
+    private String email;
+
+    @Schema(description = "Organization phone number", example = "+91-98765-43210")
+    private String phoneNumber;
+
+    @Schema(description = "Organization website", example = "https://www.indiabookexpo.in")
+    private String website;
+
+    @Schema(description = "Address line 1", example = "Plot No 123, Sector 18")
+    private String addressLine1;
+
+    @Schema(description = "Address line 2", example = "Nehru Place")
+    private String addressLine2;
+
+    @Schema(description = "City", example = "New Delhi")
+    private String city;
+
+    @Schema(description = "State or Province", example = "Delhi")
+    private String stateProvince;
+
+    @Schema(description = "Postal code", example = "110019")
+    private String postalCode;
+
+    @Schema(description = "Country", example = "India")
+    private String country;
+
+    @Schema(description = "Tax identification number", example = "29ABCDE1234F1Z5")
+    private String taxId;
+
+    @Schema(description = "Business registration number", example = "U74999DL2020PTC123456")
+    private String registrationNumber;
+
+    @Schema(description = "Maximum number of organizer users (0 = unlimited)", example = "5")
+    private Integer maxOrganizerUsers;
+
+    @Schema(description = "Maximum number of distributors (0 = unlimited)", example = "30")
+    private Integer maxDistributors;
+
+    @Schema(description = "Subscription tier", example = "BASIC")
+    private String subscriptionTier;
+
+    @Schema(description = "Subscription status", example = "ACTIVE")
+    private String subscriptionStatus;
+
+    @Schema(description = "Subscription start date")
+    private LocalDateTime subscriptionStartDate;
+
+    @Schema(description = "Subscription end date")
+    private LocalDateTime subscriptionEndDate;
+
+    @Schema(description = "Billing email address", example = "billing@indiabookexpo.in")
+    private String billingEmail;
+
+    @Schema(description = "Organization enabled status", example = "true")
+    private Boolean enabled;
+
+    @Schema(description = "Organization deleted status", example = "false")
+    private Boolean deleted;
+
+    @Schema(description = "Creation timestamp")
+    private LocalDateTime createdAt;
+
+    @Schema(description = "Last update timestamp")
+    private LocalDateTime updatedAt;
+
+    @Schema(description = "Created by username", example = "admin")
+    private String createdBy;
+
+    @Schema(description = "Last modified by username", example = "admin")
+    private String lastModifiedBy;
+
+    /**
+     * Factory method to create OrganizationResponse from Organization entity
+     */
+    public static OrganizationResponse fromEntity(Organization organization) {
+        return OrganizationResponse.builder()
+                .id(organization.getId())
+                .organizerName(organization.getOrganizerName())
+                .email(organization.getEmail())
+                .phoneNumber(organization.getPhoneNumber())
+                .website(organization.getWebsite())
+                .addressLine1(organization.getAddressLine1())
+                .addressLine2(organization.getAddressLine2())
+                .city(organization.getCity())
+                .stateProvince(organization.getStateProvince())
+                .postalCode(organization.getPostalCode())
+                .country(organization.getCountry())
+                .taxId(organization.getTaxId())
+                .registrationNumber(organization.getRegistrationNumber())
+                .maxOrganizerUsers(organization.getMaxOrganizerUsers())
+                .maxDistributors(organization.getMaxDistributors())
+                .subscriptionTier(organization.getSubscriptionTier())
+                .subscriptionStatus(organization.getSubscriptionStatus())
+                .subscriptionStartDate(organization.getSubscriptionStartDate())
+                .subscriptionEndDate(organization.getSubscriptionEndDate())
+                .billingEmail(organization.getBillingEmail())
+                .enabled(organization.getEnabled())
+                .deleted(organization.getDeleted())
+                .createdAt(organization.getCreatedAt())
+                .updatedAt(organization.getUpdatedAt())
+                .createdBy(organization.getCreatedBy())
+                .lastModifiedBy(organization.getLastModifiedBy())
+                .build();
+    }
+}

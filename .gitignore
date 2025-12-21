@@ -32,5 +32,38 @@ build/
 ### VS Code ###
 .vscode/
 
+### Environment Variables ###
+.env
+.env.local
+.env.*.local
+
+### Logs ###
+logs/
+*.log
+log/
+*.log.*
+
+### Database ###
+*.db
+*.sqlite
+*.sqlite3
+*.h2.db
+
+### Docker ###
+docker-compose.override.yml
+.dockerignore
+
+### OS ###
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+### Maven Wrapper ###
+.mvn/wrapper/maven-wrapper.properties
+
+### Application Specific ###
+application-local.properties
+application-local.yml
+application-local.yaml
+
 CLAUDE.md
-nul
