@@ -1,0 +1,1113 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2025-12-23T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2023.5.8",
+  "resources": [
+    {
+      "_id": "wrk_bib_expo",
+      "_type": "workspace",
+      "name": "Bib Expo API",
+      "description": "API collection for Marathon Bib Expo microservices with JWT Authentication",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "name": "Base Environment",
+      "data": {
+        "baseUrl": "http://localhost:8080",
+        "jwtToken": ""
+      },
+      "parentId": "wrk_bib_expo"
+    },
+    {
+      "_id": "fld_auth",
+      "_type": "request_group",
+      "name": "Authentication",
+      "description": "Login endpoints - No authentication required. After login, copy the JWT token from response and set it in the 'jwtToken' environment variable.",
+      "parentId": "wrk_bib_expo"
+    },
+    {
+      "_id": "req_login_root",
+      "_type": "request",
+      "name": "Login as ROOT",
+      "url": "{{ _.baseUrl }}/api/auth/login",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"root\",\n  \"password\": \"root\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parentId": "fld_auth"
+    },
+    {
+      "_id": "req_login_admin",
+      "_type": "request",
+      "name": "Login as ADMIN",
+      "url": "{{ _.baseUrl }}/api/auth/login",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"admin\",\n  \"password\": \"admin\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parentId": "fld_auth"
+    },
+    {
+      "_id": "req_login_org_admin",
+      "_type": "request",
+      "name": "Login as ORG_ADMIN",
+      "url": "{{ _.baseUrl }}/api/auth/login",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_admin\",\n  \"password\": \"org_admin\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parentId": "fld_auth"
+    },
+    {
+      "_id": "req_login_invalid",
+      "_type": "request",
+      "name": "Login - Invalid Credentials (401)",
+      "url": "{{ _.baseUrl }}/api/auth/login",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"invalid_user\",\n  \"password\": \"wrong_password\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parentId": "fld_auth"
+    },
+    {
+      "_id": "fld_organizations",
+      "_type": "request_group",
+      "name": "Organization Management",
+      "description": "Organization CRUD operations - Requires JWT Bearer token",
+      "parentId": "wrk_bib_expo"
+    },
+    {
+      "_id": "fld_org_create",
+      "_type": "request_group",
+      "name": "Create Organization",
+      "description": "Create organization requests",
+      "parentId": "fld_organizations"
+    },
+    {
+      "_id": "fld_org_update",
+      "_type": "request_group",
+      "name": "Update Organization",
+      "description": "Update organization requests",
+      "parentId": "fld_organizations"
+    },
+    {
+      "_id": "fld_org_status",
+      "_type": "request_group",
+      "name": "Toggle Status",
+      "description": "Enable/disable organization",
+      "parentId": "fld_organizations"
+    },
+    {
+      "_id": "req_create_org_full",
+      "_type": "request",
+      "name": "Create Organization - Full Details",
+      "url": "{{ _.baseUrl }}/api/organizations",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"organizerName\": \"India Book Expo Pvt Ltd\",\n  \"email\": \"contact@indiabookexpo.in\",\n  \"phoneNumber\": \"+91-98765-43210\",\n  \"website\": \"https://www.indiabookexpo.in\",\n  \"addressLine1\": \"Plot No 123, Sector 18\",\n  \"addressLine2\": \"Nehru Place\",\n  \"city\": \"New Delhi\",\n  \"stateProvince\": \"Delhi\",\n  \"postalCode\": \"110019\",\n  \"country\": \"India\",\n  \"taxId\": \"29ABCDE1234F1Z5\",\n  \"registrationNumber\": \"U74999DL2020PTC123456\",\n  \"maxOrganizerUsers\": 5,\n  \"maxDistributors\": 30,\n  \"subscriptionTier\": \"BASIC\",\n  \"billingEmail\": \"billing@indiabookexpo.in\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_create"
+    },
+    {
+      "_id": "req_create_org_minimal",
+      "_type": "request",
+      "name": "Create Organization - Minimal (Required Only)",
+      "url": "{{ _.baseUrl }}/api/organizations",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"organizerName\": \"Delhi Book Fair Association\",\n  \"email\": \"info@delhibookfair.org\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_create"
+    },
+    {
+      "_id": "req_create_org_premium",
+      "_type": "request",
+      "name": "Create Organization - Premium Tier",
+      "url": "{{ _.baseUrl }}/api/organizations",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"organizerName\": \"Mumbai Literature Festival\",\n  \"email\": \"contact@mumbailitfest.com\",\n  \"phoneNumber\": \"+91-22-12345678\",\n  \"website\": \"https://www.mumbailitfest.com\",\n  \"addressLine1\": \"Marine Drive Complex\",\n  \"city\": \"Mumbai\",\n  \"stateProvince\": \"Maharashtra\",\n  \"postalCode\": \"400020\",\n  \"country\": \"India\",\n  \"maxOrganizerUsers\": 10,\n  \"maxDistributors\": 50,\n  \"subscriptionTier\": \"PREMIUM\",\n  \"billingEmail\": \"accounts@mumbailitfest.com\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_create"
+    },
+    {
+      "_id": "req_create_org_enterprise",
+      "_type": "request",
+      "name": "Create Organization - Enterprise Tier",
+      "url": "{{ _.baseUrl }}/api/organizations",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"organizerName\": \"National Book Trust India\",\n  \"email\": \"info@nbtindia.gov.in\",\n  \"phoneNumber\": \"+91-11-26707700\",\n  \"website\": \"https://www.nbtindia.gov.in\",\n  \"addressLine1\": \"Vasant Kunj Institutional Area\",\n  \"addressLine2\": \"Phase-II\",\n  \"city\": \"New Delhi\",\n  \"stateProvince\": \"Delhi\",\n  \"postalCode\": \"110070\",\n  \"country\": \"India\",\n  \"taxId\": \"07AAATN0001A1Z5\",\n  \"registrationNumber\": \"GOV-NBT-1957\",\n  \"maxOrganizerUsers\": 0,\n  \"maxDistributors\": 0,\n  \"subscriptionTier\": \"ENTERPRISE\",\n  \"billingEmail\": \"finance@nbtindia.gov.in\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_create"
+    },
+    {
+      "_id": "req_create_org_invalid_email",
+      "_type": "request",
+      "name": "Invalid - Bad Email Format",
+      "url": "{{ _.baseUrl }}/api/organizations",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"organizerName\": \"Test Organization\",\n  \"email\": \"not-a-valid-email\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_create"
+    },
+    {
+      "_id": "req_create_org_missing_required",
+      "_type": "request",
+      "name": "Invalid - Missing Required Fields",
+      "url": "{{ _.baseUrl }}/api/organizations",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"phoneNumber\": \"+91-9876543210\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_create"
+    },
+    {
+      "_id": "req_update_org_full",
+      "_type": "request",
+      "name": "Update Organization - Full Update",
+      "url": "{{ _.baseUrl }}/api/organizations/1",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"organizerName\": \"India Book Expo Pvt Ltd (Updated)\",\n  \"email\": \"newemail@indiabookexpo.in\",\n  \"phoneNumber\": \"+91-98765-00000\",\n  \"website\": \"https://www.newindiabookexpo.in\",\n  \"addressLine1\": \"New Address, Sector 20\",\n  \"city\": \"Gurugram\",\n  \"stateProvince\": \"Haryana\",\n  \"postalCode\": \"122001\",\n  \"country\": \"India\",\n  \"maxOrganizerUsers\": 10,\n  \"maxDistributors\": 50,\n  \"subscriptionTier\": \"PREMIUM\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_update"
+    },
+    {
+      "_id": "req_update_org_partial",
+      "_type": "request",
+      "name": "Update Organization - Partial (Name & Email Only)",
+      "url": "{{ _.baseUrl }}/api/organizations/1",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"organizerName\": \"Updated Organization Name\",\n  \"email\": \"updated@organization.com\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_update"
+    },
+    {
+      "_id": "req_update_org_subscription",
+      "_type": "request",
+      "name": "Update Organization - Upgrade Subscription",
+      "url": "{{ _.baseUrl }}/api/organizations/1",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"subscriptionTier\": \"ENTERPRISE\",\n  \"maxOrganizerUsers\": 0,\n  \"maxDistributors\": 0\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_update"
+    },
+    {
+      "_id": "req_update_org_limits",
+      "_type": "request",
+      "name": "Update Organization - User & Distributor Limits",
+      "url": "{{ _.baseUrl }}/api/organizations/1",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"maxOrganizerUsers\": 15,\n  \"maxDistributors\": 100\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_update"
+    },
+    {
+      "_id": "req_update_org_notfound",
+      "_type": "request",
+      "name": "Invalid - Organization Not Found (ID 99999)",
+      "url": "{{ _.baseUrl }}/api/organizations/99999",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"organizerName\": \"Should Not Exist\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_update"
+    },
+    {
+      "_id": "req_toggle_status_disable",
+      "_type": "request",
+      "name": "Disable Organization",
+      "url": "{{ _.baseUrl }}/api/organizations/1/status",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "false"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_status"
+    },
+    {
+      "_id": "req_toggle_status_enable",
+      "_type": "request",
+      "name": "Enable Organization",
+      "url": "{{ _.baseUrl }}/api/organizations/1/status",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "true"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_status"
+    },
+    {
+      "_id": "req_toggle_status_notfound",
+      "_type": "request",
+      "name": "Invalid - Organization Not Found (ID 99999)",
+      "url": "{{ _.baseUrl }}/api/organizations/99999/status",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "true"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_org_status"
+    },
+    {
+      "_id": "fld_users",
+      "_type": "request_group",
+      "name": "User Management",
+      "description": "User CRUD operations with hierarchical permissions - Requires JWT Bearer token",
+      "parentId": "wrk_bib_expo"
+    },
+    {
+      "_id": "fld_users_create",
+      "_type": "request_group",
+      "name": "Create User",
+      "description": "Create user requests by different roles",
+      "parentId": "fld_users"
+    },
+    {
+      "_id": "fld_users_root",
+      "_type": "request_group",
+      "name": "Create User (as ROOT)",
+      "description": "ROOT can create: ADMIN, ORG_ADMIN, ORG_USER, DISTRIBUTOR",
+      "parentId": "fld_users_create"
+    },
+    {
+      "_id": "fld_users_admin",
+      "_type": "request_group",
+      "name": "Create User (as ADMIN)",
+      "description": "ADMIN can create: ORG_ADMIN, ORG_USER, DISTRIBUTOR (NOT ADMIN)",
+      "parentId": "fld_users_create"
+    },
+    {
+      "_id": "fld_users_orgadmin",
+      "_type": "request_group",
+      "name": "Create User (as ORG_ADMIN)",
+      "description": "ORG_ADMIN can create: ORG_USER, DISTRIBUTOR (own org only)",
+      "parentId": "fld_users_create"
+    },
+    {
+      "_id": "fld_users_invalid",
+      "_type": "request_group",
+      "name": "Invalid Scenarios",
+      "description": "Test permission violations and validation errors",
+      "parentId": "fld_users_create"
+    },
+    {
+      "_id": "fld_users_get",
+      "_type": "request_group",
+      "name": "Get Users",
+      "description": "Retrieve user information",
+      "parentId": "fld_users"
+    },
+    {
+      "_id": "fld_users_update",
+      "_type": "request_group",
+      "name": "Update User",
+      "description": "Update user profile",
+      "parentId": "fld_users"
+    },
+    {
+      "_id": "fld_users_toggle",
+      "_type": "request_group",
+      "name": "Toggle User Status",
+      "description": "Enable/disable user accounts",
+      "parentId": "fld_users"
+    },
+    {
+      "_id": "req_root_create_admin",
+      "_type": "request",
+      "name": "ROOT Creates ADMIN User",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"admin1\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"admin1@bibexpo.com\",\n  \"fullName\": \"Admin User One\",\n  \"phoneNumber\": \"+919876543210\",\n  \"role\": \"ROLE_ADMIN\",\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_root"
+    },
+    {
+      "_id": "req_root_create_org_admin",
+      "_type": "request",
+      "name": "ROOT Creates ORG_ADMIN User",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_admin1\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"orgadmin1@indiabookexpo.in\",\n  \"fullName\": \"Organization Admin One\",\n  \"phoneNumber\": \"+919876543211\",\n  \"role\": \"ROLE_ORGANIZER_ADMIN\",\n  \"organizationId\": 1,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_root"
+    },
+    {
+      "_id": "req_root_create_org_user",
+      "_type": "request",
+      "name": "ROOT Creates ORG_USER",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_user1\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"orguser1@indiabookexpo.in\",\n  \"fullName\": \"Organization User One\",\n  \"phoneNumber\": \"+919876543212\",\n  \"role\": \"ROLE_ORGANIZER_USER\",\n  \"organizationId\": 1,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_root"
+    },
+    {
+      "_id": "req_root_create_distributor",
+      "_type": "request",
+      "name": "ROOT Creates DISTRIBUTOR (No Email/Phone)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"distributor1\",\n  \"password\": \"SecurePass123!\",\n  \"fullName\": \"Distributor One\",\n  \"role\": \"ROLE_DISTRIBUTOR\",\n  \"organizationId\": 1,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_root"
+    },
+    {
+      "_id": "req_admin_create_org_admin",
+      "_type": "request",
+      "name": "ADMIN Creates ORG_ADMIN (Success)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_admin2\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"orgadmin2@delhibookfair.org\",\n  \"fullName\": \"Organization Admin Two\",\n  \"phoneNumber\": \"+919876543213\",\n  \"role\": \"ROLE_ORGANIZER_ADMIN\",\n  \"organizationId\": 2,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_admin"
+    },
+    {
+      "_id": "req_admin_create_org_user",
+      "_type": "request",
+      "name": "ADMIN Creates ORG_USER (Success)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_user2\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"orguser2@delhibookfair.org\",\n  \"fullName\": \"Organization User Two\",\n  \"phoneNumber\": \"+919876543214\",\n  \"role\": \"ROLE_ORGANIZER_USER\",\n  \"organizationId\": 2,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_admin"
+    },
+    {
+      "_id": "req_admin_create_distributor",
+      "_type": "request",
+      "name": "ADMIN Creates DISTRIBUTOR (Success)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"distributor2\",\n  \"password\": \"SecurePass123!\",\n  \"fullName\": \"Distributor Two\",\n  \"role\": \"ROLE_DISTRIBUTOR\",\n  \"organizationId\": 2,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_admin"
+    },
+    {
+      "_id": "req_orgadmin_create_org_user",
+      "_type": "request",
+      "name": "ORG_ADMIN Creates ORG_USER (Own Org - Success)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_user3\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"orguser3@indiabookexpo.in\",\n  \"fullName\": \"Organization User Three\",\n  \"phoneNumber\": \"+919876543215\",\n  \"role\": \"ROLE_ORGANIZER_USER\",\n  \"organizationId\": 1,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_orgadmin"
+    },
+    {
+      "_id": "req_orgadmin_create_distributor",
+      "_type": "request",
+      "name": "ORG_ADMIN Creates DISTRIBUTOR (Own Org - Success)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"distributor3\",\n  \"password\": \"SecurePass123!\",\n  \"fullName\": \"Distributor Three\",\n  \"role\": \"ROLE_DISTRIBUTOR\",\n  \"organizationId\": 1,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_orgadmin"
+    },
+    {
+      "_id": "req_invalid_admin_create_admin",
+      "_type": "request",
+      "name": "FAIL - ADMIN Cannot Create ADMIN (403)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"admin2\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"admin2@bibexpo.com\",\n  \"fullName\": \"Admin User Two\",\n  \"phoneNumber\": \"+919876543220\",\n  \"role\": \"ROLE_ADMIN\",\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_invalid_orgadmin_create_admin",
+      "_type": "request",
+      "name": "FAIL - ORG_ADMIN Cannot Create ADMIN (403)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"admin3\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"admin3@bibexpo.com\",\n  \"fullName\": \"Admin User Three\",\n  \"phoneNumber\": \"+919876543221\",\n  \"role\": \"ROLE_ADMIN\",\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_invalid_orgadmin_create_orgadmin",
+      "_type": "request",
+      "name": "FAIL - ORG_ADMIN Cannot Create ORG_ADMIN (403)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_admin3\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"orgadmin3@indiabookexpo.in\",\n  \"fullName\": \"Organization Admin Three\",\n  \"phoneNumber\": \"+919876543222\",\n  \"role\": \"ROLE_ORGANIZER_ADMIN\",\n  \"organizationId\": 1,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_invalid_orgadmin_wrong_org",
+      "_type": "request",
+      "name": "FAIL - ORG_ADMIN Create in Different Org (403)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_user_wrong\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"wrongorg@delhibookfair.org\",\n  \"fullName\": \"Wrong Organization User\",\n  \"phoneNumber\": \"+919876543223\",\n  \"role\": \"ROLE_ORGANIZER_USER\",\n  \"organizationId\": 2,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_invalid_create_root",
+      "_type": "request",
+      "name": "FAIL - Cannot Create ROOT (403)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"root2\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"root2@bibexpo.com\",\n  \"fullName\": \"Root User Two\",\n  \"phoneNumber\": \"+919876543224\",\n  \"role\": \"ROLE_ROOT\",\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_invalid_duplicate_username",
+      "_type": "request",
+      "name": "FAIL - Duplicate Username (409)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"admin1\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"different@bibexpo.com\",\n  \"fullName\": \"Duplicate Username\",\n  \"phoneNumber\": \"+919876543225\",\n  \"role\": \"ROLE_ADMIN\",\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_invalid_duplicate_email",
+      "_type": "request",
+      "name": "FAIL - Duplicate Email (409)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"admin_new\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"admin1@bibexpo.com\",\n  \"fullName\": \"Duplicate Email\",\n  \"phoneNumber\": \"+919876543226\",\n  \"role\": \"ROLE_ADMIN\",\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_invalid_missing_email",
+      "_type": "request",
+      "name": "FAIL - Missing Email for ADMIN (400)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"admin_no_email\",\n  \"password\": \"SecurePass123!\",\n  \"fullName\": \"Admin No Email\",\n  \"phoneNumber\": \"+919876543227\",\n  \"role\": \"ROLE_ADMIN\",\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_invalid_missing_phone",
+      "_type": "request",
+      "name": "FAIL - Missing Phone for ORG_USER (400)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_user_no_phone\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"nophone@indiabookexpo.in\",\n  \"fullName\": \"Org User No Phone\",\n  \"role\": \"ROLE_ORGANIZER_USER\",\n  \"organizationId\": 1,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_invalid_org_not_found",
+      "_type": "request",
+      "name": "FAIL - Organization Not Found (404)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"org_user_noorg\",\n  \"password\": \"SecurePass123!\",\n  \"email\": \"noorg@bibexpo.com\",\n  \"fullName\": \"User No Organization\",\n  \"phoneNumber\": \"+919876543228\",\n  \"role\": \"ROLE_ORGANIZER_USER\",\n  \"organizationId\": 99999,\n  \"enabled\": true\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_invalid"
+    },
+    {
+      "_id": "req_get_current_user",
+      "_type": "request",
+      "name": "Get Current User Profile",
+      "url": "{{ _.baseUrl }}/api/users/me",
+      "method": "GET",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_get"
+    },
+    {
+      "_id": "req_get_user_by_id",
+      "_type": "request",
+      "name": "Get User by ID",
+      "url": "{{ _.baseUrl }}/api/users/1",
+      "method": "GET",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_get"
+    },
+    {
+      "_id": "req_get_all_users",
+      "_type": "request",
+      "name": "Get All Users (ROOT/ADMIN only)",
+      "url": "{{ _.baseUrl }}/api/users",
+      "method": "GET",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_get"
+    },
+    {
+      "_id": "req_get_all_users_filtered",
+      "_type": "request",
+      "name": "Get All Users - Filtered (role, org, enabled)",
+      "url": "{{ _.baseUrl }}/api/users?role=ROLE_ORGANIZER_ADMIN&organizationId=1&enabled=true&sortBy=username&sortDirection=ASC",
+      "method": "GET",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_get"
+    },
+    {
+      "_id": "req_get_all_users_search",
+      "_type": "request",
+      "name": "Get All Users - Search by Name/Email",
+      "url": "{{ _.baseUrl }}/api/users?search=admin&sortBy=fullName",
+      "method": "GET",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_get"
+    },
+    {
+      "_id": "req_get_organization_users",
+      "_type": "request",
+      "name": "Get Organization Users (Own Org Only)",
+      "url": "{{ _.baseUrl }}/api/users/organization",
+      "method": "GET",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_get"
+    },
+    {
+      "_id": "req_get_organization_users_filtered",
+      "_type": "request",
+      "name": "Get Organization Users - Filtered",
+      "url": "{{ _.baseUrl }}/api/users/organization?role=ROLE_DISTRIBUTOR&enabled=true&sortBy=createdAt&sortDirection=DESC",
+      "method": "GET",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_get"
+    },
+    {
+      "_id": "req_update_user_self",
+      "_type": "request",
+      "name": "Update Own Profile",
+      "url": "{{ _.baseUrl }}/api/users/1",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"newemail@bibexpo.com\",\n  \"fullName\": \"Updated Full Name\",\n  \"phoneNumber\": \"+919999999999\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_update"
+    },
+    {
+      "_id": "req_update_user_password",
+      "_type": "request",
+      "name": "Update Password",
+      "url": "{{ _.baseUrl }}/api/users/1",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"password\": \"NewSecurePass456!\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_update"
+    },
+    {
+      "_id": "req_update_user_partial",
+      "_type": "request",
+      "name": "Update User - Email Only",
+      "url": "{{ _.baseUrl }}/api/users/2",
+      "method": "PATCH",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"updated@example.com\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_update"
+    },
+    {
+      "_id": "req_toggle_user_enable",
+      "_type": "request",
+      "name": "Toggle User Enabled Status",
+      "url": "{{ _.baseUrl }}/api/users/2/toggle-enabled",
+      "method": "PATCH",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_toggle"
+    },
+    {
+      "_id": "req_toggle_user_disable",
+      "_type": "request",
+      "name": "Disable User (ID 3)",
+      "url": "{{ _.baseUrl }}/api/users/3/toggle-enabled",
+      "method": "PATCH",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.jwtToken }}"
+        }
+      ],
+      "parentId": "fld_users_toggle"
+    }
+  ]
+}

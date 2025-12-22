@@ -41,6 +41,12 @@ root:
   username: ${ROOT_USERNAME:root}
   password: ${ROOT_PASSWORD:root}
 
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:default-secret-key-for-development-only-please-change-in-production-this-should-be-at-least-256-bits}
+  expiration: 604800000  # 7 days in milliseconds (7 * 24 * 60 * 60 * 1000)
+  issuer: marathon-bib-expo-service
+
 logging:
   level:
     org.springframework.web.servlet.handler.HandlerMappingIntrospector: ERROR
