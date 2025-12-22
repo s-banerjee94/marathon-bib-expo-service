@@ -54,6 +54,16 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     List<User> findByOrganizationIdAndEnabledTrueAndDeletedFalse(Long organizationId);
 
+    /**
+     * Count users by organization, role, and excluding deleted users.
+     * Used for enforcing organization user limits.
+     *
+     * @param organizationId the organization ID
+     * @param role the user role
+     * @return count of non-deleted users with the specified role in the organization
+     */
+    long countByOrganizationIdAndRoleAndDeletedFalse(Long organizationId, UserRole role);
+
     // Queries for deleted users
     List<User> findByDeletedTrue();
 

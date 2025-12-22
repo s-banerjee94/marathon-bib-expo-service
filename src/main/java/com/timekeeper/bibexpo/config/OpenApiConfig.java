@@ -16,21 +16,22 @@ public class OpenApiConfig {
     public OpenAPI userServiceOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("User Service API")
+                        .title("Marathon Bib Expo Service API")
                         .version("1.0.0")
-                        .description("BIB Expo User Management Service - Handles user authentication, authorization, and user lifecycle management for organizers, organizer users, and distributors")
+                        .description("BIB Expo Management Service - Handles user authentication, authorization, and user lifecycle management for organizers, organizer users, and distributors")
                         .contact(new Contact()
                                 .name("Bibliographic Expo Team")
                                 .email("support@bibexpo.com")))
                 .addServersItem(new Server()
-                        .url("http://localhost:8082")
+                        .url("http://localhost:8080")
                         .description("Local Development Server"))
-                .addSecurityItem(new SecurityRequirement().addList("basicAuth"))
+                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
                 .components(new io.swagger.v3.oas.models.Components()
-                        .addSecuritySchemes("basicAuth",
+                        .addSecuritySchemes("bearerAuth",
                                 new SecurityScheme()
                                         .type(SecurityScheme.Type.HTTP)
-                                        .scheme("basic")
-                                        .description("HTTP Basic Authentication - Use username and password to authenticate")));
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")
+                                        .description("JWT Bearer token authentication - Include the token in the Authorization header as: Bearer {token}")));
     }
 }
