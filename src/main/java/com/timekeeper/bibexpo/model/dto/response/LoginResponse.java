@@ -22,10 +22,13 @@ public class LoginResponse {
     @Schema(description = "Token expiration time in milliseconds", example = "604800000")
     private Long expiresIn;
 
+    @Schema(description = "User ID", example = "1")
+    private Long userId;
+
     @Schema(description = "Username", example = "admin")
     private String username;
 
-    @Schema(description = "User role", example = "ROLE_ADMIN")
+    @Schema(description = "User role", example = "ADMIN")
     private String role;
 
     @Schema(description = "Organization ID (nullable)", example = "123")

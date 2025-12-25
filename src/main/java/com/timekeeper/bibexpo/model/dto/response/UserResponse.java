@@ -36,7 +36,7 @@ public class UserResponse {
     @Schema(description = "Phone number", example = "+1234567890")
     private String phoneNumber;
 
-    @Schema(description = "User role", example = "ROLE_ADMIN")
+    @Schema(description = "User role", example = "ADMIN")
     private UserRole role;
 
     @Schema(description = "Organization ID (null for system-level roles)", example = "1")

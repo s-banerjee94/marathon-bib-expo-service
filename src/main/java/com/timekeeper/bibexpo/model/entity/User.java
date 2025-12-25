@@ -60,8 +60,8 @@ public class User implements UserDetails {
     private UserRole role;
 
     // Organization relationship - many users belong to one organization
-    // NULL for ROLE_ROOT and ROLE_ADMIN (system-level roles)
-    // Required for ROLE_ORGANIZER_ADMIN, ROLE_ORGANIZER_USER, ROLE_DISTRIBUTOR
+    // NULL for ROOT and ADMIN (system-level roles)
+    // Required for ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organization_id", foreignKey = @ForeignKey(name = "fk_user_organization"))
     private Organization organization;
@@ -99,7 +99,8 @@ public class User implements UserDetails {
     @Override
     @Transient
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singletonList(new SimpleGrantedAuthority(role.name()));
+        // Spring Security expects roles to have "ROLE_" prefix
+        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
     @Override

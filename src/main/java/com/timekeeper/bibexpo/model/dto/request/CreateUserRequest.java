@@ -49,11 +49,11 @@ public class CreateUserRequest {
     private String phoneNumber;
 
     @NotNull(message = "Role is required")
-    @Schema(description = "Role to assign to the user", example = "ROLE_ADMIN",
-            allowableValues = {"ROLE_ADMIN", "ROLE_ORGANIZER_ADMIN", "ROLE_ORGANIZER_USER", "ROLE_DISTRIBUTOR"})
+    @Schema(description = "Role to assign to the user", example = "ADMIN",
+            allowableValues = {"ADMIN", "ORGANIZER_ADMIN", "ORGANIZER_USER", "DISTRIBUTOR"})
     private UserRole role;
 
-    @Schema(description = "Organization ID (required for ROLE_ORGANIZER_ADMIN, ROLE_ORGANIZER_USER, ROLE_DISTRIBUTOR)", example = "1")
+    @Schema(description = "Organization ID (required for ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR)", example = "1")
     private Long organizationId;
 
     @Builder.Default

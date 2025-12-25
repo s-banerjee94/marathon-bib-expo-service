@@ -48,4 +48,11 @@ public interface JwtService {
      * @return organization ID or null
      */
     Long extractOrganizationId(String token);
+
+    /**
+     * Extract user ID from JWT token
+     * @param token JWT token
+     * @return user ID
+     */
+    Long extractUserId(String token);
 }

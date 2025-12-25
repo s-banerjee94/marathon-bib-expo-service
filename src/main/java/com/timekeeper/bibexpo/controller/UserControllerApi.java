@@ -38,10 +38,10 @@ public interface UserControllerApi {
     @Operation(
             summary = "Create a new user",
             description = "Creates a new user with specified role. " +
-                         "ROOT can create: ADMIN, ORG_ADMIN, ORG_USER, DISTRIBUTOR (any organization). " +
-                         "ADMIN can create: ORG_ADMIN, ORG_USER, DISTRIBUTOR (any organization, but NOT ADMIN). " +
-                         "ORG_ADMIN can create: ORG_USER, DISTRIBUTOR (only within their own organization). " +
-                         "Cannot create ROLE_ROOT (system-initialized only). " +
+                         "ROOT can create: ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization). " +
+                         "ADMIN can create: ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization, but NOT ADMIN). " +
+                         "ORGANIZER_ADMIN can create: ORGANIZER_USER, DISTRIBUTOR (only within their own organization). " +
+                         "Cannot create ROOT (system-initialized only). " +
                          "Organization user limits (maxOrganizerUsers, maxDistributors) are enforced."
     )
     @ApiResponses(value = {

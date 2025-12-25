@@ -44,7 +44,7 @@ public class RootUserInitializer implements CommandLineRunner {
                 .username(rootUsername)
                 .password(passwordEncoder.encode(rootPassword))
                 .fullName("System Root Administrator")
-                .role(UserRole.ROLE_ROOT)
+                .role(UserRole.ROOT)
                 .email(null)  // Optional for root user
                 .organization(null)  // Root users don't belong to any organization
                 .enabled(true)
@@ -55,6 +55,6 @@ public class RootUserInitializer implements CommandLineRunner {
                 .build();
 
         userRepository.save(rootUser);
-        log.info("Root user '{}' created successfully with role ROLE_ROOT", rootUsername);
+        log.info("Root user '{}' created successfully with role ROOT", rootUsername);
     }
 }

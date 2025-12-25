@@ -963,7 +963,7 @@
       "_id": "req_get_all_users_filtered",
       "_type": "request",
       "name": "Get All Users - Filtered (role, org, enabled)",
-      "url": "{{ _.baseUrl }}/api/users?role=ROLE_ORGANIZER_ADMIN&organizationId=1&enabled=true&sortBy=username&sortDirection=ASC",
+      "url": "{{ _.baseUrl }}/api/users?role=ORGANIZER_ADMIN&organizationId=1&enabled=true&sortBy=username&sortDirection=ASC",
       "method": "GET",
       "headers": [
         {
@@ -1005,7 +1005,7 @@
       "_id": "req_get_organization_users_filtered",
       "_type": "request",
       "name": "Get Organization Users - Filtered",
-      "url": "{{ _.baseUrl }}/api/users/organization?role=ROLE_DISTRIBUTOR&enabled=true&sortBy=createdAt&sortDirection=DESC",
+      "url": "{{ _.baseUrl }}/api/users/organization?role=DISTRIBUTOR&enabled=true&sortBy=createdAt&sortDirection=DESC",
       "method": "GET",
       "headers": [
         {

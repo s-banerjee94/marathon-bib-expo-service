@@ -34,6 +34,7 @@ public class JwtServiceImpl implements JwtService {
         Map<String, Object> claims = new HashMap<>();
 
         // Add custom claims
+        claims.put("userId", user.getId());
         claims.put("role", user.getRole().name());
 
         // Add organization ID if present (null for system-level roles)
@@ -131,6 +132,19 @@ public class JwtServiceImpl implements JwtService {
             return ((Integer) orgId).longValue();
         }
         return (Long) orgId;
+    }
+
+    @Override
+    public Long extractUserId(String token) {
+        Claims claims = extractAllClaims(token);
+        Object userId = claims.get("userId");
+        if (userId == null) {
+            return null;
+        }
+        if (userId instanceof Integer) {
+            return ((Integer) userId).longValue();
+        }
+        return (Long) userId;
     }
 
     private boolean isTokenExpired(String token) {

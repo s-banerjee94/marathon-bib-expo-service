@@ -145,7 +145,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void validateUpdateAuthorization(User currentUser, Long organizationId) {
-        if (currentUser.getRole() == UserRole.ROLE_ORGANIZER_ADMIN && (currentUser.getOrganization() == null ||
+        if (currentUser.getRole() == UserRole.ORGANIZER_ADMIN && (currentUser.getOrganization() == null ||
                     !currentUser.getOrganization().getId().equals(organizationId))) {
                 throw new UnauthorizedAccessException(
                         "You can only update your own organization");

@@ -29,7 +29,7 @@ public interface OrganizationControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
     @Operation(
             summary = "Create a new organization",
-            description = "Create a new organization. Only accessible by ROLE_ROOT or ROLE_ADMIN users."
+            description = "Create a new organization. Only accessible by ROOT or ADMIN users."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -50,7 +50,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - requires ROLE_ROOT or ROLE_ADMIN",
+                    description = "Access forbidden - requires ROOT or ADMIN",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -72,7 +72,7 @@ public interface OrganizationControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
             summary = "Update an organization",
-            description = "Partially update an organization. ROLE_ROOT and ROLE_ADMIN can update any organization. ROLE_ORGANIZER_ADMIN can only update their own organization."
+            description = "Partially update an organization. ROOT and ADMIN can update any organization. ORGANIZER_ADMIN can only update their own organization."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -125,7 +125,7 @@ public interface OrganizationControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
     @Operation(
             summary = "Enable or disable an organization",
-            description = "Enable or disable an organization. Only accessible by ROLE_ROOT or ROLE_ADMIN users. " +
+            description = "Enable or disable an organization. Only accessible by ROOT or ADMIN users. " +
                     "When an organization is disabled, all its users will be automatically disabled. " +
                     "When an organization is enabled, its users will NOT be automatically enabled."
     )
@@ -148,7 +148,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - requires ROLE_ROOT or ROLE_ADMIN",
+                    description = "Access forbidden - requires ROOT or ADMIN",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)

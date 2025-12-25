@@ -66,12 +66,12 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * Validate that ROLE_ROOT cannot be created via API
+     * Validate that ROOT cannot be created via API
      */
     private void validateRootCreationAttempt(UserRole requestedRole, String currentUsername) {
-        if (requestedRole == UserRole.ROLE_ROOT) {
-            log.error("Attempt to create ROLE_ROOT user by: {}", currentUsername);
-            throw new UnauthorizedAccessException("Cannot create ROLE_ROOT user. Root user is system-initialized only.");
+        if (requestedRole == UserRole.ROOT) {
+            log.error("Attempt to create ROOT user by: {}", currentUsername);
+            throw new UnauthorizedAccessException("Cannot create ROOT user. Root user is system-initialized only.");
         }
     }
 
@@ -79,7 +79,7 @@ public class UserServiceImpl implements UserService {
      * Validate email and phone requirements based on role
      */
     private void validateEmailAndPhoneRequirements(CreateUserRequest request) {
-        if (request.getRole() == UserRole.ROLE_DISTRIBUTOR) {
+        if (request.getRole() == UserRole.DISTRIBUTOR) {
             return; // Email and phone are optional for distributors
         }
 
@@ -167,17 +167,17 @@ public class UserServiceImpl implements UserService {
      * Check if the role requires an organization
      */
     private boolean isOrganizationRole(UserRole role) {
-        return role == UserRole.ROLE_ORGANIZER_ADMIN ||
-               role == UserRole.ROLE_ORGANIZER_USER ||
-               role == UserRole.ROLE_DISTRIBUTOR;
+        return role == UserRole.ORGANIZER_ADMIN ||
+               role == UserRole.ORGANIZER_USER ||
+               role == UserRole.DISTRIBUTOR;
     }
 
     /**
      * Check if the role is a system-level role
      */
     private boolean isSystemRole(UserRole role) {
-        return role == UserRole.ROLE_ROOT ||
-               role == UserRole.ROLE_ADMIN;
+        return role == UserRole.ROOT ||
+               role == UserRole.ADMIN;
     }
 
     /**
@@ -192,7 +192,7 @@ public class UserServiceImpl implements UserService {
         UserRole currentRole = currentUser.getRole();
 
         // Rule 1: Only ROOT can create ADMIN users
-        if (requestedRole == UserRole.ROLE_ADMIN && currentRole != UserRole.ROLE_ROOT) {
+        if (requestedRole == UserRole.ADMIN && currentRole != UserRole.ROOT) {
             log.error("User {} with role {} attempted to create ADMIN user",
                     currentUser.getUsername(), currentRole);
             throw new UnauthorizedAccessException(
@@ -200,9 +200,9 @@ public class UserServiceImpl implements UserService {
         }
 
         // Rule 2: ORG_ADMIN has restricted permissions
-        if (currentRole == UserRole.ROLE_ORGANIZER_ADMIN) {
+        if (currentRole == UserRole.ORGANIZER_ADMIN) {
             // ORG_ADMIN cannot create another ORG_ADMIN (already blocked: ROOT, ADMIN)
-            if (requestedRole == UserRole.ROLE_ORGANIZER_ADMIN) {
+            if (requestedRole == UserRole.ORGANIZER_ADMIN) {
                 log.error("ORG_ADMIN {} attempted to create another ORG_ADMIN user",
                         currentUser.getUsername());
                 throw new UnauthorizedAccessException(
@@ -245,12 +245,12 @@ public class UserServiceImpl implements UserService {
             return;
         }
 
-        if (requestedRole == UserRole.ROLE_DISTRIBUTOR) {
+        if (requestedRole == UserRole.DISTRIBUTOR) {
             // Check distributor limit
             int maxDistributors = organization.getMaxDistributors();
             if (maxDistributors > 0) { // 0 means unlimited
                 long currentDistributorCount = userRepository.countByOrganizationIdAndRoleAndDeletedFalse(
-                        organization.getId(), UserRole.ROLE_DISTRIBUTOR);
+                        organization.getId(), UserRole.DISTRIBUTOR);
 
                 if (currentDistributorCount >= maxDistributors) {
                     log.error("Organization {} has reached maximum distributor limit: {} (current: {})",
@@ -262,15 +262,15 @@ public class UserServiceImpl implements UserService {
                 log.debug("Distributor limit check passed for organization {}: {}/{}",
                         organization.getId(), currentDistributorCount + 1, maxDistributors);
             }
-        } else if (requestedRole == UserRole.ROLE_ORGANIZER_ADMIN ||
-                requestedRole == UserRole.ROLE_ORGANIZER_USER) {
+        } else if (requestedRole == UserRole.ORGANIZER_ADMIN ||
+                requestedRole == UserRole.ORGANIZER_USER) {
             // Check organizer user limit (combined ORG_ADMIN + ORG_USER)
             int maxOrganizerUsers = organization.getMaxOrganizerUsers();
             if (maxOrganizerUsers > 0) { // 0 means unlimited
                 long currentOrgAdminCount = userRepository.countByOrganizationIdAndRoleAndDeletedFalse(
-                        organization.getId(), UserRole.ROLE_ORGANIZER_ADMIN);
+                        organization.getId(), UserRole.ORGANIZER_ADMIN);
                 long currentOrgUserCount = userRepository.countByOrganizationIdAndRoleAndDeletedFalse(
-                        organization.getId(), UserRole.ROLE_ORGANIZER_USER);
+                        organization.getId(), UserRole.ORGANIZER_USER);
                 long totalOrganizerUsers = currentOrgAdminCount + currentOrgUserCount;
 
                 if (totalOrganizerUsers >= maxOrganizerUsers) {
@@ -303,7 +303,7 @@ public class UserServiceImpl implements UserService {
         if (currentUser.getOrganization() == null) {
             log.error("{} {} has no organization assigned", currentUser.getRole(), currentUser.getUsername());
             throw new UnauthorizedAccessException(
-                    currentUser.getRole() == UserRole.ROLE_ORGANIZER_ADMIN
+                    currentUser.getRole() == UserRole.ORGANIZER_ADMIN
                             ? "Organization administrator must be assigned to an organization"
                             : "Organization user must be assigned to an organization");
         }
@@ -409,23 +409,23 @@ public class UserServiceImpl implements UserService {
         UserRole currentRole = currentUser.getRole();
 
         // ROOT can update anyone
-        if (currentRole == UserRole.ROLE_ROOT) {
+        if (currentRole == UserRole.ROOT) {
             log.debug("ROOT user authorized to update user ID: {}", targetUser.getId());
             return;
         }
 
         // Delegate to role-specific validators
-        if (currentRole == UserRole.ROLE_ADMIN) {
+        if (currentRole == UserRole.ADMIN) {
             validateAdminUpdateAuthorization(currentUser, targetUser);
             return;
         }
 
-        if (currentRole == UserRole.ROLE_ORGANIZER_ADMIN) {
+        if (currentRole == UserRole.ORGANIZER_ADMIN) {
             validateOrgAdminUpdateAuthorization(currentUser, targetUser);
             return;
         }
 
-        if (currentRole == UserRole.ROLE_ORGANIZER_USER || currentRole == UserRole.ROLE_DISTRIBUTOR) {
+        if (currentRole == UserRole.ORGANIZER_USER || currentRole == UserRole.DISTRIBUTOR) {
             validateSelfUpdateOnly(currentUser, targetUser);
             return;
         }
@@ -449,13 +449,13 @@ public class UserServiceImpl implements UserService {
         UserRole targetRole = targetUser.getRole();
 
         // ADMIN cannot update ROOT
-        if (targetRole == UserRole.ROLE_ROOT) {
+        if (targetRole == UserRole.ROOT) {
             log.error("ADMIN {} attempted to update ROOT user", currentUser.getUsername());
             throw new UnauthorizedAccessException("ADMIN users cannot update ROOT users");
         }
 
         // ADMIN cannot update other ADMINs
-        if (targetRole == UserRole.ROLE_ADMIN) {
+        if (targetRole == UserRole.ADMIN) {
             log.error("ADMIN {} attempted to update another ADMIN user", currentUser.getUsername());
             throw new UnauthorizedAccessException("ADMIN users cannot update other ADMIN users");
         }
@@ -477,7 +477,7 @@ public class UserServiceImpl implements UserService {
         UserRole targetRole = targetUser.getRole();
 
         // ORG_ADMIN cannot update ROOT, ADMIN, or other ORG_ADMINs
-        if (isRestrictedRole(targetRole, UserRole.ROLE_ROOT, UserRole.ROLE_ADMIN, UserRole.ROLE_ORGANIZER_ADMIN)) {
+        if (isRestrictedRole(targetRole, UserRole.ROOT, UserRole.ADMIN, UserRole.ORGANIZER_ADMIN)) {
             log.error("ORG_ADMIN {} attempted to update {} user",
                     currentUser.getUsername(), targetRole);
             throw new UnauthorizedAccessException(
@@ -538,21 +538,21 @@ public class UserServiceImpl implements UserService {
         UserRole targetRole = targetUser.getRole();
 
         // ROOT can disable anyone
-        if (currentRole == UserRole.ROLE_ROOT) {
+        if (currentRole == UserRole.ROOT) {
             log.debug("ROOT user authorized to toggle enabled status for user ID: {}", targetUser.getId());
             return;
         }
 
         // ADMIN can disable anyone
-        if (currentRole == UserRole.ROLE_ADMIN) {
+        if (currentRole == UserRole.ADMIN) {
             log.debug("ADMIN user authorized to toggle enabled status for user ID: {}", targetUser.getId());
             return;
         }
 
         // ORG_ADMIN restrictions
-        if (currentRole == UserRole.ROLE_ORGANIZER_ADMIN) {
+        if (currentRole == UserRole.ORGANIZER_ADMIN) {
             // ORG_ADMIN cannot disable ROOT, ADMIN, or other ORG_ADMINs
-            if (isRestrictedRole(targetRole, UserRole.ROLE_ROOT, UserRole.ROLE_ADMIN, UserRole.ROLE_ORGANIZER_ADMIN)) {
+            if (isRestrictedRole(targetRole, UserRole.ROOT, UserRole.ADMIN, UserRole.ORGANIZER_ADMIN)) {
                 log.error("ORG_ADMIN {} attempted to toggle enabled status for {} user",
                         currentUser.getUsername(), targetRole);
                 throw new UnauthorizedAccessException(
@@ -567,9 +567,9 @@ public class UserServiceImpl implements UserService {
         }
 
         // ORG_USER restrictions
-        if (currentRole == UserRole.ROLE_ORGANIZER_USER) {
+        if (currentRole == UserRole.ORGANIZER_USER) {
             // ORG_USER can only disable DISTRIBUTORs
-            if (targetRole != UserRole.ROLE_DISTRIBUTOR) {
+            if (targetRole != UserRole.DISTRIBUTOR) {
                 log.error("ORG_USER {} attempted to toggle enabled status for {} user",
                         currentUser.getUsername(), targetRole);
                 throw new UnauthorizedAccessException(
@@ -617,7 +617,7 @@ public class UserServiceImpl implements UserService {
         UserRole currentRole = currentUser.getRole();
 
         // ROOT and ADMIN can view anyone
-        if (currentRole == UserRole.ROLE_ROOT || currentRole == UserRole.ROLE_ADMIN) {
+        if (currentRole == UserRole.ROOT || currentRole == UserRole.ADMIN) {
             log.debug("{} user authorized to view user ID: {}", currentRole, targetUser.getId());
             return;
         }
@@ -665,7 +665,7 @@ public class UserServiceImpl implements UserService {
      */
     private void validateSystemAdminPermission(User currentUser) {
         UserRole currentRole = currentUser.getRole();
-        if (currentRole != UserRole.ROLE_ROOT && currentRole != UserRole.ROLE_ADMIN) {
+        if (currentRole != UserRole.ROOT && currentRole != UserRole.ADMIN) {
             log.error("User {} with role {} attempted to access system-wide user list",
                     currentUser.getUsername(), currentRole);
             throw new UnauthorizedAccessException(
@@ -711,9 +711,9 @@ public class UserServiceImpl implements UserService {
      */
     private void validateOrganizationUserPermission(User currentUser) {
         UserRole currentRole = currentUser.getRole();
-        if (currentRole != UserRole.ROLE_ORGANIZER_ADMIN &&
-            currentRole != UserRole.ROLE_ORGANIZER_USER &&
-            currentRole != UserRole.ROLE_DISTRIBUTOR) {
+        if (currentRole != UserRole.ORGANIZER_ADMIN &&
+            currentRole != UserRole.ORGANIZER_USER &&
+            currentRole != UserRole.DISTRIBUTOR) {
             log.error("User {} with role {} attempted to access organization user list",
                     currentUser.getUsername(), currentRole);
             throw new UnauthorizedAccessException(
