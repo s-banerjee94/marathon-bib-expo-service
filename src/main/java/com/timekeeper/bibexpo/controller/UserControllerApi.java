@@ -32,7 +32,7 @@ import java.util.List;
  */
 @Tag(name = "User Management", description = "APIs for managing users")
 @RequestMapping("/api/users")
-@SecurityRequirement(name = "basicAuth")
+@SecurityRequirement(name = "bearerAuth")
 public interface UserControllerApi {
 
     @Operation(
