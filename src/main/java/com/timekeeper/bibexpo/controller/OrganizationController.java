@@ -4,11 +4,14 @@ package com.timekeeper.bibexpo.controller;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
+import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.OrganizationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,6 +24,25 @@ import org.springframework.web.bind.annotation.*;
 public class OrganizationController implements OrganizationControllerApi {
 
     private final OrganizationService organizationService;
+
+    @Override
+    @GetMapping
+    public ResponseEntity<PageableResponse<OrganizationResponse>> getAllOrganizations(
+            @RequestParam(required = false) Boolean enabled,
+            @RequestParam(required = false) Boolean deleted,
+            @RequestParam(required = false) String search,
+            Pageable pageable,
+            @AuthenticationPrincipal User currentUser) {
+        log.info("Received request to get all organizations by user: {} with filters - enabled: {}, deleted: {}, search: {}",
+                currentUser.getUsername(), enabled, deleted, search);
+
+        Page<OrganizationResponse> organizationsPage = organizationService.getAllOrganizations(
+                enabled, deleted, search, pageable, currentUser);
+
+        PageableResponse<OrganizationResponse> response = PageableResponse.of(organizationsPage);
+
+        return ResponseEntity.ok(response);
+    }
 
     @Override
     @PostMapping

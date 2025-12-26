@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.model.entity;
 
+import com.timekeeper.bibexpo.config.EmptyStringToNullConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -47,8 +48,10 @@ public class Organization implements Serializable {
     @Column(nullable = false)
     private String email;
 
+    @Convert(converter = EmptyStringToNullConverter.class)
     private String phoneNumber;
 
+    @Convert(converter = EmptyStringToNullConverter.class)
     private String website;
 
     // Address Information
@@ -65,8 +68,10 @@ public class Organization implements Serializable {
     private String country;
 
     // Tax & Legal Information
+    @Convert(converter = EmptyStringToNullConverter.class)
     private String taxId;
 
+    @Convert(converter = EmptyStringToNullConverter.class)
     private String registrationNumber;
 
     // Limits & Quotas (moved from User entity)
@@ -93,6 +98,7 @@ public class Organization implements Serializable {
 
     private LocalDateTime subscriptionEndDate;
 
+    @Convert(converter = EmptyStringToNullConverter.class)
     private String billingEmail;
 
     // Status Fields

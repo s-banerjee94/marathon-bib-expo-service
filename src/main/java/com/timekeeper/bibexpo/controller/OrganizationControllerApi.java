@@ -4,7 +4,9 @@ import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
+import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -13,17 +15,55 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.timekeeper.bibexpo.model.entity.User;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Tag(name = "Organization Management", description = "APIs for managing organizations")
-@SecurityRequirement(name = "basicAuth")
+@SecurityRequirement(name = "bearerAuth")
 public interface OrganizationControllerApi {
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
+    @Operation(
+            summary = "Get all organizations with pagination",
+            description = "Retrieve all organizations with optional filtering and pagination. Only accessible by ROOT or ADMIN users."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Organizations retrieved successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = PageableResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Access forbidden - requires ROOT or ADMIN",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<PageableResponse<OrganizationResponse>> getAllOrganizations(
+            @Parameter(description = "Filter by enabled status (true/false)")
+            @RequestParam(required = false) Boolean enabled,
+            @Parameter(description = "Filter by deleted status (true/false)")
+            @RequestParam(required = false) Boolean deleted,
+            @Parameter(description = "Search across organizer name, email, and phone number (partial match, case-insensitive)")
+            @RequestParam(required = false) String search,
+            @Parameter(description = "Pagination parameters")
+            Pageable pageable,
+            @AuthenticationPrincipal User currentUser);
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")

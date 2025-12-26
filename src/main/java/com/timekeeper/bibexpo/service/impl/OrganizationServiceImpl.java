@@ -12,11 +12,16 @@ import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.OrganizationService;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -26,6 +31,90 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<OrganizationResponse> getAllOrganizations(
+            Boolean enabled, Boolean deleted, String search, Pageable pageable, User currentUser) {
+        log.info("Fetching all organizations with filters - enabled: {}, deleted: {}, search: {}, user: {}",
+                enabled, deleted, search, currentUser.getUsername());
+
+        // Only ROOT and ADMIN can access this method (enforced by @PreAuthorize in controller)
+        // But we'll add an additional check here for extra security
+        if (currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedAccessException(
+                    "Only ROOT and ADMIN users can view all organizations");
+        }
+
+        // Build dynamic specification for filtering
+        Specification<Organization> spec = buildOrganizationSpecification(enabled, deleted, search);
+
+        // Fetch organizations with pagination
+        Page<Organization> organizationsPage = organizationRepository.findAll(spec, pageable);
+
+        // Convert to response DTOs
+        Page<OrganizationResponse> responsePage = organizationsPage.map(OrganizationResponse::fromEntity);
+
+        log.info("Successfully fetched {} organizations (page {} of {})",
+                responsePage.getNumberOfElements(),
+                responsePage.getNumber() + 1,
+                responsePage.getTotalPages());
+
+        return responsePage;
+    }
+
+    /**
+     * Build dynamic specification for filtering organizations
+     */
+    private Specification<Organization> buildOrganizationSpecification(
+            Boolean enabled, Boolean deleted, String search) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Filter by enabled status if provided
+            if (enabled != null) {
+                predicates.add(criteriaBuilder.equal(root.get("enabled"), enabled));
+            }
+
+            // Filter by deleted status if provided
+            if (deleted != null) {
+                predicates.add(criteriaBuilder.equal(root.get("deleted"), deleted));
+            } else {
+                // By default, exclude deleted organizations unless explicitly requested
+                predicates.add(criteriaBuilder.equal(root.get("deleted"), false));
+            }
+
+            // Multi-field search across organizerName, email, and phoneNumber
+            // Uses OR logic - matches if ANY field contains the search term
+            if (search != null && !search.isBlank()) {
+                String searchPattern = "%" + search.toLowerCase() + "%";
+
+                Predicate organizerNamePredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("organizerName")),
+                        searchPattern
+                );
+
+                Predicate emailPredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("email")),
+                        searchPattern
+                );
+
+                Predicate phoneNumberPredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("phoneNumber")),
+                        searchPattern
+                );
+
+                // Combine the three predicates with OR
+                predicates.add(criteriaBuilder.or(
+                        organizerNamePredicate,
+                        emailPredicate,
+                        phoneNumberPredicate
+                ));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
 
     @Override
     @Transactional
@@ -47,7 +136,6 @@ public class OrganizationServiceImpl implements OrganizationService {
             }
 
 
-        // Build the organization entity
         Organization organization = Organization.builder()
                 .organizerName(request.getOrganizerName())
                 .email(request.getEmail())
@@ -65,8 +153,8 @@ public class OrganizationServiceImpl implements OrganizationService {
                         request.getMaxOrganizerUsers() : 5)
                 .maxDistributors(request.getMaxDistributors() != null ?
                         request.getMaxDistributors() : 30)
-                .subscriptionTier(request.getSubscriptionTier())
-                .billingEmail(request.getBillingEmail())
+                .subscriptionTier(emptyToNull(request.getSubscriptionTier()))
+                .billingEmail(emptyToNull(request.getBillingEmail()))
                 .subscriptionStatus("ACTIVE")
                 .enabled(true)
                 .deleted(false)
@@ -190,10 +278,10 @@ public class OrganizationServiceImpl implements OrganizationService {
             organization.setEmail(request.getEmail());
         }
         if (request.getPhoneNumber() != null) {
-            organization.setPhoneNumber(request.getPhoneNumber());
+            organization.setPhoneNumber(emptyToNull(request.getPhoneNumber()));
         }
         if (request.getWebsite() != null) {
-            organization.setWebsite(request.getWebsite());
+            organization.setWebsite(emptyToNull(request.getWebsite()));
         }
     }
 
@@ -220,10 +308,10 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     private void updateBusinessInfo(Organization organization, UpdateOrganizationRequest request) {
         if (request.getTaxId() != null) {
-            organization.setTaxId(request.getTaxId());
+            organization.setTaxId(emptyToNull(request.getTaxId()));
         }
         if (request.getRegistrationNumber() != null) {
-            organization.setRegistrationNumber(request.getRegistrationNumber());
+            organization.setRegistrationNumber(emptyToNull(request.getRegistrationNumber()));
         }
         if (request.getMaxOrganizerUsers() != null) {
             organization.setMaxOrganizerUsers(request.getMaxOrganizerUsers());
@@ -235,10 +323,14 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     private void updateSubscriptionInfo(Organization organization, UpdateOrganizationRequest request) {
         if (request.getSubscriptionTier() != null) {
-            organization.setSubscriptionTier(request.getSubscriptionTier());
+            organization.setSubscriptionTier(emptyToNull(request.getSubscriptionTier()));
         }
         if (request.getBillingEmail() != null) {
-            organization.setBillingEmail(request.getBillingEmail());
+            organization.setBillingEmail(emptyToNull(request.getBillingEmail()));
         }
+    }
+
+    private String emptyToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value;
     }
 }

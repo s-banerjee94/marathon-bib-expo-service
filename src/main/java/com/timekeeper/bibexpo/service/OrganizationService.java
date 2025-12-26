@@ -4,9 +4,23 @@ import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 
 public interface OrganizationService {
+
+    /**
+     * Get all organizations with optional filters and pagination
+     * Only ROOT and ADMIN users can access this method
+     * @param enabled Filter by enabled status (null for all)
+     * @param deleted Filter by deleted status (null for all)
+     * @param search Search across organizer name, email, and phone number (partial match, case-insensitive, null for all)
+     * @param pageable Pagination parameters
+     * @param currentUser The authenticated user
+     * @return Page of organization responses
+     */
+    Page<OrganizationResponse> getAllOrganizations(Boolean enabled, Boolean deleted, String search, Pageable pageable, User currentUser);
 
     /**
      * Create a new organization
