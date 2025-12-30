@@ -102,6 +102,134 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
+    @ExceptionHandler(EventAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleEventAlreadyExists(
+            EventAlreadyExistsException ex, WebRequest request) {
+        log.error("Event already exists: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error("Conflict")
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(EventNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleEventNotFound(
+            EventNotFoundException ex, WebRequest request) {
+        log.error("Event not found: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.NOT_FOUND.value())
+                .error("Not Found")
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(EventDeletionNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleEventDeletionNotAllowed(
+            EventDeletionNotAllowedException ex, WebRequest request) {
+        log.error("Event deletion not allowed: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(BAD_REQUEST)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(RaceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleRaceNotFound(
+            RaceNotFoundException ex, WebRequest request) {
+        log.error("Race not found: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.NOT_FOUND.value())
+                .error("Not Found")
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(RaceAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleRaceAlreadyExists(
+            RaceAlreadyExistsException ex, WebRequest request) {
+        log.error("Race already exists: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error("Conflict")
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(RaceDeletionNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleRaceDeletionNotAllowed(
+            RaceDeletionNotAllowedException ex, WebRequest request) {
+        log.error("Race deletion not allowed: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(BAD_REQUEST)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(CategoryNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleCategoryNotFound(
+            CategoryNotFoundException ex, WebRequest request) {
+        log.error("Category not found: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.NOT_FOUND.value())
+                .error("Not Found")
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(CategoryAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleCategoryAlreadyExists(
+            CategoryAlreadyExistsException ex, WebRequest request) {
+        log.error("Category already exists: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error("Conflict")
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
     @ExceptionHandler(UnauthorizedAccessException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorizedAccess(
             UnauthorizedAccessException ex, WebRequest request) {

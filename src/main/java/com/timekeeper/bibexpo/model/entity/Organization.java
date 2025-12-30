@@ -128,4 +128,9 @@ public class Organization implements Serializable {
     @OneToMany(mappedBy = "organization", cascade = CascadeType.ALL)
     @Builder.Default
     private List<User> users = new ArrayList<>();
+
+    // Bidirectional relationship with Events
+    @OneToMany(mappedBy = "organization", cascade = CascadeType.ALL)
+    @Builder.Default
+    private List<Event> events = new ArrayList<>();
 }
