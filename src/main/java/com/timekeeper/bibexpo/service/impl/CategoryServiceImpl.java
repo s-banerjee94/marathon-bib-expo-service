@@ -1,0 +1,216 @@
+package com.timekeeper.bibexpo.service.impl;
+
+import com.timekeeper.bibexpo.exception.CategoryAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.CategoryNotFoundException;
+import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.exception.RaceNotFoundException;
+import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.model.dto.request.CreateCategoryRequest;
+import com.timekeeper.bibexpo.model.dto.request.UpdateCategoryRequest;
+import com.timekeeper.bibexpo.model.dto.response.CategoryResponse;
+import com.timekeeper.bibexpo.model.entity.Category;
+import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.Gender;
+import com.timekeeper.bibexpo.model.entity.Race;
+import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.repository.CategoryRepository;
+import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.repository.RaceRepository;
+import com.timekeeper.bibexpo.service.CategoryService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class CategoryServiceImpl implements CategoryService {
+
+    private final CategoryRepository categoryRepository;
+    private final RaceRepository raceRepository;
+    private final EventRepository eventRepository;
+
+    @Override
+    @Transactional
+    public CategoryResponse createCategory(Long eventId, Long raceId, CreateCategoryRequest request, User currentUser) {
+        log.info("Creating category: {} for race ID: {} in event ID: {} by user: {}",
+                request.getCategoryName(), raceId, eventId, currentUser.getUsername());
+
+        Race race = validateRaceAndEvent(eventId, raceId, currentUser);
+
+        if (categoryRepository.existsByCategoryNameAndRaceIdAndDeletedFalse(request.getCategoryName(), raceId)) {
+            throw new CategoryAlreadyExistsException(
+                    "Category with name '" + request.getCategoryName() + "' already exists for this race");
+        }
+
+        Category category = Category.builder()
+                .categoryName(request.getCategoryName())
+                .minAge(request.getMinAge())
+                .maxAge(request.getMaxAge())
+                .gender(request.getGender())
+                .race(race)
+                .deleted(false)
+                .build();
+
+        Category savedCategory = categoryRepository.save(category);
+        log.info("Successfully created category with ID: {} by user: {}",
+                savedCategory.getId(), currentUser.getUsername());
+
+        return CategoryResponse.fromEntity(savedCategory);
+    }
+
+    @Override
+    @Transactional
+    public CategoryResponse updateCategory(Long eventId, Long raceId, Long categoryId,
+                                          UpdateCategoryRequest request, User currentUser) {
+        log.info("Updating category with ID: {} for race ID: {} in event ID: {} by user: {}",
+                categoryId, raceId, eventId, currentUser.getUsername());
+
+        Race race = validateRaceAndEvent(eventId, raceId, currentUser);
+
+        Category category = categoryRepository.findByIdAndDeletedFalse(categoryId)
+                .orElseThrow(() -> new CategoryNotFoundException("Category not found with ID: " + categoryId));
+
+        if (!category.getRace().getId().equals(raceId)) {
+            throw new CategoryNotFoundException(
+                    "Category with ID: " + categoryId + " does not belong to race with ID: " + raceId);
+        }
+
+        if (request.getCategoryName() != null && !request.getCategoryName().isBlank() &&
+                !request.getCategoryName().equals(category.getCategoryName())) {
+            if (categoryRepository.existsByCategoryNameAndRaceIdAndDeletedFalse(request.getCategoryName(), raceId)) {
+                throw new CategoryAlreadyExistsException(
+                        "Category with name '" + request.getCategoryName() + "' already exists for this race");
+            }
+            category.setCategoryName(request.getCategoryName());
+        }
+
+        updateIfNotNull(request.getMinAge(), category::setMinAge);
+        updateIfNotNull(request.getMaxAge(), category::setMaxAge);
+        updateIfNotNull(request.getGender(), category::setGender);
+
+        Category updatedCategory = categoryRepository.save(category);
+        log.info("Successfully updated category with ID: {} by user: {}",
+                updatedCategory.getId(), currentUser.getUsername());
+
+        return CategoryResponse.fromEntity(updatedCategory);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CategoryResponse getCategoryById(Long eventId, Long raceId, Long categoryId, User currentUser) {
+        log.info("Fetching category by ID: {} for race ID: {} in event ID: {} for user: {}",
+                categoryId, raceId, eventId, currentUser.getUsername());
+
+        validateRaceAndEvent(eventId, raceId, currentUser);
+
+        Category category = categoryRepository.findByIdAndDeletedFalse(categoryId)
+                .orElseThrow(() -> new CategoryNotFoundException("Category not found with ID: " + categoryId));
+
+        if (!category.getRace().getId().equals(raceId)) {
+            throw new CategoryNotFoundException(
+                    "Category with ID: " + categoryId + " does not belong to race with ID: " + raceId);
+        }
+
+        log.info("Successfully fetched category with ID: {} for user: {}",
+                category.getId(), currentUser.getUsername());
+
+        return CategoryResponse.fromEntity(category);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CategoryResponse> getCategoriesByRaceId(Long eventId, Long raceId, Gender gender, User currentUser) {
+        log.info("Fetching categories for race ID: {} in event ID: {} with gender filter: {} by user: {}",
+                raceId, eventId, gender, currentUser.getUsername());
+
+        validateRaceAndEvent(eventId, raceId, currentUser);
+
+        List<Category> categories;
+        if (gender != null) {
+            categories = categoryRepository.findByRaceIdAndGenderAndDeletedFalse(raceId, gender);
+        } else {
+            categories = categoryRepository.findByRaceIdAndDeletedFalse(raceId);
+        }
+
+        List<CategoryResponse> categoryResponses = categories.stream()
+                .map(CategoryResponse::fromEntity)
+                .collect(Collectors.toList());
+
+        log.info("Successfully fetched {} categories for race ID: {} by user: {}",
+                categoryResponses.size(), raceId, currentUser.getUsername());
+
+        return categoryResponses;
+    }
+
+    @Override
+    @Transactional
+    public void deleteCategory(Long eventId, Long raceId, Long categoryId, User currentUser) {
+        log.info("Deleting category with ID: {} for race ID: {} in event ID: {} by user: {}",
+                categoryId, raceId, eventId, currentUser.getUsername());
+
+        validateRaceAndEvent(eventId, raceId, currentUser);
+
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new CategoryNotFoundException("Category not found with ID: " + categoryId));
+
+        if (!category.getRace().getId().equals(raceId)) {
+            throw new CategoryNotFoundException(
+                    "Category with ID: " + categoryId + " does not belong to race with ID: " + raceId);
+        }
+
+        categoryRepository.delete(category);
+        log.info("Successfully deleted category with ID: {} by user: {}",
+                categoryId, currentUser.getUsername());
+    }
+
+    private Race validateRaceAndEvent(Long eventId, Long raceId, User currentUser) {
+        Event event = eventRepository.findByIdAndDeletedFalse(eventId)
+                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+
+        validateUserAuthorizationForEvent(currentUser, event);
+
+        Race race = raceRepository.findByIdAndDeletedFalse(raceId)
+                .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
+
+        if (!race.getEvent().getId().equals(eventId)) {
+            throw new RaceNotFoundException("Race with ID: " + raceId + " does not belong to event with ID: " + eventId);
+        }
+
+        return race;
+    }
+
+    private void validateUserAuthorizationForEvent(User currentUser, Event event) {
+        UserRole role = currentUser.getRole();
+
+        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
+            return;
+        }
+
+        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
+            if (currentUser.getOrganization() == null) {
+                throw new UnauthorizedAccessException("User does not belong to any organization");
+            }
+
+            if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
+                throw new UnauthorizedAccessException(
+                        "User can only access categories from their own organization's events");
+            }
+            return;
+        }
+
+        throw new UnauthorizedAccessException("User does not have permission to access categories");
+    }
+
+    private <T> void updateIfNotNull(T value, Consumer<T> setter) {
+        if (value != null) {
+            setter.accept(value);
+        }
+    }
+}
