@@ -74,9 +74,6 @@ public class EventResponse {
     @Schema(description = "Event enabled status", example = "true")
     private Boolean enabled;
 
-    @Schema(description = "Event deleted status", example = "false")
-    private Boolean deleted;
-
     @Schema(description = "Creation timestamp")
     private LocalDateTime createdAt;
 
@@ -113,7 +110,6 @@ public class EventResponse {
                 .organizationId(event.getOrganization() != null ? event.getOrganization().getId() : null)
                 .eventGoodies(event.getEventGoodies())
                 .enabled(event.getEnabled())
-                .deleted(event.getDeleted())
                 .createdAt(event.getCreatedAt())
                 .updatedAt(event.getUpdatedAt())
                 .createdBy(event.getCreatedBy())

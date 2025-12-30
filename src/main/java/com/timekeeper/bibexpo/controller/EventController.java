@@ -34,15 +34,14 @@ public class EventController implements EventControllerApi {
     public ResponseEntity<PageableResponse<EventResponse>> getAllEvents(
             @RequestParam(required = false) Long organizationId,
             @RequestParam(required = false) EventStatus status,
-            @RequestParam(required = false) Boolean deleted,
             @RequestParam(required = false) String search,
             Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get all events by user: {} with filters - organizationId: {}, status: {}, deleted: {}, search: {}",
-                currentUser.getUsername(), organizationId, status, deleted, search);
+        log.info("Received request to get all events by user: {} with filters - organizationId: {}, status: {}, search: {}",
+                currentUser.getUsername(), organizationId, status, search);
 
         Page<EventResponse> eventsPage = eventService.getAllEvents(
-                organizationId, status, deleted, search, pageable, currentUser);
+                organizationId, status, search, pageable, currentUser);
 
         PageableResponse<EventResponse> response = PageableResponse.of(eventsPage);
 

@@ -171,7 +171,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     private Race validateRaceAndEvent(Long eventId, Long raceId, User currentUser) {
-        Event event = eventRepository.findByIdAndDeletedFalse(eventId)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
@@ -206,6 +206,25 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         throw new UnauthorizedAccessException("User does not have permission to access categories");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Category findByRaceIdAndCategoryName(Long raceId, String categoryName, User currentUser) {
+        log.info("Finding category by race ID: {} and category name: {} by user: {}",
+                raceId, categoryName, currentUser.getUsername());
+
+        Race race = raceRepository.findByIdAndDeletedFalse(raceId)
+                .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
+
+        Event event = eventRepository.findById(race.getEvent().getId())
+                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + race.getEvent().getId()));
+
+        validateUserAuthorizationForEvent(currentUser, event);
+
+        return categoryRepository.findByCategoryNameAndRaceIdAndDeletedFalse(categoryName, raceId)
+                .orElseThrow(() -> new CategoryNotFoundException(
+                        "Category with name '" + categoryName + "' not found for race with ID: " + raceId));
     }
 
     private <T> void updateIfNotNull(T value, Consumer<T> setter) {

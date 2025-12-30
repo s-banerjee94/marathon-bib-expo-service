@@ -26,7 +26,6 @@ import java.util.List;
                 @Index(name = "idx_event_name", columnList = "event_name"),
                 @Index(name = "idx_event_status", columnList = "status"),
                 @Index(name = "idx_event_enabled", columnList = "enabled"),
-                @Index(name = "idx_event_deleted", columnList = "deleted"),
                 @Index(name = "idx_event_start_date", columnList = "event_start_date"),
                 @Index(name = "idx_event_organization", columnList = "organization_id")
         })
@@ -100,10 +99,6 @@ public class Event implements Serializable {
     @Column(nullable = false)
     @Builder.Default
     private Boolean enabled = true;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Boolean deleted = false;
 
     @CreatedDate
     @Column(updatable = false)

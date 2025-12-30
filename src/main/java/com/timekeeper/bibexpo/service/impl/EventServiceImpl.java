@@ -50,7 +50,7 @@ public class EventServiceImpl implements EventService {
 
         validateUserAuthorization(currentUser, organization);
 
-        if (eventRepository.existsByEventNameAndOrganizationIdAndDeletedFalse(
+        if (eventRepository.existsByEventNameAndOrganizationId(
                 request.getEventName(), request.getOrganizationId())) {
             throw new EventAlreadyExistsException(
                     "Event with name '" + request.getEventName() +
@@ -75,7 +75,6 @@ public class EventServiceImpl implements EventService {
                 .status(request.getStatus() != null ? request.getStatus() : EventStatus.DRAFT)
                 .organization(organization)
                 .eventGoodies(request.getEventGoodies())
-                .deleted(false)
                 .build();
 
         Event savedEvent = eventRepository.save(event);
@@ -90,14 +89,14 @@ public class EventServiceImpl implements EventService {
     public EventResponse updateEvent(Long id, UpdateEventRequest request, User currentUser) {
         log.info("Updating event with ID: {} by user: {}", id, currentUser.getUsername());
 
-        Event event = eventRepository.findByIdAndDeletedFalse(id)
+        Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + id));
 
         validateUserAuthorizationForView(currentUser, event);
 
         if (request.getEventName() != null && !request.getEventName().isBlank() &&
                 !request.getEventName().equals(event.getEventName())) {
-            if (eventRepository.existsByEventNameAndOrganizationIdAndDeletedFalse(
+            if (eventRepository.existsByEventNameAndOrganizationId(
                     request.getEventName(), event.getOrganization().getId())) {
                 throw new EventAlreadyExistsException(
                         "Event with name '" + request.getEventName() + "' already exists for this organization");
@@ -130,12 +129,12 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public Page<EventResponse> getAllEvents(
-            Long organizationId, EventStatus status, Boolean deleted, String search,
+            Long organizationId, EventStatus status, String search,
             Pageable pageable, User currentUser) {
-        log.info("Fetching all events with filters - organizationId: {}, status: {}, deleted: {}, search: {}, user: {}",
-                organizationId, status, deleted, search, currentUser.getUsername());
+        log.info("Fetching all events with filters - organizationId: {}, status: {}, search: {}, user: {}",
+                organizationId, status, search, currentUser.getUsername());
 
-        Specification<Event> spec = buildEventSpecification(organizationId, status, deleted, search);
+        Specification<Event> spec = buildEventSpecification(organizationId, status, search);
 
         Page<Event> eventsPage = eventRepository.findAll(spec, pageable);
 
@@ -163,7 +162,7 @@ public class EventServiceImpl implements EventService {
 
         Long organizationId = currentUser.getOrganization().getId();
 
-        Specification<Event> spec = buildEventSpecification(organizationId, status, false, search);
+        Specification<Event> spec = buildEventSpecification(organizationId, status, search);
 
         Page<Event> eventsPage = eventRepository.findAll(spec, pageable);
 
@@ -182,7 +181,7 @@ public class EventServiceImpl implements EventService {
     public EventResponse getEventById(Long id, User currentUser) {
         log.info("Fetching event by ID: {} for user: {}", id, currentUser.getUsername());
 
-        Event event = eventRepository.findByIdAndDeletedFalse(id)
+        Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new EventNotFoundException(
                         "Event not found with ID: " + id));
 
@@ -199,7 +198,7 @@ public class EventServiceImpl implements EventService {
     public EventResponse toggleEventEnabled(Long id, User currentUser) {
         log.info("Toggling enabled status for event with ID: {} by user: {}", id, currentUser.getUsername());
 
-        Event event = eventRepository.findByIdAndDeletedFalse(id)
+        Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + id));
 
         validateUserAuthorizationForView(currentUser, event);
@@ -261,7 +260,7 @@ public class EventServiceImpl implements EventService {
     }
 
     private Specification<Event> buildEventSpecification(
-            Long organizationId, EventStatus status, Boolean deleted, String search) {
+            Long organizationId, EventStatus status, String search) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -275,12 +274,6 @@ public class EventServiceImpl implements EventService {
 
             if (status != null) {
                 predicates.add(criteriaBuilder.equal(root.get("status"), status));
-            }
-
-            if (deleted != null) {
-                predicates.add(criteriaBuilder.equal(root.get("deleted"), deleted));
-            } else {
-                predicates.add(criteriaBuilder.equal(root.get("deleted"), false));
             }
 
             if (search != null && !search.isBlank()) {

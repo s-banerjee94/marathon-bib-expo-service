@@ -85,4 +85,13 @@ public interface RaceService {
      * @return The updated race response
      */
     RaceResponse toggleRaceEnabled(Long eventId, Long raceId, User currentUser);
+
+    /**
+     * Find race by event ID and race name
+     * @param eventId The event ID
+     * @param raceName The race name
+     * @param currentUser The authenticated user
+     * @return The race entity
+     */
+    com.timekeeper.bibexpo.model.entity.Race findByEventIdAndRaceName(Long eventId, String raceName, User currentUser);
 }

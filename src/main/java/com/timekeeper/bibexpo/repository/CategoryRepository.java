@@ -17,4 +17,6 @@ public interface CategoryRepository extends JpaRepository<Category, Long>, JpaSp
     List<Category> findByRaceIdAndGenderAndDeletedFalse(Long raceId, Gender gender);
 
     boolean existsByCategoryNameAndRaceIdAndDeletedFalse(String categoryName, Long raceId);
+
+    Optional<Category> findByCategoryNameAndRaceIdAndDeletedFalse(String categoryName, Long raceId);
 }

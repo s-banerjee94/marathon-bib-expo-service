@@ -41,13 +41,12 @@ public interface EventService {
      * - Only ROOT and ADMIN can access this method
      * @param organizationId Filter by organization ID (null for all)
      * @param status Filter by event status (null for all)
-     * @param deleted Filter by deleted status (null for all)
      * @param search Search across event name, description, and venue name (partial match, case-insensitive, null for all)
      * @param pageable Pagination and sorting parameters
      * @param currentUser The authenticated user
      * @return Page of event responses
      */
-    Page<EventResponse> getAllEvents(Long organizationId, EventStatus status, Boolean deleted, String search, Pageable pageable, User currentUser);
+    Page<EventResponse> getAllEvents(Long organizationId, EventStatus status, String search, Pageable pageable, User currentUser);
 
     /**
      * Get all events in the current user's organization with optional filters and pagination

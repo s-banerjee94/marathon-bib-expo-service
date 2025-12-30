@@ -64,8 +64,6 @@ public interface EventControllerApi {
             @RequestParam(required = false) Long organizationId,
             @Parameter(description = "Filter by event status (DRAFT, PUBLISHED, CANCELLED, COMPLETED)")
             @RequestParam(required = false) EventStatus status,
-            @Parameter(description = "Filter by deleted status (true/false)")
-            @RequestParam(required = false) Boolean deleted,
             @Parameter(description = "Search across event name, description, and venue name (partial match, case-insensitive)")
             @RequestParam(required = false) String search,
             @Parameter(description = "Pagination and sorting parameters")
@@ -78,7 +76,7 @@ public interface EventControllerApi {
             summary = "Get events in current user's organization",
             description = "Retrieve all events in the current user's organization with optional filtering, search, and pagination. " +
                     "Only ORGANIZER_ADMIN and ORGANIZER_USER can access this endpoint. " +
-                    "Automatically scoped to the user's organization. Cannot include deleted events."
+                    "Automatically scoped to the user's organization."
     )
     @ApiResponses(value = {
             @ApiResponse(

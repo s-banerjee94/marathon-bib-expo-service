@@ -38,7 +38,7 @@ public class RaceServiceImpl implements RaceService {
         log.info("Creating race: {} for event ID: {} by user: {}",
                 request.getRaceName(), eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findByIdAndDeletedFalse(eventId)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
@@ -71,7 +71,7 @@ public class RaceServiceImpl implements RaceService {
         log.info("Updating race with ID: {} for event ID: {} by user: {}",
                 raceId, eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findByIdAndDeletedFalse(eventId)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
@@ -110,7 +110,7 @@ public class RaceServiceImpl implements RaceService {
         log.info("Fetching race by ID: {} for event ID: {} for user: {}",
                 raceId, eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findByIdAndDeletedFalse(eventId)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
@@ -134,7 +134,7 @@ public class RaceServiceImpl implements RaceService {
         log.info("Fetching races for event ID: {} with enabled filter: {} by user: {}",
                 eventId, enabled, currentUser.getUsername());
 
-        Event event = eventRepository.findByIdAndDeletedFalse(eventId)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
@@ -162,7 +162,7 @@ public class RaceServiceImpl implements RaceService {
         log.info("Deleting race with ID: {} for event ID: {} by user: {}",
                 raceId, eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findByIdAndDeletedFalse(eventId)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
@@ -190,7 +190,7 @@ public class RaceServiceImpl implements RaceService {
         log.info("Toggling enabled status for race with ID: {} for event ID: {} by user: {}",
                 raceId, eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findByIdAndDeletedFalse(eventId)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
@@ -231,6 +231,22 @@ public class RaceServiceImpl implements RaceService {
         }
 
         throw new UnauthorizedAccessException("User does not have permission to access races");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Race findByEventIdAndRaceName(Long eventId, String raceName, User currentUser) {
+        log.info("Finding race by event ID: {} and race name: {} by user: {}",
+                eventId, raceName, currentUser.getUsername());
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+
+        validateUserAuthorizationForEvent(currentUser, event);
+
+        return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)
+                .orElseThrow(() -> new RaceNotFoundException(
+                        "Race with name '" + raceName + "' not found for event with ID: " + eventId));
     }
 
     private <T> void updateIfNotNull(T value, Consumer<T> setter) {

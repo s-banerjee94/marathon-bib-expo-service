@@ -10,13 +10,9 @@ import java.util.Optional;
 
 public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecificationExecutor<Event> {
 
-    Optional<Event> findByIdAndDeletedFalse(Long id);
+    List<Event> findByOrganizationId(Long organizationId);
 
-    List<Event> findByDeletedFalse();
+    List<Event> findByStatus(EventStatus status);
 
-    List<Event> findByOrganizationIdAndDeletedFalse(Long organizationId);
-
-    List<Event> findByStatusAndDeletedFalse(EventStatus status);
-
-    boolean existsByEventNameAndOrganizationIdAndDeletedFalse(String eventName, Long organizationId);
+    boolean existsByEventNameAndOrganizationId(String eventName, Long organizationId);
 }
