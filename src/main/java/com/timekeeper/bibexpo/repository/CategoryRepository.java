@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.repository;
 
 import com.timekeeper.bibexpo.model.entity.Category;
-import com.timekeeper.bibexpo.model.entity.Gender;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
@@ -10,13 +9,11 @@ import java.util.Optional;
 
 public interface CategoryRepository extends JpaRepository<Category, Long>, JpaSpecificationExecutor<Category> {
 
-    Optional<Category> findByIdAndDeletedFalse(Long id);
+    Optional<Category> findById(Long id);
 
-    List<Category> findByRaceIdAndDeletedFalse(Long raceId);
+    List<Category> findByRaceId(Long raceId);
 
-    List<Category> findByRaceIdAndGenderAndDeletedFalse(Long raceId, Gender gender);
+    boolean existsByCategoryNameAndRaceId(String categoryName, Long raceId);
 
-    boolean existsByCategoryNameAndRaceIdAndDeletedFalse(String categoryName, Long raceId);
-
-    Optional<Category> findByCategoryNameAndRaceIdAndDeletedFalse(String categoryName, Long raceId);
+    Optional<Category> findByCategoryNameAndRaceId(String categoryName, Long raceId);
 }

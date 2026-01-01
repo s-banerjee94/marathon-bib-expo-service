@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.model.dto.response;
 
 import com.timekeeper.bibexpo.model.entity.Category;
-import com.timekeeper.bibexpo.model.entity.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,23 +22,11 @@ public class CategoryResponse {
     @Schema(description = "Category name", example = "Men 18-34")
     private String categoryName;
 
-    @Schema(description = "Minimum age", example = "18")
-    private Integer minAge;
-
-    @Schema(description = "Maximum age", example = "34")
-    private Integer maxAge;
-
-    @Schema(description = "Gender", example = "MALE")
-    private Gender gender;
-
     @Schema(description = "Race ID this category belongs to", example = "1")
     private Long raceId;
 
     @Schema(description = "Event ID (for context)", example = "1")
     private Long eventId;
-
-    @Schema(description = "Category deleted status", example = "false")
-    private Boolean deleted;
 
     @Schema(description = "Creation timestamp")
     private LocalDateTime createdAt;
@@ -57,13 +44,9 @@ public class CategoryResponse {
         return CategoryResponse.builder()
                 .id(category.getId())
                 .categoryName(category.getCategoryName())
-                .minAge(category.getMinAge())
-                .maxAge(category.getMaxAge())
-                .gender(category.getGender())
                 .raceId(category.getRace() != null ? category.getRace().getId() : null)
                 .eventId(category.getRace() != null && category.getRace().getEvent() != null ?
                         category.getRace().getEvent().getId() : null)
-                .deleted(category.getDeleted())
                 .createdAt(category.getCreatedAt())
                 .updatedAt(category.getUpdatedAt())
                 .createdBy(category.getCreatedBy())

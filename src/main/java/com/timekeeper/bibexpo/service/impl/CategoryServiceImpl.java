@@ -24,7 +24,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,18 +43,14 @@ public class CategoryServiceImpl implements CategoryService {
 
         Race race = validateRaceAndEvent(eventId, raceId, currentUser);
 
-        if (categoryRepository.existsByCategoryNameAndRaceIdAndDeletedFalse(request.getCategoryName(), raceId)) {
+        if (categoryRepository.existsByCategoryNameAndRaceId(request.getCategoryName(), raceId)) {
             throw new CategoryAlreadyExistsException(
                     "Category with name '" + request.getCategoryName() + "' already exists for this race");
         }
 
         Category category = Category.builder()
                 .categoryName(request.getCategoryName())
-                .minAge(request.getMinAge())
-                .maxAge(request.getMaxAge())
-                .gender(request.getGender())
                 .race(race)
-                .deleted(false)
                 .build();
 
         Category savedCategory = categoryRepository.save(category);
@@ -74,7 +69,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         Race race = validateRaceAndEvent(eventId, raceId, currentUser);
 
-        Category category = categoryRepository.findByIdAndDeletedFalse(categoryId)
+        Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new CategoryNotFoundException("Category not found with ID: " + categoryId));
 
         if (!category.getRace().getId().equals(raceId)) {
@@ -84,16 +79,12 @@ public class CategoryServiceImpl implements CategoryService {
 
         if (request.getCategoryName() != null && !request.getCategoryName().isBlank() &&
                 !request.getCategoryName().equals(category.getCategoryName())) {
-            if (categoryRepository.existsByCategoryNameAndRaceIdAndDeletedFalse(request.getCategoryName(), raceId)) {
+            if (categoryRepository.existsByCategoryNameAndRaceId(request.getCategoryName(), raceId)) {
                 throw new CategoryAlreadyExistsException(
                         "Category with name '" + request.getCategoryName() + "' already exists for this race");
             }
             category.setCategoryName(request.getCategoryName());
         }
-
-        updateIfNotNull(request.getMinAge(), category::setMinAge);
-        updateIfNotNull(request.getMaxAge(), category::setMaxAge);
-        updateIfNotNull(request.getGender(), category::setGender);
 
         Category updatedCategory = categoryRepository.save(category);
         log.info("Successfully updated category with ID: {} by user: {}",
@@ -110,7 +101,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         validateRaceAndEvent(eventId, raceId, currentUser);
 
-        Category category = categoryRepository.findByIdAndDeletedFalse(categoryId)
+        Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new CategoryNotFoundException("Category not found with ID: " + categoryId));
 
         if (!category.getRace().getId().equals(raceId)) {
@@ -127,17 +118,12 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional(readOnly = true)
     public List<CategoryResponse> getCategoriesByRaceId(Long eventId, Long raceId, Gender gender, User currentUser) {
-        log.info("Fetching categories for race ID: {} in event ID: {} with gender filter: {} by user: {}",
-                raceId, eventId, gender, currentUser.getUsername());
+        log.info("Fetching categories for race ID: {} in event ID: {} by user: {}",
+                raceId, eventId, currentUser.getUsername());
 
         validateRaceAndEvent(eventId, raceId, currentUser);
 
-        List<Category> categories;
-        if (gender != null) {
-            categories = categoryRepository.findByRaceIdAndGenderAndDeletedFalse(raceId, gender);
-        } else {
-            categories = categoryRepository.findByRaceIdAndDeletedFalse(raceId);
-        }
+        List<Category> categories = categoryRepository.findByRaceId(raceId);
 
         List<CategoryResponse> categoryResponses = categories.stream()
                 .map(CategoryResponse::fromEntity)
@@ -176,7 +162,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         validateUserAuthorizationForEvent(currentUser, event);
 
-        Race race = raceRepository.findByIdAndDeletedFalse(raceId)
+        Race race = raceRepository.findById(raceId)
                 .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
 
         if (!race.getEvent().getId().equals(eventId)) {
@@ -214,7 +200,7 @@ public class CategoryServiceImpl implements CategoryService {
         log.info("Finding category by race ID: {} and category name: {} by user: {}",
                 raceId, categoryName, currentUser.getUsername());
 
-        Race race = raceRepository.findByIdAndDeletedFalse(raceId)
+        Race race = raceRepository.findById(raceId)
                 .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
 
         Event event = eventRepository.findById(race.getEvent().getId())
@@ -222,14 +208,8 @@ public class CategoryServiceImpl implements CategoryService {
 
         validateUserAuthorizationForEvent(currentUser, event);
 
-        return categoryRepository.findByCategoryNameAndRaceIdAndDeletedFalse(categoryName, raceId)
+        return categoryRepository.findByCategoryNameAndRaceId(categoryName, raceId)
                 .orElseThrow(() -> new CategoryNotFoundException(
                         "Category with name '" + categoryName + "' not found for race with ID: " + raceId));
-    }
-
-    private <T> void updateIfNotNull(T value, Consumer<T> setter) {
-        if (value != null) {
-            setter.accept(value);
-        }
     }
 }

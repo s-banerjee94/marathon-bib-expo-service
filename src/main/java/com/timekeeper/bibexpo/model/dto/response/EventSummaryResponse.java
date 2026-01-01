@@ -41,9 +41,6 @@ public class EventSummaryResponse {
         @Schema(description = "Race name")
         private String raceName;
 
-        @Schema(description = "Race distance in kilometers")
-        private Double distanceKm;
-
         @Schema(description = "Race enabled status")
         private Boolean enabled;
 
@@ -57,10 +54,9 @@ public class EventSummaryResponse {
                 .map(race -> RaceSummary.builder()
                         .id(race.getId())
                         .raceName(race.getRaceName())
-                        .distanceKm(race.getDistanceKm())
                         .enabled(race.getEnabled())
                         .categoryCount(race.getCategories() != null ?
-                                (int) race.getCategories().stream().filter(cat -> !cat.getDeleted()).count() : 0)
+                                race.getCategories().size() : 0)
                         .build())
                 .collect(Collectors.toList());
 

@@ -21,8 +21,6 @@ import java.time.LocalDateTime;
         },
         indexes = {
                 @Index(name = "idx_category_name", columnList = "category_name"),
-                @Index(name = "idx_category_gender", columnList = "gender"),
-                @Index(name = "idx_category_deleted", columnList = "deleted"),
                 @Index(name = "idx_category_race", columnList = "race_id")
         })
 @EntityListeners(AuditingEntityListener.class)
@@ -39,21 +37,9 @@ public class Category implements Serializable {
     @Column(nullable = false)
     private String categoryName;
 
-    private Integer minAge;
-
-    private Integer maxAge;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private Gender gender;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "race_id", nullable = false, foreignKey = @ForeignKey(name = "fk_category_race"))
     private Race race;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Boolean deleted = false;
 
     @CreatedDate
     @Column(updatable = false)
