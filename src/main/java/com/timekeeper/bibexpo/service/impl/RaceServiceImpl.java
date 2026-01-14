@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class RaceServiceImpl implements RaceService {
 
+    public static final String EVENT_NOT_FOUND_WITH_ID = "Event not found with ID: ";
+    public static final String RACE_NOT_FOUND_WITH_ID = "Race not found with ID: ";
     private final RaceRepository raceRepository;
     private final EventRepository eventRepository;
 
@@ -39,7 +41,7 @@ public class RaceServiceImpl implements RaceService {
                 request.getRaceName(), eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
 
@@ -51,9 +53,6 @@ public class RaceServiceImpl implements RaceService {
         Race race = Race.builder()
                 .raceName(request.getRaceName())
                 .raceDescription(request.getRaceDescription())
-                .distanceKm(request.getDistanceKm())
-                .startTime(request.getStartTime())
-                .cutOffTime(request.getCutOffTime())
                 .event(event)
                 .deleted(false)
                 .build();
@@ -72,12 +71,12 @@ public class RaceServiceImpl implements RaceService {
                 raceId, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
 
         Race race = raceRepository.findByIdAndDeletedFalse(raceId)
-                .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
+                .orElseThrow(() -> new RaceNotFoundException(RACE_NOT_FOUND_WITH_ID + raceId));
 
         if (!race.getEvent().getId().equals(eventId)) {
             throw new RaceNotFoundException("Race with ID: " + raceId + " does not belong to event with ID: " + eventId);
@@ -93,9 +92,6 @@ public class RaceServiceImpl implements RaceService {
         }
 
         updateIfNotNull(request.getRaceDescription(), race::setRaceDescription);
-        updateIfNotNull(request.getDistanceKm(), race::setDistanceKm);
-        updateIfNotNull(request.getStartTime(), race::setStartTime);
-        updateIfNotNull(request.getCutOffTime(), race::setCutOffTime);
 
         Race updatedRace = raceRepository.save(race);
         log.info("Successfully updated race with ID: {} by user: {}",
@@ -111,12 +107,12 @@ public class RaceServiceImpl implements RaceService {
                 raceId, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
 
         Race race = raceRepository.findByIdAndDeletedFalse(raceId)
-                .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
+                .orElseThrow(() -> new RaceNotFoundException(RACE_NOT_FOUND_WITH_ID + raceId));
 
         if (!race.getEvent().getId().equals(eventId)) {
             throw new RaceNotFoundException("Race with ID: " + raceId + " does not belong to event with ID: " + eventId);
@@ -135,7 +131,7 @@ public class RaceServiceImpl implements RaceService {
                 eventId, enabled, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
 
@@ -148,7 +144,7 @@ public class RaceServiceImpl implements RaceService {
 
         List<RaceResponse> raceResponses = races.stream()
                 .map(RaceResponse::fromEntity)
-                .collect(Collectors.toList());
+                .toList();
 
         log.info("Successfully fetched {} races for event ID: {} by user: {}",
                 raceResponses.size(), eventId, currentUser.getUsername());
@@ -163,12 +159,12 @@ public class RaceServiceImpl implements RaceService {
                 raceId, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
 
         Race race = raceRepository.findById(raceId)
-                .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
+                .orElseThrow(() -> new RaceNotFoundException(RACE_NOT_FOUND_WITH_ID + raceId));
 
         if (!race.getEvent().getId().equals(eventId)) {
             throw new RaceNotFoundException("Race with ID: " + raceId + " does not belong to event with ID: " + eventId);
@@ -191,12 +187,12 @@ public class RaceServiceImpl implements RaceService {
                 raceId, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
 
         Race race = raceRepository.findByIdAndDeletedFalse(raceId)
-                .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
+                .orElseThrow(() -> new RaceNotFoundException(RACE_NOT_FOUND_WITH_ID + raceId));
 
         if (!race.getEvent().getId().equals(eventId)) {
             throw new RaceNotFoundException("Race with ID: " + raceId + " does not belong to event with ID: " + eventId);
@@ -240,7 +236,7 @@ public class RaceServiceImpl implements RaceService {
                 eventId, raceName, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
 

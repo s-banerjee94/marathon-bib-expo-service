@@ -14,7 +14,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,12 +45,6 @@ public class Race implements Serializable {
     @Column(columnDefinition = "TEXT")
     @Convert(converter = EmptyStringToNullConverter.class)
     private String raceDescription;
-
-    private Double distanceKm;
-
-    private LocalTime startTime;
-
-    private LocalTime cutOffTime;
 
     @Column(nullable = false)
     @Builder.Default

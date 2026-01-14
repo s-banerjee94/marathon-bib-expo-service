@@ -37,12 +37,13 @@ public interface UserControllerApi {
 
     @Operation(
             summary = "Create a new user",
-            description = "Creates a new user with specified role. " +
-                         "ROOT can create: ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization). " +
-                         "ADMIN can create: ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization, but NOT ADMIN). " +
-                         "ORGANIZER_ADMIN can create: ORGANIZER_USER, DISTRIBUTOR (only within their own organization). " +
-                         "Cannot create ROOT (system-initialized only). " +
-                         "Organization user limits (maxOrganizerUsers, maxDistributors) are enforced."
+            description = """
+                    Creates a new user with specified role. \
+                    ROOT can create: ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization). \
+                    ADMIN can create: ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization, but NOT ADMIN). \
+                    ORGANIZER_ADMIN can create: ORGANIZER_USER, DISTRIBUTOR (only within their own organization). \
+                    Cannot create ROOT (system-initialized only). \
+                    Organization user limits (maxOrganizerUsers, maxDistributors) are enforced."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -63,8 +64,9 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Forbidden - Insufficient permissions, attempt to create unauthorized role, " +
-                                 "organization limit exceeded, or ORG_ADMIN attempting to create user outside their organization",
+                    description = """
+                            Forbidden - Insufficient permissions, attempt to create unauthorized role, \
+                            organization limit exceeded, or ORG_ADMIN attempting to create user outside their organization""",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -99,15 +101,16 @@ public interface UserControllerApi {
 
     @Operation(
             summary = "Update user profile",
-            description = "Partially updates a user's profile (PATCH operation). " +
-                         "Only basic profile fields can be updated: password, email, fullName, phoneNumber. " +
-                         "Administrative fields (role, organization, account status) require separate admin operations. " +
-                         "Permission hierarchy: " +
-                         "ROOT can update any user. " +
-                         "ADMIN can update itself and lower-level users (but not ROOT or other ADMINs). " +
-                         "ORG_ADMIN can update itself and users in their organization (but not ROOT, ADMIN, or other ORG_ADMINs). " +
-                         "ORG_USER and DISTRIBUTOR can only update their own profile. " +
-                         "All fields in the request are optional - only provided fields will be updated."
+            description = """
+                    Partially updates a user's profile (PATCH operation). \
+                    Only basic profile fields can be updated: password, email, fullName, phoneNumber. \
+                    Administrative fields (role, organization, account status) require separate admin operations. \
+                    Permission hierarchy: \
+                    ROOT can update any user. \
+                    ADMIN can update itself and lower-level users (but not ROOT or other ADMINs). \
+                    ORG_ADMIN can update itself and users in their organization (but not ROOT, ADMIN, or other ORG_ADMINs). \
+                    ORG_USER and DISTRIBUTOR can only update their own profile. \
+                    All fields in the request are optional - only provided fields will be updated."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -166,13 +169,14 @@ public interface UserControllerApi {
 
     @Operation(
             summary = "Toggle user enabled status",
-            description = "Toggles the enabled/disabled status of a user account. " +
-                         "This is an administrative operation. " +
-                         "Permission hierarchy: " +
-                         "ROOT can disable any user. " +
-                         "ADMIN can disable any user. " +
-                         "ORG_ADMIN can disable ORG_USER and DISTRIBUTOR (own organization only). " +
-                         "ORG_USER can disable DISTRIBUTOR (own organization only)."
+            description = """
+                    Toggles the enabled/disabled status of a user account. \
+                    This is an administrative operation. \
+                    Permission hierarchy: \
+                    ROOT can disable any user. \
+                    ADMIN can disable any user. \
+                    ORG_ADMIN can disable ORG_USER and DISTRIBUTOR (own organization only). \
+                    ORG_USER can disable DISTRIBUTOR (own organization only)."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -212,11 +216,12 @@ public interface UserControllerApi {
 
     @Operation(
             summary = "Get user by ID",
-            description = "Retrieves a single user by their ID. " +
-                         "Permission hierarchy: " +
-                         "ROOT and ADMIN can get any user. " +
-                         "ORG_ADMIN, ORG_USER, and DISTRIBUTOR can only get users in their organization. " +
-                         "Deleted users return 404 Not Found."
+            description = """
+                    Retrieves a single user by their ID. \
+                    Permission hierarchy: \
+                    ROOT and ADMIN can get any user. \
+                    ORG_ADMIN, ORG_USER, and DISTRIBUTOR can only get users in their organization. \
+                    Deleted users return 404 Not Found."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -256,10 +261,11 @@ public interface UserControllerApi {
 
     @Operation(
             summary = "Get all users in the system (ROOT/ADMIN only)",
-            description = "Retrieves all users in the system with optional filtering, searching, and sorting. " +
-                         "Only ROOT and ADMIN users can access this endpoint. " +
-                         "Can query any organization and include deleted users. " +
-                         "Returns a simple list (no pagination)."
+            description = """
+                    Retrieves all users in the system with optional filtering, searching, and sorting. \
+                    Only ROOT and ADMIN users can access this endpoint. \
+                    Can query any organization and include deleted users. \
+                    Returns a simple list (no pagination)."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -309,10 +315,11 @@ public interface UserControllerApi {
 
     @Operation(
             summary = "Get users in current user's organization",
-            description = "Retrieves all users in the current user's organization with optional filtering, searching, and sorting. " +
-                         "Only ORG_ADMIN, ORG_USER, and DISTRIBUTOR can access this endpoint. " +
-                         "Automatically scoped to the user's organization. Cannot include deleted users. " +
-                         "Returns a simple list (no pagination)."
+            description = """
+                    Retrieves all users in the current user's organization with optional filtering, searching, and sorting. \
+                    Only ORG_ADMIN, ORG_USER, and DISTRIBUTOR can access this endpoint. \
+                    Automatically scoped to the user's organization. Cannot include deleted users. \
+                    Returns a simple list (no pagination)."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -356,8 +363,9 @@ public interface UserControllerApi {
 
     @Operation(
             summary = "Get current user profile",
-            description = "Retrieves the profile of the currently authenticated user. " +
-                         "All authenticated users can access their own profile regardless of role."
+            description = """
+                    Retrieves the profile of the currently authenticated user. \
+                    All authenticated users can access their own profile regardless of role."""
     )
     @ApiResponses(value = {
             @ApiResponse(

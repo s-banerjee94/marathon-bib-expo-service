@@ -30,9 +30,10 @@ public interface RaceControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get all races for an event",
-            description = "Retrieve all races for a specific event with optional filtering. " +
-                    "ROOT and ADMIN can access races for any event. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only access races for events in their organization."
+            description = """
+                    Retrieve all races for a specific event with optional filtering. \
+                    ROOT and ADMIN can access races for any event. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only access races for events in their organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -71,9 +72,10 @@ public interface RaceControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get race by ID",
-            description = "Retrieve a specific race by its ID. " +
-                    "ROOT and ADMIN can view any race. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only view races from their organization's events."
+            description = """
+                    Retrieve a specific race by its ID. \
+                    ROOT and ADMIN can view any race. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only view races from their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -112,8 +114,9 @@ public interface RaceControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Create a new race for an event",
-            description = "Create a new race within a marathon event. ROOT and ADMIN can create races for any event. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only create races for events in their organization."
+            description = """
+                    Create a new race within a marathon event. ROOT and ADMIN can create races for any event. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only create races for events in their organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -167,9 +170,10 @@ public interface RaceControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Update an existing race",
-            description = "Update an existing race. Only provided fields will be updated (partial update). " +
-                    "ROOT and ADMIN can update races for any event. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only update races for events in their organization."
+            description = """
+                    Update an existing race. Only provided fields will be updated (partial update). \
+                    ROOT and ADMIN can update races for any event. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only update races for events in their organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -225,10 +229,11 @@ public interface RaceControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Permanently delete a race",
-            description = "Permanently delete a race from the system. " +
-                    "Race can only be deleted if it has no categories. " +
-                    "ROOT and ADMIN can delete any race. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only delete races from their organization's events."
+            description = """
+                    Permanently delete a race from the system. \
+                    Race can only be deleted if it has no categories. \
+                    ROOT and ADMIN can delete any race. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only delete races from their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -271,9 +276,10 @@ public interface RaceControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Toggle race enabled status",
-            description = "Toggle the enabled/disabled status of a race. " +
-                    "ROOT and ADMIN can toggle any race. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only toggle races from their organization's events."
+            description = """
+                    Toggle the enabled/disabled status of a race. \
+                    ROOT and ADMIN can toggle any race. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only toggle races from their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(

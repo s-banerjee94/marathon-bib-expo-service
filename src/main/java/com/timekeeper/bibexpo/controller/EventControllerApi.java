@@ -37,9 +37,10 @@ public interface EventControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
     @Operation(
             summary = "Get all events in the system (ROOT/ADMIN only)",
-            description = "Retrieve all events with optional filtering, search, and pagination. " +
-                    "Only ROOT and ADMIN can access this endpoint. " +
-                    "Can query any organization and include deleted events."
+            description = """
+                    Retrieve all events with optional filtering, search, and pagination. \
+                    Only ROOT and ADMIN can access this endpoint. \
+                    Can query any organization and include deleted events."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -74,9 +75,10 @@ public interface EventControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get events in current user's organization",
-            description = "Retrieve all events in the current user's organization with optional filtering, search, and pagination. " +
-                    "Only ORGANIZER_ADMIN and ORGANIZER_USER can access this endpoint. " +
-                    "Automatically scoped to the user's organization."
+            description = """
+                    Retrieve all events in the current user's organization with optional filtering, search, and pagination. \
+                    Only ORGANIZER_ADMIN and ORGANIZER_USER can access this endpoint. \
+                    Automatically scoped to the user's organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -109,9 +111,10 @@ public interface EventControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get event by ID",
-            description = "Retrieve a single event by its ID. " +
-                    "ROOT and ADMIN can view any event. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only view events from their own organization."
+            description = """
+                    Retrieve a single event by its ID. \
+                    ROOT and ADMIN can view any event. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only view events from their own organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -147,8 +150,9 @@ public interface EventControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Create a new event",
-            description = "Create a new marathon event. ROOT and ADMIN can create events for any organization. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only create events for their own organization."
+            description = """
+                    Create a new marathon event. ROOT and ADMIN can create events for any organization. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only create events for their own organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -200,11 +204,12 @@ public interface EventControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Update an existing event",
-            description = "Update an existing marathon event. Only provided fields will be updated (partial update). " +
-                    "Supports updating event status (DRAFT, PUBLISHED, CANCELLED, COMPLETED). " +
-                    "Permanent deletion is handled by a separate DELETE endpoint. " +
-                    "ROOT and ADMIN can update events for any organization. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only update events for their own organization."
+            description = """
+                    Update an existing marathon event. Only provided fields will be updated (partial update). \
+                    Supports updating event status (DRAFT, PUBLISHED, CANCELLED, COMPLETED). \
+                    Permanent deletion is handled by a separate DELETE endpoint. \
+                    ROOT and ADMIN can update events for any organization. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only update events for their own organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -257,9 +262,10 @@ public interface EventControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Toggle event enabled status",
-            description = "Toggle the enabled/disabled status of an event. " +
-                    "ROOT and ADMIN can toggle any event. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only toggle events from their own organization."
+            description = """
+                    Toggle the enabled/disabled status of an event. \
+                    ROOT and ADMIN can toggle any event. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only toggle events from their own organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -295,9 +301,10 @@ public interface EventControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get event summary with races and categories",
-            description = "Retrieve comprehensive event summary including all races and their categories. " +
-                    "ROOT and ADMIN can view any event summary. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only view summaries for events in their organization."
+            description = """
+                    Retrieve comprehensive event summary including all races and their categories. \
+                    ROOT and ADMIN can view any event summary. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only view summaries for events in their organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -333,12 +340,13 @@ public interface EventControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Permanently delete an event",
-            description = "Permanently delete an event from the system. " +
-                    "Event can only be deleted if: " +
-                    "1) Status is DRAFT or CANCELLED, " +
-                    "2) Participant list is empty (TODO: not yet implemented). " +
-                    "ROOT and ADMIN can delete any event. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only delete events from their own organization."
+            description = """
+                    Permanently delete an event from the system. \
+                    Event can only be deleted if: \
+                    1) Status is DRAFT or CANCELLED, \
+                    2) Participant list is empty (TODO: not yet implemented). \
+                    ROOT and ADMIN can delete any event. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only delete events from their own organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(

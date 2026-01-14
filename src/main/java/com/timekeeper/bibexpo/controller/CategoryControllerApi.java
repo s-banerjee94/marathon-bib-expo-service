@@ -31,9 +31,10 @@ public interface CategoryControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get all categories for a race",
-            description = "Retrieve all categories for a specific race with optional gender filtering. " +
-                    "ROOT and ADMIN can access categories for any race. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only access categories for races in their organization's events."
+            description = """
+                    Retrieve all categories for a specific race with optional gender filtering. \
+                    ROOT and ADMIN can access categories for any race. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only access categories for races in their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -74,9 +75,10 @@ public interface CategoryControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get category by ID",
-            description = "Retrieve a specific category by its ID. " +
-                    "ROOT and ADMIN can view any category. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only view categories from their organization's events."
+            description = """
+                    Retrieve a specific category by its ID. \
+                    ROOT and ADMIN can view any category. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only view categories from their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -117,8 +119,9 @@ public interface CategoryControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Create a new category for a race",
-            description = "Create a new category within a race. ROOT and ADMIN can create categories for any race. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only create categories for races in their organization's events."
+            description = """
+                    Create a new category within a race. ROOT and ADMIN can create categories for any race. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only create categories for races in their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -174,9 +177,10 @@ public interface CategoryControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Update an existing category",
-            description = "Update an existing category. Only provided fields will be updated (partial update). " +
-                    "ROOT and ADMIN can update categories for any race. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only update categories for races in their organization's events."
+            description = """
+                    Update an existing category. Only provided fields will be updated (partial update). \
+                    ROOT and ADMIN can update categories for any race. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only update categories for races in their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -234,9 +238,10 @@ public interface CategoryControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Permanently delete a category",
-            description = "Permanently delete a category from the system. " +
-                    "ROOT and ADMIN can delete any category. " +
-                    "ORGANIZER_ADMIN and ORGANIZER_USER can only delete categories from their organization's events."
+            description = """
+                    Permanently delete a category from the system. \
+                    ROOT and ADMIN can delete any category. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only delete categories from their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(

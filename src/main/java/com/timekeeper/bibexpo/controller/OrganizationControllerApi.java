@@ -165,9 +165,10 @@ public interface OrganizationControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
     @Operation(
             summary = "Enable or disable an organization",
-            description = "Enable or disable an organization. Only accessible by ROOT or ADMIN users. " +
-                    "When an organization is disabled, all its users will be automatically disabled. " +
-                    "When an organization is enabled, its users will NOT be automatically enabled."
+            description = """
+                    Enable or disable an organization. Only accessible by ROOT or ADMIN users. \
+                    When an organization is disabled, all its users will be automatically disabled. \
+                    When an organization is enabled, its users will NOT be automatically enabled."""
     )
     @ApiResponses(value = {
             @ApiResponse(

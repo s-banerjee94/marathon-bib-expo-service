@@ -8,7 +8,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 
 @Data
 @NoArgsConstructor
@@ -25,15 +24,6 @@ public class RaceResponse {
 
     @Schema(description = "Race description", example = "42.195 km race for experienced runners")
     private String raceDescription;
-
-    @Schema(description = "Race distance in kilometers", example = "42.195")
-    private Double distanceKm;
-
-    @Schema(description = "Race start time", example = "06:00:00")
-    private LocalTime startTime;
-
-    @Schema(description = "Race cut-off time", example = "12:00:00")
-    private LocalTime cutOffTime;
 
     @Schema(description = "Race enabled status", example = "true")
     private Boolean enabled;
@@ -64,9 +54,6 @@ public class RaceResponse {
                 .id(race.getId())
                 .raceName(race.getRaceName())
                 .raceDescription(race.getRaceDescription())
-                .distanceKm(race.getDistanceKm())
-                .startTime(race.getStartTime())
-                .cutOffTime(race.getCutOffTime())
                 .enabled(race.getEnabled())
                 .eventId(race.getEvent() != null ? race.getEvent().getId() : null)
                 .categoryCount(race.getCategories() != null ? race.getCategories().size() : 0)

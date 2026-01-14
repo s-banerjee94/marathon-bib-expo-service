@@ -13,10 +13,10 @@ import lombok.NoArgsConstructor;
 public class LoginRequest {
 
     @NotBlank(message = "Username is required")
-    @Schema(description = "Username", example = "admin")
+    @Schema(description = "Username", example = "root")
     private String username;
 
     @NotBlank(message = "Password is required")
-    @Schema(description = "Password", example = "password123")
+    @Schema(description = "Password", example = "root")
     private String password;
 }
