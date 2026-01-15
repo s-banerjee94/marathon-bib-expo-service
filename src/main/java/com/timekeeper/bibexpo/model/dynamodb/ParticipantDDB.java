@@ -52,9 +52,15 @@ public class ParticipantDDB {
     @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-CategoryNameIndex"))
     private String categoryName;
     private String bibCollectedAt;
+    private String bibCollectedByName;
+    private String bibCollectedByPhone;
+    private String bibDistributedBy;
 
     @Builder.Default
     private Map<String, String> goodies = new HashMap<>();
+
+    @Builder.Default
+    private Map<String, String> goodiesDistribution = new HashMap<>();
 
     private String emergencyContactName;
     private String emergencyContactPhone;

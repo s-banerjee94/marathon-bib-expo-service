@@ -80,4 +80,65 @@ awslocal dynamodb update-time-to-live \
     --time-to-live-specification "Enabled=true, AttributeName=expirationTime"
 
 echo "DynamoDB table marathon-import-errors created successfully with TTL enabled!"
+
+echo "Creating DynamoDB table: marathon-distribution-logs"
+awslocal dynamodb create-table \
+    --table-name marathon-distribution-logs \
+    --attribute-definitions \
+        AttributeName=eventId,AttributeType=S \
+        AttributeName=timestamp,AttributeType=S \
+        AttributeName=bibNumber,AttributeType=S \
+        AttributeName=action,AttributeType=S \
+        AttributeName=performedBy,AttributeType=S \
+        AttributeName=collectorName,AttributeType=S \
+        AttributeName=itemName,AttributeType=S \
+    --key-schema \
+        AttributeName=eventId,KeyType=HASH \
+        AttributeName=timestamp,KeyType=RANGE \
+    --local-secondary-indexes \
+        "[
+            {
+                \"IndexName\": \"LSI-BibNumberIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"eventId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"bibNumber\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            },
+            {
+                \"IndexName\": \"LSI-ActionIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"eventId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"action\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            },
+            {
+                \"IndexName\": \"LSI-PerformedByIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"eventId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"performedBy\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            },
+            {
+                \"IndexName\": \"LSI-CollectorNameIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"eventId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"collectorName\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            },
+            {
+                \"IndexName\": \"LSI-ItemNameIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"eventId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"itemName\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            }
+        ]" \
+    --billing-mode PAY_PER_REQUEST
+
+echo "DynamoDB table marathon-distribution-logs created successfully!"
 echo "LocalStack initialization complete!"
