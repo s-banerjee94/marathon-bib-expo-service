@@ -55,10 +55,32 @@ services:
     depends_on:
       - prometheus
 
+  localstack:
+    image: localstack/localstack:latest
+    container_name: marathon-localstack
+    restart: unless-stopped
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=dynamodb
+      - DEBUG=${DEBUG:-0}
+      - PERSISTENCE=1
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh
+    networks:
+      - marathon-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   mysql-data:
   prometheus-data:
   grafana-data:
+  localstack-data:
 
 networks:
   marathon-network:

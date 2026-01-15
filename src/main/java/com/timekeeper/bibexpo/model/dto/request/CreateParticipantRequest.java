@@ -1,0 +1,88 @@
+package com.timekeeper.bibexpo.model.dto.request;
+
+import com.timekeeper.bibexpo.validator.ValidCreateParticipant;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.Map;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@ValidCreateParticipant
+@Schema(description = "Request to create a new participant")
+public class CreateParticipantRequest {
+
+    @NotBlank(message = "Chip number is required")
+    @Schema(description = "Chip number", example = "0784525", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String chipNumber;
+
+    @NotBlank(message = "BIB number is required")
+    @Schema(description = "BIB number", example = "21001", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String bibNumber;
+
+    @NotBlank(message = "Full name is required")
+    @Schema(description = "Full name of participant", example = "JOHN DOE", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String fullName;
+
+    @NotNull(message = "Race ID is required")
+    @Schema(description = "Race ID", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+    private Long raceId;
+
+    @NotBlank(message = "Race name is required")
+    @Schema(description = "Race name", example = "Full Marathon", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String raceName;
+
+    @NotNull(message = "Category ID is required")
+    @Schema(description = "Category ID", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
+    private Long categoryId;
+
+    @NotBlank(message = "Category name is required")
+    @Schema(description = "Category name", example = "Open", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String categoryName;
+
+    @NotBlank(message = "Gender is required")
+    @Pattern(regexp = "^[MFO]$", message = "Gender must be M, F, or O")
+    @Schema(description = "Gender (M/F/O)", example = "M", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String gender;
+
+    @Schema(description = "Phone number (required if email is not provided)", example = "+919876543210")
+    private String phoneNumber;
+
+    @Schema(description = "Email address (required if phone number is not provided)", example = "john.doe@example.com")
+    private String email;
+
+    @Schema(description = "Date of birth (required if age is not provided)", example = "1990-01-15")
+    private String dateOfBirth;
+
+    @Schema(description = "Age (required if date of birth is not provided)", example = "35")
+    private Integer age;
+
+    @Schema(description = "Country", example = "India")
+    private String country;
+
+    @Schema(description = "City", example = "Mumbai")
+    private String city;
+
+    @Schema(description = "Bib collection timestamp", example = "2024-01-15T10:30:00")
+    private String bibCollectedAt;
+
+    @Schema(description = "Goodies map (key-value pairs)", example = "{\"T-Shirt Size\": \"L\", \"Cap Size\": \"M\"}")
+    private Map<String, String> goodies;
+
+    @Schema(description = "Emergency contact name", example = "Jane Doe")
+    private String emergencyContactName;
+
+    @Schema(description = "Emergency contact phone", example = "+919876543211")
+    private String emergencyContactPhone;
+
+    @Schema(description = "Additional notes", example = "VIP participant")
+    private String notes;
+}
