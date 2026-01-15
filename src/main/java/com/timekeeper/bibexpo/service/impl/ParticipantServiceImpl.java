@@ -30,6 +30,8 @@ import com.timekeeper.bibexpo.service.CategoryService;
 import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.ParticipantService;
 import com.timekeeper.bibexpo.service.RaceService;
+import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
+import com.timekeeper.bibexpo.service.validator.DistributionValidator;
 import com.timekeeper.bibexpo.util.CsvParseResult;
 import com.timekeeper.bibexpo.util.CsvParserUtil;
 import com.timekeeper.bibexpo.util.CsvRow;
@@ -66,6 +68,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ParticipantServiceImpl implements ParticipantService {
 
+    public static final String EVENT_NOT_FOUND_WITH_ID = "Event not found with ID: ";
+    public static final String BATCH_WRITE_ERROR = "BATCH_WRITE_ERROR";
+    public static final String FAILED_TO_DECODE_PAGINATION_KEY = "Failed to decode pagination key";
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final EventService eventService;
     private final EventRepository eventRepository;
@@ -75,6 +80,8 @@ public class ParticipantServiceImpl implements ParticipantService {
     private final CsvRowValidator csvRowValidator;
     private final JsonMapper objectMapper;
     private final ImportJobRepository importJobRepository;
+    private final DistributionValidator validator;
+    private final DynamoDBPaginationCodec paginationCodec;
 
     private DynamoDbTable<ParticipantDDB> participantTable;
     private DynamoDbTable<ImportErrorDDB> importErrorTable;
@@ -83,7 +90,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     private static final int ERROR_BATCH_SIZE = 25;
     private static final int ERROR_RESPONSE_LIMIT = 100;
     private static final int ERROR_TTL_DAYS = 30;
-    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
+    private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     @PostConstruct
@@ -104,9 +111,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 request.getBibNumber(), eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         ParticipantDDB existingParticipant = participantTable.getItem(
                 Key.builder()
@@ -168,9 +175,9 @@ public class ParticipantServiceImpl implements ParticipantService {
         validateFile(file);
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         ImportJob importJob = ImportJob.builder()
                 .importId(importId)
@@ -225,22 +232,18 @@ public class ParticipantServiceImpl implements ParticipantService {
                     allErrors.add(createImportError(csvRow.getRowNumber(), "VALIDATION_ERROR",
                             validationError.getField(), validationError.getMessage()));
                 }
-                continue;
-            }
-
-            if (bibNumbers.contains(csvRow.getBibNumber())) {
+            } else if (bibNumbers.contains(csvRow.getBibNumber())) {
                 allErrors.add(createImportError(csvRow.getRowNumber(), "DUPLICATE_BIB", "bibNumber",
                         String.format("Duplicate BIB No. '%s' in CSV", csvRow.getBibNumber())));
-                continue;
-            }
-            bibNumbers.add(csvRow.getBibNumber());
-
-            try {
-                ParticipantDDB participant = mapCsvRowToParticipant(csvRow, eventId, raceMap, categoryMap, currentUser);
-                participantsToImport.add(participant);
-            } catch (Exception e) {
-                allErrors.add(createImportError(csvRow.getRowNumber(), "PROCESSING_ERROR", null,
-                        "Failed to process - " + e.getMessage()));
+            } else {
+                bibNumbers.add(csvRow.getBibNumber());
+                try {
+                    ParticipantDDB participant = mapCsvRowToParticipant(csvRow, eventId, raceMap, categoryMap, currentUser);
+                    participantsToImport.add(participant);
+                } catch (Exception e) {
+                    allErrors.add(createImportError(csvRow.getRowNumber(), "PROCESSING_ERROR", null,
+                            "Failed to process - " + e.getMessage()));
+                }
             }
         }
 
@@ -280,9 +283,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 eventId, limit, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId.toString()).build()
@@ -294,10 +297,10 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
             try {
-                Map<String, AttributeValue> exclusiveStartKey = decodeLastEvaluatedKey(lastEvaluatedKey);
+                Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
                 requestBuilder.exclusiveStartKey(exclusiveStartKey);
             } catch (Exception e) {
-                log.error("Failed to decode pagination key", e);
+                log.error(FAILED_TO_DECODE_PAGINATION_KEY, e);
                 throw new InvalidUserDataException("Invalid pagination key");
             }
         }
@@ -318,7 +321,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         String newLastEvaluatedKey = null;
         if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
-            newLastEvaluatedKey = encodeLastEvaluatedKey(page.lastEvaluatedKey());
+            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
         }
 
         return ParticipantListResponse.builder()
@@ -335,9 +338,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 bibNumber, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         ParticipantDDB participant = participantTable.getItem(
                 Key.builder()
@@ -365,9 +368,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 bibNumber, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         ParticipantDDB participant = participantTable.getItem(
                 Key.builder()
@@ -453,17 +456,17 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Counting participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId.toString()).build()
         );
 
         long count = participantTable.query(queryConditional).stream()
-                .flatMap(page -> page.items().stream())
-                .count();
+                .mapToLong(page -> page.items().size())
+                .sum();
 
         log.info("Found {} participants for event ID: {}", count, eventId);
         return count;
@@ -485,27 +488,6 @@ public class ParticipantServiceImpl implements ParticipantService {
         }
     }
 
-    private void validateUserAuthorizationForEvent(User currentUser, Event event) {
-        UserRole role = currentUser.getRole();
-
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
-            return;
-        }
-
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
-            if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException("User does not belong to any organization");
-            }
-
-            if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
-                throw new UnauthorizedAccessException(
-                        "User can only access events from their own organization");
-            }
-            return;
-        }
-
-        throw new UnauthorizedAccessException("User does not have permission to access events");
-    }
 
     private void updateEventGoodies(Event event, List<String> goodiesColumns) {
         try {
@@ -660,7 +642,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                     log.warn("Batch {} had {} unprocessed items", i + 1, unprocessedCount);
                     errors.add(ImportError.builder()
                             .rowNumber(null)
-                            .errorType("BATCH_WRITE_ERROR")
+                            .errorType(BATCH_WRITE_ERROR)
                             .field(null)
                             .message(String.format("Batch %d: %d items failed to write", i + 1, unprocessedCount))
                             .build());
@@ -670,7 +652,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 log.error("Failed to write batch {}", i + 1, e);
                 errors.add(ImportError.builder()
                         .rowNumber(null)
-                        .errorType("BATCH_WRITE_ERROR")
+                        .errorType(BATCH_WRITE_ERROR)
                         .field(null)
                         .message(String.format("Batch %d: Failed to write - %s", i + 1, e.getMessage()))
                         .build());
@@ -711,70 +693,6 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .updatedAt(participant.getUpdatedAt())
                 .build();
     }
-
-    private String encodeLastEvaluatedKey(Map<String, AttributeValue> lastEvaluatedKey) {
-        try {
-            Map<String, Object> simpleMap = new HashMap<>();
-            for (Map.Entry<String, AttributeValue> entry : lastEvaluatedKey.entrySet()) {
-                simpleMap.put(entry.getKey(), attributeValueToObject(entry.getValue()));
-            }
-            String json = objectMapper.writeValueAsString(simpleMap);
-            return Base64.getEncoder().encodeToString(json.getBytes());
-        } catch (Exception e) {
-            log.error("Failed to encode lastEvaluatedKey", e);
-            return null;
-        }
-    }
-
-    private Map<String, AttributeValue> decodeLastEvaluatedKey(String encodedKey) {
-        try {
-            String json = new String(Base64.getDecoder().decode(encodedKey));
-            Map<String, Object> simpleMap = objectMapper.readValue(json,
-                objectMapper.getTypeFactory().constructMapType(HashMap.class, String.class, Object.class));
-
-            Map<String, AttributeValue> attributeMap = new HashMap<>();
-            for (Map.Entry<String, Object> entry : simpleMap.entrySet()) {
-                attributeMap.put(entry.getKey(), objectToAttributeValue(entry.getValue()));
-            }
-            return attributeMap;
-        } catch (Exception e) {
-            log.error("Failed to decode pagination key: {}", encodedKey, e);
-            throw new InvalidUserDataException("Invalid pagination key format");
-        }
-    }
-
-    private Object attributeValueToObject(AttributeValue attributeValue) {
-        if (attributeValue.s() != null) {
-            return Map.of("S", attributeValue.s());
-        } else if (attributeValue.n() != null) {
-            return Map.of("N", attributeValue.n());
-        } else if (attributeValue.bool() != null) {
-            return Map.of("BOOL", attributeValue.bool());
-        }
-        return Map.of("NULL", true);
-    }
-
-    private AttributeValue objectToAttributeValue(Object value) {
-        if (!(value instanceof Map)) {
-            throw new InvalidUserDataException("Invalid attribute value format");
-        }
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>) value;
-
-        if (map.containsKey("S")) {
-            return AttributeValue.builder().s((String) map.get("S")).build();
-        } else if (map.containsKey("N")) {
-            return AttributeValue.builder().n((String) map.get("N")).build();
-        } else if (map.containsKey("BOOL")) {
-            return AttributeValue.builder().bool((Boolean) map.get("BOOL")).build();
-        } else if (map.containsKey("NULL")) {
-            return AttributeValue.builder().nul(true).build();
-        }
-
-        throw new InvalidUserDataException("Unsupported attribute value type");
-    }
-
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
@@ -864,7 +782,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 case "REFERENCE_ERROR":
                     referenceErrors++;
                     break;
-                case "BATCH_WRITE_ERROR":
+                case BATCH_WRITE_ERROR:
                     batchWriteErrors++;
                     break;
                 case "PROCESSING_ERROR":
@@ -971,9 +889,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 eventId, page, size, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         int pageNumber = page != null ? page : 0;
         int pageSize = size != null ? size : 20;
@@ -1003,9 +921,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 importId, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         ImportJob importJob = importJobRepository.findByImportIdAndEventId(importId, eventId)
                 .orElseThrow(() -> new InvalidUserDataException("Import job not found with ID: " + importId));
@@ -1019,9 +937,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 importId, page, size, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         ImportJob importJob = importJobRepository.findByImportIdAndEventId(importId, eventId)
                 .orElseThrow(() -> new InvalidUserDataException("Import job not found with ID: " + importId));
@@ -1029,27 +947,25 @@ public class ParticipantServiceImpl implements ParticipantService {
         int pageNumber = page != null ? page : 0;
         int pageSize = size != null ? size : 50;
 
+        ErrorSummary errorSummary = deserializeErrorSummary(importJob.getErrorSummary());
+        int totalErrors = errorSummary != null ?
+                (errorSummary.getValidationErrors() + errorSummary.getDuplicateBibErrors() +
+                 errorSummary.getReferenceErrors() + errorSummary.getBatchWriteErrors() +
+                 errorSummary.getProcessingErrors()) : 0;
+
+        int totalPages = (int) Math.ceil((double) totalErrors / pageSize);
+        int startIndex = pageNumber * pageSize;
+
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(importId).build()
         );
 
-        List<ImportErrorDDB> allErrors = importErrorTable.query(queryConditional).stream()
+        List<ImportError> pageErrors = importErrorTable.query(queryConditional).stream()
                 .flatMap(p -> p.items().stream())
-                .sorted(Comparator.comparing(ImportErrorDDB::getRowNumber))
-                .toList();
-
-        int totalErrors = allErrors.size();
-        int totalPages = (int) Math.ceil((double) totalErrors / pageSize);
-        int startIndex = pageNumber * pageSize;
-
-
-        List<ImportError> pageErrors = allErrors.stream()
                 .skip(startIndex)
                 .limit(pageSize)
                 .map(this::mapImportErrorDDBToDTO)
                 .toList();
-
-        ErrorSummary errorSummary = deserializeErrorSummary(importJob.getErrorSummary());
 
         return ImportErrorListResponse.builder()
                 .importId(importId)
@@ -1106,9 +1022,9 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Deleting participant with bib {} for event ID: {} by user: {}", bibNumber, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         ParticipantDDB participant = participantTable.getItem(
                 Key.builder()
@@ -1145,9 +1061,9 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Deleting all participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         int deletedCount = deleteAllParticipantsForEvent(eventId);
 
@@ -1168,10 +1084,11 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Deleting {} participants for event ID: {} by user: {}", bibNumbers.size(), eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
+        // TODO: why only 25 max delete option
         if (bibNumbers.size() > 25) {
             throw new InvalidUserDataException("Cannot delete more than 25 participants at once");
         }
@@ -1277,9 +1194,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 eventId, searchTerm, raceId, categoryId, gender, minAge, maxAge, city, country, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         validateSearchRequest(searchTerm, minAge, maxAge, limit);
 
@@ -1292,10 +1209,10 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
             try {
-                Map<String, AttributeValue> exclusiveStartKey = decodeLastEvaluatedKey(lastEvaluatedKey);
+                Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
                 scanBuilder.exclusiveStartKey(exclusiveStartKey);
             } catch (Exception e) {
-                log.error("Failed to decode pagination key", e);
+                log.error(FAILED_TO_DECODE_PAGINATION_KEY, e);
                 throw new InvalidUserDataException("Invalid pagination key");
             }
         }
@@ -1319,7 +1236,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         String newLastEvaluatedKey = null;
         if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
-            newLastEvaluatedKey = encodeLastEvaluatedKey(page.lastEvaluatedKey());
+            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
         }
 
         log.info("Search completed for event ID: {}. Found {} participants, hasMore: {}",
@@ -1334,12 +1251,15 @@ public class ParticipantServiceImpl implements ParticipantService {
     }
 
     private void validateSearchRequest(String searchTerm, Integer minAge, Integer maxAge, Integer limit) {
-        if (searchTerm != null && searchTerm.trim().length() > 0 && searchTerm.trim().length() < 2) {
-            throw new InvalidUserDataException("Search term must be at least 2 characters");
-        }
+        if (searchTerm != null) {
+            String trimmedSearchTerm = searchTerm.trim();
+            if (trimmedSearchTerm.length() == 1) {
+                throw new InvalidUserDataException("Search term must be at least 2 characters");
+            }
 
-        if (searchTerm != null && searchTerm.length() > 200) {
-            throw new InvalidUserDataException("Search term cannot exceed 200 characters");
+            if (searchTerm.length() > 200) {
+                throw new InvalidUserDataException("Search term cannot exceed 200 characters");
+            }
         }
 
         if (minAge != null && (minAge < 0 || minAge > 150)) {
@@ -1439,9 +1359,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         if (maxAge != null) {
             conditions.add("#age <= :maxAge");
-            if (!expressionNames.containsKey("#age")) {
-                expressionNames.put("#age", "age");
-            }
+            expressionNames.putIfAbsent("#age", "age");
             expressionValues.put(":maxAge",
                     AttributeValue.builder().n(maxAge.toString()).build());
         }
@@ -1482,9 +1400,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 eventId, searchType, searchValue, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         if (searchValue == null || searchValue.trim().isEmpty()) {
             throw new InvalidUserDataException("Search value is required");
@@ -1493,7 +1411,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         int effectiveLimit = limit != null ? Math.min(limit, 100) : 50;
 
         if (searchType == SearchType.BIB) {
-            return lookupByBibNumber(eventId, searchValue.trim(), currentUser);
+            return lookupByBibNumber(eventId, searchValue.trim());
         }
 
         String indexName = getIndexNameForSearchType(searchType);
@@ -1514,10 +1432,10 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
             try {
-                Map<String, AttributeValue> exclusiveStartKey = decodeLastEvaluatedKey(lastEvaluatedKey);
+                Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
                 requestBuilder.exclusiveStartKey(exclusiveStartKey);
             } catch (Exception e) {
-                log.error("Failed to decode pagination key", e);
+                log.error(FAILED_TO_DECODE_PAGINATION_KEY, e);
                 throw new InvalidUserDataException("Invalid pagination key");
             }
         }
@@ -1541,7 +1459,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         String newLastEvaluatedKey = null;
         if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
-            newLastEvaluatedKey = encodeLastEvaluatedKey(page.lastEvaluatedKey());
+            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
         }
 
         log.info("Lookup completed for event ID: {} using index {}. Found {} participants, hasMore: {}",
@@ -1555,7 +1473,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .build();
     }
 
-    private ParticipantListResponse lookupByBibNumber(Long eventId, String bibNumber, User currentUser) {
+    private ParticipantListResponse lookupByBibNumber(Long eventId, String bibNumber) {
         ParticipantDDB participant = participantTable.getItem(
                 Key.builder()
                         .partitionValue(eventId.toString())
@@ -1603,9 +1521,9 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Exporting participants to CSV for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId.toString()).build()
@@ -1742,9 +1660,9 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Getting participant statistics for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
 
         return ParticipantStatisticsResponse.builder()
                 .eventId(eventId)
