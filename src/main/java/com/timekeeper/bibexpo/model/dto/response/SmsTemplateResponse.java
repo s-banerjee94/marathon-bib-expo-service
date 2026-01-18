@@ -1,0 +1,74 @@
+package com.timekeeper.bibexpo.model.dto.response;
+
+import com.timekeeper.bibexpo.model.entity.SmsTemplate;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Schema(description = "SMS Template response payload")
+public class SmsTemplateResponse {
+
+    @Schema(description = "SMS Template ID", example = "1")
+    private Long id;
+
+    @Schema(description = "DLT Template ID from telecom provider", example = "1107161234567890123")
+    private String smsTemplateId;
+
+    @Schema(description = "SMS template text with placeholders", example = "Hi {participantName}, your bib #{bibNumber} is ready at {venueName} for {eventName}!")
+    private String template;
+
+    @Schema(description = "Optional note or description", example = "Reminder to collect bib at expo")
+    private String note;
+
+    @Schema(description = "Optional scheduled sending date and time", example = "2026-01-20T10:00:00")
+    private LocalDateTime scheduledDateTime;
+
+    @Schema(description = "SMS Template enabled status", example = "true")
+    private Boolean enabled;
+
+    @Schema(description = "Event ID associated with this template", example = "1")
+    private Long eventId;
+
+    @Schema(description = "Event name for context", example = "Mumbai Marathon 2024")
+    private String eventName;
+
+    @Schema(description = "Creation timestamp")
+    private LocalDateTime createdAt;
+
+    @Schema(description = "Last update timestamp")
+    private LocalDateTime updatedAt;
+
+    @Schema(description = "Created by username", example = "admin")
+    private String createdBy;
+
+    @Schema(description = "Last modified by username", example = "admin")
+    private String lastModifiedBy;
+
+    /**
+     * Factory method to create SmsTemplateResponse from SmsTemplate entity
+     */
+    public static SmsTemplateResponse fromEntity(SmsTemplate smsTemplate) {
+        return SmsTemplateResponse.builder()
+                .id(smsTemplate.getId())
+                .smsTemplateId(smsTemplate.getSmsTemplateId())
+                .template(smsTemplate.getTemplate())
+                .note(smsTemplate.getNote())
+                .scheduledDateTime(smsTemplate.getScheduledDateTime())
+                .enabled(smsTemplate.getEnabled())
+                .eventId(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getId() : null)
+                .eventName(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getEventName() : null)
+                .createdAt(smsTemplate.getCreatedAt())
+                .updatedAt(smsTemplate.getUpdatedAt())
+                .createdBy(smsTemplate.getCreatedBy())
+                .lastModifiedBy(smsTemplate.getLastModifiedBy())
+                .build();
+    }
+}

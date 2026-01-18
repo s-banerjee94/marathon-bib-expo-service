@@ -1,0 +1,35 @@
+package com.timekeeper.bibexpo.model.dto.request;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Schema(description = "Request payload for updating an SMS template")
+public class UpdateSmsTemplateRequest {
+
+    @Size(min = 20, max = 200, message = "SMS Template ID must be between 20 and 200 characters")
+    @Pattern(regexp = "^[0-9]+$", message = "SMS Template ID must contain only digits")
+    @Schema(description = "DLT Template ID from telecom provider", example = "11071612345678901234")
+    private String smsTemplateId;
+
+    @Size(min = 2, max = 1000, message = "Template text must be at least 2 characters")
+    @Schema(description = "SMS template text with placeholders", example = "Hello {participantName}, collect bib!")
+    private String template;
+
+    @Size(max = 500, message = "Note must not exceed 500 characters")
+    @Schema(description = "Optional note or description", example = "Updated reminder for bib collection")
+    private String note;
+
+    @Schema(description = "Optional scheduled sending date and time", example = "2026-01-20T10:00:00")
+    private LocalDateTime scheduledDateTime;
+}

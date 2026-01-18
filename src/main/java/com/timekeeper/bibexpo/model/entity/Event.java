@@ -93,6 +93,10 @@ public class Event implements Serializable {
     @Builder.Default
     private List<Race> races = new ArrayList<>();
 
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
+    @Builder.Default
+    private List<SmsTemplate> smsTemplates = new ArrayList<>();
+
     @Column(columnDefinition = "JSON")
     private String eventGoodies;
 
