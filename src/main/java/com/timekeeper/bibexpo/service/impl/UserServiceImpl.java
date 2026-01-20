@@ -95,7 +95,7 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * Validate username and email uniqueness
+     * Validate username, email, and phone number uniqueness
      */
     private void validateUniqueness(CreateUserRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
@@ -107,6 +107,12 @@ public class UserServiceImpl implements UserService {
                 && userRepository.existsByEmail(request.getEmail())) {
             log.error("Email already exists: {}", request.getEmail());
             throw new UserAlreadyExistsException("Email '" + request.getEmail() + "' already exists");
+        }
+
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().trim().isEmpty()
+                && userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            log.error("Phone number already exists: {}", request.getPhoneNumber());
+            throw new UserAlreadyExistsException("Phone number '" + request.getPhoneNumber() + "' already exists");
         }
     }
 
@@ -361,6 +367,7 @@ public class UserServiceImpl implements UserService {
         }
 
         if (request.getPhoneNumber() != null) {
+            validatePhoneNumberUniqueness(request.getPhoneNumber(), targetUser.getId());
             targetUser.setPhoneNumber(request.getPhoneNumber());
             log.debug("Phone number updated for user ID: {}", userId);
         }
@@ -393,6 +400,20 @@ public class UserServiceImpl implements UserService {
                     .ifPresent(user -> {
                         log.error("Email already exists: {}", email);
                         throw new UserAlreadyExistsException("Email '" + email + "' already exists");
+                    });
+        }
+    }
+
+    /**
+     * Validate phone number uniqueness when updating (excluding the current user)
+     */
+    private void validatePhoneNumberUniqueness(String phoneNumber, Long currentUserId) {
+        if (phoneNumber != null && !phoneNumber.trim().isEmpty()) {
+            userRepository.findByPhoneNumber(phoneNumber)
+                    .filter(user -> !user.getId().equals(currentUserId))
+                    .ifPresent(user -> {
+                        log.error("Phone number already exists: {}", phoneNumber);
+                        throw new UserAlreadyExistsException("Phone number '" + phoneNumber + "' already exists");
                     });
         }
     }

@@ -272,8 +272,9 @@ public class GlobalExceptionHandler {
 
         String message = "Database constraint violation";
         String error = BAD_REQUEST;
+        HttpStatus status = HttpStatus.BAD_REQUEST;
 
-        // Check if it's our trigger errors
+        // Check if it's our trigger errors or constraint violations
         String exceptionMessage = ex.getMessage();
         if (exceptionMessage != null) {
             if (exceptionMessage.contains("Organizer user limit exceeded")) {
@@ -282,18 +283,30 @@ public class GlobalExceptionHandler {
             } else if (exceptionMessage.contains("Distributor limit exceeded")) {
                 message = "Cannot create distributor: The organizer has reached the maximum limit of distributors (default: 30)";
                 error = "Distributor Limit Exceeded";
+            } else if (exceptionMessage.contains("uk_user_phone") || exceptionMessage.contains("phoneNumber")) {
+                message = "Phone number already exists";
+                error = CONFLICT;
+                status = HttpStatus.CONFLICT;
+            } else if (exceptionMessage.contains("uk_user_email")) {
+                message = "Email already exists";
+                error = CONFLICT;
+                status = HttpStatus.CONFLICT;
+            } else if (exceptionMessage.contains("uk_user_username")) {
+                message = "Username already exists";
+                error = CONFLICT;
+                status = HttpStatus.CONFLICT;
             }
         }
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
+                .status(status.value())
                 .error(error)
                 .message(message)
                 .path(request.getDescription(false).replace("uri=", ""))
                 .build();
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        return ResponseEntity.status(status).body(errorResponse);
     }
 
     @ExceptionHandler(JpaSystemException.class)
@@ -303,8 +316,9 @@ public class GlobalExceptionHandler {
 
         String message = "Database error occurred";
         String error = BAD_REQUEST;
+        HttpStatus status = HttpStatus.BAD_REQUEST;
 
-        // Check if it's our trigger errors
+        // Check if it's our trigger errors or constraint violations
         String exceptionMessage = ex.getMessage();
         if (exceptionMessage != null) {
             if (exceptionMessage.contains("Organizer user limit exceeded")) {
@@ -313,18 +327,30 @@ public class GlobalExceptionHandler {
             } else if (exceptionMessage.contains("Distributor limit exceeded")) {
                 message = "Cannot create distributor: The organizer has reached the maximum limit of distributors (default: 30)";
                 error = "Distributor Limit Exceeded";
+            } else if (exceptionMessage.contains("uk_user_phone") || exceptionMessage.contains("phoneNumber")) {
+                message = "Phone number already exists";
+                error = CONFLICT;
+                status = HttpStatus.CONFLICT;
+            } else if (exceptionMessage.contains("uk_user_email")) {
+                message = "Email already exists";
+                error = CONFLICT;
+                status = HttpStatus.CONFLICT;
+            } else if (exceptionMessage.contains("uk_user_username")) {
+                message = "Username already exists";
+                error = CONFLICT;
+                status = HttpStatus.CONFLICT;
             }
         }
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value())
+                .status(status.value())
                 .error(error)
                 .message(message)
                 .path(request.getDescription(false).replace("uri=", ""))
                 .build();
 
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        return ResponseEntity.status(status).body(errorResponse);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -35,7 +35,7 @@ public class UpdateUserRequest {
     @Schema(description = "Full name of the user", example = "John Doe")
     private String fullName;
 
-    @Pattern(regexp = "^[+]?[0-9]{10,15}$", message = "Phone number must be valid (10-15 digits, optional + prefix)")
-    @Schema(description = "Phone number", example = "+1234567890")
+    @Pattern(regexp = "^\\d{10}$|^\\d{3}[\\s\\-]\\d{3}[\\s\\-]\\d{4}$", message = "invalid phone number (10 digits only)")
+    @Schema(description = "Phone number, 10-digit Indian format", example = "9876543210")
     private String phoneNumber;
 }

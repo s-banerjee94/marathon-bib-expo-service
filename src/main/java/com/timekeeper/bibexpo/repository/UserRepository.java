@@ -24,6 +24,10 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     boolean existsByEmail(String email);
 
+    Optional<User> findByPhoneNumber(String phoneNumber);
+
+    boolean existsByPhoneNumber(String phoneNumber);
+
     @Query("SELECT u.role FROM User u WHERE u.id = :id")
     Optional<UserRole> findRoleById(@Param("id") Long id);
 
@@ -45,6 +49,10 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     Optional<User> findByEmailAndDeletedFalse(String email);
 
     boolean existsByEmailAndDeletedFalse(String email);
+
+    Optional<User> findByPhoneNumberAndDeletedFalse(String phoneNumber);
+
+    boolean existsByPhoneNumberAndDeletedFalse(String phoneNumber);
 
     List<User> findByRoleAndDeletedFalse(UserRole role);
 

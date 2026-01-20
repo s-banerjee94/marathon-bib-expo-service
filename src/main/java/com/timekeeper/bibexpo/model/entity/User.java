@@ -22,7 +22,8 @@ import java.util.Collections;
 @Table(name = "users",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_user_username", columnNames = "username"),
-                @UniqueConstraint(name = "uk_user_email", columnNames = "email")
+                @UniqueConstraint(name = "uk_user_email", columnNames = "email"),
+                @UniqueConstraint(name = "uk_user_phone", columnNames = "phoneNumber")
         },
         indexes = {
                 @Index(name = "idx_user_username", columnList = "username"),
@@ -53,6 +54,7 @@ public class User implements UserDetails {
     @Column(nullable = true)
     private String fullName;
 
+    @Column(nullable = true, unique = true)
     private String phoneNumber;
 
     @Enumerated(EnumType.STRING)
