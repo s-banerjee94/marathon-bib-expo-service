@@ -47,4 +47,22 @@ public interface OrganizationService {
      * @return The updated organization response
      */
     OrganizationResponse toggleOrganizationStatus(Long id, Boolean enabled);
+
+    /**
+     * Get organization by ID with authorization validation
+     * @param id Organization ID
+     * @param currentUser The authenticated user
+     * @return Organization response
+     * @throws OrganizationNotFoundException if not found or deleted
+     * @throws UnauthorizedAccessException if user lacks permission
+     */
+    OrganizationResponse getOrganizationById(Long id, User currentUser);
+
+    /**
+     * Get current user's organization
+     * @param currentUser The authenticated user
+     * @return Organization response
+     * @throws UnauthorizedAccessException if user has no organization
+     */
+    OrganizationResponse getCurrentUserOrganization(User currentUser);
 }

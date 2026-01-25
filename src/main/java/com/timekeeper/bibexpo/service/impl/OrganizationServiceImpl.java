@@ -333,4 +333,41 @@ public class OrganizationServiceImpl implements OrganizationService {
     private String emptyToNull(String value) {
         return (value == null || value.isBlank()) ? null : value;
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrganizationResponse getOrganizationById(Long id, User currentUser) {
+        log.info("Fetching organization by ID: {} for user: {}", id, currentUser.getUsername());
+
+        Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new OrganizationNotFoundException(
+                        "Organization with ID '" + id + "' not found or has been deleted"
+                ));
+
+        if ((currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) &&
+                (currentUser.getOrganization() == null || !currentUser.getOrganization().getId().equals(id))) {
+            throw new UnauthorizedAccessException(
+                    "You can only view your own organization");
+        }
+
+        log.info("Successfully retrieved organization with ID: {} for user: {}",
+                id, currentUser.getUsername());
+
+        return OrganizationResponse.fromEntity(organization);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrganizationResponse getCurrentUserOrganization(User currentUser) {
+        log.info("Fetching organization for user: {}", currentUser.getUsername());
+
+        if (currentUser.getOrganization() == null) {
+            throw new UnauthorizedAccessException("User does not belong to any organization");
+        }
+
+        log.info("Successfully retrieved organization with ID: {} for user: {}",
+                currentUser.getOrganization().getId(), currentUser.getUsername());
+
+        return OrganizationResponse.fromEntity(currentUser.getOrganization());
+    }
 }

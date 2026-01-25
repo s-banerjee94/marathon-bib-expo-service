@@ -215,4 +215,67 @@ public interface OrganizationControllerApi {
                     )
             )
             @RequestBody Boolean enabled);
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Get organization by ID",
+            description = "Retrieve organization details. ROOT/ADMIN can view any organization. ORGANIZER users can only view their own organization."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Organization retrieved successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = OrganizationResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Access forbidden - insufficient permissions or trying to view another organization",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Organization not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<OrganizationResponse> getOrganizationById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser);
+
+    @GetMapping("/organization")
+    @PreAuthorize("hasAnyRole('ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    @Operation(
+            summary = "Get current user's organization",
+            description = "Retrieve the organization details for the currently authenticated user."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Organization retrieved successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = OrganizationResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Access forbidden - user has no organization",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<OrganizationResponse> getCurrentUserOrganization(
+            @AuthenticationPrincipal User currentUser);
 }

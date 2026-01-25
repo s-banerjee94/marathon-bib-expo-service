@@ -81,4 +81,29 @@ public class OrganizationController implements OrganizationControllerApi {
 
         return ResponseEntity.ok(response);
     }
+
+    @Override
+    @GetMapping("/{id}")
+    public ResponseEntity<OrganizationResponse> getOrganizationById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser) {
+        log.info("Received request to get organization ID: {} by user: {}",
+                id, currentUser.getUsername());
+
+        OrganizationResponse response = organizationService.getOrganizationById(id, currentUser);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    @GetMapping("/organization")
+    public ResponseEntity<OrganizationResponse> getCurrentUserOrganization(
+            @AuthenticationPrincipal User currentUser) {
+        log.info("Received request to get organization for user: {}",
+                currentUser.getUsername());
+
+        OrganizationResponse response = organizationService.getCurrentUserOrganization(currentUser);
+
+        return ResponseEntity.ok(response);
+    }
 }
