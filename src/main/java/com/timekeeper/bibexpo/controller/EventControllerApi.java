@@ -259,13 +259,13 @@ public interface EventControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @PatchMapping("/{id}/toggle-enabled")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
     @Operation(
-            summary = "Toggle event enabled status",
+            summary = "Toggle event enabled status (ROOT/ADMIN only)",
             description = """
                     Toggle the enabled/disabled status of an event. \
-                    ROOT and ADMIN can toggle any event. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only toggle events from their own organization."""
+                    Only ROOT and ADMIN can toggle event status. \
+                    When an event is disabled, all event and child entity endpoints become inaccessible."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -278,7 +278,7 @@ public interface EventControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - trying to toggle event from another organization",
+                    description = "Access forbidden - only ROOT and ADMIN can toggle event status",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -295,6 +295,57 @@ public interface EventControllerApi {
     })
     ResponseEntity<EventResponse> toggleEventEnabled(
             @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser);
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Change event status",
+            description = """
+                    Change event status to DRAFT, PUBLISHED, CANCELLED, or COMPLETED. \
+                    Accessible by ROOT, ADMIN, ORGANIZER_ADMIN, and ORGANIZER_USER. \
+                    DISTRIBUTOR role cannot change event status. \
+                    ROOT and ADMIN can change status for any event. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only change status for events in their organization."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Event status changed successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = EventResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid status value",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Access forbidden - insufficient permissions or trying to change status for event in another organization",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Event not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<EventResponse> changeEventStatus(
+            @PathVariable Long id,
+            @Parameter(description = "New event status (DRAFT, PUBLISHED, CANCELLED, COMPLETED)", required = true)
+            @RequestParam EventStatus status,
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/{id}/summary")

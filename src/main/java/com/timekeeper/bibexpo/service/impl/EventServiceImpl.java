@@ -1,10 +1,6 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.exception.EventAlreadyExistsException;
-import com.timekeeper.bibexpo.exception.EventDeletionNotAllowedException;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.*;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
@@ -35,6 +31,7 @@ import java.util.function.Consumer;
 @Slf4j
 public class EventServiceImpl implements EventService {
 
+    public static final String EVENT_NOT_FOUND_WITH_ID = "Event not found with ID: ";
     private final EventRepository eventRepository;
     private final OrganizationRepository organizationRepository;
 
@@ -90,9 +87,10 @@ public class EventServiceImpl implements EventService {
         log.info("Updating event with ID: {} by user: {}", id, currentUser.getUsername());
 
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + id));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
 
         validateUserAuthorizationForView(currentUser, event);
+        validateEventEnabled(event, currentUser);
 
         if (request.getEventName() != null && !request.getEventName().isBlank() &&
                 !request.getEventName().equals(event.getEventName())) {
@@ -183,9 +181,10 @@ public class EventServiceImpl implements EventService {
 
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new EventNotFoundException(
-                        "Event not found with ID: " + id));
+                        EVENT_NOT_FOUND_WITH_ID + id));
 
         validateUserAuthorizationForView(currentUser, event);
+        validateEventEnabled(event, currentUser);
 
         log.info("Successfully fetched event with ID: {} for user: {}",
                 event.getId(), currentUser.getUsername());
@@ -199,9 +198,7 @@ public class EventServiceImpl implements EventService {
         log.info("Toggling enabled status for event with ID: {} by user: {}", id, currentUser.getUsername());
 
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + id));
-
-        validateUserAuthorizationForView(currentUser, event);
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
 
         event.setEnabled(!event.getEnabled());
 
@@ -214,13 +211,52 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
+    public EventResponse changeEventStatus(Long id, EventStatus status, User currentUser) {
+        log.info("Changing status for event with ID: {} to {} by user: {}", id, status, currentUser.getUsername());
+
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
+
+        validateUserAuthorizationForView(currentUser, event);
+        validateEventEnabled(event, currentUser);
+
+        if (status == null) {
+            throw new InvalidUserDataException("Event status cannot be null");
+        }
+
+        event.setStatus(status);
+
+        Event updatedEvent = eventRepository.save(event);
+        log.info("Successfully changed status for event with ID: {} to {} by user: {}",
+                updatedEvent.getId(), status, currentUser.getUsername());
+
+        return EventResponse.fromEntity(updatedEvent);
+    }
+
+    @Override
+    public void validateEventEnabled(Event event, User currentUser) {
+        UserRole role = currentUser.getRole();
+
+        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
+            return;
+        }
+
+        if (Boolean.FALSE.equals(event.getEnabled())) {
+            throw new com.timekeeper.bibexpo.exception.EventDisabledException(
+                    "Event with ID " + event.getId() + " is currently disabled and cannot be accessed");
+        }
+    }
+
+    @Override
+    @Transactional
     public void deleteEvent(Long id, User currentUser) {
         log.info("Deleting event with ID: {} by user: {}", id, currentUser.getUsername());
 
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + id));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
 
         validateUserAuthorizationForView(currentUser, event);
+        validateEventEnabled(event, currentUser);
 
         if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.CANCELLED) {
             throw new EventDeletionNotAllowedException(
@@ -243,13 +279,13 @@ public class EventServiceImpl implements EventService {
         log.info("Fetching event summary for event ID: {} by user: {}", id, currentUser.getUsername());
 
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + id));
+                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
 
         validateUserAuthorizationForView(currentUser, event);
+        validateEventEnabled(event, currentUser);
 
         Event eventWithRacesAndCategories = eventRepository.findById(id).orElseThrow();
-        eventWithRacesAndCategories.getRaces().size();
-        eventWithRacesAndCategories.getRaces().forEach(race -> race.getCategories().size());
+        eventWithRacesAndCategories.getRaces().forEach(race -> race.getCategories().forEach(category -> {}));
 
         EventSummaryResponse summary = EventSummaryResponse.fromEntity(eventWithRacesAndCategories);
 
@@ -264,7 +300,7 @@ public class EventServiceImpl implements EventService {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (query != null && query.getResultType() != Long.class && query.getResultType() != long.class) {
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
                 root.fetch("organization", jakarta.persistence.criteria.JoinType.LEFT);
             }
 

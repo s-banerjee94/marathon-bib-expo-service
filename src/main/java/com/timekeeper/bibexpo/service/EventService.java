@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.service;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
+import com.timekeeper.bibexpo.model.dto.response.EventSummaryResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
 import org.springframework.data.domain.Page;
@@ -75,13 +76,38 @@ public interface EventService {
     /**
      * Toggle event enabled status
      * Authorization:
-     * - ROOT and ADMIN can toggle any event
-     * - ORGANIZER_ADMIN and ORGANIZER_USER can only toggle events from their own organization
+     * - Only ROOT and ADMIN can toggle event status
+     * When an event is disabled, all event and child entity endpoints become inaccessible
      * @param id The event ID
      * @param currentUser The authenticated user
      * @return The updated event response
      */
     EventResponse toggleEventEnabled(Long id, User currentUser);
+
+    /**
+     * Change event status
+     * Authorization:
+     * - ROOT and ADMIN can change status for any event
+     * - ORGANIZER_ADMIN and ORGANIZER_USER can only change status for events in their organization
+     * - DISTRIBUTOR cannot change event status
+     * @param id The event ID
+     * @param status The new event status (DRAFT, PUBLISHED, CANCELLED, COMPLETED)
+     * @param currentUser The authenticated user
+     * @return The updated event response
+     * @throws EventNotFoundException if the event does not exist
+     * @throws UnauthorizedAccessException if the user lacks permission
+     */
+    EventResponse changeEventStatus(Long id, EventStatus status, User currentUser);
+
+    /**
+     * Validate that an event is enabled and accessible
+     * ROOT and ADMIN can access disabled events
+     * Other roles cannot access disabled events
+     * @param event The event to validate
+     * @param currentUser The authenticated user
+     * @throws EventDisabledException if the event is disabled and user is not ROOT/ADMIN
+     */
+    void validateEventEnabled(com.timekeeper.bibexpo.model.entity.Event event, User currentUser);
 
     /**
      * Permanently delete an event
@@ -108,5 +134,5 @@ public interface EventService {
      * @param currentUser The authenticated user
      * @return The event summary response with races and categories
      */
-    com.timekeeper.bibexpo.model.dto.response.EventSummaryResponse getEventSummary(Long id, User currentUser);
+    EventSummaryResponse getEventSummary(Long id, User currentUser);
 }

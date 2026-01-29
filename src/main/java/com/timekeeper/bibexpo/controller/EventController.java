@@ -115,6 +115,19 @@ public class EventController implements EventControllerApi {
     }
 
     @Override
+    public ResponseEntity<EventResponse> changeEventStatus(
+            @PathVariable Long id,
+            @RequestParam EventStatus status,
+            @AuthenticationPrincipal User currentUser) {
+        log.info("Received request to change status for event with ID: {} to {} by user: {}",
+                id, status, currentUser.getUsername());
+
+        EventResponse response = eventService.changeEventStatus(id, status, currentUser);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
     public ResponseEntity<EventSummaryResponse> getEventSummary(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
