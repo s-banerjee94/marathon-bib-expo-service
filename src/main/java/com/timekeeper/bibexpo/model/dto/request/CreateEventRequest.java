@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.model.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
@@ -86,6 +87,7 @@ public class CreateEventRequest {
     @Schema(description = "Event goodies as JSON string", example = "{\"tshirt\": true, \"medal\": true, \"certificate\": true}")
     private String eventGoodies;
 
+    @JsonIgnore
     @AssertTrue(message = "Event end date must be after start date")
     public boolean isEventDateValid() {
         if (eventStartDate == null || eventEndDate == null) {
