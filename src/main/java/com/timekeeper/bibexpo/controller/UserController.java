@@ -2,12 +2,15 @@ package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
+import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
@@ -53,14 +56,15 @@ public class UserController implements UserControllerApi {
     }
 
     @Override
-    public ResponseEntity<List<UserResponse>> getAllUsers(UserRole role, Long organizationId,
-                                                           Boolean enabled, Boolean includeDeleted,
-                                                           String search, String sortBy,
-                                                           String sortDirection, User currentUser) {
-        log.info("Request to get all users by: {}", currentUser.getUsername());
-        List<UserResponse> response = userService.getAllUsers(role, organizationId, enabled,
-                                                              includeDeleted, search, sortBy,
-                                                              sortDirection, currentUser.getUsername());
+    public ResponseEntity<PageableResponse<UserResponse>> getAllUsers(UserRole role, Long organizationId,
+                                                                       Boolean enabled, Boolean includeDeleted,
+                                                                       String search, Pageable pageable,
+                                                                       User currentUser) {
+        log.info("Request to get all users with pagination by: {}", currentUser.getUsername());
+        Page<UserResponse> usersPage = userService.getAllUsers(role, organizationId, enabled,
+                                                                includeDeleted, search, pageable,
+                                                                currentUser.getUsername());
+        PageableResponse<UserResponse> response = PageableResponse.of(usersPage);
         return ResponseEntity.ok(response);
     }
 

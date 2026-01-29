@@ -14,12 +14,17 @@ import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.UserService;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -651,34 +656,33 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserResponse> getAllUsers(UserRole role, Long organizationId, Boolean enabled,
-                                          Boolean includeDeleted, String search, String sortBy,
-                                          String sortDirection, String currentUsername) {
-        log.info("Getting all users - role: {}, orgId: {}, enabled: {}, includeDeleted: {}, " +
-                 "search: {}, sortBy: {}, sortDir: {} by: {}",
-                 role, organizationId, enabled, includeDeleted, search, sortBy,
-                 sortDirection, currentUsername);
+    public Page<UserResponse> getAllUsers(UserRole role, Long organizationId, Boolean enabled,
+                                          Boolean includeDeleted, String search, Pageable pageable,
+                                          String currentUsername) {
+        log.info("Getting all users with pagination - role: {}, orgId: {}, enabled: {}, includeDeleted: {}, " +
+                 "search: {} by: {}",
+                 role, organizationId, enabled, includeDeleted, search, currentUsername);
 
         User currentUser = fetchCurrentUser(currentUsername);
 
         // Validate ROOT/ADMIN permission
         validateSystemAdminPermission(currentUser);
 
-        // Fetch users based on filters (organizationId can be null for all orgs)
-        List<User> users = fetchFilteredUsers(role, organizationId, enabled, includeDeleted);
+        // Build dynamic specification for filtering
+        Specification<User> spec = buildUserSpecification(role, organizationId, enabled, includeDeleted, search);
 
-        // Apply search filter if provided
-        if (search != null && !search.trim().isEmpty()) {
-            users = applySearchFilter(users, search);
-        }
+        // Fetch users with pagination
+        Page<User> usersPage = userRepository.findAll(spec, pageable);
 
-        // Apply sorting
-        users = applySorting(users, sortBy, sortDirection);
+        // Convert to response DTOs
+        Page<UserResponse> responsePage = usersPage.map(UserResponse::fromEntity);
 
-        log.info("Successfully retrieved {} users", users.size());
-        return users.stream()
-                   .map(UserResponse::fromEntity)
-                   .toList();
+        log.info("Successfully retrieved {} users (page {} of {})",
+                responsePage.getNumberOfElements(),
+                responsePage.getNumber() + 1,
+                responsePage.getTotalPages());
+
+        return responsePage;
     }
 
     /**
@@ -692,6 +696,68 @@ public class UserServiceImpl implements UserService {
             throw new UnauthorizedAccessException(
                     "Only ROOT and ADMIN users can access system-wide user list");
         }
+    }
+
+    /**
+     * Build dynamic specification for filtering users
+     */
+    private Specification<User> buildUserSpecification(
+            UserRole role, Long organizationId, Boolean enabled, Boolean includeDeleted, String search) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Filter by role if provided
+            if (role != null) {
+                predicates.add(criteriaBuilder.equal(root.get("role"), role));
+            }
+
+            // Filter by organization if provided
+            if (organizationId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("organization").get("id"), organizationId));
+            }
+
+            // Filter by enabled status if provided
+            if (enabled != null) {
+                predicates.add(criteriaBuilder.equal(root.get("enabled"), enabled));
+            }
+
+            // Filter by deleted status
+            if (Boolean.TRUE.equals(includeDeleted)) {
+                // Include all users (both deleted and non-deleted)
+            } else {
+                // By default, exclude deleted users
+                predicates.add(criteriaBuilder.equal(root.get("deleted"), false));
+            }
+
+            // Multi-field search across username, email, and fullName
+            if (search != null && !search.isBlank()) {
+                String searchPattern = "%" + search.toLowerCase() + "%";
+
+                Predicate usernamePredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("username")),
+                        searchPattern
+                );
+
+                Predicate emailPredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("email")),
+                        searchPattern
+                );
+
+                Predicate fullNamePredicate = criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("fullName")),
+                        searchPattern
+                );
+
+                // Combine the three predicates with OR
+                predicates.add(criteriaBuilder.or(
+                        usernamePredicate,
+                        emailPredicate,
+                        fullNamePredicate
+                ));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     @Override

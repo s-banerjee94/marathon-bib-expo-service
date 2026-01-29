@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.controller;
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
+import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +15,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -260,12 +262,12 @@ public interface UserControllerApi {
     );
 
     @Operation(
-            summary = "Get all users in the system (ROOT/ADMIN only)",
+            summary = "Get all users in the system with pagination (ROOT/ADMIN only)",
             description = """
-                    Retrieves all users in the system with optional filtering, searching, and sorting. \
+                    Retrieves all users in the system with optional filtering, searching, sorting, and pagination. \
                     Only ROOT and ADMIN users can access this endpoint. \
                     Can query any organization and include deleted users. \
-                    Returns a simple list (no pagination)."""
+                    Returns paginated results with metadata."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -273,7 +275,7 @@ public interface UserControllerApi {
                     description = "Users retrieved successfully",
                     content = @Content(
                             mediaType = "application/json",
-                            schema = @Schema(implementation = UserResponse.class)
+                            schema = @Schema(implementation = PageableResponse.class)
                     )
             ),
             @ApiResponse(
@@ -287,7 +289,7 @@ public interface UserControllerApi {
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
-    ResponseEntity<List<UserResponse>> getAllUsers(
+    ResponseEntity<PageableResponse<UserResponse>> getAllUsers(
             @Parameter(description = "Filter by user role")
             @RequestParam(required = false) com.timekeeper.bibexpo.model.entity.UserRole role,
 
@@ -303,11 +305,8 @@ public interface UserControllerApi {
             @Parameter(description = "Search by username, email, or full name (case-insensitive)")
             @RequestParam(required = false) String search,
 
-            @Parameter(description = "Sort by field (username, email, fullName, role, createdAt)")
-            @RequestParam(required = false) String sortBy,
-
-            @Parameter(description = "Sort direction (ASC, DESC, default: ASC)")
-            @RequestParam(required = false, defaultValue = "ASC") String sortDirection,
+            @Parameter(description = "Pagination parameters")
+            Pageable pageable,
 
             @Parameter(hidden = true)
             @AuthenticationPrincipal User currentUser
@@ -340,7 +339,7 @@ public interface UserControllerApi {
             )
     })
     @GetMapping("/organization")
-    @PreAuthorize("hasAnyRole('ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    @PreAuthorize("hasAnyRole('ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     ResponseEntity<List<UserResponse>> getOrganizationUsers(
             @Parameter(description = "Filter by user role")
             @RequestParam(required = false) com.timekeeper.bibexpo.model.entity.UserRole role,

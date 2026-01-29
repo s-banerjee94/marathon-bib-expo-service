@@ -4,6 +4,8 @@ import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Service interface for user management operations
@@ -85,7 +87,7 @@ public interface UserService {
     UserResponse getUserById(Long userId, String currentUsername);
 
     /**
-     * Get all users in the system (ROOT/ADMIN only).
+     * Get all users in the system with pagination (ROOT/ADMIN only).
      * Can query any organization with all filters including deleted users.
      *
      * @param role optional role filter
@@ -93,15 +95,14 @@ public interface UserService {
      * @param enabled optional enabled status filter
      * @param includeDeleted include soft-deleted users
      * @param search optional search term (searches username, email, fullName)
-     * @param sortBy optional sort field (username, email, fullName, role, createdAt)
-     * @param sortDirection optional sort direction (ASC, DESC)
+     * @param pageable pagination parameters
      * @param currentUsername the username of the user making the request
-     * @return list of user responses matching filters
+     * @return page of user responses matching filters
      * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user is not ROOT or ADMIN
      */
-    java.util.List<UserResponse> getAllUsers(UserRole role, Long organizationId, Boolean enabled,
-                                             Boolean includeDeleted, String search, String sortBy,
-                                             String sortDirection, String currentUsername);
+    Page<UserResponse> getAllUsers(UserRole role, Long organizationId, Boolean enabled,
+                                    Boolean includeDeleted, String search, Pageable pageable,
+                                    String currentUsername);
 
     /**
      * Get all users in the current user's organization (ORG_ADMIN, ORG_USER, DISTRIBUTOR).
