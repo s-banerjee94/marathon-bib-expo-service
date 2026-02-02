@@ -42,16 +42,13 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "201", description = "Participant created successfully",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ParticipantResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request data",
+            @ApiResponse(responseCode = "400", description = "Invalid request data or participant with BIB number already exists",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event, race, or category not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Participant with BIB number already exists",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -71,30 +68,40 @@ public interface ParticipantControllerApi {
     @PostMapping(value = "/{eventId}/participants/import", consumes = "multipart/form-data")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Import participants from CSV file (FULL REPLACE)",
+            summary = "Import participants from CSV file (FRESH IMPORT - FULL REPLACE)",
             description = """
-                    ⚠️ IMPORTANT: This is a FULL REPLACE import. ALL existing participants for this event will be DELETED before importing the CSV. \
-                    Upload a CSV file to bulk import participants for an event. \
-                    CSV must contain standard columns: CHIP No., BIB No., NAME, DOB(dd-mm-yyy), Age, Gender, Race, Category, Phone, Email-Id, Country, City. \
-                    Additional columns after 'City' are treated as dynamic goodies (e.g., T-Shirt Size, Cap Size). \
-                    The system will detect goodies columns automatically and store them in the event metadata. \
-                    Returns a lightweight response with importId. Use GET /api/events/{eventId}/imports/{importId} to retrieve detailed results, error summary, and error list. \
-                    Only ROOT, ADMIN, and ORGANIZER_ADMIN roles can import participants."""
+                    ⚠️ CRITICAL: This endpoint performs a FRESH IMPORT which DELETES ALL existing participants for this event before importing new ones. \
+                    This action is permanent and cannot be undone. Use with caution. \
+
+                    **CSV Format:** The CSV file must contain these standard columns (in order): \
+                    CHIP No., BIB No., NAME, DOB (dd-mm-yyyy), Age, Gender, Race, Category, Phone, Email-Id, Country, City. \
+
+                    **Dynamic Goodies:** Any columns after 'City' are automatically detected and stored as dynamic goodies \
+                    (e.g., T-Shirt Size, Cap Size, Medal Type). These are persisted in the event metadata for reference. \
+
+                    **Processing:** \
+                    1. Validates CSV structure and data integrity \
+                    2. Deletes ALL existing participants for the event \
+                    3. Performs bulk validation of CSV rows \
+                    4. Imports valid rows into DynamoDB \
+                    5. Stores validation errors with 30-day TTL \
+
+                    **Response:** Returns immediately with importId and import job status. Use GET /api/events/{eventId}/imports/{importId} \
+                    to retrieve detailed results and error summary. Use GET /api/events/{eventId}/imports/{importId}/errors for paginated error details. \
+
+                    **Authorization:** Only ROOT, ADMIN, and ORGANIZER_ADMIN roles can perform imports."""
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Import job created and processing completed. Use importId to query details.",
+            @ApiResponse(responseCode = "200", description = "Import job completed successfully. All old participants deleted, new ones imported. Check response message and use importId to query detailed results.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ImportParticipantsResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid CSV format or data",
+            @ApiResponse(responseCode = "400", description = "Invalid CSV format, missing required columns, file too large, or data validation errors",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user does not have ORGANIZER_ADMIN or higher role",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "413", description = "File too large",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -137,75 +144,22 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
-    @GetMapping("/{eventId}/participants/{bibNumber}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(
-            summary = "Get participant by bib number",
-            description = "Retrieve a specific participant by their bib number for a given event"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Participant found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ParticipantResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden"),
-            @ApiResponse(responseCode = "404", description = "Participant or event not found")
-    })
-    ResponseEntity<ParticipantResponse> getParticipantByBibNumber(
-            @Parameter(description = "Event ID", required = true)
-            @PathVariable Long eventId,
-
-            @Parameter(description = "Bib number", required = true)
-            @PathVariable String bibNumber,
-
-            @AuthenticationPrincipal User currentUser
-    );
-
-    @PatchMapping("/{eventId}/participants/{bibNumber}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(
-            summary = "Update participant",
-            description = "Update participant details. Only non-null fields will be updated. BIB number can be changed (requires delete+create operation). Goodies cannot be updated via this endpoint."
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Participant updated successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ParticipantResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request data",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access denied - not authorized for this event",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event or participant not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    ResponseEntity<ParticipantResponse> updateParticipant(
-            @Parameter(description = "Event ID", required = true, example = "1")
-            @PathVariable Long eventId,
-
-            @Parameter(description = "Participant BIB number", required = true, example = "21001")
-            @PathVariable String bibNumber,
-
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Participant update data. Only non-null fields will be updated.",
-                    required = true,
-                    content = @Content(schema = @Schema(implementation = UpdateParticipantRequest.class)))
-            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody UpdateParticipantRequest request,
-
-            @AuthenticationPrincipal User currentUser
-    );
-
     @GetMapping("/{eventId}/participants/count")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get participant count for an event",
-            description = "Returns the total number of participants registered for an event"
+            description = "Returns the total number of participants registered for an event as a simple count object {count: number}"
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Count retrieved successfully"),
-            @ApiResponse(responseCode = "403", description = "Access forbidden"),
-            @ApiResponse(responseCode = "404", description = "Event not found")
+            @ApiResponse(responseCode = "200", description = "Count retrieved successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(example = "{\"count\": 150}"))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<Map<String, Long>> getParticipantCount(
             @Parameter(description = "Event ID", required = true)
@@ -214,7 +168,7 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
-    @GetMapping("/{eventId}/imports")
+    @GetMapping("/{eventId}/participants/imports")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
             summary = "Get import job history for an event",
@@ -240,7 +194,7 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
-    @GetMapping("/{eventId}/imports/{importId}")
+    @GetMapping("/{eventId}/participants/imports/{importId}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
             summary = "Get import job details",
@@ -263,19 +217,23 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
-    @GetMapping("/{eventId}/imports/{importId}/errors")
+    @GetMapping("/{eventId}/participants/imports/{importId}/errors")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Get import errors with pagination",
+            summary = "Get import errors with token-based pagination",
             description = """
-                    Retrieve paginated list of errors from a specific import job. \
+                    Retrieve paginated list of errors from a specific import job using efficient DynamoDB token-based pagination. \
                     Errors are stored in DynamoDB with 30-day TTL and automatically deleted after expiration. \
-                    Use this endpoint to review all import errors when the response contains more than 100 errors."""
+                    Use the lastEvaluatedKey from the response to fetch the next page of errors. \
+                    This endpoint uses efficient DynamoDB Query operations instead of scanning all errors."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Import errors retrieved successfully",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ImportErrorListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid pagination key",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden"),
             @ApiResponse(responseCode = "404", description = "Import job or event not found")
     })
@@ -286,69 +244,11 @@ public interface ParticipantControllerApi {
             @Parameter(description = "Import job ID", required = true)
             @PathVariable String importId,
 
-            @Parameter(description = "Page number (0-indexed, default: 0)")
-            @RequestParam(defaultValue = "0") Integer page,
+            @Parameter(description = "Maximum number of errors to return (default: 50, max: 100)")
+            @RequestParam(defaultValue = "50") Integer limit,
 
-            @Parameter(description = "Page size (default: 50)")
-            @RequestParam(defaultValue = "50") Integer size,
-
-            @AuthenticationPrincipal User currentUser
-    );
-
-    @DeleteMapping("/{eventId}/participants")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(
-            summary = "Delete all participants for an event",
-            description = """
-                    ⚠️ WARNING: This will permanently delete ALL participants for the specified event. \
-                    This action cannot be undone. Use with caution."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "All participants deleted successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = DeleteParticipantsResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    ResponseEntity<DeleteParticipantsResponse> deleteAllParticipants(
-            @Parameter(description = "Event ID", required = true)
-            @PathVariable Long eventId,
-            @AuthenticationPrincipal User currentUser
-    );
-
-    @DeleteMapping("/{eventId}/participants/bulk")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(
-            summary = "Delete specific participants by bib numbers",
-            description = """
-                    Delete multiple participants by providing their bib numbers. \
-                    Maximum 25 participants can be deleted at once. \
-                    Returns count of successfully deleted and failed deletions."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Bulk delete completed",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = DeleteParticipantsResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request (empty list or more than 25 items)",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    ResponseEntity<DeleteParticipantsResponse> deleteBulkParticipants(
-            @Parameter(description = "Event ID", required = true)
-            @PathVariable Long eventId,
-
-            @Parameter(description = "Request body containing list of bib numbers to delete", required = true)
-            @RequestBody @jakarta.validation.Valid BulkDeleteParticipantsRequest request,
+            @Parameter(description = "DynamoDB pagination token from previous response (base64 encoded)")
+            @RequestParam(required = false) String lastEvaluatedKey,
 
             @AuthenticationPrincipal User currentUser
     );
@@ -358,20 +258,26 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Search and filter participants",
             description = """
-                    Search participants by name, email, phone, or chip number with optional filters. \
-                    **Search Logic (OR):** Search term matches ANY of fullName, email, phoneNumber, or chipNumber (case-insensitive, partial match). \
-                    **Filter Logic (AND):** All specified filters must match. \
-                    Returns paginated results with DynamoDB-style pagination (lastEvaluatedKey). \
-                    ⚠️ Note: Uses DynamoDB Scan operation which may be slower for large datasets."""
+                    Flexible search for participants using a search term and/or optional filters. \
+
+                    **Search Logic:** If searchTerm is provided, it matches ANY of: fullName, email, phoneNumber, or chipNumber \
+                    (case-insensitive, partial match). If no searchTerm is provided, filters alone are applied. \
+
+                    **Filter Logic:** All specified filters (race, category, gender, age range, city, country) must match (AND logic). \
+
+                    **Pagination:** Results are paginated using DynamoDB-style pagination with lastEvaluatedKey (base64 encoded). \
+
+                    **Performance Note:** ⚠️ Uses DynamoDB Scan operation which may be slower for large datasets. \
+                    For cost-efficient lookups by specific fields, use the /lookup endpoint instead."""
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Search completed successfully",
+            @ApiResponse(responseCode = "200", description = "Search completed successfully. Returns matching participants with pagination info.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ParticipantListResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid search parameters (e.g., search term too short, invalid age range)",
+            @ApiResponse(responseCode = "400", description = "Invalid search parameters - search term too short (<2 chars), invalid age range (min > max), limit > 100, or invalid pagination key",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found",
@@ -416,50 +322,24 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
-    @DeleteMapping("/{eventId}/participants/{bibNumber}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(
-            summary = "Delete a participant by bib number",
-            description = "Delete a specific participant from an event by their bib number. This action cannot be undone."
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Participant deleted successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = DeleteParticipantsResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event or participant not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    ResponseEntity<DeleteParticipantsResponse> deleteParticipant(
-            @Parameter(description = "Event ID", required = true)
-            @PathVariable Long eventId,
-
-            @Parameter(description = "Bib number of the participant to delete", required = true)
-            @PathVariable String bibNumber,
-
-            @AuthenticationPrincipal User currentUser
-    );
-
     @GetMapping("/{eventId}/participants/lookup")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
-            summary = "Lookup participants using LSI (cost-efficient)",
+            summary = "Lookup participants using LSI (cost-efficient alternative to search)",
             description = """
-                    Lookup participants using DynamoDB Local Secondary Indexes for efficient Query operations. \
-                    This is more cost-effective than the search endpoint as it uses Query instead of Scan.
+                    Efficient participant lookup using DynamoDB Local Secondary Indexes (LSI). \
+                    **Recommended over /search endpoint** - Uses Query operations instead of Scan, resulting in lower cost and faster performance. \
 
-                    **Search Types:**
-                    - `NAME`: Search by full name (begins_with, case-insensitive)
-                    - `EMAIL`: Search by email (begins_with, case-insensitive)
-                    - `PHONE`: Search by phone number (begins_with)
-                    - `BIB`: Exact match lookup by bib number
-                    - `RACE`: Search by race name (begins_with) - returns all participants in matching races
-                    - `CATEGORY`: Search by category name (begins_with) - returns all participants in matching categories
+                    **Search Types and Matching Logic:** \
+                    - `NAME`: Search by full name (begins_with, case-insensitive). Example: 'JO' matches 'John', 'Joanna' \
+                    - `EMAIL`: Search by email address (begins_with, case-insensitive). Example: 'john' matches 'john@example.com', 'johnny@example.com' \
+                    - `PHONE`: Search by phone number (begins_with, exact prefix match). Example: '+91' matches '+91-9876543210' \
+                    - `BIB`: Exact match lookup by bib number (most efficient). Example: 'BIB001' returns exactly one participant or none \
+                    - `RACE`: Search by race name (begins_with). Returns ALL participants registered for races matching the name. Supports pagination. \
+                    - `CATEGORY`: Search by category name (begins_with). Returns ALL participants in categories matching the name. Supports pagination. \
 
-                    **Note:** RACE and CATEGORY searches may return many results and support pagination."""
+                    **Pagination:** Results are paginated using DynamoDB lastEvaluatedKey (base64 encoded). \
+                    RACE and CATEGORY searches may return large result sets and benefit from pagination."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Lookup completed successfully",
@@ -534,11 +414,22 @@ public interface ParticipantControllerApi {
     @GetMapping("/{eventId}/participants/statistics")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
-            summary = "Get participant statistics for an event",
+            summary = "Get participant statistics for an event (COMING SOON)",
             description = """
-                    Retrieve aggregated statistics for participants in an event including: \
-                    total count, bib collection status, breakdown by race, category, and gender. \
-                    ⚠️ This endpoint is coming soon and currently returns placeholder data."""
+                    ⚠️ PLACEHOLDER ENDPOINT - Full implementation coming soon. \
+
+                    Currently returns a minimal response with only eventId and status. \
+
+                    **Future Implementation Will Include:** \
+                    - totalParticipants: Total number of registered participants \
+                    - bibCollectedCount: Number of participants who collected their BIB \
+                    - pendingCount: Number of participants pending BIB collection \
+                    - raceBreakdown: Participant counts grouped by race \
+                    - categoryBreakdown: Participant counts grouped by category \
+                    - genderBreakdown: Participant counts grouped by gender (M/F/O) \
+
+                    This is a placeholder endpoint for future enhancements. Use the search/lookup endpoints \
+                    for current participant data retrieval."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Statistics retrieved successfully",
@@ -554,6 +445,180 @@ public interface ParticipantControllerApi {
     ResponseEntity<ParticipantStatisticsResponse> getParticipantStatistics(
             @Parameter(description = "Event ID", required = true, example = "1")
             @PathVariable Long eventId,
+
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @DeleteMapping("/{eventId}/participants")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Delete all participants for an event",
+            description = """
+                    ⚠️ WARNING: This will permanently delete ALL participants for the specified event. \
+                    This action cannot be undone. Use with caution. \
+
+                    Attempts to delete all participants and returns counts of successful and failed deletions."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Deletion operation completed. Response includes deleted and failed counts.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = DeleteParticipantsResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<DeleteParticipantsResponse> deleteAllParticipants(
+            @Parameter(description = "Event ID", required = true)
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @DeleteMapping("/{eventId}/participants/bulk")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Delete specific participants by bib numbers",
+            description = """
+                    Delete multiple participants in a single batch operation. \
+                    **Constraints:** \
+                    - Minimum 1 bib number required (empty list will be rejected) \
+                    - Maximum 25 participants per request (more will be rejected) \
+
+                    Returns counts of successfully deleted participants and any failures that occurred during the operation."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Bulk delete operation completed. Response includes deleted and failed counts.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = DeleteParticipantsResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request - empty list, more than 25 items, or invalid bib numbers",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<DeleteParticipantsResponse> deleteBulkParticipants(
+            @Parameter(description = "Event ID", required = true)
+            @PathVariable Long eventId,
+
+            @Parameter(description = "Request body containing list of bib numbers to delete", required = true)
+            @RequestBody @jakarta.validation.Valid BulkDeleteParticipantsRequest request,
+
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @GetMapping("/{eventId}/participants/{bibNumber}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Get participant by bib number",
+            description = """
+                    Retrieve complete details of a specific participant using their bib number. \
+                    Returns all participant information including goodies, contact details, and collection status. \
+                    **Note:** BIB numbers are unique within an event."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Participant found and returned",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ParticipantResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Participant with specified bib number or event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<ParticipantResponse> getParticipantByBibNumber(
+            @Parameter(description = "Event ID", required = true)
+            @PathVariable Long eventId,
+
+            @Parameter(description = "Bib number", required = true)
+            @PathVariable String bibNumber,
+
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @PatchMapping("/{eventId}/participants/{bibNumber}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Update participant details",
+            description = """
+                    Update participant information with partial (PATCH) semantics. Only non-null fields in the request are updated. \
+
+                    **What Can Be Updated:** \
+                    - Personal details: fullName, dateOfBirth, age, gender, phoneNumber, email \
+                    - Location: country, city \
+                    - Race & Category: Can be changed with validation against event's races and categories \
+                    - BIB Collection: bibCollectedAt timestamp to mark when participant collected their bib \
+                    - Emergency Contact: emergencyContactName, emergencyContactPhone \
+                    - Notes: general notes about the participant \
+
+                    **What Cannot Be Updated:** \
+                    - BIB Number: To change BIB number, delete this participant and create a new one \
+                    - Chip Number: Cannot be modified once created \
+                    - Goodies: These are set during import and managed separately \
+
+                    **Behavior:** Null fields in the request are ignored and won't overwrite existing values."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Participant updated successfully. Returns the complete updated record.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ParticipantResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request data - invalid race/category ID, invalid field values, or field validation errors",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access denied - user not authorized for this event",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event, participant, race, or category not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<ParticipantResponse> updateParticipant(
+            @Parameter(description = "Event ID", required = true, example = "1")
+            @PathVariable Long eventId,
+
+            @Parameter(description = "Participant BIB number", required = true, example = "21001")
+            @PathVariable String bibNumber,
+
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Participant update data. Only non-null fields will be updated.",
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = UpdateParticipantRequest.class)))
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody UpdateParticipantRequest request,
+
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @DeleteMapping("/{eventId}/participants/{bibNumber}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Delete a participant by bib number",
+            description = """
+                    Permanently delete a single participant from an event using their bib number. \
+                    This action cannot be undone. The participant record will be completely removed from DynamoDB."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Participant deleted successfully. Response includes deletion count and status.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = DeleteParticipantsResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event or participant with specified bib number not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<DeleteParticipantsResponse> deleteParticipant(
+            @Parameter(description = "Event ID", required = true)
+            @PathVariable Long eventId,
+
+            @Parameter(description = "Bib number of the participant to delete", required = true)
+            @PathVariable String bibNumber,
 
             @AuthenticationPrincipal User currentUser
     );

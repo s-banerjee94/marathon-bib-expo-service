@@ -33,6 +33,7 @@ public class RaceServiceImpl implements RaceService {
     public static final String RACE_NOT_FOUND_WITH_ID = "Race not found with ID: ";
     private final RaceRepository raceRepository;
     private final EventRepository eventRepository;
+    private final com.timekeeper.bibexpo.service.EventService eventService;
 
     @Override
     @Transactional
@@ -44,6 +45,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         if (raceRepository.existsByRaceNameAndEventIdAndDeletedFalse(request.getRaceName(), eventId)) {
             throw new RaceAlreadyExistsException(
@@ -74,6 +76,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         Race race = raceRepository.findByIdAndDeletedFalse(raceId)
                 .orElseThrow(() -> new RaceNotFoundException(RACE_NOT_FOUND_WITH_ID + raceId));
@@ -110,6 +113,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         Race race = raceRepository.findByIdAndDeletedFalse(raceId)
                 .orElseThrow(() -> new RaceNotFoundException(RACE_NOT_FOUND_WITH_ID + raceId));
@@ -134,6 +138,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         List<Race> races;
         if (enabled != null && enabled) {
@@ -162,6 +167,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         Race race = raceRepository.findById(raceId)
                 .orElseThrow(() -> new RaceNotFoundException(RACE_NOT_FOUND_WITH_ID + raceId));
@@ -190,6 +196,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         Race race = raceRepository.findByIdAndDeletedFalse(raceId)
                 .orElseThrow(() -> new RaceNotFoundException(RACE_NOT_FOUND_WITH_ID + raceId));
@@ -239,6 +246,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)
                 .orElseThrow(() -> new RaceNotFoundException(

@@ -105,15 +105,15 @@ public interface ParticipantService {
     ImportJobResponse getImportJobDetails(Long eventId, String importId, User currentUser);
 
     /**
-     * Get paginated errors for an import job
+     * Get paginated errors for an import job using token-based pagination
      * @param eventId The event ID
      * @param importId The import job ID
-     * @param page Page number (0-indexed)
-     * @param size Page size
+     * @param limit Maximum number of errors to return (default: 50, max: 100)
+     * @param lastEvaluatedKey DynamoDB pagination token from previous response (base64 encoded)
      * @param currentUser The authenticated user
-     * @return Paginated error list
+     * @return Paginated error list with token for next page
      */
-    ImportErrorListResponse getImportErrors(Long eventId, String importId, Integer page, Integer size, User currentUser);
+    ImportErrorListResponse getImportErrors(Long eventId, String importId, Integer limit, String lastEvaluatedKey, User currentUser);
 
     /**
      * Delete a single participant by bib number

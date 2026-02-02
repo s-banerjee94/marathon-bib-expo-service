@@ -34,6 +34,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
     private final RaceRepository raceRepository;
     private final EventRepository eventRepository;
+    private final com.timekeeper.bibexpo.service.EventService eventService;
 
     @Override
     @Transactional
@@ -161,6 +162,7 @@ public class CategoryServiceImpl implements CategoryService {
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
 
         validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         Race race = raceRepository.findById(raceId)
                 .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));

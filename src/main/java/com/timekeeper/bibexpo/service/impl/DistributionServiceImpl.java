@@ -36,6 +36,7 @@ import java.util.*;
 public class DistributionServiceImpl implements DistributionService {
 
     private final EventRepository eventRepository;
+    private final com.timekeeper.bibexpo.service.EventService eventService;
     private final ParticipantDDBRepository participantRepository;
     private final DistributionLogDDBRepository logRepository;
     private final DynamoDBPaginationCodec paginationCodec;
@@ -45,6 +46,7 @@ public class DistributionServiceImpl implements DistributionService {
     public BibDistributionResponse collectBib(Long eventId, String bibNumber, CollectBibRequest request, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
@@ -119,6 +121,7 @@ public class DistributionServiceImpl implements DistributionService {
     public UndoDistributionResponse undoBib(Long eventId, String bibNumber, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForUndoOperation(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
@@ -161,6 +164,7 @@ public class DistributionServiceImpl implements DistributionService {
                                                          DistributeGoodiesRequest request, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
@@ -217,6 +221,7 @@ public class DistributionServiceImpl implements DistributionService {
 
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         Map<String, AttributeValue> expressionValues = new HashMap<>();
         expressionValues.put(":nullValue", AttributeValue.builder().nul(true).build());
@@ -290,6 +295,7 @@ public class DistributionServiceImpl implements DistributionService {
     public List<DistributionLogResponse> getDistributionLogs(Long eventId, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForLogAccess(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         Key key = Key.builder()
                 .partitionValue(String.valueOf(eventId))
@@ -311,6 +317,7 @@ public class DistributionServiceImpl implements DistributionService {
     public List<DistributionLogResponse> getParticipantLogs(Long eventId, String bibNumber, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForLogAccess(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         Key key = Key.builder()
                 .partitionValue(String.valueOf(eventId))
@@ -333,6 +340,7 @@ public class DistributionServiceImpl implements DistributionService {
     public ParticipantDistributionResponse getDistributionStatus(Long eventId, String bibNumber, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
@@ -360,6 +368,7 @@ public class DistributionServiceImpl implements DistributionService {
 
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         Page<ParticipantDDB> page = queryParticipantsWithPagination(eventId, limit, lastEvaluatedKey);
 
@@ -389,6 +398,7 @@ public class DistributionServiceImpl implements DistributionService {
     public BulkDistributionResponse bulkCollectBib(Long eventId, BulkCollectBibRequest request, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         List<String> successful = new ArrayList<>();
         List<BulkDistributionResponse.FailedOperation> failed = new ArrayList<>();
@@ -425,6 +435,7 @@ public class DistributionServiceImpl implements DistributionService {
     public BulkDistributionResponse bulkDistributeGoodies(Long eventId, BulkDistributeGoodiesRequest request, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         List<String> successful = new ArrayList<>();
         List<BulkDistributionResponse.FailedOperation> failed = new ArrayList<>();

@@ -21,17 +21,15 @@ public class ImportErrorListResponse {
     @Schema(description = "List of errors for this page")
     private List<ImportError> errors;
 
-    @Schema(description = "Total number of errors", example = "150")
-    private Integer totalErrors;
+    @Schema(description = "Number of errors returned in this response", example = "50")
+    private Integer count;
 
-    @Schema(description = "Current page number", example = "0")
-    private Integer currentPage;
+    @Schema(description = "Pagination token for next page (base64 encoded). Use this value in the next request to get the next page.",
+            example = "eyJpbXBvcnRJZCI6eyJTIjoiNTUwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAwIn0sImVycm9ySWQiOnsiUyI6ImVycjEyMyJ9fQ==")
+    private String lastEvaluatedKey;
 
-    @Schema(description = "Page size", example = "50")
-    private Integer pageSize;
-
-    @Schema(description = "Total number of pages", example = "3")
-    private Integer totalPages;
+    @Schema(description = "Whether more errors are available for pagination", example = "true")
+    private Boolean hasMore;
 
     @Schema(description = "Error summary by type")
     private ErrorSummary errorSummary;

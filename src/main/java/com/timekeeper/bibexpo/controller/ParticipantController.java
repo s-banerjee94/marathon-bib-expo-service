@@ -147,16 +147,17 @@ public class ParticipantController implements ParticipantControllerApi {
     public ResponseEntity<ImportErrorListResponse> getImportErrors(
             Long eventId,
             String importId,
-            Integer page,
-            Integer size,
+            Integer limit,
+            String lastEvaluatedKey,
             User currentUser) {
-        log.info("Fetching import errors for import {} (page: {}, size: {}) by user {}",
-                importId, page, size, currentUser.getUsername());
+        log.info("Fetching import errors for import {} (limit: {}) by user {}",
+                importId, limit, currentUser.getUsername());
 
         ImportErrorListResponse response = participantService.getImportErrors(
-                eventId, importId, page, size, currentUser);
+                eventId, importId, limit, lastEvaluatedKey, currentUser);
 
-        log.info("Fetched {} errors (page {}) for import {}", response.getErrors().size(), page, importId);
+        log.info("Fetched {} errors for import {}, hasMore: {}",
+                response.getCount(), importId, response.getHasMore());
 
         return ResponseEntity.ok(response);
     }

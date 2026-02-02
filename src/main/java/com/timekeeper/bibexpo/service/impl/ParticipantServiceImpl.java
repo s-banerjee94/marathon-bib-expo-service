@@ -114,6 +114,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         ParticipantDDB existingParticipant = participantTable.getItem(
                 Key.builder()
@@ -178,6 +179,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         ImportJob importJob = ImportJob.builder()
                 .importId(importId)
@@ -286,6 +288,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId.toString()).build()
@@ -459,6 +462,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId.toString()).build()
@@ -932,9 +936,9 @@ public class ParticipantServiceImpl implements ParticipantService {
     }
 
     @Override
-    public ImportErrorListResponse getImportErrors(Long eventId, String importId, Integer page, Integer size, User currentUser) {
-        log.info("Fetching import errors for import ID: {} (page: {}, size: {}) by user: {}",
-                importId, page, size, currentUser.getUsername());
+    public ImportErrorListResponse getImportErrors(Long eventId, String importId, Integer limit, String lastEvaluatedKey, User currentUser) {
+        log.info("Fetching import errors for import ID: {} (limit: {}) by user: {}",
+                importId, limit, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
@@ -944,36 +948,61 @@ public class ParticipantServiceImpl implements ParticipantService {
         ImportJob importJob = importJobRepository.findByImportIdAndEventId(importId, eventId)
                 .orElseThrow(() -> new InvalidUserDataException("Import job not found with ID: " + importId));
 
-        int pageNumber = page != null ? page : 0;
-        int pageSize = size != null ? size : 50;
+        int effectiveLimit = limit != null ? Math.min(limit, 100) : 50;
 
         ErrorSummary errorSummary = deserializeErrorSummary(importJob.getErrorSummary());
-        int totalErrors = errorSummary != null ?
-                (errorSummary.getValidationErrors() + errorSummary.getDuplicateBibErrors() +
-                 errorSummary.getReferenceErrors() + errorSummary.getBatchWriteErrors() +
-                 errorSummary.getProcessingErrors()) : 0;
-
-        int totalPages = (int) Math.ceil((double) totalErrors / pageSize);
-        int startIndex = pageNumber * pageSize;
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(importId).build()
         );
 
-        List<ImportError> pageErrors = importErrorTable.query(queryConditional).stream()
-                .flatMap(p -> p.items().stream())
-                .skip(startIndex)
-                .limit(pageSize)
+        QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
+                .queryConditional(queryConditional)
+                .limit(effectiveLimit);
+
+        if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
+            try {
+                Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
+                requestBuilder.exclusiveStartKey(exclusiveStartKey);
+            } catch (Exception e) {
+                log.error(FAILED_TO_DECODE_PAGINATION_KEY, e);
+                throw new InvalidUserDataException("Invalid pagination key");
+            }
+        }
+
+        Page<ImportErrorDDB> page = importErrorTable.query(requestBuilder.build())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        if (page == null) {
+            return ImportErrorListResponse.builder()
+                    .importId(importId)
+                    .errors(Collections.emptyList())
+                    .count(0)
+                    .hasMore(false)
+                    .errorSummary(errorSummary)
+                    .build();
+        }
+
+        List<ImportError> errors = page.items().stream()
                 .map(this::mapImportErrorDDBToDTO)
                 .toList();
 
+        String newLastEvaluatedKey = null;
+        if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
+            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
+        }
+
+        log.info("Fetched {} errors for import ID: {}, hasMore: {}",
+                errors.size(), importId, newLastEvaluatedKey != null);
+
         return ImportErrorListResponse.builder()
                 .importId(importId)
-                .errors(pageErrors)
-                .totalErrors(totalErrors)
-                .currentPage(pageNumber)
-                .pageSize(pageSize)
-                .totalPages(totalPages)
+                .errors(errors)
+                .count(errors.size())
+                .lastEvaluatedKey(newLastEvaluatedKey)
+                .hasMore(newLastEvaluatedKey != null)
                 .errorSummary(errorSummary)
                 .build();
     }
@@ -1064,6 +1093,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         int deletedCount = deleteAllParticipantsForEvent(eventId);
 
@@ -1197,6 +1227,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         validateSearchRequest(searchTerm, minAge, maxAge, limit);
 
@@ -1403,6 +1434,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         if (searchValue == null || searchValue.trim().isEmpty()) {
             throw new InvalidUserDataException("Search value is required");
@@ -1524,6 +1556,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId.toString()).build()
@@ -1663,6 +1696,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
 
         return ParticipantStatisticsResponse.builder()
                 .eventId(eventId)
