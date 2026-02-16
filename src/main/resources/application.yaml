@@ -3,7 +3,7 @@ spring:
     name: marathon-bib-expo
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${DB_HOST:192.168.0.102}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -44,6 +44,15 @@ management:
 server:
   port: ${SERVER_PORT:8080}
 
+# CORS Configuration
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4200}
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,OPTIONS}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+  exposed-headers: ${CORS_EXPOSED_HEADERS:Authorization,Content-Type}
+  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+  max-age: ${CORS_MAX_AGE:3600}
+
 # Root user configuration
 root:
   username: ${ROOT_USERNAME:root}
@@ -65,5 +74,5 @@ logging:
 aws:
   region: ${AWS_REGION:us-east-1}
   dynamodb:
-    endpoint: ${AWS_DYNAMODB_ENDPOINT:http://localhost:4566}
+    endpoint: ${AWS_DYNAMODB_ENDPOINT:http://192.168.0.102:4566}
     table-name: ${AWS_DYNAMODB_TABLE_NAME:marathon-participants}
