@@ -37,6 +37,9 @@ public class Category implements Serializable {
     @Column(nullable = false)
     private String categoryName;
 
+    @Column(length = 1000)
+    private String description;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "race_id", nullable = false, foreignKey = @ForeignKey(name = "fk_category_race"))
     private Race race;

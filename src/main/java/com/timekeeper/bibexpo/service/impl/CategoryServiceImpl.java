@@ -68,6 +68,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         Category category = Category.builder()
                 .categoryName(request.getCategoryName())
+                .description(request.getDescription())
                 .race(race)
                 .build();
 
@@ -102,6 +103,10 @@ public class CategoryServiceImpl implements CategoryService {
                         "Category with name '" + request.getCategoryName() + "' already exists for this race");
             }
             category.setCategoryName(request.getCategoryName());
+        }
+
+        if (request.getDescription() != null) {
+            category.setDescription(request.getDescription());
         }
 
         Category updatedCategory = categoryRepository.save(category);

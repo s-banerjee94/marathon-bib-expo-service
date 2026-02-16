@@ -22,6 +22,9 @@ public class CategoryResponse {
     @Schema(description = "Category name", example = "Men 18-34")
     private String categoryName;
 
+    @Schema(description = "Category description", example = "Male participants aged 18 to 34 years")
+    private String description;
+
     @Schema(description = "Race ID this category belongs to", example = "1")
     private Long raceId;
 
@@ -44,6 +47,7 @@ public class CategoryResponse {
         return CategoryResponse.builder()
                 .id(category.getId())
                 .categoryName(category.getCategoryName())
+                .description(category.getDescription())
                 .raceId(category.getRace() != null ? category.getRace().getId() : null)
                 .eventId(category.getRace() != null && category.getRace().getEvent() != null ?
                         category.getRace().getEvent().getId() : null)

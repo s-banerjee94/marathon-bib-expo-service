@@ -19,4 +19,8 @@ public class CreateCategoryRequest {
     @Size(min = 2, max = 200, message = "Category name must be between 2 and 200 characters")
     @Schema(description = "Category name", example = "Men 18-34")
     private String categoryName;
+
+    @Size(max = 1000, message = "Description must not exceed 1000 characters")
+    @Schema(description = "Category description", example = "Male participants aged 18 to 34 years")
+    private String description;
 }
