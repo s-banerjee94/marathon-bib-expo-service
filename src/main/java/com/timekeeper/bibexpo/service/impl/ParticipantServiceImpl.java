@@ -506,7 +506,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     private Map<String, Race> buildRaceMap(Long eventId, User currentUser) {
         List<RaceResponse> races =
-                raceService.getRacesByEventId(eventId, null, currentUser);
+                raceService.getRacesByEventId(eventId, currentUser);
 
         return races.stream()
                 .collect(Collectors.toMap(

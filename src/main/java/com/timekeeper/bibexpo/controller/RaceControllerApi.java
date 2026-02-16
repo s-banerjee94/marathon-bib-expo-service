@@ -31,7 +31,7 @@ public interface RaceControllerApi {
     @Operation(
             summary = "Get all races for an event",
             description = """
-                    Retrieve all races for a specific event with optional filtering. \
+                    Retrieve all races for a specific event. \
                     ROOT and ADMIN can access races for any event. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only access races for events in their organization."""
     )
@@ -64,8 +64,6 @@ public interface RaceControllerApi {
     ResponseEntity<List<RaceResponse>> getRacesByEventId(
             @Parameter(description = "Event ID", required = true)
             @PathVariable Long eventId,
-            @Parameter(description = "Filter by enabled status (true for enabled only)")
-            @RequestParam(required = false) Boolean enabled,
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/{raceId}")
@@ -266,48 +264,6 @@ public interface RaceControllerApi {
             )
     })
     ResponseEntity<Void> deleteRace(
-            @Parameter(description = "Event ID", required = true)
-            @PathVariable Long eventId,
-            @Parameter(description = "Race ID", required = true)
-            @PathVariable Long raceId,
-            @AuthenticationPrincipal User currentUser);
-
-    @PatchMapping("/{raceId}/toggle-enabled")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(
-            summary = "Toggle race enabled status",
-            description = """
-                    Toggle the enabled/disabled status of a race. \
-                    ROOT and ADMIN can toggle any race. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only toggle races from their organization's events."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Race enabled status toggled successfully",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = RaceResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Access forbidden - trying to toggle race from another organization",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Race or Event not found",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<RaceResponse> toggleRaceEnabled(
             @Parameter(description = "Event ID", required = true)
             @PathVariable Long eventId,
             @Parameter(description = "Race ID", required = true)

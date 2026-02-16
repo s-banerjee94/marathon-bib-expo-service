@@ -13,8 +13,6 @@ public interface RaceRepository extends JpaRepository<Race, Long>, JpaSpecificat
 
     List<Race> findByEventIdAndDeletedFalse(Long eventId);
 
-    List<Race> findByEventIdAndEnabledTrueAndDeletedFalse(Long eventId);
-
     boolean existsByRaceNameAndEventIdAndDeletedFalse(String raceName, Long eventId);
 
     Optional<Race> findByRaceNameAndEventIdAndDeletedFalse(String raceName, Long eventId);

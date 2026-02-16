@@ -41,9 +41,6 @@ public class EventSummaryResponse {
         @Schema(description = "Race name")
         private String raceName;
 
-        @Schema(description = "Race enabled status")
-        private Boolean enabled;
-
         @Schema(description = "Number of categories in this race")
         private Integer categoryCount;
     }
@@ -54,7 +51,6 @@ public class EventSummaryResponse {
                 .map(race -> RaceSummary.builder()
                         .id(race.getId())
                         .raceName(race.getRaceName())
-                        .enabled(race.getEnabled())
                         .categoryCount(race.getCategories() != null ?
                                 race.getCategories().size() : 0)
                         .build())

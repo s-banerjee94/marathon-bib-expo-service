@@ -130,9 +130,8 @@ public class RaceServiceImpl implements RaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<RaceResponse> getRacesByEventId(Long eventId, Boolean enabled, User currentUser) {
-        log.info("Fetching races for event ID: {} with enabled filter: {} by user: {}",
-                eventId, enabled, currentUser.getUsername());
+    public List<RaceResponse> getRacesByEventId(Long eventId, User currentUser) {
+        log.info("Fetching races for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
@@ -140,12 +139,7 @@ public class RaceServiceImpl implements RaceService {
         validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
 
-        List<Race> races;
-        if (enabled != null && enabled) {
-            races = raceRepository.findByEventIdAndEnabledTrueAndDeletedFalse(eventId);
-        } else {
-            races = raceRepository.findByEventIdAndDeletedFalse(eventId);
-        }
+        List<Race> races = raceRepository.findByEventIdAndDeletedFalse(eventId);
 
         List<RaceResponse> raceResponses = races.stream()
                 .map(RaceResponse::fromEntity)
@@ -184,34 +178,6 @@ public class RaceServiceImpl implements RaceService {
         raceRepository.delete(race);
         log.info("Successfully deleted race with ID: {} by user: {}",
                 raceId, currentUser.getUsername());
-    }
-
-    @Override
-    @Transactional
-    public RaceResponse toggleRaceEnabled(Long eventId, Long raceId, User currentUser) {
-        log.info("Toggling enabled status for race with ID: {} for event ID: {} by user: {}",
-                raceId, eventId, currentUser.getUsername());
-
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
-
-        validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
-
-        Race race = raceRepository.findByIdAndDeletedFalse(raceId)
-                .orElseThrow(() -> new RaceNotFoundException(RACE_NOT_FOUND_WITH_ID + raceId));
-
-        if (!race.getEvent().getId().equals(eventId)) {
-            throw new RaceNotFoundException("Race with ID: " + raceId + " does not belong to event with ID: " + eventId);
-        }
-
-        race.setEnabled(!race.getEnabled());
-
-        Race updatedRace = raceRepository.save(race);
-        log.info("Successfully toggled enabled status for race with ID: {} to {} by user: {}",
-                updatedRace.getId(), updatedRace.getEnabled(), currentUser.getUsername());
-
-        return RaceResponse.fromEntity(updatedRace);
     }
 
     private void validateUserAuthorizationForEvent(User currentUser, Event event) {

@@ -47,16 +47,15 @@ public interface RaceService {
     RaceResponse getRaceById(Long eventId, Long raceId, User currentUser);
 
     /**
-     * Get all races for an event with optional filter
+     * Get all races for an event
      * Authorization:
      * - ROOT and ADMIN can view races for any event
      * - ORGANIZER_ADMIN and ORGANIZER_USER can only view races in their organization's events
      * @param eventId The event ID
-     * @param enabled Filter by enabled status (null for all)
      * @param currentUser The authenticated user
      * @return List of race responses
      */
-    List<RaceResponse> getRacesByEventId(Long eventId, Boolean enabled, User currentUser);
+    List<RaceResponse> getRacesByEventId(Long eventId, User currentUser);
 
     /**
      * Permanently delete a race
@@ -73,18 +72,6 @@ public interface RaceService {
      * @throws UnauthorizedAccessException if the user is not authorized
      */
     void deleteRace(Long eventId, Long raceId, User currentUser);
-
-    /**
-     * Toggle race enabled status
-     * Authorization:
-     * - ROOT and ADMIN can toggle any race
-     * - ORGANIZER_ADMIN and ORGANIZER_USER can only toggle races in their organization's events
-     * @param eventId The event ID
-     * @param raceId The race ID
-     * @param currentUser The authenticated user
-     * @return The updated race response
-     */
-    RaceResponse toggleRaceEnabled(Long eventId, Long raceId, User currentUser);
 
     /**
      * Find race by event ID and race name

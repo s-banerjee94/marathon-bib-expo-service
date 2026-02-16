@@ -24,7 +24,6 @@ import java.util.List;
         },
         indexes = {
                 @Index(name = "idx_race_name", columnList = "race_name"),
-                @Index(name = "idx_race_enabled", columnList = "enabled"),
                 @Index(name = "idx_race_deleted", columnList = "deleted"),
                 @Index(name = "idx_race_event", columnList = "event_id")
         })
@@ -45,10 +44,6 @@ public class Race implements Serializable {
     @Column(columnDefinition = "TEXT")
     @Convert(converter = EmptyStringToNullConverter.class)
     private String raceDescription;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Boolean enabled = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false, foreignKey = @ForeignKey(name = "fk_race_event"))

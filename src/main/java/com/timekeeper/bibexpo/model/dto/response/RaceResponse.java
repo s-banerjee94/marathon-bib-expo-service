@@ -25,9 +25,6 @@ public class RaceResponse {
     @Schema(description = "Race description", example = "42.195 km race for experienced runners")
     private String raceDescription;
 
-    @Schema(description = "Race enabled status", example = "true")
-    private Boolean enabled;
-
     @Schema(description = "Event ID this race belongs to", example = "1")
     private Long eventId;
 
@@ -54,7 +51,6 @@ public class RaceResponse {
                 .id(race.getId())
                 .raceName(race.getRaceName())
                 .raceDescription(race.getRaceDescription())
-                .enabled(race.getEnabled())
                 .eventId(race.getEvent() != null ? race.getEvent().getId() : null)
                 .categoryCount(race.getCategories() != null ? race.getCategories().size() : 0)
                 .deleted(race.getDeleted())

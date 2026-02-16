@@ -26,12 +26,11 @@ public class RaceController implements RaceControllerApi {
     @Override
     public ResponseEntity<List<RaceResponse>> getRacesByEventId(
             @PathVariable Long eventId,
-            @RequestParam(required = false) Boolean enabled,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get races for event ID: {} with enabled filter: {} by user: {}",
-                eventId, enabled, currentUser.getUsername());
+        log.info("Received request to get races for event ID: {} by user: {}",
+                eventId, currentUser.getUsername());
 
-        List<RaceResponse> races = raceService.getRacesByEventId(eventId, enabled, currentUser);
+        List<RaceResponse> races = raceService.getRacesByEventId(eventId, currentUser);
 
         return ResponseEntity.ok(races);
     }
@@ -87,18 +86,5 @@ public class RaceController implements RaceControllerApi {
         raceService.deleteRace(eventId, raceId, currentUser);
 
         return ResponseEntity.noContent().build();
-    }
-
-    @Override
-    public ResponseEntity<RaceResponse> toggleRaceEnabled(
-            @PathVariable Long eventId,
-            @PathVariable Long raceId,
-            @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to toggle enabled status for race with ID: {} for event ID: {} by user: {}",
-                raceId, eventId, currentUser.getUsername());
-
-        RaceResponse response = raceService.toggleRaceEnabled(eventId, raceId, currentUser);
-
-        return ResponseEntity.ok(response);
     }
 }
