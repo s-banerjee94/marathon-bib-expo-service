@@ -212,4 +212,13 @@ public interface ParticipantService {
      * @return Participant statistics
      */
     ParticipantStatisticsResponse getParticipantStatistics(Long eventId, User currentUser);
+
+    /**
+     * Count participants assigned to a specific category
+     * Used for validation before category deletion
+     * @param eventId The event ID
+     * @param categoryId The category ID
+     * @return Number of participants in the category
+     */
+    long countParticipantsByCategoryId(Long eventId, Long categoryId);
 }

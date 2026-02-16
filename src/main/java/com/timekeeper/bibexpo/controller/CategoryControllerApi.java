@@ -240,6 +240,8 @@ public interface CategoryControllerApi {
             summary = "Permanently delete a category",
             description = """
                     Permanently delete a category from the system. \
+                    Deletion is blocked if participants are assigned to this category. \
+                    Please reassign or delete participants before deleting the category. \
                     ROOT and ADMIN can delete any category. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only delete categories from their organization's events."""
     )
@@ -259,6 +261,14 @@ public interface CategoryControllerApi {
             @ApiResponse(
                     responseCode = "404",
                     description = "Category, Race, or Event not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Category cannot be deleted - has participants assigned",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)

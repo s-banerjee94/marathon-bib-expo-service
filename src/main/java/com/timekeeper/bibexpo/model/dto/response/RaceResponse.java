@@ -31,9 +31,6 @@ public class RaceResponse {
     @Schema(description = "Number of categories in this race", example = "3")
     private Integer categoryCount;
 
-    @Schema(description = "Race deleted status", example = "false")
-    private Boolean deleted;
-
     @Schema(description = "Creation timestamp")
     private LocalDateTime createdAt;
 
@@ -53,7 +50,6 @@ public class RaceResponse {
                 .raceDescription(race.getRaceDescription())
                 .eventId(race.getEvent() != null ? race.getEvent().getId() : null)
                 .categoryCount(race.getCategories() != null ? race.getCategories().size() : 0)
-                .deleted(race.getDeleted())
                 .createdAt(race.getCreatedAt())
                 .updatedAt(race.getUpdatedAt())
                 .createdBy(race.getCreatedBy())

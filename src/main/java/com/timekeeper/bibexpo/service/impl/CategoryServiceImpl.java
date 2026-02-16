@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.exception.CategoryAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.CategoryInUseException;
 import com.timekeeper.bibexpo.exception.CategoryNotFoundException;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.RaceNotFoundException;
@@ -18,8 +19,11 @@ import com.timekeeper.bibexpo.repository.CategoryRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.CategoryService;
+import com.timekeeper.bibexpo.service.EventService;
+import com.timekeeper.bibexpo.service.ParticipantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,14 +31,27 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final RaceRepository raceRepository;
     private final EventRepository eventRepository;
-    private final com.timekeeper.bibexpo.service.EventService eventService;
+    private final EventService eventService;
+    private final ParticipantService participantService;
+
+    public CategoryServiceImpl(
+            CategoryRepository categoryRepository,
+            RaceRepository raceRepository,
+            EventRepository eventRepository,
+            EventService eventService,
+            @Lazy ParticipantService participantService) {
+        this.categoryRepository = categoryRepository;
+        this.raceRepository = raceRepository;
+        this.eventRepository = eventRepository;
+        this.eventService = eventService;
+        this.participantService = participantService;
+    }
 
     @Override
     @Transactional
@@ -150,6 +167,15 @@ public class CategoryServiceImpl implements CategoryService {
         if (!category.getRace().getId().equals(raceId)) {
             throw new CategoryNotFoundException(
                     "Category with ID: " + categoryId + " does not belong to race with ID: " + raceId);
+        }
+
+        long participantCount = participantService.countParticipantsByCategoryId(eventId, categoryId);
+        if (participantCount > 0) {
+            log.warn("Cannot delete category with ID: {} - has {} assigned participants", categoryId, participantCount);
+            throw new CategoryInUseException(
+                    "Cannot delete category '" + category.getCategoryName() + "'. " +
+                    "It has " + participantCount + " participant(s) assigned. " +
+                    "Please reassign or delete the participants first.");
         }
 
         categoryRepository.delete(category);

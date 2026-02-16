@@ -1703,4 +1703,37 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .status("COMING_SOON")
                 .build();
     }
+
+    @Override
+    public long countParticipantsByCategoryId(Long eventId, Long categoryId) {
+        log.info("Counting participants for event ID: {} and category ID: {}", eventId, categoryId);
+
+        Map<String, AttributeValue> expressionValues = new HashMap<>();
+        expressionValues.put(":categoryId", AttributeValue.builder().s(categoryId.toString()).build());
+
+        Map<String, String> expressionNames = new HashMap<>();
+        expressionNames.put("#categoryId", "categoryId");
+
+        Expression filterExpression = Expression.builder()
+                .expression("#categoryId = :categoryId")
+                .expressionNames(expressionNames)
+                .expressionValues(expressionValues)
+                .build();
+
+        QueryConditional queryConditional = QueryConditional.keyEqualTo(
+                Key.builder().partitionValue(eventId.toString()).build()
+        );
+
+        QueryEnhancedRequest queryRequest = QueryEnhancedRequest.builder()
+                .queryConditional(queryConditional)
+                .filterExpression(filterExpression)
+                .build();
+
+        long count = participantTable.query(queryRequest).stream()
+                .mapToLong(page -> page.items().size())
+                .sum();
+
+        log.info("Found {} participants for category ID: {} in event ID: {}", count, categoryId, eventId);
+        return count;
+    }
 }
