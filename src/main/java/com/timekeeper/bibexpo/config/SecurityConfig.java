@@ -60,6 +60,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()  // Allow authentication endpoints
                         .requestMatchers("/actuator/**").permitAll()  // Allow health checks
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()  // Allow Swagger
+                        .requestMatchers("/api/dev/**").permitAll()  // Allow dev endpoints (only active in dev profile)
                         .anyRequest().authenticated()  // All other requests require authentication
                 )
                 .sessionManagement(session ->

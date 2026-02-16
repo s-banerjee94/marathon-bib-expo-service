@@ -90,6 +90,15 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public GroupedOpenApi devOpsGroup() {
+        return GroupedOpenApi.builder()
+                .group("9-dev-operations")
+                .displayName("Dev Operations (Dev Profile Only)")
+                .pathsToMatch("/api/dev/**")
+                .build();
+    }
+
+    @Bean
     public GroupedOpenApi allApisGroup() {
         return GroupedOpenApi.builder()
                 .group("0-all-apis")
