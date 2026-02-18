@@ -693,8 +693,17 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .categoryName(participant.getCategoryName())
                 .goodies(participant.getGoodies())
                 .bibCollectedAt(participant.getBibCollectedAt())
+                .bibCollectedByName(participant.getBibCollectedByName())
+                .bibCollectedByPhone(participant.getBibCollectedByPhone())
+                .bibDistributedBy(participant.getBibDistributedBy())
+                .goodiesDistribution(participant.getGoodiesDistribution())
+                .emergencyContactName(participant.getEmergencyContactName())
+                .emergencyContactPhone(participant.getEmergencyContactPhone())
+                .notes(participant.getNotes())
                 .createdAt(participant.getCreatedAt())
+                .createdBy(participant.getCreatedBy())
                 .updatedAt(participant.getUpdatedAt())
+                .updatedBy(participant.getUpdatedBy())
                 .build();
     }
     private boolean isBlank(String value) {

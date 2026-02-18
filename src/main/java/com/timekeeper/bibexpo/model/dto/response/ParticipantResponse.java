@@ -63,9 +63,37 @@ public class ParticipantResponse {
     @Schema(description = "Timestamp when bib was collected", example = "2024-01-10T10:30:00")
     private String bibCollectedAt;
 
+    @Schema(description = "Name of the person who collected the bib", example = "John Doe")
+    private String bibCollectedByName;
+
+    @Schema(description = "Phone of the person who collected the bib", example = "9876543210")
+    private String bibCollectedByPhone;
+
+    @Schema(description = "Staff who distributed the bib", example = "staff_user_01")
+    private String bibDistributedBy;
+
+    @Schema(description = "Goodies distribution status as key-value pairs",
+            example = "{\"T-Shirt\": \"Distributed\", \"Cap\": \"Pending\"}")
+    private Map<String, String> goodiesDistribution;
+
+    @Schema(description = "Emergency contact name", example = "Jane Doe")
+    private String emergencyContactName;
+
+    @Schema(description = "Emergency contact phone", example = "9123456780")
+    private String emergencyContactPhone;
+
+    @Schema(description = "Additional notes", example = "VIP participant")
+    private String notes;
+
     @Schema(description = "Creation timestamp", example = "2024-01-10T10:30:00")
     private String createdAt;
 
+    @Schema(description = "User who created the record", example = "admin")
+    private String createdBy;
+
     @Schema(description = "Last update timestamp", example = "2024-01-10T10:30:00")
     private String updatedAt;
+
+    @Schema(description = "User who last updated the record", example = "admin")
+    private String updatedBy;
 }
