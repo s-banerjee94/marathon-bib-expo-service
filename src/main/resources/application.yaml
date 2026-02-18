@@ -73,6 +73,8 @@ logging:
 # AWS Configuration
 aws:
   region: ${AWS_REGION:us-east-1}
+  access-key-id: ${AWS_ACCESS_KEY_ID:test}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
   dynamodb:
     endpoint: ${AWS_DYNAMODB_ENDPOINT:http://192.168.0.102:4566}
     table-name: ${AWS_DYNAMODB_TABLE_NAME:marathon-participants}
