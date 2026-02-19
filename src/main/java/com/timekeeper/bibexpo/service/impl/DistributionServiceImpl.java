@@ -1,6 +1,8 @@
 package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.exception.*;
+import com.timekeeper.bibexpo.model.dto.response.DistributionLogListResponse;
+import com.timekeeper.bibexpo.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.model.dto.request.BulkCollectBibRequest;
 import com.timekeeper.bibexpo.model.dto.request.BulkDistributeGoodiesRequest;
 import com.timekeeper.bibexpo.model.dto.request.CollectBibRequest;
@@ -292,25 +294,55 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     @Override
-    public List<DistributionLogResponse> getDistributionLogs(Long eventId, User currentUser) {
+    public DistributionLogListResponse getDistributionLogs(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForLogAccess(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
 
-        Key key = Key.builder()
-                .partitionValue(String.valueOf(eventId))
+        QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(
+                        Key.builder().partitionValue(String.valueOf(eventId)).build()))
+                .scanIndexForward(false)
+                .limit(limit != null ? Math.min(limit, 100) : 50);
+
+        if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
+            Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
+            if (exclusiveStartKey != null && !exclusiveStartKey.isEmpty()) {
+                requestBuilder.exclusiveStartKey(exclusiveStartKey);
+            }
+        }
+
+        Page<DistributionLogDDB> page = logRepository.getTable()
+                .query(requestBuilder.build())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        if (page == null) {
+            return DistributionLogListResponse.builder()
+                    .logs(Collections.emptyList())
+                    .count(0)
+                    .hasMore(false)
+                    .build();
+        }
+
+        List<DistributionLogResponse> logs = page.items().stream()
+                .map(this::convertToLogResponse)
+                .toList();
+
+        String newLastEvaluatedKey = null;
+        if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
+            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
+        }
+
+        log.info("Retrieved {} distribution logs for event {}, hasMore: {}", logs.size(), eventId, newLastEvaluatedKey != null);
+
+        return DistributionLogListResponse.builder()
+                .logs(logs)
+                .lastEvaluatedKey(newLastEvaluatedKey)
+                .count(logs.size())
+                .hasMore(newLastEvaluatedKey != null)
                 .build();
-
-        List<DistributionLogResponse> logs = new ArrayList<>();
-        logRepository.getTable().query(r -> r.queryConditional(
-                QueryConditional.keyEqualTo(key)
-        )).items().forEach(logEntry ->
-                logs.add(convertToLogResponse(logEntry))
-        );
-
-        log.info("Retrieved {} distribution logs for event {}", logs.size(), eventId);
-
-        return logs;
     }
 
     @Override
@@ -467,6 +499,82 @@ public class DistributionServiceImpl implements DistributionService {
                 .successful(successful)
                 .failed(failed)
                 .build();
+    }
+
+    @Override
+    public DistributionLogListResponse lookupLogs(Long eventId, LogSearchType searchType, String searchValue,
+                                                   Integer limit, String lastEvaluatedKey, User currentUser) {
+        log.info("Lookup logs for event ID: {} with searchType: {}, searchValue: '{}' by user: {}",
+                eventId, searchType, searchValue, currentUser.getUsername());
+
+        Event event = findEventOrThrow(eventId);
+        validator.validateUserAuthorizationForLogAccess(currentUser, event);
+        eventService.validateEventEnabled(event, currentUser);
+
+        int effectiveLimit = limit != null ? Math.min(limit, 100) : 50;
+        String indexName = getLogIndexName(searchType);
+
+        QueryConditional queryConditional = QueryConditional.sortBeginsWith(
+                Key.builder()
+                        .partitionValue(String.valueOf(eventId))
+                        .sortValue(searchValue.trim())
+                        .build()
+        );
+
+        QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
+                .queryConditional(queryConditional)
+                .scanIndexForward(false)
+                .limit(effectiveLimit);
+
+        if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
+            Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
+            if (exclusiveStartKey != null && !exclusiveStartKey.isEmpty()) {
+                requestBuilder.exclusiveStartKey(exclusiveStartKey);
+            }
+        }
+
+        Page<DistributionLogDDB> page = logRepository.getTable().index(indexName)
+                .query(requestBuilder.build())
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        if (page == null) {
+            return DistributionLogListResponse.builder()
+                    .logs(Collections.emptyList())
+                    .count(0)
+                    .hasMore(false)
+                    .build();
+        }
+
+        List<DistributionLogResponse> logs = page.items().stream()
+                .map(this::convertToLogResponse)
+                .toList();
+
+        String newLastEvaluatedKey = null;
+        if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
+            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
+        }
+
+        log.info("Lookup logs completed for event {} using index {}. Found {} logs, hasMore: {}",
+                eventId, indexName, logs.size(), newLastEvaluatedKey != null);
+
+        return DistributionLogListResponse.builder()
+                .logs(logs)
+                .lastEvaluatedKey(newLastEvaluatedKey)
+                .count(logs.size())
+                .hasMore(newLastEvaluatedKey != null)
+                .build();
+    }
+
+    private String getLogIndexName(LogSearchType searchType) {
+        return switch (searchType) {
+            case BIB -> "LSI-BibNumberIndex";
+            case ACTION -> "LSI-ActionIndex";
+            case PERFORMED_BY -> "LSI-PerformedByIndex";
+            case COLLECTOR -> "LSI-CollectorNameIndex";
+            case ITEM -> "LSI-ItemNameIndex";
+        };
     }
 
     private Event findEventOrThrow(Long eventId) {

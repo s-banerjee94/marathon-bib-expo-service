@@ -5,6 +5,8 @@ import com.timekeeper.bibexpo.model.dto.request.BulkDistributeGoodiesRequest;
 import com.timekeeper.bibexpo.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.model.dto.request.DistributeGoodiesRequest;
 import com.timekeeper.bibexpo.model.dto.response.BibDistributionResponse;
+import com.timekeeper.bibexpo.model.dto.response.DistributionLogListResponse;
+import com.timekeeper.bibexpo.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.model.dto.response.BulkDistributionResponse;
 import com.timekeeper.bibexpo.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.model.dto.response.GoodiesDistributionResponse;
@@ -100,15 +102,18 @@ public class DistributionController implements DistributionControllerApi {
     }
 
     @Override
-    public ResponseEntity<List<DistributionLogResponse>> getDistributionLogs(
+    public ResponseEntity<DistributionLogListResponse> getDistributionLogs(
             @PathVariable Long eventId,
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String lastEvaluatedKey,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get distribution logs for event {} by user: {}",
-                eventId, currentUser.getUsername());
+        log.info("Received request to get distribution logs for event {} (limit: {}) by user: {}",
+                eventId, limit, currentUser.getUsername());
 
-        List<DistributionLogResponse> response = distributionService.getDistributionLogs(eventId, currentUser);
+        DistributionLogListResponse response = distributionService.getDistributionLogs(eventId, limit, lastEvaluatedKey, currentUser);
 
-        log.info("Retrieved {} distribution logs for event {}", response.size(), eventId);
+        log.info("Retrieved {} distribution logs for event {}, hasMore: {}",
+                response.getCount(), eventId, response.getHasMore());
 
         return ResponseEntity.ok(response);
     }
@@ -156,6 +161,26 @@ public class DistributionController implements DistributionControllerApi {
 
         log.info("Found {} participants with pending goodies for event {}, hasMore: {}",
                 response.getCount(), eventId, response.getHasMore());
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<DistributionLogListResponse> lookupLogs(
+            @PathVariable Long eventId,
+            @RequestParam LogSearchType searchType,
+            @RequestParam String searchValue,
+            @RequestParam(defaultValue = "50") Integer limit,
+            @RequestParam(required = false) String lastEvaluatedKey,
+            @AuthenticationPrincipal User currentUser) {
+        log.info("Received log lookup request for event {} with searchType: {}, searchValue: '{}' by user: {}",
+                eventId, searchType, searchValue, currentUser.getUsername());
+
+        DistributionLogListResponse response = distributionService.lookupLogs(
+                eventId, searchType, searchValue, limit, lastEvaluatedKey, currentUser);
+
+        log.info("Log lookup completed for event {}: found {} logs, hasMore: {}",
+                eventId, response.getCount(), response.getHasMore());
 
         return ResponseEntity.ok(response);
     }

@@ -6,6 +6,8 @@ import com.timekeeper.bibexpo.model.dto.request.BulkDistributeGoodiesRequest;
 import com.timekeeper.bibexpo.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.model.dto.request.DistributeGoodiesRequest;
 import com.timekeeper.bibexpo.model.dto.response.BibDistributionResponse;
+import com.timekeeper.bibexpo.model.dto.response.DistributionLogListResponse;
+import com.timekeeper.bibexpo.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.model.dto.response.BulkDistributionResponse;
 import com.timekeeper.bibexpo.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.model.dto.response.GoodiesDistributionResponse;
@@ -255,19 +257,20 @@ public interface DistributionControllerApi {
     @GetMapping("/logs")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Get all distribution event logs for an event",
+            summary = "Get paginated distribution event logs for an event",
             description = """
-                    Retrieve all distribution event logs for an event. \
+                    Retrieve paginated distribution event logs for an event. \
                     Logs include bib collection, bib undo, goodies distribution, and goodies undo actions. \
+                    Uses token-based pagination with limit and lastEvaluatedKey for efficient DynamoDB querying. \
                     Only accessible by ROOT, ADMIN, and ORGANIZER_ADMIN roles."""
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "List of distribution event logs",
+                    description = "Paginated list of distribution event logs",
                     content = @Content(
                             mediaType = "application/json",
-                            schema = @Schema(implementation = DistributionLogResponse.class)
+                            schema = @Schema(implementation = DistributionLogListResponse.class)
                     )
             ),
             @ApiResponse(
@@ -287,9 +290,13 @@ public interface DistributionControllerApi {
                     )
             )
     })
-    ResponseEntity<List<DistributionLogResponse>> getDistributionLogs(
+    ResponseEntity<DistributionLogListResponse> getDistributionLogs(
             @Parameter(description = "Event ID", example = "1")
             @PathVariable Long eventId,
+            @Parameter(description = "Maximum number of items to return (default: 50, max: 100)", example = "50")
+            @RequestParam(required = false) Integer limit,
+            @Parameter(description = "Pagination token from previous response to get next page")
+            @RequestParam(required = false) String lastEvaluatedKey,
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/logs/{bibNumber}")
@@ -418,6 +425,58 @@ public interface DistributionControllerApi {
             @Parameter(description = "Pagination token from previous response to get next page", example = "eyJldmVudElkIjp7IlMiOiIxIn0sImJpYk51bWJlciI6eyJTIjoiMzAwMSJ9fQ==")
             @RequestParam(required = false) String lastEvaluatedKey,
             @AuthenticationPrincipal User currentUser);
+
+    @GetMapping("/logs/lookup")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
+    @Operation(
+            summary = "Lookup distribution logs using LSI (cost-efficient prefix search)",
+            description = """
+                    Efficient log lookup using DynamoDB Local Secondary Indexes (LSI). \
+                    Uses Query with begins_with instead of Scan, resulting in lower cost and faster performance. \
+
+                    **Search Types:** \
+                    - `BIB`: Logs for a specific bib number (e.g., '3001') \
+                    - `ACTION`: Logs by action type (e.g., 'BIB_COLLECTED', 'GOODIES_DISTRIBUTED') \
+                    - `PERFORMED_BY`: Logs by staff member identifier (e.g., '123__|__john_doe') \
+                    - `COLLECTOR`: Logs by collector name prefix (e.g., 'John') \
+                    - `ITEM`: Logs for a specific goodies item prefix (e.g., 'T-Shirt') \
+
+                    **Pagination:** Results are paginated using DynamoDB lastEvaluatedKey (base64 encoded)."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Lookup completed successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = DistributionLogListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid search parameters",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<DistributionLogListResponse> lookupLogs(
+            @Parameter(description = "Event ID", required = true, example = "1")
+            @PathVariable Long eventId,
+
+            @Parameter(description = "Type of search: BIB, ACTION, PERFORMED_BY, COLLECTOR, ITEM", required = true,
+                    schema = @Schema(implementation = LogSearchType.class))
+            @RequestParam LogSearchType searchType,
+
+            @Parameter(description = "Value to search for (uses begins_with prefix match)", required = true,
+                    example = "BIB_COLLECTED")
+            @RequestParam String searchValue,
+
+            @Parameter(description = "Maximum number of results (default: 50, max: 100)", example = "50")
+            @RequestParam(defaultValue = "50") Integer limit,
+
+            @Parameter(description = "DynamoDB pagination key from previous response (base64 encoded)")
+            @RequestParam(required = false) String lastEvaluatedKey,
+
+            @AuthenticationPrincipal User currentUser
+    );
 
     @PostMapping("/bib/bulk-collect")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")

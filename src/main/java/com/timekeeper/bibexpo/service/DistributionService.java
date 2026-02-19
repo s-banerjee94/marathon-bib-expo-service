@@ -5,6 +5,8 @@ import com.timekeeper.bibexpo.model.dto.request.BulkDistributeGoodiesRequest;
 import com.timekeeper.bibexpo.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.model.dto.request.DistributeGoodiesRequest;
 import com.timekeeper.bibexpo.model.dto.response.BibDistributionResponse;
+import com.timekeeper.bibexpo.model.dto.response.DistributionLogListResponse;
+import com.timekeeper.bibexpo.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.model.dto.response.BulkDistributionResponse;
 import com.timekeeper.bibexpo.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.model.dto.response.GoodiesDistributionResponse;
@@ -62,13 +64,15 @@ public interface DistributionService {
     PendingBibListResponse getPendingBibs(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser);
 
     /**
-     * Get all distribution event logs for an event
+     * Get paginated distribution event logs for an event
      * Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN
      * @param eventId The event ID
+     * @param limit Maximum number of items to return (default: 50, max: 100)
+     * @param lastEvaluatedKey Pagination token from previous response
      * @param currentUser The authenticated user
-     * @return List of distribution event logs
+     * @return Paginated list of distribution event logs
      */
-    List<DistributionLogResponse> getDistributionLogs(Long eventId, User currentUser);
+    DistributionLogListResponse getDistributionLogs(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser);
 
     /**
      * Get distribution event logs for a specific participant
@@ -117,4 +121,17 @@ public interface DistributionService {
      * @return Bulk operation result with successful and failed operations
      */
     BulkDistributionResponse bulkDistributeGoodies(Long eventId, BulkDistributeGoodiesRequest request, User currentUser);
+
+    /**
+     * Lookup distribution logs using LSI with begins_with prefix search and pagination
+     * @param eventId The event ID
+     * @param searchType The LSI to query: BIB, ACTION, PERFORMED_BY, COLLECTOR, ITEM
+     * @param searchValue The prefix value to search for
+     * @param limit Maximum number of results (default: 50, max: 100)
+     * @param lastEvaluatedKey Pagination token from previous response
+     * @param currentUser The authenticated user
+     * @return Paginated list of distribution logs matching the search criteria
+     */
+    DistributionLogListResponse lookupLogs(Long eventId, LogSearchType searchType, String searchValue,
+                                           Integer limit, String lastEvaluatedKey, User currentUser);
 }
