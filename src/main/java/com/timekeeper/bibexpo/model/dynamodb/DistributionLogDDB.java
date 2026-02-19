@@ -29,7 +29,6 @@ public class DistributionLogDDB {
     @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-ActionIndex"))
     private String action;
 
-    @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-ItemNameIndex"))
     private String itemName;
 
     @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-PerformedByIndex"))
@@ -38,6 +37,7 @@ public class DistributionLogDDB {
     @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-CollectorNameIndex"))
     private String collectorName;
 
+    @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-CollectorPhoneIndex"))
     private String collectorPhone;
     private String details;
 }

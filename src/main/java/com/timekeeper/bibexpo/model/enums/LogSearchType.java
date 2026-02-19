@@ -5,5 +5,5 @@ public enum LogSearchType {
     ACTION,
     PERFORMED_BY,
     COLLECTOR,
-    ITEM
+    COLLECTOR_PHONE
 }

@@ -573,7 +573,7 @@ public class DistributionServiceImpl implements DistributionService {
             case ACTION -> "LSI-ActionIndex";
             case PERFORMED_BY -> "LSI-PerformedByIndex";
             case COLLECTOR -> "LSI-CollectorNameIndex";
-            case ITEM -> "LSI-ItemNameIndex";
+            case COLLECTOR_PHONE -> "LSI-CollectorPhoneIndex";
         };
     }
 

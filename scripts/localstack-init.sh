@@ -91,7 +91,7 @@ awslocal dynamodb create-table \
         AttributeName=action,AttributeType=S \
         AttributeName=performedBy,AttributeType=S \
         AttributeName=collectorName,AttributeType=S \
-        AttributeName=itemName,AttributeType=S \
+        AttributeName=collectorPhone,AttributeType=S \
     --key-schema \
         AttributeName=eventId,KeyType=HASH \
         AttributeName=timestamp,KeyType=RANGE \
@@ -130,10 +130,10 @@ awslocal dynamodb create-table \
                 \"Projection\": {\"ProjectionType\": \"ALL\"}
             },
             {
-                \"IndexName\": \"LSI-ItemNameIndex\",
+                \"IndexName\": \"LSI-CollectorPhoneIndex\",
                 \"KeySchema\": [
                     {\"AttributeName\": \"eventId\", \"KeyType\": \"HASH\"},
-                    {\"AttributeName\": \"itemName\", \"KeyType\": \"RANGE\"}
+                    {\"AttributeName\": \"collectorPhone\", \"KeyType\": \"RANGE\"}
                 ],
                 \"Projection\": {\"ProjectionType\": \"ALL\"}
             }

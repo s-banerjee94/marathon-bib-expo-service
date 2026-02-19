@@ -439,7 +439,7 @@ public interface DistributionControllerApi {
                     - `ACTION`: Logs by action type (e.g., 'BIB_COLLECTED', 'GOODIES_DISTRIBUTED') \
                     - `PERFORMED_BY`: Logs by staff member identifier (e.g., '123__|__john_doe') \
                     - `COLLECTOR`: Logs by collector name prefix (e.g., 'John') \
-                    - `ITEM`: Logs for a specific goodies item prefix (e.g., 'T-Shirt') \
+                    - `COLLECTOR_PHONE`: Logs by collector phone prefix (e.g., '+62') \
 
                     **Pagination:** Results are paginated using DynamoDB lastEvaluatedKey (base64 encoded)."""
     )
