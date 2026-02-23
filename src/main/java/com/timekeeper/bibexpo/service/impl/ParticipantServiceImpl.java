@@ -61,6 +61,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Service
@@ -1208,7 +1209,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         participant.setCategoryName(category.getCategoryName());
     }
 
-    private <T> void updateIfNotNull(T value, java.util.function.Consumer<T> setter) {
+    private <T> void updateIfNotNull(T value, Consumer<T> setter) {
         if (value != null) {
             setter.accept(value);
         }
@@ -1696,7 +1697,6 @@ public class ParticipantServiceImpl implements ParticipantService {
         return value != null ? value : "";
     }
 
-    // TODO: Implement statistics aggregation - total count, bib collection status, breakdown by race/category/gender
     @Override
     public ParticipantStatisticsResponse getParticipantStatistics(Long eventId, User currentUser) {
         log.info("Getting participant statistics for event ID: {} by user: {}", eventId, currentUser.getUsername());

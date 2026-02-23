@@ -80,4 +80,23 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     List<User> findByOrganizationIdAndDeletedTrue(Long organizationId);
 
     List<User> findByRoleAndOrganizationIdAndDeletedTrue(UserRole role, Long organizationId);
+
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.organization WHERE u.username = :username AND u.deleted = false")
+    Optional<User> findByUsernameWithOrganization(@Param("username") String username);
+
+    // --- Statistics count queries ---
+
+    long countByDeletedFalse();
+
+    long countByEnabledTrueAndDeletedFalse();
+
+    long countByEnabledFalseAndDeletedFalse();
+
+    long countByRoleAndDeletedFalse(UserRole role);
+
+    long countByOrganizationIdAndDeletedFalse(Long organizationId);
+
+    long countByOrganizationIdAndEnabledTrueAndDeletedFalse(Long organizationId);
+
+    long countByOrganizationIdAndEnabledFalseAndDeletedFalse(Long organizationId);
 }

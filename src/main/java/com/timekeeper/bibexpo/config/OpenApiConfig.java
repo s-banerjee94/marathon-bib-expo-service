@@ -90,6 +90,15 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public GroupedOpenApi statisticsGroup() {
+        return GroupedOpenApi.builder()
+                .group("7-statistics")
+                .displayName("App Statistics")
+                .pathsToMatch("/api/statistics/**")
+                .build();
+    }
+
+    @Bean
     public GroupedOpenApi devOpsGroup() {
         return GroupedOpenApi.builder()
                 .group("9-dev-operations")

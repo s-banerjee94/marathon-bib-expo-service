@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.repository;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -36,4 +37,17 @@ public interface OrganizationRepository extends JpaRepository<Organization, Long
 
     // Queries for deleted organizations
     List<Organization> findByDeletedTrue();
+
+    // --- Statistics count queries ---
+    long countByDeletedFalse();
+
+    long countByEnabledTrueAndDeletedFalse();
+
+    long countByEnabledFalseAndDeletedFalse();
+
+    @Query("SELECT o.subscriptionTier, COUNT(o) FROM Organization o WHERE o.deleted = false GROUP BY o.subscriptionTier")
+    List<Object[]> countGroupBySubscriptionTier();
+
+    @Query("SELECT o.subscriptionStatus, COUNT(o) FROM Organization o WHERE o.deleted = false GROUP BY o.subscriptionStatus")
+    List<Object[]> countGroupBySubscriptionStatus();
 }

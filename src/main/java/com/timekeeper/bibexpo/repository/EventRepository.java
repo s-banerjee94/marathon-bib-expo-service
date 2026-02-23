@@ -4,9 +4,11 @@ import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecificationExecutor<Event> {
 
@@ -15,4 +17,17 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
     List<Event> findByStatus(EventStatus status);
 
     boolean existsByEventNameAndOrganizationId(String eventName, Long organizationId);
+
+    // --- Statistics count queries ---
+    long countByStatus(EventStatus status);
+
+    long countByOrganizationId(Long organizationId);
+
+    long countByOrganizationIdAndStatus(Long organizationId, EventStatus status);
+
+    @Query("SELECT COUNT(e) FROM Event e WHERE e.status = 'PUBLISHED' AND e.eventStartDate > :now")
+    long countUpcoming(@Param("now") LocalDateTime now);
+
+    @Query("SELECT COUNT(e) FROM Event e WHERE e.organization.id = :orgId AND e.status = 'PUBLISHED' AND e.eventStartDate > :now")
+    long countUpcomingByOrganizationId(@Param("orgId") Long orgId, @Param("now") LocalDateTime now);
 }
