@@ -18,10 +18,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.stream.Collectors;
+import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +48,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         }
 
         SmsTemplate smsTemplate = SmsTemplate.builder()
+                .name(request.getName().toLowerCase().trim())
                 .smsTemplateId(request.getSmsTemplateId())
                 .template(request.getTemplate())
                 .note(request.getNote())
@@ -70,6 +75,10 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         SmsTemplate smsTemplate = smsTemplateRepository.findByIdAndEventId(templateId, eventId)
                 .orElseThrow(() -> new SmsTemplateNotFoundException(
                         "SMS template not found with ID: " + templateId + " for event: " + eventId));
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            smsTemplate.setName(request.getName().toLowerCase().trim());
+        }
 
         if (request.getSmsTemplateId() != null && !request.getSmsTemplateId().isBlank() &&
                 !request.getSmsTemplateId().equals(smsTemplate.getSmsTemplateId())) {
@@ -101,23 +110,53 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, Boolean enabledOnly, Pageable pageable, User currentUser) {
-        log.info("Fetching SMS templates for event ID: {} enabledOnly: {} by user: {}",
-                eventId, enabledOnly, currentUser.getUsername());
+    public Page<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, Boolean enabled,
+                                                            LocalDate fromDate, LocalDate toDate,
+                                                            Pageable pageable, User currentUser) {
+        log.info("Fetching SMS templates for event ID: {} search: {} enabled: {} fromDate: {} toDate: {} by user: {}",
+                eventId, search, enabled, fromDate, toDate, currentUser.getUsername());
 
         validateEventAccess(eventId, currentUser);
 
-        Page<SmsTemplate> templates;
-        if (enabledOnly != null && enabledOnly) {
-            templates = smsTemplateRepository.findByEventIdAndEnabledTrue(eventId, pageable);
-        } else {
-            templates = smsTemplateRepository.findByEventId(eventId, pageable);
-        }
+        Specification<SmsTemplate> spec = buildSmsTemplateSpecification(eventId, search, enabled, fromDate, toDate);
+        Page<SmsTemplate> templates = smsTemplateRepository.findAll(spec, pageable);
 
         log.info("Successfully fetched {} SMS templates for event ID: {} by user: {}",
-                templates.getSize(), eventId, currentUser.getUsername());
+                templates.getNumberOfElements(), eventId, currentUser.getUsername());
 
         return templates.map(SmsTemplateResponse::fromEntity);
+    }
+
+    private Specification<SmsTemplate> buildSmsTemplateSpecification(Long eventId, String search,
+                                                                      Boolean enabled,
+                                                                      LocalDate fromDate, LocalDate toDate) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            predicates.add(cb.equal(root.get("event").get("id"), eventId));
+
+            if (enabled != null) {
+                predicates.add(cb.equal(root.get("enabled"), enabled));
+            }
+
+            if (search != null && !search.isBlank()) {
+                String pattern = "%" + search.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(root.get("name"), pattern),
+                        cb.like(root.get("smsTemplateId"), "%" + search + "%")
+                ));
+            }
+
+            if (fromDate != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("scheduledDateTime"), fromDate.atStartOfDay()));
+            }
+
+            if (toDate != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("scheduledDateTime"), toDate.atTime(23, 59, 59)));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     @Override

@@ -7,6 +7,8 @@ import com.timekeeper.bibexpo.model.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
+
 public interface SmsTemplateService {
 
     /**
@@ -45,13 +47,18 @@ public interface SmsTemplateService {
      * - ROOT and ADMIN can view templates for any event
      * - ORGANIZER_ADMIN and ORGANIZER_USER can view templates for their organization's events
      * @param eventId The event ID
-     * @param enabledOnly If true, only return enabled templates
+     * @param search Partial match on name or smsTemplateId
+     * @param enabled Filter by enabled status (null = all)
+     * @param fromDate Scheduled date from (inclusive, date only)
+     * @param toDate Scheduled date to (inclusive, date only)
      * @param pageable Pagination parameters
      * @param currentUser The authenticated user
      * @return Page of SMS template responses
      * @throws UnauthorizedAccessException if the user is not authorized
      */
-    Page<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, Boolean enabledOnly, Pageable pageable, User currentUser);
+    Page<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, Boolean enabled,
+                                                     LocalDate fromDate, LocalDate toDate,
+                                                     Pageable pageable, User currentUser);
 
     /**
      * Get an SMS template by ID

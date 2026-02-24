@@ -19,6 +19,9 @@ public class SmsTemplateResponse {
     @Schema(description = "SMS Template ID", example = "1")
     private Long id;
 
+    @Schema(description = "Human-readable name for the template", example = "bib collection reminder")
+    private String name;
+
     @Schema(description = "DLT Template ID from telecom provider", example = "1107161234567890123")
     private String smsTemplateId;
 
@@ -58,6 +61,7 @@ public class SmsTemplateResponse {
     public static SmsTemplateResponse fromEntity(SmsTemplate smsTemplate) {
         return SmsTemplateResponse.builder()
                 .id(smsTemplate.getId())
+                .name(smsTemplate.getName())
                 .smsTemplateId(smsTemplate.getSmsTemplateId())
                 .template(smsTemplate.getTemplate())
                 .note(smsTemplate.getNote())

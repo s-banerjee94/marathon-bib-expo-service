@@ -18,6 +18,11 @@ import java.time.LocalDateTime;
 @Schema(description = "Request payload for creating a new SMS template")
 public class CreateSmsTemplateRequest {
 
+    @NotBlank(message = "Template name is required")
+    @Size(max = 100, message = "Template name must not exceed 100 characters")
+    @Schema(description = "Human-readable name for the template", example = "bib collection reminder")
+    private String name;
+
     @NotBlank(message = "SMS Template ID (DLT ID) is required")
     @Size(min = 20, max = 200, message = "SMS Template ID must be between 20 and 200 characters")
     @Pattern(regexp = "^[0-9]+$", message = "SMS Template ID must contain only digits")

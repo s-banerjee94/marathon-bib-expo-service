@@ -16,6 +16,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
+
+import java.time.LocalDate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -188,8 +190,14 @@ public interface SmsTemplateControllerApi {
     })
     ResponseEntity<PageableResponse<SmsTemplateResponse>> getSmsTemplatesByEvent(
             @PathVariable Long eventId,
-            @Parameter(description = "Filter to only enabled templates")
-            @RequestParam(required = false) Boolean enabledOnly,
+            @Parameter(description = "Partial match on template name or DLT template ID")
+            @RequestParam(required = false) String search,
+            @Parameter(description = "Filter by enabled status (true/false, omit for all)")
+            @RequestParam(required = false) Boolean enabled,
+            @Parameter(description = "Filter by scheduled date from (inclusive, format: yyyy-MM-dd)")
+            @RequestParam(required = false) LocalDate fromDate,
+            @Parameter(description = "Filter by scheduled date to (inclusive, format: yyyy-MM-dd)")
+            @RequestParam(required = false) LocalDate toDate,
             @Parameter(description = "Pagination and sorting parameters")
             Pageable pageable,
             @AuthenticationPrincipal User currentUser);

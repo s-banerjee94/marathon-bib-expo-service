@@ -9,8 +9,9 @@ import com.timekeeper.bibexpo.service.SmsTemplateService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+
+import java.time.LocalDate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -58,16 +59,17 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
     @Override
     public ResponseEntity<PageableResponse<SmsTemplateResponse>> getSmsTemplatesByEvent(
             @PathVariable Long eventId,
-            @RequestParam(required = false) Boolean enabledOnly,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean enabled,
+            @RequestParam(required = false) LocalDate fromDate,
+            @RequestParam(required = false) LocalDate toDate,
             Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get SMS templates for event ID: {} enabledOnly: {} by user: {}",
-                eventId, enabledOnly, currentUser.getUsername());
+        log.info("Received request to get SMS templates for event ID: {} search: {} enabled: {} fromDate: {} toDate: {} by user: {}",
+                eventId, search, enabled, fromDate, toDate, currentUser.getUsername());
 
-        Page<SmsTemplateResponse> templatesPage = smsTemplateService.getSmsTemplatesByEvent(
-                eventId, enabledOnly, pageable, currentUser);
-
-        PageableResponse<SmsTemplateResponse> response = PageableResponse.of(templatesPage);
+        PageableResponse<SmsTemplateResponse> response = PageableResponse.of(
+                smsTemplateService.getSmsTemplatesByEvent(eventId, search, enabled, fromDate, toDate, pageable, currentUser));
 
         return ResponseEntity.ok(response);
     }

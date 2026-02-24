@@ -38,6 +38,9 @@ public class SmsTemplate implements Serializable {
     private Long id;
 
     @Column(nullable = false, length = 100)
+    private String name;
+
+    @Column(nullable = false, length = 100)
     private String smsTemplateId;
 
     @Column(nullable = false, columnDefinition = "TEXT")
