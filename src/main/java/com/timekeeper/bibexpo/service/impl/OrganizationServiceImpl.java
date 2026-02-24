@@ -365,9 +365,15 @@ public class OrganizationServiceImpl implements OrganizationService {
             throw new UnauthorizedAccessException("User does not belong to any organization");
         }
 
-        log.info("Successfully retrieved organization with ID: {} for user: {}",
-                currentUser.getOrganization().getId(), currentUser.getUsername());
+        Long organizationId = currentUser.getOrganization().getId();
 
-        return OrganizationResponse.fromEntity(currentUser.getOrganization());
+        Organization organization = organizationRepository.findByIdAndDeletedFalse(organizationId)
+                .orElseThrow(() -> new OrganizationNotFoundException(
+                        "Organization not found with ID: " + organizationId));
+
+        log.info("Successfully retrieved organization with ID: {} for user: {}",
+                organizationId, currentUser.getUsername());
+
+        return OrganizationResponse.fromEntity(organization);
     }
 }
