@@ -8,6 +8,7 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.AuthService;
 import com.timekeeper.bibexpo.service.JwtService;
+import com.timekeeper.bibexpo.service.SseEmitterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -26,6 +27,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final JwtConfig jwtConfig;
+    private final SseEmitterRegistry sseEmitterRegistry;
 
     @Override
     public LoginResponse login(LoginRequest request) {
@@ -74,6 +76,12 @@ public class AuthServiceImpl implements AuthService {
             log.error("Account locked: {}", request.getUsername());
             throw new InvalidCredentialsException("Account is locked");
         }
+    }
+
+    @Override
+    public void logout(User user) {
+        sseEmitterRegistry.removeAll(user.getId());
+        log.info("User {} logged out, SSE connections closed", user.getUsername());
     }
 
     private void validateUserAccount(User user, String username) {
