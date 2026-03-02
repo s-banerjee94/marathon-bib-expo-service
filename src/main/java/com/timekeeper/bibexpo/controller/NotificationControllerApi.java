@@ -31,9 +31,13 @@ public interface NotificationControllerApi {
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(
             summary = "Subscribe to notification stream (SSE)",
-            description = "Opens a server-sent event stream. The server pushes a 'notification' event " +
-                    "when a batch import job completes. Keep this connection open in the browser. " +
-                    "Reconnects automatically via the EventSource API."
+            description = """
+                    Opens a server-sent event stream for the authenticated user. \
+                    On connect, a 'connection:open' event with data 'connected' is sent immediately. \
+                    When a batch import job finishes, the server pushes one of two events: \
+                    'import:completed' (job status COMPLETED) or 'import:failed' (any other terminal status). \
+                    Both events carry a NotificationResponse JSON payload. \
+                    Keep this connection open in the browser; the EventSource API reconnects automatically."""
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "SSE stream opened"),
@@ -66,7 +70,9 @@ public interface NotificationControllerApi {
     @GetMapping("/unread-count")
     @Operation(summary = "Get unread notification count", description = "Returns { \"count\": N } for bell badge.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Count returned")
+            @ApiResponse(responseCode = "200", description = "Count returned",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(example = "{\"count\": 3}")))
     })
     ResponseEntity<Map<String, Long>> getUnreadCount(@AuthenticationPrincipal User currentUser);
 

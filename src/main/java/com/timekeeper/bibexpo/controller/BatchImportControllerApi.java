@@ -60,7 +60,7 @@ public interface BatchImportControllerApi {
     @Operation(
             summary = "Poll batch import job status",
             description = "Reads Spring Batch metadata to return current status and step counters. " +
-                    "Status values: STARTING, STARTED, COMPLETED, FAILED, STOPPED."
+                    "Status values: STARTING, STARTED, COMPLETED, FAILED, STOPPED, ABANDONED, UNKNOWN."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Status retrieved",
