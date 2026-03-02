@@ -10,6 +10,10 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -20,6 +24,8 @@ public class BatchJobNotificationListener implements JobExecutionListener {
 
     @Override
     public void afterJob(JobExecution jobExecution) {
+        deleteTempFile(jobExecution);
+
         String userIdParam = jobExecution.getJobParameters().getString("uploadedByUserId");
         String eventIdParam = jobExecution.getJobParameters().getString("eventId");
 
@@ -55,9 +61,20 @@ public class BatchJobNotificationListener implements JobExecutionListener {
                     .createdAt(notification.getCreatedAt())
                     .build();
 
-            sseEmitterRegistry.send(userId, payload);
+            String eventName = "COMPLETED".equals(jobStatus) ? "import:completed" : "import:failed";
+            sseEmitterRegistry.send(userId, eventName, payload);
         } catch (Exception e) {
             log.error("Failed to create or send notification for job {} user {}", jobExecutionId, userId, e);
+        }
+    }
+
+    private void deleteTempFile(JobExecution jobExecution) {
+        String filePath = jobExecution.getJobParameters().getString("filePath");
+        if (filePath == null) return;
+        try {
+            Files.deleteIfExists(Paths.get(filePath));
+        } catch (IOException e) {
+            log.warn("Failed to delete temp CSV file: {}", filePath, e);
         }
     }
 }

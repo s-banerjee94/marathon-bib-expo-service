@@ -66,11 +66,12 @@ public class BatchImportServiceImpl implements BatchImportService {
             throw new RuntimeException("Failed to save uploaded CSV file", e);
         }
 
-        participantDDBRepository.deleteAllByEventId(eventId.toString());
-        log.info("Deleted existing participants for event {} before batch import", eventId);
+        int deletedCount = participantDDBRepository.deleteAllByEventId(eventId.toString());
+        log.info("Deleted {} existing participants for event {} before batch import", deletedCount, eventId);
 
         JobParameters params = new JobParametersBuilder()
                 .addString("eventId", eventId.toString())
+                .addString("eventName", event.getEventName())
                 .addString("filePath", tempFile.toString())
                 .addString("uploadedByUserId", currentUser.getId().toString())
                 .addLong("run", System.currentTimeMillis())
@@ -79,7 +80,7 @@ public class BatchImportServiceImpl implements BatchImportService {
         try {
             JobExecution execution = asyncJobLauncher.run(csvImportJob, params);
             log.info("Launched batch import job {} for event {}", execution.getId(), eventId);
-            return new BatchImportResponse(execution.getId(), execution.getStatus().toString());
+            return new BatchImportResponse(execution.getId(), execution.getStatus().toString(), deletedCount);
         } catch (Exception e) {
             throw new RuntimeException("Failed to launch batch import job", e);
         }

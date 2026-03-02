@@ -99,6 +99,15 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public GroupedOpenApi notificationsGroup() {
+        return GroupedOpenApi.builder()
+                .group("8-notifications")
+                .displayName("Notifications")
+                .pathsToMatch("/api/notifications/**")
+                .build();
+    }
+
+    @Bean
     public GroupedOpenApi devOpsGroup() {
         return GroupedOpenApi.builder()
                 .group("9-dev-operations")

@@ -18,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Slf4j
 public class SseEmitterRegistry {
 
-    private static final long SSE_TIMEOUT_MS = 60 * 1000L; // 15 seconds (testing)
+    private static final long SSE_TIMEOUT_MS = 15 * 60 * 1000L; // 15 minutes
 
     private final ConcurrentHashMap<Long, CopyOnWriteArrayList<SseEmitter>> emitters =
             new ConcurrentHashMap<>();
@@ -41,7 +41,7 @@ public class SseEmitterRegistry {
                 userId, emitters.getOrDefault(userId, new CopyOnWriteArrayList<>()).size());
 
         try {
-            emitter.send(SseEmitter.event().name("connect").data("connected"));
+            emitter.send(SseEmitter.event().name("connection:open").data("connected"));
         } catch (IOException e) {
             removeSingle(userId, emitter);
         }
@@ -51,8 +51,10 @@ public class SseEmitterRegistry {
 
     /**
      * Pushes data to ALL open tabs of the given user.
+     *
+     * @param eventName SSE event name (e.g. {@code import:completed}, {@code import:failed})
      */
-    public void send(Long userId, Object data) {
+    public void send(Long userId, String eventName, Object data) {
         List<SseEmitter> userEmitters = emitters.get(userId);
         if (userEmitters == null || userEmitters.isEmpty()) {
             log.debug("No active SSE tabs for user {}, skipping push", userId);
@@ -61,7 +63,7 @@ public class SseEmitterRegistry {
 
         for (SseEmitter emitter : userEmitters) {
             try {
-                emitter.send(SseEmitter.event().name("notification").data(data));
+                emitter.send(SseEmitter.event().name(eventName).data(data));
             } catch (IOException e) {
                 log.debug("SSE send failed for one tab of user {}, removing it", userId);
                 removeSingle(userId, emitter);

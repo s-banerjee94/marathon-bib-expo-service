@@ -72,10 +72,9 @@ public class NotificationServiceImpl implements com.timekeeper.bibexpo.service.N
     @Override
     @Transactional
     public void markAsRead(Long id, User user) {
-        Notification notification = notificationRepository.findByIdAndUser(id, user)
+        Notification notification = notificationRepository.findByIdAndUserId(id, user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Notification not found: " + id));
         notification.setRead(true);
-        notificationRepository.save(notification);
     }
 
     private NotificationResponse toResponse(Notification n) {

@@ -35,6 +35,19 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
     private static final int ERROR_TTL_DAYS = 30;
 
     @Override
+    public void onSkipInWrite(ParticipantDDB item, Throwable t) {
+        collectedErrors.add(ImportErrorDDB.create(
+                jobExecutionId.toString(),
+                null,
+                "WRITE_ERROR",
+                null,
+                t.getMessage() != null ? t.getMessage() : "Write failed",
+                ERROR_TTL_DAYS
+        ));
+        log.warn("Recorded write skip for participant {}: {}", item.getBibNumber(), t.getMessage());
+    }
+
+    @Override
     public void onSkipInProcess(CsvRow item, Throwable t) {
         String field = null;
         String message;

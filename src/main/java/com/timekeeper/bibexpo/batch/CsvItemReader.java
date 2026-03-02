@@ -34,8 +34,8 @@ public class CsvItemReader implements ItemReader<CsvRow>, StepExecutionListener 
     @Override
     public void beforeStep(StepExecution stepExecution) {
         log.info("CsvItemReader: parsing CSV file at {}", filePath);
-        try {
-            CsvParseResult result = csvParserUtil.parseCsv(new FileInputStream(filePath));
+        try (var stream = new FileInputStream(filePath)) {
+            CsvParseResult result = csvParserUtil.parseCsv(stream);
             rows = result.getRows();
             stepExecution.getJobExecution().getExecutionContext()
                     .put("goodiesColumns", String.join(",", result.getGoodiesColumns()));
