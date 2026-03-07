@@ -15,7 +15,11 @@ import org.springframework.stereotype.Component;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.StringJoiner;
 
 @Component
 @StepScope
@@ -36,11 +40,27 @@ public class CsvItemReader implements ItemReader<CsvRow>, StepExecutionListener 
         log.info("CsvItemReader: parsing CSV file at {}", filePath);
         try (var stream = new FileInputStream(filePath)) {
             CsvParseResult result = csvParserUtil.parseCsv(stream);
-            rows = result.getRows();
             stepExecution.getJobExecution().getExecutionContext()
                     .put("goodiesColumns", String.join(",", result.getGoodiesColumns()));
-            log.info("CsvItemReader: parsed {} rows, {} goodies columns",
-                    rows.size(), result.getGoodiesColumns().size());
+
+            Set<String> seenBibs = new HashSet<>();
+            List<CsvRow> unique = new ArrayList<>();
+            StringJoiner duplicates = new StringJoiner(",");
+
+            for (CsvRow row : result.getRows()) {
+                if (seenBibs.add(row.getBibNumber())) {
+                    unique.add(row);
+                } else {
+                    duplicates.add(row.getRowNumber() + ":" + row.getBibNumber());
+                    log.warn("CsvItemReader: duplicate BIB {} at row {}, excluding from import",
+                            row.getBibNumber(), row.getRowNumber());
+                }
+            }
+
+            rows = unique;
+            stepExecution.getExecutionContext().put("duplicateBibErrors", duplicates.toString());
+            log.info("CsvItemReader: {} rows to process, {} duplicate BIBs excluded",
+                    rows.size(), result.getRows().size() - rows.size());
         } catch (IOException e) {
             throw new RuntimeException("Failed to parse CSV file: " + filePath, e);
         }

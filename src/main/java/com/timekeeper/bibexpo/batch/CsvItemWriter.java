@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.batch;
 
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -19,7 +21,7 @@ public class CsvItemWriter implements ItemWriter<ParticipantDDB> {
 
     @Override
     public void write(Chunk<? extends ParticipantDDB> chunk) {
-        chunk.getItems().forEach(repository::save);
+        repository.batchSave(new ArrayList<>(chunk.getItems()));
         log.debug("Written chunk of {} participants to DynamoDB", chunk.size());
     }
 }

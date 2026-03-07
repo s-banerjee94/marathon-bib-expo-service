@@ -52,7 +52,9 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
         String field = null;
         String message;
 
+        String errorType;
         if (t instanceof BatchValidationException bve && !bve.getValidationErrors().isEmpty()) {
+            errorType = "VALIDATION_ERROR";
             List<ValidationError> validationErrors = bve.getValidationErrors();
             if (validationErrors.size() == 1) {
                 field = validationErrors.get(0).getField();
@@ -63,13 +65,14 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
                         .collect(Collectors.joining("; "));
             }
         } else {
+            errorType = "VALIDATION_ERROR";
             message = t.getMessage() != null ? t.getMessage() : "Validation failed";
         }
 
         collectedErrors.add(ImportErrorDDB.create(
                 jobExecutionId.toString(),
                 item.getRowNumber(),
-                "VALIDATION_ERROR",
+                errorType,
                 field,
                 message,
                 ERROR_TTL_DAYS
@@ -79,10 +82,33 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
 
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
+        String duplicateBibErrors = stepExecution.getExecutionContext().getString("duplicateBibErrors", "");
+        if (!duplicateBibErrors.isBlank()) {
+            for (String entry : duplicateBibErrors.split(",")) {
+                String[] parts = entry.split(":", 2);
+                if (parts.length == 2) {
+                    Integer rowNumber = parseRowNumber(parts[0]);
+                    String bibNumber = parts[1];
+                    collectedErrors.add(ImportErrorDDB.create(
+                            jobExecutionId.toString(),
+                            rowNumber,
+                            "DUPLICATE_BIB",
+                            "bibNumber",
+                            "Duplicate BIB number '" + bibNumber + "' at row " + rowNumber,
+                            ERROR_TTL_DAYS
+                    ));
+                }
+            }
+        }
+
         if (!collectedErrors.isEmpty()) {
-            log.info("Writing {} validation errors to DynamoDB for job {}", collectedErrors.size(), jobExecutionId);
+            log.info("Writing {} errors to DynamoDB for job {}", collectedErrors.size(), jobExecutionId);
             importErrorDDBRepository.saveAll(collectedErrors);
         }
         return stepExecution.getExitStatus();
+    }
+
+    private Integer parseRowNumber(String s) {
+        try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return null; }
     }
 }
