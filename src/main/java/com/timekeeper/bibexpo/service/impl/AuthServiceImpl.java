@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.config.JwtConfig;
+import com.timekeeper.bibexpo.exception.AccountDisabledException;
 import com.timekeeper.bibexpo.exception.InvalidCredentialsException;
 import com.timekeeper.bibexpo.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.model.dto.response.LoginResponse;
@@ -70,11 +71,11 @@ public class AuthServiceImpl implements AuthService {
             log.error("Invalid credentials for user: {}", request.getUsername());
             throw new InvalidCredentialsException("Invalid username or password");
         } catch (DisabledException e) {
-            log.error("Account disabled: {}", request.getUsername());
-            throw new InvalidCredentialsException("Account is disabled");
+            log.warn("Account disabled: {}", request.getUsername());
+            throw new AccountDisabledException("Account is disabled");
         } catch (LockedException e) {
-            log.error("Account locked: {}", request.getUsername());
-            throw new InvalidCredentialsException("Account is locked");
+            log.warn("Account locked: {}", request.getUsername());
+            throw new AccountDisabledException("Account is locked");
         }
     }
 
@@ -87,22 +88,22 @@ public class AuthServiceImpl implements AuthService {
     private void validateUserAccount(User user, String username) {
         if (!user.isEnabled()) {
             log.warn("Login attempt for disabled account: {}", username);
-            throw new InvalidCredentialsException("Account is disabled");
+            throw new AccountDisabledException("Account is disabled");
         }
 
         if (!user.isAccountNonLocked()) {
             log.warn("Login attempt for locked account: {}", username);
-            throw new InvalidCredentialsException("Account is locked");
+            throw new AccountDisabledException("Account is locked");
         }
 
         if (!user.isAccountNonExpired()) {
             log.warn("Login attempt for expired account: {}", username);
-            throw new InvalidCredentialsException("Account has expired");
+            throw new AccountDisabledException("Account has expired");
         }
 
         if (!user.isCredentialsNonExpired()) {
             log.warn("Login attempt for account with expired credentials: {}", username);
-            throw new InvalidCredentialsException("Credentials have expired");
+            throw new AccountDisabledException("Credentials have expired");
         }
     }
 }

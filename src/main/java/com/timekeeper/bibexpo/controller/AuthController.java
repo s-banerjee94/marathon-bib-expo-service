@@ -41,7 +41,7 @@ public class AuthController {
                     ),
                     @ApiResponse(
                             responseCode = "401",
-                            description = "Invalid credentials or account disabled/locked"
+                            description = "Authentication failed. Possible reasons: invalid username or password, account is disabled, account is locked, or account has expired"
                     )
             }
     )
