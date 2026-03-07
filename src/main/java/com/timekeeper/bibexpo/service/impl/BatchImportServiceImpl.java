@@ -3,6 +3,8 @@ package com.timekeeper.bibexpo.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.exception.CsvImportException;
+import com.timekeeper.bibexpo.exception.ImportAlreadyRunningException;
 import com.timekeeper.bibexpo.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportError;
@@ -10,11 +12,12 @@ import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
 import com.timekeeper.bibexpo.model.dynamodb.ImportErrorDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ImportErrorDDBRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.BatchImportService;
-import com.timekeeper.bibexpo.service.validator.DistributionValidator;
+import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
@@ -48,22 +51,29 @@ public class BatchImportServiceImpl implements BatchImportService {
     private final ParticipantDDBRepository participantDDBRepository;
     private final ImportErrorDDBRepository importErrorDDBRepository;
     private final EventRepository eventRepository;
-    private final DistributionValidator distributionValidator;
+    private final EventAccessValidator eventAccessValidator;
     private final ObjectMapper objectMapper;
+    private final EventLatestImportRepository eventLatestImportRepository;
 
     @Override
     public BatchImportResponse launchImport(Long eventId, MultipartFile file, User currentUser) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
 
-        distributionValidator.validateUserAuthorizationForEvent(currentUser, event);
+        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+
+        boolean alreadyRunning = jobExplorer.findRunningJobExecutions("csvImportJob").stream()
+                .anyMatch(e -> eventId.toString().equals(e.getJobParameters().getString("eventId")));
+        if (alreadyRunning) {
+            throw new ImportAlreadyRunningException("A batch import is already in progress for event " + eventId);
+        }
 
         Path tempFile;
         try {
             tempFile = Files.createTempFile("csv-import-", ".csv");
             file.transferTo(tempFile);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to save uploaded CSV file", e);
+            throw new CsvImportException("Failed to save uploaded CSV file for event " + eventId, e);
         }
 
         int deletedCount = participantDDBRepository.deleteAllByEventId(eventId.toString());
@@ -73,6 +83,7 @@ public class BatchImportServiceImpl implements BatchImportService {
                 .addString("eventId", eventId.toString())
                 .addString("eventName", event.getEventName())
                 .addString("filePath", tempFile.toString())
+                .addString("fileName", file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown")
                 .addString("uploadedByUserId", currentUser.getId().toString())
                 .addLong("run", System.currentTimeMillis())
                 .toJobParameters();
@@ -82,7 +93,7 @@ public class BatchImportServiceImpl implements BatchImportService {
             log.info("Launched batch import job {} for event {}", execution.getId(), eventId);
             return new BatchImportResponse(execution.getId(), execution.getStatus().toString(), deletedCount);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to launch batch import job", e);
+            throw new CsvImportException("Failed to launch batch import job for event " + eventId, e);
         }
     }
 
@@ -114,51 +125,49 @@ public class BatchImportServiceImpl implements BatchImportService {
     }
 
     @Override
-    public ImportErrorListResponse getBatchImportErrors(Long eventId, Long jobExecutionId,
-                                                        int limit, String lastEvaluatedKey) {
-        JobExecution execution = jobExplorer.getJobExecution(jobExecutionId);
-        if (execution == null) {
-            throw new IllegalArgumentException("Job execution not found: " + jobExecutionId);
+    public ImportErrorListResponse getLatestBatchImportErrors(Long eventId, int limit, String lastEvaluatedKey) {
+        if (!eventRepository.existsById(eventId)) {
+            throw new EventNotFoundException("Event not found with ID: " + eventId);
         }
+        return eventLatestImportRepository.findById(eventId)
+                .map(latest -> {
+                    String importId = latest.getImportId();
+                    Map<String, AttributeValue> exclusiveStartKey = decodeLastKey(lastEvaluatedKey);
+                    Page<ImportErrorDDB> page = importErrorDDBRepository.findByImportId(importId, limit, exclusiveStartKey);
 
-        String jobEventId = execution.getJobParameters().getString("eventId");
-        if (!eventId.toString().equals(jobEventId)) {
-            throw new IllegalArgumentException(
-                    "Job execution " + jobExecutionId + " does not belong to event " + eventId);
-        }
+                    if (page == null) {
+                        return ImportErrorListResponse.builder()
+                                .importId(importId)
+                                .errors(List.of())
+                                .count(0)
+                                .hasMore(false)
+                                .build();
+                    }
 
-        String importId = jobExecutionId.toString();
-        Map<String, AttributeValue> exclusiveStartKey = decodeLastKey(lastEvaluatedKey);
+                    List<ImportError> errors = page.items().stream()
+                            .map(e -> ImportError.builder()
+                                    .rowNumber(e.getRowNumber())
+                                    .errorType(e.getErrorType())
+                                    .field(e.getField())
+                                    .message(e.getMessage())
+                                    .build())
+                            .toList();
 
-        Page<ImportErrorDDB> page = importErrorDDBRepository.findByImportId(importId, limit, exclusiveStartKey);
+                    String nextToken = encodeLastKey(page.lastEvaluatedKey());
 
-        if (page == null) {
-            return ImportErrorListResponse.builder()
-                    .importId(importId)
-                    .errors(List.of())
-                    .count(0)
-                    .hasMore(false)
-                    .build();
-        }
-
-        List<ImportError> errors = page.items().stream()
-                .map(e -> ImportError.builder()
-                        .rowNumber(e.getRowNumber())
-                        .errorType(e.getErrorType())
-                        .field(e.getField())
-                        .message(e.getMessage())
-                        .build())
-                .toList();
-
-        String nextToken = encodeLastKey(page.lastEvaluatedKey());
-
-        return ImportErrorListResponse.builder()
-                .importId(importId)
-                .errors(errors)
-                .count(errors.size())
-                .lastEvaluatedKey(nextToken)
-                .hasMore(nextToken != null)
-                .build();
+                    return ImportErrorListResponse.builder()
+                            .importId(importId)
+                            .errors(errors)
+                            .count(errors.size())
+                            .lastEvaluatedKey(nextToken)
+                            .hasMore(nextToken != null)
+                            .build();
+                })
+                .orElse(ImportErrorListResponse.builder()
+                        .errors(List.of())
+                        .count(0)
+                        .hasMore(false)
+                        .build());
     }
 
     private String encodeLastKey(Map<String, AttributeValue> lastKey) {
@@ -176,7 +185,7 @@ public class BatchImportServiceImpl implements BatchImportService {
     }
 
     private Map<String, AttributeValue> decodeLastKey(String token) {
-        if (token == null || token.isBlank()) return null;
+        if (token == null || token.isBlank()) return Map.of();
         try {
             String json = new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
             Map<String, String> simple = objectMapper.readValue(json, new TypeReference<>() {});
@@ -188,7 +197,7 @@ public class BatchImportServiceImpl implements BatchImportService {
             return key;
         } catch (Exception e) {
             log.warn("Failed to decode pagination key, ignoring", e);
-            return null;
+            return Map.of();
         }
     }
 }

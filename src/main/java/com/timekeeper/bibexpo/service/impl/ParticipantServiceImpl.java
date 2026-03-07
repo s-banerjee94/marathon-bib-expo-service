@@ -31,7 +31,7 @@ import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.ParticipantService;
 import com.timekeeper.bibexpo.service.RaceService;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
-import com.timekeeper.bibexpo.service.validator.DistributionValidator;
+import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.util.CsvParseResult;
 import com.timekeeper.bibexpo.util.CsvParserUtil;
 import com.timekeeper.bibexpo.util.CsvRow;
@@ -81,7 +81,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     private final CsvRowValidator csvRowValidator;
     private final JsonMapper objectMapper;
     private final ImportJobRepository importJobRepository;
-    private final DistributionValidator validator;
+    private final EventAccessValidator validator;
     private final DynamoDBPaginationCodec paginationCodec;
 
     private DynamoDbTable<ParticipantDDB> participantTable;
@@ -905,7 +905,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validator.validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserOrganizationAccess(currentUser, event);
 
         int pageNumber = page != null ? page : 0;
         int pageSize = size != null ? size : 20;
@@ -937,7 +937,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validator.validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserOrganizationAccess(currentUser, event);
 
         ImportJob importJob = importJobRepository.findByImportIdAndEventId(importId, eventId)
                 .orElseThrow(() -> new InvalidUserDataException("Import job not found with ID: " + importId));
@@ -953,14 +953,12 @@ public class ParticipantServiceImpl implements ParticipantService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
 
-        validator.validateUserAuthorizationForEvent(currentUser, event);
+        validator.validateUserOrganizationAccess(currentUser, event);
 
         ImportJob importJob = importJobRepository.findByImportIdAndEventId(importId, eventId)
                 .orElseThrow(() -> new InvalidUserDataException("Import job not found with ID: " + importId));
 
         int effectiveLimit = limit != null ? Math.min(limit, 100) : 50;
-
-        ErrorSummary errorSummary = deserializeErrorSummary(importJob.getErrorSummary());
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(importId).build()
@@ -991,7 +989,6 @@ public class ParticipantServiceImpl implements ParticipantService {
                     .errors(Collections.emptyList())
                     .count(0)
                     .hasMore(false)
-                    .errorSummary(errorSummary)
                     .build();
         }
 
@@ -1013,7 +1010,6 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .count(errors.size())
                 .lastEvaluatedKey(newLastEvaluatedKey)
                 .hasMore(newLastEvaluatedKey != null)
-                .errorSummary(errorSummary)
                 .build();
     }
 

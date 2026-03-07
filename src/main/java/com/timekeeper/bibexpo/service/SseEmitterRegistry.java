@@ -35,7 +35,14 @@ public class SseEmitterRegistry {
         // onCompletion fires for all cases: normal close, timeout, and error
         emitter.onCompletion(() -> removeSingle(userId, emitter));
         emitter.onTimeout(emitter::complete);  // triggers onCompletion
-        emitter.onError(e -> emitter.complete()); // triggers onCompletion
+        emitter.onError(e -> {
+            try {
+                emitter.complete();
+            } catch (Exception ignored) {
+                // Connection already dead — remove directly without completing
+                removeSingle(userId, emitter);
+            }
+        });
 
         log.debug("SSE tab subscribed for user {} — active tabs: {}",
                 userId, emitters.getOrDefault(userId, new CopyOnWriteArrayList<>()).size());
@@ -64,8 +71,9 @@ public class SseEmitterRegistry {
         for (SseEmitter emitter : userEmitters) {
             try {
                 emitter.send(SseEmitter.event().name(eventName).data(data));
-            } catch (IOException e) {
-                log.debug("SSE send failed for one tab of user {}, removing it", userId);
+            } catch (IOException | IllegalStateException e) {
+                // Client disconnected or connection already closed — remove stale emitter
+                log.debug("SSE send failed for one tab of user {} (client disconnected), removing it", userId);
                 removeSingle(userId, emitter);
             }
         }
