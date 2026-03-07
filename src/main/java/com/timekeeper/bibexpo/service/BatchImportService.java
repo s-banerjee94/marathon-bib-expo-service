@@ -25,14 +25,13 @@ public interface BatchImportService {
     BatchJobStatusResponse getJobStatus(Long eventId, Long jobExecutionId);
 
     /**
-     * Retrieve paginated row-level validation errors persisted during a batch import job.
-     * Validates that the job belongs to the given eventId before returning results.
+     * Retrieve paginated errors from the most recent batch import for an event.
+     * Resolves the latest job from event_latest_import, then queries DynamoDB for errors.
+     * Returns an empty response if no batch import has been run for the event.
      * @param eventId          event the job was launched for
-     * @param jobExecutionId   the ID returned by launchImport
      * @param limit            max errors per page (default 50)
      * @param lastEvaluatedKey base64-encoded pagination token from a previous response, or null for first page
      * @return paginated list of validation errors with a pagination token for the next page
      */
-    ImportErrorListResponse getBatchImportErrors(Long eventId, Long jobExecutionId,
-                                                 int limit, String lastEvaluatedKey);
+    ImportErrorListResponse getLatestBatchImportErrors(Long eventId, int limit, String lastEvaluatedKey);
 }

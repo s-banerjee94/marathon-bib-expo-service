@@ -45,13 +45,11 @@ public class BatchImportController implements BatchImportControllerApi {
     }
 
     @Override
-    public ResponseEntity<ImportErrorListResponse> getBatchImportErrors(
-            Long eventId, Long jobExecutionId, int limit, String lastEvaluatedKey, User currentUser) {
+    public ResponseEntity<ImportErrorListResponse> getLatestBatchImportErrors(
+            Long eventId, int limit, String lastEvaluatedKey, User currentUser) {
 
-        log.info("Errors request - jobExecutionId: {}, event: {}, limit: {}, user: {}",
-                jobExecutionId, eventId, limit, currentUser.getUsername());
+        log.info("Latest errors request - event: {}, limit: {}, user: {}", eventId, limit, currentUser.getUsername());
 
-        return ResponseEntity.ok(
-                batchImportService.getBatchImportErrors(eventId, jobExecutionId, limit, lastEvaluatedKey));
+        return ResponseEntity.ok(batchImportService.getLatestBatchImportErrors(eventId, limit, lastEvaluatedKey));
     }
 }

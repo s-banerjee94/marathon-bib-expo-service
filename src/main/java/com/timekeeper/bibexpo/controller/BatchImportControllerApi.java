@@ -33,7 +33,8 @@ public interface BatchImportControllerApi {
             description = """
                     Deletes all existing participants for the event synchronously, then launches a Spring Batch job \
                     asynchronously. Returns 202 immediately with a jobExecutionId. \
-                    Poll GET .../batch-import/{jobExecutionId}/status to track progress."""
+                    Poll GET .../batch-import/{jobExecutionId}/status to track progress. \
+                    Returns 409 if a batch import is already running for the same event."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "202", description = "Import job accepted and started",
@@ -46,6 +47,9 @@ public interface BatchImportControllerApi {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "A batch import is already running for this event",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -80,28 +84,27 @@ public interface BatchImportControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
-    @GetMapping("/{eventId}/participants/batch-import/{jobExecutionId}/errors")
+    @GetMapping("/{eventId}/participants/batch-import/latest/errors")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Get paginated validation errors for a batch import job",
-            description = "Returns row-level validation errors persisted during the batch import. " +
-                    "Use lastEvaluatedKey from the response to retrieve subsequent pages."
+            summary = "Get paginated errors from the latest batch import",
+            description = "Returns row-level validation errors from the most recent batch import for the event. " +
+                    "Use lastEvaluatedKey from the response to retrieve subsequent pages. " +
+                    "Returns an empty list if no import has been run."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Errors retrieved",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ImportErrorListResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Job execution not found or does not belong to event",
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
+            @ApiResponse(responseCode = "404", description = "Event not found",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
-    ResponseEntity<ImportErrorListResponse> getBatchImportErrors(
+    ResponseEntity<ImportErrorListResponse> getLatestBatchImportErrors(
             @Parameter(description = "Event ID", required = true) @PathVariable Long eventId,
-            @Parameter(description = "Job execution ID returned by POST batch-import", required = true)
-            @PathVariable Long jobExecutionId,
             @Parameter(description = "Max errors per page (default 50)") @RequestParam(defaultValue = "50") int limit,
             @Parameter(description = "Pagination token from previous response") @RequestParam(required = false) String lastEvaluatedKey,
             @AuthenticationPrincipal User currentUser
