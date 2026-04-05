@@ -221,4 +221,5 @@ public interface ParticipantService {
      * @return Number of participants in the category
      */
     long countParticipantsByCategoryId(Long eventId, Long categoryId);
+
 }

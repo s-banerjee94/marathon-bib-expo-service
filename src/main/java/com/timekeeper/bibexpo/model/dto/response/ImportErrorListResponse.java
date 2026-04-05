@@ -31,6 +31,4 @@ public class ImportErrorListResponse {
     @Schema(description = "Whether more errors are available for pagination", example = "true")
     private Boolean hasMore;
 
-    @Schema(description = "Error summary by type")
-    private ErrorSummary errorSummary;
 }

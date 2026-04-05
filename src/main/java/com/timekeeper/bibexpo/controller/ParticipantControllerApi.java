@@ -65,31 +65,20 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
+    @Deprecated
     @PostMapping(value = "/{eventId}/participants/import", consumes = "multipart/form-data")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Import participants from CSV file (FRESH IMPORT - FULL REPLACE)",
+            summary = "[DEPRECATED] Import participants from CSV file (sync, blocking)",
             description = """
-                    ⚠️ CRITICAL: This endpoint performs a FRESH IMPORT which DELETES ALL existing participants for this event before importing new ones. \
-                    This action is permanent and cannot be undone. Use with caution. \
+                    ⚠️ **DEPRECATED** — Use `POST /{eventId}/participants/batch-import` instead. \
+                    That endpoint runs asynchronously, sends real-time SSE progress notifications, \
+                    and tracks the latest import per event for error retrieval. \
 
-                    **CSV Format:** The CSV file must contain these standard columns (in order): \
-                    CHIP No., BIB No., NAME, DOB (dd-mm-yyyy), Age, Gender, Race, Category, Phone, Email-Id, Country, City. \
-
-                    **Dynamic Goodies:** Any columns after 'City' are automatically detected and stored as dynamic goodies \
-                    (e.g., T-Shirt Size, Cap Size, Medal Type). These are persisted in the event metadata for reference. \
-
-                    **Processing:** \
-                    1. Validates CSV structure and data integrity \
-                    2. Deletes ALL existing participants for the event \
-                    3. Performs bulk validation of CSV rows \
-                    4. Imports valid rows into DynamoDB \
-                    5. Stores validation errors with 30-day TTL \
-
-                    **Response:** Returns immediately with importId and import job status. Use GET /api/events/{eventId}/imports/{importId} \
-                    to retrieve detailed results and error summary. Use GET /api/events/{eventId}/imports/{importId}/errors for paginated error details. \
-
-                    **Authorization:** Only ROOT, ADMIN, and ORGANIZER_ADMIN roles can perform imports."""
+                    This endpoint is synchronous and blocks until the import completes. \
+                    It DELETES ALL existing participants before importing new ones. \
+                    No SSE notification is sent and no latest-import tracking is updated.""",
+            deprecated = true
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Import job completed successfully. All old participants deleted, new ones imported. Check response message and use importId to query detailed results.",
@@ -168,11 +157,16 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
+    @Deprecated
     @GetMapping("/{eventId}/participants/imports")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Get import job history for an event",
-            description = "Retrieve paginated list of participant import jobs for a specific event with their status and error summaries"
+            summary = "[DEPRECATED] Get import job history for an event",
+            description = """
+                    ⚠️ **DEPRECATED** — Import history tracked by the sync import flow. \
+                    Use `POST /{eventId}/participants/batch-import` for new imports. \
+                    Batch imports are tracked via `GET /{eventId}/participants/imports/latest/errors`.""",
+            deprecated = true
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Import jobs retrieved successfully",
@@ -194,11 +188,15 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
+    @Deprecated
     @GetMapping("/{eventId}/participants/imports/{importId}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Get import job details",
-            description = "Retrieve detailed information about a specific import job including error summary"
+            summary = "[DEPRECATED] Get import job details",
+            description = """
+                    ⚠️ **DEPRECATED** — Tied to the sync import flow. \
+                    Use `GET /{eventId}/participants/imports/latest/errors` to retrieve errors from the most recent batch import.""",
+            deprecated = true
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Import job details retrieved successfully",
@@ -217,15 +215,16 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
+    @Deprecated
     @GetMapping("/{eventId}/participants/imports/{importId}/errors")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Get import errors with token-based pagination",
+            summary = "[DEPRECATED] Get import errors by importId",
             description = """
-                    Retrieve paginated list of errors from a specific import job using efficient DynamoDB token-based pagination. \
-                    Errors are stored in DynamoDB with 30-day TTL and automatically deleted after expiration. \
-                    Use the lastEvaluatedKey from the response to fetch the next page of errors. \
-                    This endpoint uses efficient DynamoDB Query operations instead of scanning all errors."""
+                    ⚠️ **DEPRECATED** — Requires manually tracking an importId from the sync import flow. \
+                    Use `GET /{eventId}/participants/imports/latest/errors` instead — it automatically resolves \
+                    the most recent batch import importId and returns the same paginated error list.""",
+            deprecated = true
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Import errors retrieved successfully",

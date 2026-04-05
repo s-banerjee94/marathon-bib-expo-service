@@ -11,6 +11,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,6 +27,20 @@ public class GlobalExceptionHandler {
     public static final String FORBIDDEN = "Forbidden";
     public static final String NOT_FOUND = "Not Found";
     public static final String CONFLICT = "Conflict";
+
+    @ExceptionHandler(ImportAlreadyRunningException.class)
+    public ResponseEntity<ErrorResponse> handleImportAlreadyRunning(
+            ImportAlreadyRunningException ex, WebRequest request) {
+        log.warn("Concurrent import rejected: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error(CONFLICT)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleUserAlreadyExists(
@@ -408,10 +425,26 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
+    @ExceptionHandler(AccountDisabledException.class)
+    public ResponseEntity<ErrorResponse> handleAccountDisabled(
+            AccountDisabledException ex, WebRequest request) {
+        log.warn("Account access rejected: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.UNAUTHORIZED.value())
+                .error(UNAUTHORIZED)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(
             InvalidCredentialsException ex, WebRequest request) {
-        log.error("Invalid credentials: {}", ex.getMessage());
+        log.warn("Invalid credentials: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
@@ -630,6 +663,34 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(AsyncRequestTimeoutException.class)
+    public ResponseEntity<Void> handleAsyncTimeout(AsyncRequestTimeoutException ex) {
+        // SSE connection timed out — response already committed, nothing to write
+        return null;
+    }
+
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public ResponseEntity<Void> handleAsyncNotUsable(AsyncRequestNotUsableException ex) {
+        // SSE client disconnected mid-stream — response is no longer writable, nothing to do
+        log.debug("SSE client disconnected: {}", ex.getMessage());
+        return null;
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(
+            NoResourceFoundException ex, WebRequest request) {
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.NOT_FOUND.value())
+                .error(NOT_FOUND)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(error);
     }
 
     @ExceptionHandler(Exception.class)
