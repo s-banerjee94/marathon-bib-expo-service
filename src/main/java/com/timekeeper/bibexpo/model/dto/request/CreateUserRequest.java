@@ -50,6 +50,7 @@ public class CreateUserRequest {
 
     @NotNull(message = "Role is required")
     @Schema(description = "Role to assign to the user", example = "ADMIN",
+            implementation = String.class,
             allowableValues = {"ADMIN", "ORGANIZER_ADMIN", "ORGANIZER_USER", "DISTRIBUTOR"})
     private UserRole role;
 
