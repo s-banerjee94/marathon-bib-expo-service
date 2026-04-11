@@ -14,6 +14,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -707,5 +708,28 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
+
+//     handling the exception when request comes with invalid user_role type or spelling mistake in user_role type or lower case of user_role type
+        @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex, WebRequest request) {
+        log.error("Malformed JSON or Invalid Data Type: {}", ex.getMessage());
+
+        // Optional: Make the error message slightly more helpful if it's an Enum issue
+        String message = "Malformed JSON request or invalid field value provided.";
+        if (ex.getMessage() != null && ex.getMessage().contains("not one of the values accepted for Enum class")) {
+            message = "Invalid value provided for a restricted field (like UserRole). Please check your spelling.";
+        }
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(BAD_REQUEST)
+                .message(message)
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 }

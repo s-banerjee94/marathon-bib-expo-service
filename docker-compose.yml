@@ -65,6 +65,7 @@ services:
       - SERVICES=dynamodb
       - DEBUG=${DEBUG:-0}
       - PERSISTENCE=1
+      - LOCALSTACK_AUTH_TOKEN=ls-KoQuseGe-soqA-ziyi-0279-GUCESUvO5709
     volumes:
       - localstack-data:/var/lib/localstack
       - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh
