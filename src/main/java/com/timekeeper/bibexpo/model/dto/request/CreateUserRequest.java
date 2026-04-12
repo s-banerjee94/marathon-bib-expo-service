@@ -45,7 +45,7 @@ public class CreateUserRequest {
     @Schema(description = "Full name of the user", example = "John Doe")
     private String fullName;
 
-    @Pattern(regexp = "^[0-9]{10}$|^[0-9]{3}[\\s\\-][0-9]{3}[\\s\\-][0-9]{4}$", message = "valid phone number (10 digits only)")
+    @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
     @Schema(description = "Phone number (required for ADMIN, ORG_ADMIN, ORG_USER; optional for DISTRIBUTOR), 10-digit Indian format", example = "9876543210")
     private String phoneNumber;
 
