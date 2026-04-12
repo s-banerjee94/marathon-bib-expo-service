@@ -64,8 +64,8 @@ public class UpdateParticipantRequest {
     @Schema(description = "Emergency contact name", example = "Jane Doe")
     private String emergencyContactName;
 
-    @Size(max = 20, message = "Emergency contact phone cannot exceed 20 characters")
     @Schema(description = "Emergency contact phone", example = "9876543210")
+    @Pattern(regexp = "^\\d{10}$", message = "emergencyContactPhone: must be a 10-digit number")
     private String emergencyContactPhone;
 
     @Size(max = 500, message = "Notes cannot exceed 500 characters")
