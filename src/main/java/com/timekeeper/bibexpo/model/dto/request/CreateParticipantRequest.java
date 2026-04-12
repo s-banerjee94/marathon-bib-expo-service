@@ -54,6 +54,7 @@ public class CreateParticipantRequest {
     private String gender;
 
     @Schema(description = "Phone number (required if email is not provided)", example = "+919876543210")
+    @Pattern(regexp = "^\\d{10}$", message = "phoneNumber: must be a valid 10-digit number")
     private String phoneNumber;
 
     @Schema(description = "Email address (required if phone number is not provided)", example = "john.doe@example.com")
@@ -81,6 +82,7 @@ public class CreateParticipantRequest {
     private String emergencyContactName;
 
     @Schema(description = "Emergency contact phone", example = "+919876543211")
+    @Pattern(regexp = "^\\d{10}$", message = "emergencyContactPhone: must be a 10-digit number")
     private String emergencyContactPhone;
 
     @Schema(description = "Additional notes", example = "VIP participant")

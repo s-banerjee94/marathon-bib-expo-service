@@ -24,7 +24,7 @@ public class CreateOrganizationRequest {
     @Schema(description = "Organization email", example = "contact@indiabookexpo.in")
     private String email;
 
-    @Pattern(regexp = "^[+]?[0-9\\s()-]{7,20}$", message = "Phone number must be valid")
+    @Pattern(regexp = "^\\d{10}$", message = "phoneNumber: must be a 10-digit number")
     @Schema(description = "Organization phone number", example = "+91-98765-43210")
     private String phoneNumber;
 
