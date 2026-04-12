@@ -20,13 +20,7 @@ Please read this guide carefully before submitting issues or pull requests.
 
 ## Code of Conduct
 
-This project adheres to a standard of respectful and inclusive collaboration. By participating, you are expected to:
-
-- Be welcoming and respectful to all contributors
-- Accept constructive feedback gracefully
-- Focus on what is best for the project and community
-
-Unacceptable behavior should be reported to the maintainers via GitHub.
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold it. Please report unacceptable behavior to the maintainers via GitHub.
 
 ---
 
