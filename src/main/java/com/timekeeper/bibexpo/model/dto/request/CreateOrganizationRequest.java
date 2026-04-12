@@ -24,8 +24,8 @@ public class CreateOrganizationRequest {
     @Schema(description = "Organization email", example = "contact@indiabookexpo.in")
     private String email;
 
-    @Pattern(regexp = "^\\d{10}$", message = "phoneNumber: must be a 10-digit number")
-    @Schema(description = "Organization phone number", example = "+91-98765-43210")
+    @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
+    @Schema(description = "Organization phone number", example = "9876543210")
     private String phoneNumber;
 
     @Schema(description = "Organization website", example = "https://www.indiabookexpo.in")
