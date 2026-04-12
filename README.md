@@ -136,8 +136,6 @@ Tokens are valid for **7 days**. On Swagger UI, click **Authorize** and enter `B
 
 On first startup, the application automatically creates a root user using the credentials set in `.env` (`ROOT_USERNAME` / `ROOT_PASSWORD`). This user has the `ROOT` role with full system access and is the entry point for all administrative setup.
 
-> **Important:** Change the default root credentials before deploying to any non-local environment.
-
 Use the root account to log in via `/api/auth/login` and obtain a JWT token to start creating organizations and users.
 
 ---
@@ -167,7 +165,7 @@ Use the root account to log in via `/api/auth/login` and obtain a JWT token to s
 | `SERVER_PORT` | `8080` | Application port |
 | `ROOT_USERNAME` | `root` | Root user username |
 | `ROOT_PASSWORD` | `root` | Root user password |
-| `JWT_SECRET` | dev key | JWT signing secret (use 256+ bits in production) |
+| `JWT_SECRET` | dev key | JWT signing secret |
 | `AWS_REGION` | `us-east-1` | AWS region |
 | `AWS_ACCESS_KEY_ID` | `test` | AWS access key |
 | `AWS_SECRET_ACCESS_KEY` | `test` | AWS secret key |
