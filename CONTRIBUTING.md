@@ -58,6 +58,8 @@ Feature requests are welcome. Open an issue with:
 
 ### Submitting a Pull Request
 
+> **Important:** All contributions must branch off the `develop` branch. The `master` branch is reserved for stable releases. Never open a PR directly against `master`.
+
 1. **Fork** the repository to your own GitHub account.
 
 2. **Clone your fork** locally:
