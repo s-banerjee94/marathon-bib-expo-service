@@ -45,14 +45,15 @@ public class UserServiceImpl implements UserService {
     public UserResponse createUser(CreateUserRequest request, String currentUsername) {
         log.info("Creating user with username: {} by: {}", request.getUsername(), currentUsername);
 
+        UserRole role = UserRole.valueOf(request.getRole());
         User currentUser = fetchCurrentUser(currentUsername);
-        validateRootCreationAttempt(request.getRole(), currentUsername);
-        validateCreateUserAuthorization(currentUser, request.getRole(), request.getOrganizationId());
-        validateEmailAndPhoneRequirements(request);
+        validateRootCreationAttempt(role, currentUsername);
+        validateCreateUserAuthorization(currentUser, role, request.getOrganizationId());
+        validateEmailAndPhoneRequirements(request, role);
         validateUniqueness(request);
 
-        Organization organization = fetchAndValidateOrganization(request);
-        User user = buildUserEntity(request, organization);
+        Organization organization = fetchAndValidateOrganization(request, role);
+        User user = buildUserEntity(request, organization, role);
         User savedUser = userRepository.save(user);
 
         log.info("Successfully created user with ID: {} and role: {}", savedUser.getId(), savedUser.getRole());
@@ -83,19 +84,19 @@ public class UserServiceImpl implements UserService {
     /**
      * Validate email and phone requirements based on role
      */
-    private void validateEmailAndPhoneRequirements(CreateUserRequest request) {
-        if (request.getRole() == UserRole.DISTRIBUTOR) {
+    private void validateEmailAndPhoneRequirements(CreateUserRequest request, UserRole role) {
+        if (role == UserRole.DISTRIBUTOR) {
             return; // Email and phone are optional for distributors
         }
 
         if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
-            log.error("Email is required for role: {}", request.getRole());
-            throw new InvalidUserDataException("Email is required for role: " + request.getRole());
+            log.error("Email is required for role: {}", role);
+            throw new InvalidUserDataException("Email is required for role: " + role);
         }
 
         if (request.getPhoneNumber() == null || request.getPhoneNumber().trim().isEmpty()) {
-            log.error("Phone number is required for role: {}", request.getRole());
-            throw new InvalidUserDataException("Phone number is required for role: " + request.getRole());
+            log.error("Phone number is required for role: {}", role);
+            throw new InvalidUserDataException("Phone number is required for role: " + role);
         }
     }
 
@@ -124,17 +125,17 @@ public class UserServiceImpl implements UserService {
     /**
      * Fetch and validate organization for organization-scoped roles
      */
-    private Organization fetchAndValidateOrganization(CreateUserRequest request) {
-        if (!isOrganizationRole(request.getRole())) {
-            if (isSystemRole(request.getRole()) && request.getOrganizationId() != null) {
-                log.warn("Organization ID provided for system role {}, will be ignored", request.getRole());
+    private Organization fetchAndValidateOrganization(CreateUserRequest request, UserRole role) {
+        if (!isOrganizationRole(role)) {
+            if (isSystemRole(role) && request.getOrganizationId() != null) {
+                log.warn("Organization ID provided for system role {}, will be ignored", role);
             }
             return null;
         }
 
         if (request.getOrganizationId() == null) {
-            log.error("Organization ID is required for role: {}", request.getRole());
-            throw new InvalidUserDataException("Organization ID is required for role: " + request.getRole());
+            log.error("Organization ID is required for role: {}", role);
+            throw new InvalidUserDataException("Organization ID is required for role: " + role);
         }
 
         Organization organization = organizationRepository.findById(request.getOrganizationId())
@@ -150,21 +151,21 @@ public class UserServiceImpl implements UserService {
             throw new InvalidUserDataException("Cannot create user for disabled organization");
         }
 
-        validateOrganizationLimits(organization, request.getRole());
+        validateOrganizationLimits(organization, role);
         return organization;
     }
 
     /**
      * Build user entity from request
      */
-    private User buildUserEntity(CreateUserRequest request, Organization organization) {
+    private User buildUserEntity(CreateUserRequest request, Organization organization, UserRole role) {
         return User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .email(request.getEmail())
                 .fullName(request.getFullName())
                 .phoneNumber(request.getPhoneNumber())
-                .role(request.getRole())
+                .role(role)
                 .organization(organization)
                 .enabled(request.getEnabled() != null ? request.getEnabled() : true)
                 .accountNonExpired(request.getAccountNonExpired() != null ? request.getAccountNonExpired() : true)

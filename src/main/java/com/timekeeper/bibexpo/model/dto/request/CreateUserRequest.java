@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.model.dto.request;
 
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.validator.ValidEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -49,10 +50,11 @@ public class CreateUserRequest {
     private String phoneNumber;
 
     @NotNull(message = "Role is required")
+    @ValidEnum(enumClass = UserRole.class, excludes = {"ROOT"})
     @Schema(description = "Role to assign to the user", example = "ADMIN",
             implementation = String.class,
             allowableValues = {"ADMIN", "ORGANIZER_ADMIN", "ORGANIZER_USER", "DISTRIBUTOR"})
-    private UserRole role;
+    private String role;
 
     @Schema(description = "Organization ID (required for ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR)", example = "1")
     private Long organizationId;
