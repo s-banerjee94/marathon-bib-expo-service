@@ -53,8 +53,7 @@ public class CreateParticipantRequest {
     @Schema(description = "Gender (M/F/O)", example = "M", requiredMode = Schema.RequiredMode.REQUIRED)
     private String gender;
 
-    @Schema(description = "Phone number (required if email is not provided)", example = "9876543210")
-    @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
+    @Schema(description = "Phone number (required if email is not provided)", example = "+919876543210")
     private String phoneNumber;
 
     @Schema(description = "Email address (required if phone number is not provided)", example = "john.doe@example.com")
@@ -81,8 +80,7 @@ public class CreateParticipantRequest {
     @Schema(description = "Emergency contact name", example = "Jane Doe")
     private String emergencyContactName;
 
-    @Schema(description = "Emergency contact phone", example = "9876543211")
-    @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
+    @Schema(description = "Emergency contact phone", example = "+919876543211")
     private String emergencyContactPhone;
 
     @Schema(description = "Additional notes", example = "VIP participant")
