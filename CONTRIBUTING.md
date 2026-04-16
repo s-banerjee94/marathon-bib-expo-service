@@ -15,6 +15,7 @@ Please read this guide carefully before submitting issues or pull requests.
   - [Submitting a Pull Request](#submitting-a-pull-request)
 - [Development Setup](#development-setup)
 - [Code Standards](#code-standards)
+- [Wiki](#wiki)
 
 ---
 
@@ -126,3 +127,25 @@ docker-compose up -d
 - **Comments** — only add comments where the logic is not self-evident.
 - **Interface Javadoc** — all interfaces must have Javadoc comments.
 - **Security** — evaluate every new endpoint for authentication/authorization requirements in `SecurityConfig`.
+
+---
+
+## Wiki
+
+Before contributing, take some time to read through the project wiki. It will give you a solid understanding of the domain, the architecture, and how the system works end to end.
+
+**Wiki:** [github.com/s-banerjee94/marathon-bib-expo-service/wiki](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki)
+
+### Recommended Reading Order
+
+| Page | What You Will Learn |
+|------|-------------------|
+| [Home](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki/Home) | What a Bib Expo/Distribution is, the problem this project solves, and who it is for |
+| [Getting Started](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki/Getting-Started) | Full event lifecycle from organization setup to expo day, plus local setup steps |
+| [Architecture](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki/Architecture) | System design, dual-database layout, package structure, and request lifecycle |
+| [Authentication & Security](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki/Authentication-and-Security) | JWT auth, user roles explained in real-world terms, and protected routes |
+| [Bib & Goodies Distribution](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki/Bib-and-Goodies-Distribution) | The core feature — real-world distribution scenario, business rules, and group collection |
+| [Batch CSV Import](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki/Batch-CSV-Import) | How participant data gets loaded before expo day via Spring Batch |
+| [Data Models](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki/Data-Models) | JPA entities, DynamoDB models, and DTOs |
+| [API Reference](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki/API-Reference) | All REST endpoints |
+| [Development Guide](https://github.com/s-banerjee94/marathon-bib-expo-service/wiki/Development-Guide) | Coding conventions, testing approach, and how to add new endpoints |
