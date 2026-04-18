@@ -174,7 +174,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
-                        "Organization with ID '" + id + "' not found or has been deleted"
+                        "The organization you requested does not exist."
                 ));
 
         validateUpdateAuthorization(currentUser, id);
@@ -193,10 +193,9 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse toggleOrganizationStatus(Long id, Boolean enabled) {
         log.info("Toggling organization status for ID: {} to enabled={}", id, enabled);
 
-        // Fetch the organization
         Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
-                        "Organization with ID '" + id + "' not found or has been deleted"
+                        "The organization you requested does not exist."
                 ));
 
         // Update organization's enabled status
@@ -236,7 +235,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (currentUser.getRole() == UserRole.ORGANIZER_ADMIN && (currentUser.getOrganization() == null ||
                     !currentUser.getOrganization().getId().equals(organizationId))) {
                 throw new UnauthorizedAccessException(
-                        "You can only update your own organization");
+                        "You can only update your own organization.");
             }
 
     }
@@ -341,13 +340,13 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
-                        "Organization with ID '" + id + "' not found or has been deleted"
+                        "The organization you requested does not exist."
                 ));
 
         if ((currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) &&
                 (currentUser.getOrganization() == null || !currentUser.getOrganization().getId().equals(id))) {
             throw new UnauthorizedAccessException(
-                    "You can only view your own organization");
+                    "You can only view your own organization.");
         }
 
         log.info("Successfully retrieved organization with ID: {} for user: {}",
@@ -369,7 +368,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Organization organization = organizationRepository.findByIdAndDeletedFalse(organizationId)
                 .orElseThrow(() -> new OrganizationNotFoundException(
-                        "Organization not found with ID: " + organizationId));
+                        "The organization you requested does not exist."));
 
         log.info("Successfully retrieved organization with ID: {} for user: {}",
                 organizationId, currentUser.getUsername());
