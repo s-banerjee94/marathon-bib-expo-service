@@ -50,8 +50,7 @@ public class EventServiceImpl implements EventService {
         if (eventRepository.existsByEventNameAndOrganizationId(
                 request.getEventName(), request.getOrganizationId())) {
             throw new EventAlreadyExistsException(
-                    "Event with name '" + request.getEventName() +
-                    "' already exists for this organization");
+                    "An event with this name already exists for this organization.");
         }
 
         Event event = Event.builder()
@@ -221,7 +220,7 @@ public class EventServiceImpl implements EventService {
         validateEventEnabled(event, currentUser);
 
         if (status == null) {
-            throw new InvalidUserDataException("Event status cannot be null");
+            throw new InvalidUserDataException("Event status is required.");
         }
 
         event.setStatus(status);
@@ -243,7 +242,7 @@ public class EventServiceImpl implements EventService {
 
         if (Boolean.FALSE.equals(event.getEnabled())) {
             throw new com.timekeeper.bibexpo.exception.EventDisabledException(
-                    "Event with ID " + event.getId() + " is currently disabled and cannot be accessed");
+                    "This event is currently disabled.");
         }
     }
 
@@ -260,7 +259,7 @@ public class EventServiceImpl implements EventService {
 
         if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.CANCELLED) {
             throw new EventDeletionNotAllowedException(
-                    "Event can only be deleted if status is DRAFT or CANCELLED. Current status: " + event.getStatus());
+                    "Only events in DRAFT or CANCELLED status can be deleted.");
         }
 
         // TODO: Check if participant list is empty once participant feature is fully implemented
@@ -351,18 +350,17 @@ public class EventServiceImpl implements EventService {
         if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
             if (currentUser.getOrganization() == null) {
                 throw new UnauthorizedAccessException(
-                        "User does not belong to any organization");
+                        "Your account is not assigned to an organization.");
             }
 
             if (!currentUser.getOrganization().getId().equals(organization.getId())) {
                 throw new UnauthorizedAccessException(
-                        "User can only create events for their own organization");
+                        "You can only create events for your organization.");
             }
             return;
         }
 
-        throw new UnauthorizedAccessException(
-                "User does not have permission to create events");
+        throw new UnauthorizedAccessException("You are not allowed to create events.");
     }
 
     private void validateUserAuthorizationForView(User currentUser, Event event) {
@@ -375,18 +373,17 @@ public class EventServiceImpl implements EventService {
         if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
             if (currentUser.getOrganization() == null) {
                 throw new UnauthorizedAccessException(
-                        "User does not belong to any organization");
+                        "Your account is not assigned to an organization.");
             }
 
             if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
                 throw new UnauthorizedAccessException(
-                        "User can only view events from their own organization");
+                        "You can only view events from your organization.");
             }
             return;
         }
 
-        throw new UnauthorizedAccessException(
-                "User does not have permission to view events");
+        throw new UnauthorizedAccessException("You are not allowed to view events.");
     }
 
     private <T> void updateIfNotNull(T value, Consumer<T> setter) {

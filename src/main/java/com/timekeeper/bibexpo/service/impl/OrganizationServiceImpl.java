@@ -43,7 +43,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         // But we'll add an additional check here for extra security
         if (currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) {
             throw new UnauthorizedAccessException(
-                    "Only ROOT and ADMIN users can view all organizations");
+                    "You are not allowed to view all organizations.");
         }
 
         // Build dynamic specification for filtering
@@ -124,14 +124,14 @@ public class OrganizationServiceImpl implements OrganizationService {
         // Check if organization with email already exists
         if (organizationRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
             throw new OrganizationAlreadyExistsException(
-                    "Organization with email '" + request.getEmail() + "' already exists"
+                    "An organization with this email already exists."
             );
         }
 
         // Check if organization with taxId already exists (if taxId is provided)
         if (request.getTaxId() != null && !request.getTaxId().isBlank() && organizationRepository.existsByTaxIdAndDeletedFalse(request.getTaxId())) {
                 throw new OrganizationAlreadyExistsException(
-                        "Organization with tax ID '" + request.getTaxId() + "' already exists"
+                        "An organization with this tax ID already exists."
                 );
             }
 
@@ -244,7 +244,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private void validateEmailUniqueness(String newEmail, String currentEmail) {
         if (newEmail != null && !newEmail.isBlank() && !newEmail.equals(currentEmail) && organizationRepository.existsByEmailAndDeletedFalse(newEmail)) {
                 throw new OrganizationAlreadyExistsException(
-                        "Organization with email '" + newEmail + "' already exists"
+                        "An organization with this email already exists."
                 );
             }
 
@@ -253,7 +253,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private void validateTaxIdUniqueness(String newTaxId, String currentTaxId) {
         if (newTaxId != null && !newTaxId.isBlank() && !newTaxId.equals(currentTaxId) && organizationRepository.existsByTaxIdAndDeletedFalse(newTaxId)) {
                 throw new OrganizationAlreadyExistsException(
-                        "Organization with tax ID '" + newTaxId + "' already exists"
+                        "An organization with this tax ID already exists."
                 );
             }
 
@@ -362,7 +362,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         log.info("Fetching organization for user: {}", currentUser.getUsername());
 
         if (currentUser.getOrganization() == null) {
-            throw new UnauthorizedAccessException("User does not belong to any organization");
+            throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
         }
 
         Long organizationId = currentUser.getOrganization().getId();

@@ -80,7 +80,7 @@ public class UserServiceImpl implements UserService {
     private void validateRootCreationAttempt(UserRole requestedRole, String currentUsername) {
         if (requestedRole == UserRole.ROOT) {
             log.error("Attempt to create ROOT user by: {}", currentUsername);
-            throw new UnauthorizedAccessException("Cannot create ROOT user. Root user is system-initialized only.");
+            throw new UnauthorizedAccessException("ROOT users cannot be created.");
         }
     }
 
@@ -94,12 +94,12 @@ public class UserServiceImpl implements UserService {
 
         if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
             log.error("Email is required for role: {}", role);
-            throw new InvalidUserDataException("Email is required for role: " + role);
+            throw new InvalidUserDataException("Email is required.");
         }
 
         if (request.getPhoneNumber() == null || request.getPhoneNumber().trim().isEmpty()) {
             log.error("Phone number is required for role: {}", role);
-            throw new InvalidUserDataException("Phone number is required for role: " + role);
+            throw new InvalidUserDataException("Phone number is required.");
         }
     }
 
@@ -109,19 +109,19 @@ public class UserServiceImpl implements UserService {
     private void validateUniqueness(CreateUserRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             log.error("Username already exists: {}", request.getUsername());
-            throw new UserAlreadyExistsException("Username '" + request.getUsername() + "' already exists");
+            throw new UserAlreadyExistsException("This username is already taken.");
         }
 
         if (request.getEmail() != null && !request.getEmail().trim().isEmpty()
                 && userRepository.existsByEmail(request.getEmail())) {
             log.error("Email already exists: {}", request.getEmail());
-            throw new UserAlreadyExistsException("Email '" + request.getEmail() + "' already exists");
+            throw new UserAlreadyExistsException("This email is already registered.");
         }
 
         if (request.getPhoneNumber() != null && !request.getPhoneNumber().trim().isEmpty()
                 && userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             log.error("Phone number already exists: {}", request.getPhoneNumber());
-            throw new UserAlreadyExistsException("Phone number '" + request.getPhoneNumber() + "' already exists");
+            throw new UserAlreadyExistsException("This phone number is already registered.");
         }
     }
 
@@ -138,7 +138,7 @@ public class UserServiceImpl implements UserService {
 
         if (request.getOrganizationId() == null) {
             log.error("Organization ID is required for role: {}", role);
-            throw new InvalidUserDataException("Organization ID is required for role: " + role);
+            throw new InvalidUserDataException("Organization is required.");
         }
 
         Organization organization = organizationRepository.findById(request.getOrganizationId())
@@ -151,7 +151,7 @@ public class UserServiceImpl implements UserService {
 
         if (Boolean.FALSE.equals(organization.getEnabled()) || Boolean.TRUE.equals(organization.getDeleted())) {
             log.error("Cannot create user for disabled organization ID: {}", request.getOrganizationId());
-            throw new InvalidUserDataException("Cannot create user for disabled organization");
+            throw new InvalidUserDataException("This organization is currently disabled.");
         }
 
         validateOrganizationLimits(organization, role);
@@ -215,21 +215,20 @@ public class UserServiceImpl implements UserService {
         if (!allowed.contains(requestedRole)) {
             log.error("User {} with role {} attempted to create {} user",
                     currentUser.getUsername(), currentRole, requestedRole);
-            throw new UnauthorizedAccessException(
-                    "Role " + currentRole + " cannot create users with role " + requestedRole);
+            throw new UnauthorizedAccessException("You are not allowed to create users with this role.");
         }
 
         if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
             if (currentUser.getOrganization() == null) {
                 log.error("{} {} has no organization assigned", currentRole, currentUser.getUsername());
-                throw new UnauthorizedAccessException("You must be assigned to an organization to create users");
+                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
             }
             if (targetOrganizationId == null ||
                     !currentUser.getOrganization().getId().equals(targetOrganizationId)) {
                 log.error("{} {} attempted to create user for org {}. Own org: {}",
                         currentRole, currentUser.getUsername(),
                         targetOrganizationId, currentUser.getOrganization().getId());
-                throw new UnauthorizedAccessException("You can only create users within your own organization");
+                throw new UnauthorizedAccessException("You can only create users in your organization.");
             }
         }
 
@@ -258,9 +257,7 @@ public class UserServiceImpl implements UserService {
                 if (currentDistributorCount >= maxDistributors) {
                     log.error("Organization {} has reached maximum distributor limit: {} (current: {})",
                             organization.getId(), maxDistributors, currentDistributorCount);
-                    throw new InvalidUserDataException(
-                            String.format("Organization has reached maximum distributor limit of %d. " +
-                                    "Current count: %d", maxDistributors, currentDistributorCount));
+                    throw new InvalidUserDataException("Your organization has reached the maximum number of distributors.");
                 }
                 log.debug("Distributor limit check passed for organization {}: {}/{}",
                         organization.getId(), currentDistributorCount + 1, maxDistributors);
@@ -281,11 +278,7 @@ public class UserServiceImpl implements UserService {
                                     "(current ORG_ADMIN: {}, ORG_USER: {}, total: {})",
                             organization.getId(), maxOrganizerUsers,
                             currentOrgAdminCount, currentOrgUserCount, totalOrganizerUsers);
-                    throw new InvalidUserDataException(
-                            String.format("Organization has reached maximum organizer user limit of %d. " +
-                                            "Current count: %d (ORG_ADMIN: %d, ORG_USER: %d)",
-                                    maxOrganizerUsers, totalOrganizerUsers,
-                                    currentOrgAdminCount, currentOrgUserCount));
+                    throw new InvalidUserDataException("Your organization has reached the maximum number of organizer users.");
                 }
                 log.debug("Organizer user limit check passed for organization {}: {}/{}",
                         organization.getId(), totalOrganizerUsers + 1, maxOrganizerUsers);
@@ -305,18 +298,14 @@ public class UserServiceImpl implements UserService {
     private void validateSameOrganization(User currentUser, User targetUser, String action) {
         if (currentUser.getOrganization() == null) {
             log.error("{} {} has no organization assigned", currentUser.getRole(), currentUser.getUsername());
-            throw new UnauthorizedAccessException(
-                    currentUser.getRole() == UserRole.ORGANIZER_ADMIN
-                            ? "Organization administrator must be assigned to an organization"
-                            : "Organization user must be assigned to an organization");
+            throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
         }
 
         if (targetUser.getOrganization() == null ||
             !currentUser.getOrganization().getId().equals(targetUser.getOrganization().getId())) {
             log.error("{} {} attempted to {} user from different organization",
                     currentUser.getRole(), currentUser.getUsername(), action);
-            throw new UnauthorizedAccessException(
-                    "You can only " + action + " users within your own organization");
+            throw new UnauthorizedAccessException("You can only " + action + " users within your organization.");
         }
     }
 
@@ -396,7 +385,7 @@ public class UserServiceImpl implements UserService {
                     .filter(user -> !user.getId().equals(currentUserId))
                     .ifPresent(user -> {
                         log.error("Email already exists: {}", email);
-                        throw new UserAlreadyExistsException("Email '" + email + "' already exists");
+                        throw new UserAlreadyExistsException("This email is already registered.");
                     });
         }
     }
@@ -410,7 +399,7 @@ public class UserServiceImpl implements UserService {
                     .filter(user -> !user.getId().equals(currentUserId))
                     .ifPresent(user -> {
                         log.error("Phone number already exists: {}", phoneNumber);
-                        throw new UserAlreadyExistsException("Phone number '" + phoneNumber + "' already exists");
+                        throw new UserAlreadyExistsException("This phone number is already registered.");
                     });
         }
     }
@@ -451,7 +440,7 @@ public class UserServiceImpl implements UserService {
         // Other roles cannot update users
         log.error("User {} with role {} attempted to update user",
                 currentUser.getUsername(), currentRole);
-        throw new UnauthorizedAccessException("You do not have permission to update users");
+        throw new UnauthorizedAccessException("You are not allowed to update users.");
     }
 
     /**
@@ -469,13 +458,13 @@ public class UserServiceImpl implements UserService {
         // ADMIN cannot update ROOT
         if (targetRole == UserRole.ROOT) {
             log.error("ADMIN {} attempted to update ROOT user", currentUser.getUsername());
-            throw new UnauthorizedAccessException("ADMIN users cannot update ROOT users");
+            throw new UnauthorizedAccessException("You cannot update users with equal or higher privileges.");
         }
 
         // ADMIN cannot update other ADMINs
         if (targetRole == UserRole.ADMIN) {
             log.error("ADMIN {} attempted to update another ADMIN user", currentUser.getUsername());
-            throw new UnauthorizedAccessException("ADMIN users cannot update other ADMIN users");
+            throw new UnauthorizedAccessException("You cannot update users with equal or higher privileges.");
         }
 
         // ADMIN can update ORG_ADMIN, ORG_USER, DISTRIBUTOR
@@ -498,8 +487,7 @@ public class UserServiceImpl implements UserService {
         if (isRestrictedRole(targetRole, UserRole.ROOT, UserRole.ADMIN, UserRole.ORGANIZER_ADMIN)) {
             log.error("ORG_ADMIN {} attempted to update {} user",
                     currentUser.getUsername(), targetRole);
-            throw new UnauthorizedAccessException(
-                    "Organization administrators cannot update ROOT, ADMIN, or other ORG_ADMIN users");
+            throw new UnauthorizedAccessException("You cannot update users with equal or higher privileges.");
         }
 
         // ORG_ADMIN can only update users within their own organization
@@ -574,7 +562,7 @@ public class UserServiceImpl implements UserService {
                 log.error("ORG_ADMIN {} attempted to toggle enabled status for {} user",
                         currentUser.getUsername(), targetRole);
                 throw new UnauthorizedAccessException(
-                        "Organization administrators cannot disable ROOT, ADMIN, or other ORG_ADMIN users");
+                        "You cannot enable or disable users with equal or higher privileges.");
             }
 
             // ORG_ADMIN can only disable users within their own organization
@@ -591,7 +579,7 @@ public class UserServiceImpl implements UserService {
                 log.error("ORG_USER {} attempted to toggle enabled status for {} user",
                         currentUser.getUsername(), targetRole);
                 throw new UnauthorizedAccessException(
-                        "Organization users can only disable DISTRIBUTOR users");
+                        "You can only enable or disable distributor accounts.");
             }
 
             // ORG_USER can only disable distributors within their own organization
@@ -604,7 +592,7 @@ public class UserServiceImpl implements UserService {
         // Other roles (DISTRIBUTOR) cannot toggle enabled status
         log.error("User {} with role {} attempted to toggle enabled status",
                 currentUser.getUsername(), currentRole);
-        throw new UnauthorizedAccessException("You do not have permission to toggle user enabled status");
+        throw new UnauthorizedAccessException("You are not allowed to enable or disable users.");
     }
 
     @Override
@@ -663,7 +651,7 @@ public class UserServiceImpl implements UserService {
         if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
             if (currentUser.getOrganization() == null) {
                 log.error("{} {} has no organization assigned", currentRole, currentUser.getUsername());
-                throw new UnauthorizedAccessException("You must be assigned to an organization");
+                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
             }
             scopedOrgId = currentUser.getOrganization().getId();
             scopedIncludeDeleted = false;

@@ -125,7 +125,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         );
 
         if (existingParticipant != null) {
-            throw new IllegalArgumentException("Participant with BIB number " + request.getBibNumber() + " already exists");
+            throw new IllegalArgumentException("A participant with this BIB number already exists.");
         }
 
         RaceResponse race = raceService.getRaceById(eventId, request.getRaceId(), currentUser);
@@ -201,11 +201,11 @@ public class ParticipantServiceImpl implements ParticipantService {
         } catch (IOException e) {
             importJob.setStatus(ImportJob.ImportStatus.FAILED);
             importJobRepository.save(importJob);
-            throw new InvalidCsvFormatException("Failed to parse CSV file", e);
+            throw new InvalidCsvFormatException("Failed to read the CSV file.", e);
         } catch (IllegalArgumentException e) {
             importJob.setStatus(ImportJob.ImportStatus.FAILED);
             importJobRepository.save(importJob);
-            throw new InvalidCsvFormatException("Invalid CSV format: " + e.getMessage(), e);
+            throw new InvalidCsvFormatException("Invalid CSV format. Check the file and try again.", e);
         }
 
         log.info("CSV Import Summary - Total rows: {}, Goodies columns: {}",
@@ -305,7 +305,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 requestBuilder.exclusiveStartKey(exclusiveStartKey);
             } catch (Exception e) {
                 log.error(FAILED_TO_DECODE_PAGINATION_KEY, e);
-                throw new InvalidUserDataException("Invalid pagination key");
+                throw new InvalidUserDataException("Invalid page token. Please start from the first page.");
             }
         }
 
@@ -402,8 +402,7 @@ public class ParticipantServiceImpl implements ParticipantService {
             );
 
             if (existingWithNewBib != null) {
-                throw new IllegalArgumentException(
-                        "Participant with BIB number " + newBibNumber + " already exists");
+                throw new IllegalArgumentException("A participant with this BIB number already exists.");
             }
 
             log.warn("BIB number change requested: {} -> {} for event {}",
@@ -974,7 +973,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 requestBuilder.exclusiveStartKey(exclusiveStartKey);
             } catch (Exception e) {
                 log.error(FAILED_TO_DECODE_PAGINATION_KEY, e);
-                throw new InvalidUserDataException("Invalid pagination key");
+                throw new InvalidUserDataException("Invalid page token. Please start from the first page.");
             }
         }
 
@@ -1250,7 +1249,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 scanBuilder.exclusiveStartKey(exclusiveStartKey);
             } catch (Exception e) {
                 log.error(FAILED_TO_DECODE_PAGINATION_KEY, e);
-                throw new InvalidUserDataException("Invalid pagination key");
+                throw new InvalidUserDataException("Invalid page token. Please start from the first page.");
             }
         }
 
@@ -1474,7 +1473,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 requestBuilder.exclusiveStartKey(exclusiveStartKey);
             } catch (Exception e) {
                 log.error(FAILED_TO_DECODE_PAGINATION_KEY, e);
-                throw new InvalidUserDataException("Invalid pagination key");
+                throw new InvalidUserDataException("Invalid page token. Please start from the first page.");
             }
         }
 

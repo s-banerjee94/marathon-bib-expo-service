@@ -65,7 +65,7 @@ public class BatchImportServiceImpl implements BatchImportService {
         boolean alreadyRunning = jobExplorer.findRunningJobExecutions("csvImportJob").stream()
                 .anyMatch(e -> eventId.toString().equals(e.getJobParameters().getString("eventId")));
         if (alreadyRunning) {
-            throw new ImportAlreadyRunningException("A batch import is already in progress for event " + eventId);
+            throw new ImportAlreadyRunningException("An import is already running for this event.");
         }
 
         Path tempFile;
@@ -73,7 +73,7 @@ public class BatchImportServiceImpl implements BatchImportService {
             tempFile = Files.createTempFile("csv-import-", ".csv");
             file.transferTo(tempFile);
         } catch (IOException e) {
-            throw new CsvImportException("Failed to save uploaded CSV file for event " + eventId, e);
+            throw new CsvImportException("Failed to save the uploaded file. Please try again.", e);
         }
 
         int deletedCount = participantDDBRepository.deleteAllByEventId(eventId.toString());
@@ -93,7 +93,7 @@ public class BatchImportServiceImpl implements BatchImportService {
             log.info("Launched batch import job {} for event {}", execution.getId(), eventId);
             return new BatchImportResponse(execution.getId(), execution.getStatus().toString(), deletedCount);
         } catch (Exception e) {
-            throw new CsvImportException("Failed to launch batch import job for event " + eventId, e);
+            throw new CsvImportException("Failed to start the import. Please try again.", e);
         }
     }
 
@@ -101,12 +101,12 @@ public class BatchImportServiceImpl implements BatchImportService {
     public BatchJobStatusResponse getJobStatus(Long eventId, Long jobExecutionId) {
         JobExecution execution = jobExplorer.getJobExecution(jobExecutionId);
         if (execution == null) {
-            throw new IllegalArgumentException("Job execution not found: " + jobExecutionId);
+            throw new IllegalArgumentException("Import job not found.");
         }
 
         String jobEventId = execution.getJobParameters().getString("eventId");
         if (!eventId.toString().equals(jobEventId)) {
-            throw new IllegalArgumentException("Job execution " + jobExecutionId + " does not belong to event " + eventId);
+            throw new IllegalArgumentException("This import job does not belong to the selected event.");
         }
 
         BatchJobStatusResponse response = new BatchJobStatusResponse();

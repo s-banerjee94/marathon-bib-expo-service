@@ -327,7 +327,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
     private void validateAccess(User user) {
         if (!ALLOWED_ROLES.contains(user.getRole())) {
             log.warn("User {} with role {} attempted to access statistics", user.getUsername(), user.getRole());
-            throw new UnauthorizedAccessException("You do not have permission to access statistics");
+            throw new UnauthorizedAccessException("You are not allowed to access statistics.");
         }
     }
 
@@ -339,7 +339,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
     private void validateOrgUserHasOrganization(User user) {
         if (user.getOrganization() == null) {
             log.error("Organization user {} has no organization assigned", user.getUsername());
-            throw new UnauthorizedAccessException("User is not assigned to an organization");
+            throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
         }
     }
 

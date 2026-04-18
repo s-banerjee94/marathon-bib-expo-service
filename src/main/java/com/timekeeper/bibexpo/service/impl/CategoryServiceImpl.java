@@ -63,7 +63,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         if (categoryRepository.existsByCategoryNameAndRaceId(request.getCategoryName(), raceId)) {
             throw new CategoryAlreadyExistsException(
-                    "Category with name '" + request.getCategoryName() + "' already exists for this race");
+                    "A category with this name already exists for this race.");
         }
 
         Category category = Category.builder()
@@ -93,14 +93,14 @@ public class CategoryServiceImpl implements CategoryService {
 
         if (!category.getRace().getId().equals(raceId)) {
             throw new CategoryNotFoundException(
-                    "Category with ID: " + categoryId + " does not belong to race with ID: " + raceId);
+                    "Category not found for this race.");
         }
 
         if (request.getCategoryName() != null && !request.getCategoryName().isBlank() &&
                 !request.getCategoryName().equals(category.getCategoryName())) {
             if (categoryRepository.existsByCategoryNameAndRaceId(request.getCategoryName(), raceId)) {
                 throw new CategoryAlreadyExistsException(
-                        "Category with name '" + request.getCategoryName() + "' already exists for this race");
+                        "A category with this name already exists for this race.");
             }
             category.setCategoryName(request.getCategoryName());
         }
@@ -129,7 +129,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         if (!category.getRace().getId().equals(raceId)) {
             throw new CategoryNotFoundException(
-                    "Category with ID: " + categoryId + " does not belong to race with ID: " + raceId);
+                    "Category not found for this race.");
         }
 
         log.info("Successfully fetched category with ID: {} for user: {}",
@@ -171,16 +171,14 @@ public class CategoryServiceImpl implements CategoryService {
 
         if (!category.getRace().getId().equals(raceId)) {
             throw new CategoryNotFoundException(
-                    "Category with ID: " + categoryId + " does not belong to race with ID: " + raceId);
+                    "Category not found for this race.");
         }
 
         long participantCount = participantService.countParticipantsByCategoryId(eventId, categoryId);
         if (participantCount > 0) {
             log.warn("Cannot delete category with ID: {} - has {} assigned participants", categoryId, participantCount);
             throw new CategoryInUseException(
-                    "Cannot delete category '" + category.getCategoryName() + "'. " +
-                    "It has " + participantCount + " participant(s) assigned. " +
-                    "Please reassign or delete the participants first.");
+                    "Cannot delete this category. It has " + participantCount + " participant(s) assigned. Reassign or remove them first.");
         }
 
         categoryRepository.delete(category);
@@ -199,7 +197,7 @@ public class CategoryServiceImpl implements CategoryService {
                 .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
 
         if (!race.getEvent().getId().equals(eventId)) {
-            throw new RaceNotFoundException("Race with ID: " + raceId + " does not belong to event with ID: " + eventId);
+            throw new RaceNotFoundException("Race not found for this event.");
         }
 
         return race;
@@ -214,17 +212,17 @@ public class CategoryServiceImpl implements CategoryService {
 
         if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
             if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException("User does not belong to any organization");
+                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
             }
 
             if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
                 throw new UnauthorizedAccessException(
-                        "User can only access categories from their own organization's events");
+                        "You can only access categories from your organization's events.");
             }
             return;
         }
 
-        throw new UnauthorizedAccessException("User does not have permission to access categories");
+        throw new UnauthorizedAccessException("You are not allowed to access categories.");
     }
 
     @Override

@@ -102,16 +102,16 @@ public class JwtServiceImpl implements JwtService {
                     .getPayload();
         } catch (ExpiredJwtException e) {
             log.debug("Token expired: {}", e.getMessage());
-            throw new JwtAuthenticationException("JWT token has expired", e);
+            throw new JwtAuthenticationException("Your session has expired. Please log in again.", e);
         } catch (SignatureException e) {
             log.error("Invalid JWT signature: {}", e.getMessage());
-            throw new JwtAuthenticationException("Invalid JWT signature", e);
+            throw new JwtAuthenticationException("Invalid session. Please log in again.", e);
         } catch (MalformedJwtException e) {
             log.error("Malformed JWT token: {}", e.getMessage());
-            throw new JwtAuthenticationException("Malformed JWT token", e);
+            throw new JwtAuthenticationException("Invalid session. Please log in again.", e);
         } catch (Exception e) {
             log.error("JWT parsing error: {}", e.getMessage());
-            throw new JwtAuthenticationException("JWT token parsing failed", e);
+            throw new JwtAuthenticationException("Invalid session. Please log in again.", e);
         }
     }
 
