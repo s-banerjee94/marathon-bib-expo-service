@@ -27,8 +27,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.List;
-
 /**
  * API interface for user management operations
  */
@@ -42,8 +40,9 @@ public interface UserControllerApi {
             description = """
                     Creates a new user with specified role. \
                     ROOT can create: ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization). \
-                    ADMIN can create: ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization, but NOT ADMIN). \
-                    ORGANIZER_ADMIN can create: ORGANIZER_USER, DISTRIBUTOR (only within their own organization). \
+                    ADMIN can create: ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization). \
+                    ORGANIZER_ADMIN can create: ORGANIZER_USER, DISTRIBUTOR (own organization only). \
+                    ORGANIZER_USER can create: DISTRIBUTOR (own organization only). \
                     Cannot create ROOT (system-initialized only). \
                     Organization user limits (maxOrganizerUsers, maxDistributors) are enforced."""
     )
@@ -67,8 +66,8 @@ public interface UserControllerApi {
             @ApiResponse(
                     responseCode = "403",
                     description = """
-                            Forbidden - Insufficient permissions, attempt to create unauthorized role, \
-                            organization limit exceeded, or ORG_ADMIN attempting to create user outside their organization""",
+                            Forbidden - Insufficient permissions to create the requested role, \
+                            or ORG_ADMIN/ORG_USER attempting to create user outside their own organization""",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -92,7 +91,7 @@ public interface UserControllerApi {
             )
     })
     @PostMapping
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     ResponseEntity<UserResponse> createUser(
             @Parameter(description = "User creation request", required = true)
             @Valid @RequestBody CreateUserRequest request,
@@ -262,12 +261,12 @@ public interface UserControllerApi {
     );
 
     @Operation(
-            summary = "Get all users in the system with pagination (ROOT/ADMIN only)",
+            summary = "Get users",
             description = """
-                    Retrieves all users in the system with optional filtering, searching, sorting, and pagination. \
-                    Only ROOT and ADMIN users can access this endpoint. \
-                    Can query any organization and include deleted users. \
-                    Returns paginated results with metadata."""
+                    Retrieves users with optional filtering, searching, and pagination. \
+                    ROOT and ADMIN: full access across all organizations, organizationId and includeDeleted params honored. \
+                    ORGANIZER_ADMIN and ORGANIZER_USER: automatically scoped to their own organization, \
+                    organizationId and includeDeleted params are ignored."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -280,7 +279,7 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Forbidden - User is not ROOT or ADMIN",
+                    description = "Forbidden - Insufficient permissions or no organization assigned",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -288,18 +287,18 @@ public interface UserControllerApi {
             )
     })
     @GetMapping
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
-    ResponseEntity<PageableResponse<UserResponse>> getAllUsers(
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<PageableResponse<UserResponse>> getUsers(
             @Parameter(description = "Filter by user role")
             @RequestParam(required = false) com.timekeeper.bibexpo.model.entity.UserRole role,
 
-            @Parameter(description = "Filter by organization ID")
+            @Parameter(description = "Filter by organization ID (ROOT/ADMIN only)")
             @RequestParam(required = false) Long organizationId,
 
             @Parameter(description = "Filter by enabled status")
             @RequestParam(required = false) Boolean enabled,
 
-            @Parameter(description = "Include deleted users (default: false)")
+            @Parameter(description = "Include deleted users (ROOT/ADMIN only, default: false)")
             @RequestParam(required = false, defaultValue = "false") Boolean includeDeleted,
 
             @Parameter(description = "Search by username, email, or full name (case-insensitive)")
@@ -307,54 +306,6 @@ public interface UserControllerApi {
 
             @Parameter(description = "Pagination parameters")
             Pageable pageable,
-
-            @Parameter(hidden = true)
-            @AuthenticationPrincipal User currentUser
-    );
-
-    @Operation(
-            summary = "Get users in current user's organization",
-            description = """
-                    Retrieves all users in the current user's organization with optional filtering, searching, and sorting. \
-                    Only ORG_ADMIN, ORG_USER, and DISTRIBUTOR can access this endpoint. \
-                    Automatically scoped to the user's organization. Cannot include deleted users. \
-                    Returns a simple list (no pagination)."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Organization users retrieved successfully",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = UserResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Forbidden - User is not an organization user or has no organization assigned",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
-    })
-    @GetMapping("/organization")
-    @PreAuthorize("hasAnyRole('ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<List<UserResponse>> getOrganizationUsers(
-            @Parameter(description = "Filter by user role")
-            @RequestParam(required = false) com.timekeeper.bibexpo.model.entity.UserRole role,
-
-            @Parameter(description = "Filter by enabled status")
-            @RequestParam(required = false) Boolean enabled,
-
-            @Parameter(description = "Search by username, email, or full name (case-insensitive)")
-            @RequestParam(required = false) String search,
-
-            @Parameter(description = "Sort by field (username, email, fullName, role, createdAt)")
-            @RequestParam(required = false) String sortBy,
-
-            @Parameter(description = "Sort direction (ASC, DESC, default: ASC)")
-            @RequestParam(required = false, defaultValue = "ASC") String sortDirection,
 
             @Parameter(hidden = true)
             @AuthenticationPrincipal User currentUser

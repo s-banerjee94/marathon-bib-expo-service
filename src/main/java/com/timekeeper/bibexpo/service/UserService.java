@@ -87,38 +87,23 @@ public interface UserService {
     UserResponse getUserById(Long userId, String currentUsername);
 
     /**
-     * Get all users in the system with pagination (ROOT/ADMIN only).
-     * Can query any organization with all filters including deleted users.
+     * Get users with role-based scoping.
+     * ROOT/ADMIN: full access, organizationId and includeDeleted honored.
+     * ORGANIZER_ADMIN/ORGANIZER_USER/DISTRIBUTOR: auto-scoped to own org, organizationId and includeDeleted ignored.
      *
      * @param role optional role filter
-     * @param organizationId optional organization filter
+     * @param organizationId optional organization filter (ROOT/ADMIN only)
      * @param enabled optional enabled status filter
-     * @param includeDeleted include soft-deleted users
+     * @param includeDeleted include soft-deleted users (ROOT/ADMIN only)
      * @param search optional search term (searches username, email, fullName)
      * @param pageable pagination parameters
      * @param currentUsername the username of the user making the request
      * @return page of user responses matching filters
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user is not ROOT or ADMIN
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission
      */
-    Page<UserResponse> getAllUsers(UserRole role, Long organizationId, Boolean enabled,
-                                    Boolean includeDeleted, String search, Pageable pageable,
-                                    String currentUsername);
-
-    /**
-     * Get all users in the current user's organization (ORG_ADMIN, ORG_USER, DISTRIBUTOR).
-     * Automatically scoped to the user's organization. Cannot include deleted users.
-     *
-     * @param role optional role filter
-     * @param enabled optional enabled status filter
-     * @param search optional search term (searches username, email, fullName)
-     * @param sortBy optional sort field (username, email, fullName, role, createdAt)
-     * @param sortDirection optional sort direction (ASC, DESC)
-     * @param currentUsername the username of the user making the request
-     * @return list of user responses in the organization matching filters
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user is not ORG_ADMIN, ORG_USER, or DISTRIBUTOR
-     */
-    java.util.List<UserResponse> getOrganizationUsers(UserRole role, Boolean enabled, String search,
-                                                      String sortBy, String sortDirection, String currentUsername);
+    Page<UserResponse> getUsers(UserRole role, Long organizationId, Boolean enabled,
+                                Boolean includeDeleted, String search, Pageable pageable,
+                                String currentUsername);
 
     /**
      * Get the current user's profile.

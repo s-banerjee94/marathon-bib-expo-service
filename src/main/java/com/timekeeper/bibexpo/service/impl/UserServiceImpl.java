@@ -25,8 +25,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Implementation of UserService for user management operations
@@ -192,57 +195,45 @@ public class UserServiceImpl implements UserService {
                role == UserRole.ADMIN;
     }
 
-    /**
-     * Validates that the current user has permission to create a user with the requested role
-     * and within the specified organization.
-     *
-     * @param currentUser The user attempting to create a new user
-     * @param requestedRole The role being assigned to the new user
-     * @param targetOrganizationId The organization ID for the new user (can be null for system roles)
-     */
+    private static final Map<UserRole, Set<UserRole>> CREATABLE_ROLES = new EnumMap<>(UserRole.class);
+
+    static {
+        CREATABLE_ROLES.put(UserRole.ROOT,
+                EnumSet.of(UserRole.ADMIN, UserRole.ORGANIZER_ADMIN, UserRole.ORGANIZER_USER, UserRole.DISTRIBUTOR));
+        CREATABLE_ROLES.put(UserRole.ADMIN,
+                EnumSet.of(UserRole.ORGANIZER_ADMIN, UserRole.ORGANIZER_USER, UserRole.DISTRIBUTOR));
+        CREATABLE_ROLES.put(UserRole.ORGANIZER_ADMIN,
+                EnumSet.of(UserRole.ORGANIZER_USER, UserRole.DISTRIBUTOR));
+        CREATABLE_ROLES.put(UserRole.ORGANIZER_USER,
+                EnumSet.of(UserRole.DISTRIBUTOR));
+    }
+
     private void validateCreateUserAuthorization(User currentUser, UserRole requestedRole, Long targetOrganizationId) {
         UserRole currentRole = currentUser.getRole();
+        Set<UserRole> allowed = CREATABLE_ROLES.getOrDefault(currentRole, EnumSet.noneOf(UserRole.class));
 
-        // Rule 1: Only ROOT can create ADMIN users
-        if (requestedRole == UserRole.ADMIN && currentRole != UserRole.ROOT) {
-            log.error("User {} with role {} attempted to create ADMIN user",
-                    currentUser.getUsername(), currentRole);
+        if (!allowed.contains(requestedRole)) {
+            log.error("User {} with role {} attempted to create {} user",
+                    currentUser.getUsername(), currentRole, requestedRole);
             throw new UnauthorizedAccessException(
-                    "Only ROOT users can create ADMIN users");
+                    "Role " + currentRole + " cannot create users with role " + requestedRole);
         }
 
-        // Rule 2: ORG_ADMIN has restricted permissions
-        if (currentRole == UserRole.ORGANIZER_ADMIN) {
-            // ORG_ADMIN cannot create another ORG_ADMIN (already blocked: ROOT, ADMIN)
-            if (requestedRole == UserRole.ORGANIZER_ADMIN) {
-                log.error("ORG_ADMIN {} attempted to create another ORG_ADMIN user",
-                        currentUser.getUsername());
-                throw new UnauthorizedAccessException(
-                        "Organization administrators cannot create other ORG_ADMIN users");
-            }
-
-            // Rule 3: ORG_ADMIN can only create users within their own organization
+        if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
             if (currentUser.getOrganization() == null) {
-                log.error("ORG_ADMIN {} has no organization assigned", currentUser.getUsername());
-                throw new UnauthorizedAccessException(
-                        "Organization administrator must be assigned to an organization");
+                log.error("{} {} has no organization assigned", currentRole, currentUser.getUsername());
+                throw new UnauthorizedAccessException("You must be assigned to an organization to create users");
             }
-
             if (targetOrganizationId == null ||
                     !currentUser.getOrganization().getId().equals(targetOrganizationId)) {
-                log.error("ORG_ADMIN {} attempted to create user for different organization. " +
-                                "Own org: {}, Target org: {}",
-                        currentUser.getUsername(),
-                        currentUser.getOrganization().getId(),
-                        targetOrganizationId);
-                throw new UnauthorizedAccessException(
-                        "You can only create users within your own organization");
+                log.error("{} {} attempted to create user for org {}. Own org: {}",
+                        currentRole, currentUser.getUsername(),
+                        targetOrganizationId, currentUser.getOrganization().getId());
+                throw new UnauthorizedAccessException("You can only create users within your own organization");
             }
         }
 
-        // ADMIN and ROOT can create any allowed role (already validated above)
-        log.debug("Authorization validated for {} to create role {}",
-                currentUser.getUsername(), requestedRole);
+        log.debug("Authorization validated for {} to create role {}", currentUser.getUsername(), requestedRole);
     }
 
     /**
@@ -657,298 +648,63 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<UserResponse> getAllUsers(UserRole role, Long organizationId, Boolean enabled,
-                                          Boolean includeDeleted, String search, Pageable pageable,
-                                          String currentUsername) {
-        log.info("Getting all users with pagination - role: {}, orgId: {}, enabled: {}, includeDeleted: {}, " +
-                 "search: {} by: {}",
-                 role, organizationId, enabled, includeDeleted, search, currentUsername);
+    public Page<UserResponse> getUsers(UserRole role, Long organizationId, Boolean enabled,
+                                       Boolean includeDeleted, String search, Pageable pageable,
+                                       String currentUsername) {
+        log.info("Getting users - role: {}, orgId: {}, enabled: {}, includeDeleted: {}, search: {} by: {}",
+                role, organizationId, enabled, includeDeleted, search, currentUsername);
 
         User currentUser = fetchCurrentUser(currentUsername);
+        UserRole currentRole = currentUser.getRole();
 
-        // Validate ROOT/ADMIN permission
-        validateSystemAdminPermission(currentUser);
+        Long scopedOrgId = organizationId;
+        Boolean scopedIncludeDeleted = includeDeleted;
 
-        // Build dynamic specification for filtering
-        Specification<User> spec = buildUserSpecification(role, organizationId, enabled, includeDeleted, search);
+        if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
+            if (currentUser.getOrganization() == null) {
+                log.error("{} {} has no organization assigned", currentRole, currentUser.getUsername());
+                throw new UnauthorizedAccessException("You must be assigned to an organization");
+            }
+            scopedOrgId = currentUser.getOrganization().getId();
+            scopedIncludeDeleted = false;
+        }
 
-        // Fetch users with pagination
-        Page<User> usersPage = userRepository.findAll(spec, pageable);
-
-        // Convert to response DTOs
-        Page<UserResponse> responsePage = usersPage.map(UserResponse::fromEntity);
+        Specification<User> spec = buildUserSpecification(role, scopedOrgId, enabled, scopedIncludeDeleted, search);
+        Page<UserResponse> responsePage = userRepository.findAll(spec, pageable).map(UserResponse::fromEntity);
 
         log.info("Successfully retrieved {} users (page {} of {})",
-                responsePage.getNumberOfElements(),
-                responsePage.getNumber() + 1,
-                responsePage.getTotalPages());
-
+                responsePage.getNumberOfElements(), responsePage.getNumber() + 1, responsePage.getTotalPages());
         return responsePage;
     }
 
-    /**
-     * Validates that only ROOT and ADMIN can access system-wide user queries.
-     */
-    private void validateSystemAdminPermission(User currentUser) {
-        UserRole currentRole = currentUser.getRole();
-        if (currentRole != UserRole.ROOT && currentRole != UserRole.ADMIN) {
-            log.error("User {} with role {} attempted to access system-wide user list",
-                    currentUser.getUsername(), currentRole);
-            throw new UnauthorizedAccessException(
-                    "Only ROOT and ADMIN users can access system-wide user list");
-        }
-    }
-
-    /**
-     * Build dynamic specification for filtering users
-     */
     private Specification<User> buildUserSpecification(
             UserRole role, Long organizationId, Boolean enabled, Boolean includeDeleted, String search) {
-        return (root, query, criteriaBuilder) -> {
+        return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Filter by role if provided
             if (role != null) {
-                predicates.add(criteriaBuilder.equal(root.get("role"), role));
+                predicates.add(cb.equal(root.get("role"), role));
             }
-
-            // Filter by organization if provided
             if (organizationId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("organization").get("id"), organizationId));
+                predicates.add(cb.equal(root.get("organization").get("id"), organizationId));
             }
-
-            // Filter by enabled status if provided
             if (enabled != null) {
-                predicates.add(criteriaBuilder.equal(root.get("enabled"), enabled));
+                predicates.add(cb.equal(root.get("enabled"), enabled));
             }
-
-            // Filter by deleted status
-            if (Boolean.TRUE.equals(includeDeleted)) {
-                // Include all users (both deleted and non-deleted)
-            } else {
-                // By default, exclude deleted users
-                predicates.add(criteriaBuilder.equal(root.get("deleted"), false));
+            if (!Boolean.TRUE.equals(includeDeleted)) {
+                predicates.add(cb.equal(root.get("deleted"), false));
             }
-
-            // Multi-field search across username, email, and fullName
             if (search != null && !search.isBlank()) {
-                String searchPattern = "%" + search.toLowerCase() + "%";
-
-                Predicate usernamePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("username")),
-                        searchPattern
-                );
-
-                Predicate emailPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("email")),
-                        searchPattern
-                );
-
-                Predicate fullNamePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("fullName")),
-                        searchPattern
-                );
-
-                // Combine the three predicates with OR
-                predicates.add(criteriaBuilder.or(
-                        usernamePredicate,
-                        emailPredicate,
-                        fullNamePredicate
+                String pattern = "%" + search.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("username")), pattern),
+                        cb.like(cb.lower(root.get("email")), pattern),
+                        cb.like(cb.lower(root.get("fullName")), pattern)
                 ));
             }
 
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+            return cb.and(predicates.toArray(new Predicate[0]));
         };
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<UserResponse> getOrganizationUsers(UserRole role, Boolean enabled, String search,
-                                                   String sortBy, String sortDirection, String currentUsername) {
-        log.info("Getting organization users - role: {}, enabled: {}, search: {}, sortBy: {}, " +
-                 "sortDir: {} by: {}",
-                 role, enabled, search, sortBy, sortDirection, currentUsername);
-
-        User currentUser = fetchCurrentUser(currentUsername);
-
-        // Validate organization user permission
-        validateOrganizationUserPermission(currentUser);
-
-        // Get the user's organization ID
-        Long organizationId = currentUser.getOrganization().getId();
-
-        // Fetch users in the organization (never include deleted)
-        List<User> users = fetchFilteredUsers(role, organizationId, enabled, false);
-
-        // Apply search filter if provided
-        if (search != null && !search.trim().isEmpty()) {
-            users = applySearchFilter(users, search);
-        }
-
-        // Apply sorting
-        users = applySorting(users, sortBy, sortDirection);
-
-        log.info("Successfully retrieved {} users from organization {}", users.size(), organizationId);
-        return users.stream()
-                   .map(UserResponse::fromEntity)
-                   .toList();
-    }
-
-    /**
-     * Validates that only organization users can access organization user list.
-     */
-    private void validateOrganizationUserPermission(User currentUser) {
-        UserRole currentRole = currentUser.getRole();
-        if (currentRole != UserRole.ORGANIZER_ADMIN &&
-            currentRole != UserRole.ORGANIZER_USER &&
-            currentRole != UserRole.DISTRIBUTOR) {
-            log.error("User {} with role {} attempted to access organization user list",
-                    currentUser.getUsername(), currentRole);
-            throw new UnauthorizedAccessException(
-                    "Only organization users can access organization user list");
-        }
-
-        // Ensure user has an organization
-        if (currentUser.getOrganization() == null) {
-            log.error("{} user {} has no organization assigned", currentRole, currentUser.getUsername());
-            throw new UnauthorizedAccessException(
-                    "Organization user must be assigned to an organization");
-        }
-    }
-
-    /**
-     * Fetches users based on filters using appropriate repository methods.
-     */
-    private List<User> fetchFilteredUsers(UserRole role, Long organizationId, Boolean enabled,
-                                          Boolean includeDeleted) {
-        boolean shouldIncludeDeleted = Boolean.TRUE.equals(includeDeleted);
-
-        if (organizationId != null && role != null) {
-            return fetchUsersByRoleAndOrganization(role, organizationId, shouldIncludeDeleted);
-        }
-
-        if (organizationId != null) {
-            return fetchUsersByOrganization(organizationId, enabled, shouldIncludeDeleted);
-        }
-
-        if (role != null) {
-            return fetchUsersByRole(role, shouldIncludeDeleted);
-        }
-
-        return fetchAllUsersWithFilters(enabled, shouldIncludeDeleted);
-    }
-
-    /**
-     * Fetches users by role and organization.
-     */
-    private List<User> fetchUsersByRoleAndOrganization(UserRole role, Long organizationId,
-                                                       boolean includeDeleted) {
-        return includeDeleted
-                ? userRepository.findByRoleAndOrganizationId(role, organizationId)
-                : userRepository.findByRoleAndOrganizationIdAndDeletedFalse(role, organizationId);
-    }
-
-    /**
-     * Fetches users by organization with optional enabled filter.
-     */
-    private List<User> fetchUsersByOrganization(Long organizationId, Boolean enabled,
-                                                boolean includeDeleted) {
-        if (Boolean.TRUE.equals(enabled)) {
-            return includeDeleted
-                    ? userRepository.findByOrganizationIdAndEnabledTrue(organizationId)
-                    : userRepository.findByOrganizationIdAndEnabledTrueAndDeletedFalse(organizationId);
-        }
-
-        List<User> orgUsers = includeDeleted
-                ? userRepository.findByOrganizationId(organizationId)
-                : userRepository.findByOrganizationIdAndDeletedFalse(organizationId);
-
-        return applyEnabledFilter(orgUsers, enabled);
-    }
-
-    /**
-     * Fetches users by role.
-     */
-    private List<User> fetchUsersByRole(UserRole role, boolean includeDeleted) {
-        return includeDeleted
-                ? userRepository.findByRole(role)
-                : userRepository.findByRoleAndDeletedFalse(role);
-    }
-
-    /**
-     * Fetches all users with optional enabled and deleted filters.
-     */
-    private List<User> fetchAllUsersWithFilters(Boolean enabled, boolean includeDeleted) {
-        List<User> allUsers = userRepository.findAll();
-
-        if (!includeDeleted) {
-            allUsers = allUsers.stream()
-                              .filter(user -> !user.getDeleted())
-                              .toList();
-        }
-
-        return applyEnabledFilter(allUsers, enabled);
-    }
-
-    /**
-     * Applies enabled filter to user list if filter is provided.
-     */
-    private List<User> applyEnabledFilter(List<User> users, Boolean enabled) {
-        if (enabled == null) {
-            return users;
-        }
-        return users.stream()
-                   .filter(user -> user.getEnabled().equals(enabled))
-                   .toList();
-    }
-
-    /**
-     * Applies case-insensitive search filter on username, email, and fullName.
-     */
-    private List<User> applySearchFilter(List<User> users, String search) {
-        String searchLower = search.toLowerCase().trim();
-        return users.stream()
-                   .filter(user ->
-                       (user.getUsername() != null && user.getUsername().toLowerCase().contains(searchLower)) ||
-                       (user.getEmail() != null && user.getEmail().toLowerCase().contains(searchLower)) ||
-                       (user.getFullName() != null && user.getFullName().toLowerCase().contains(searchLower))
-                   )
-                   .toList();
-    }
-
-    /**
-     * Applies sorting by specified field and direction.
-     */
-    private List<User> applySorting(List<User> users, String sortBy, String sortDirection) {
-        if (sortBy == null || sortBy.trim().isEmpty()) {
-            return users; // No sorting
-        }
-
-        boolean ascending = !"DESC".equalsIgnoreCase(sortDirection);
-
-        return users.stream()
-                   .sorted((u1, u2) -> {
-                       int comparison = switch (sortBy.toLowerCase()) {
-                           case "username" -> compareNullSafe(u1.getUsername(), u2.getUsername());
-                           case "email" -> compareNullSafe(u1.getEmail(), u2.getEmail());
-                           case "fullname" -> compareNullSafe(u1.getFullName(), u2.getFullName());
-                           case "role" -> u1.getRole().compareTo(u2.getRole());
-                           case "createdat" -> u1.getCreatedAt().compareTo(u2.getCreatedAt());
-                           default -> 0; // Unknown sort field, no sorting
-                       };
-                       return ascending ? comparison : -comparison;
-                   })
-                   .toList();
-    }
-
-    /**
-     * Null-safe string comparator.
-     */
-    private int compareNullSafe(String s1, String s2) {
-        if (s1 == null && s2 == null) return 0;
-        if (s1 == null) return 1;
-        if (s2 == null) return -1;
-        return s1.compareTo(s2);
     }
 
     @Override
