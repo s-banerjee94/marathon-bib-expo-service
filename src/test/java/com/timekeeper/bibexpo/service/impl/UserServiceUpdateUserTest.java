@@ -262,4 +262,53 @@ class UserServiceUpdateUserTest extends UserServiceTestBase {
         verify(passwordEncoder).encode("NewPass123!");
         assertThat(target.getPassword()).isEqualTo("new-encoded");
     }
+
+    @Test
+    @DisplayName("throws UserAlreadyExistsException when updating with an already taken phone number")
+    void throwsWhenUpdatingWithTakenPhoneNumber() {
+        User root = user(1L, UserRole.ROOT, null);
+        User target = user(10L, UserRole.ORGANIZER_USER, org(20L));
+        UpdateUserRequest request = UpdateUserRequest.builder().phoneNumber("1234567890").build();
+
+        User conflictUser = user(99L, UserRole.ORGANIZER_USER, org(20L));
+
+        mockCurrentUser(root);
+        mockTargetUser(target);
+        when(userRepository.findByPhoneNumber("1234567890")).thenReturn(Optional.of(conflictUser));
+
+        assertThatThrownBy(() -> userService.updateUser(10L, request, root.getUsername()))
+                .isInstanceOf(UserAlreadyExistsException.class)
+                .hasMessageContaining("phone number is already registered");
+    }
+
+    @Test
+    @DisplayName("allows updating with the same phone number already belonging to the target user")
+    void allowsUpdatingWithSamePhoneNumberAsCurrentUser() {
+        User root = user(1L, UserRole.ROOT, null);
+        User target = user(10L, UserRole.ORGANIZER_USER, org(20L));
+        UpdateUserRequest request = UpdateUserRequest.builder().phoneNumber("1234567890").build();
+
+        mockCurrentUser(root);
+        mockTargetUser(target);
+        when(userRepository.findByPhoneNumber("1234567890")).thenReturn(Optional.of(target));
+        mockSave(target);
+
+        assertThat(userService.updateUser(10L, request, root.getUsername())).isNotNull();
+    }
+
+    @Test
+    @DisplayName("updates successfully when phone number is not taken by any other user")
+    void updatesSuccessfullyWhenPhoneNumberIsUnique() {
+        User root = user(1L, UserRole.ROOT, null);
+        User target = user(10L, UserRole.ORGANIZER_USER, org(20L));
+        UpdateUserRequest request = UpdateUserRequest.builder().phoneNumber("0987654321").build();
+
+        mockCurrentUser(root);
+        mockTargetUser(target);
+        when(userRepository.findByPhoneNumber("0987654321")).thenReturn(Optional.empty());
+        mockSave(target);
+
+        assertThat(userService.updateUser(10L, request, root.getUsername())).isNotNull();
+        assertThat(target.getPhoneNumber()).isEqualTo("0987654321");
+    }
 }
