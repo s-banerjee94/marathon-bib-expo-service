@@ -7,7 +7,7 @@ spring:
       enabled: false
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:192.168.0.106}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${DB_HOST:192.168.0.111}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -87,5 +87,5 @@ aws:
   access-key-id: ${AWS_ACCESS_KEY_ID:test}
   secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
   dynamodb:
-    endpoint: ${AWS_DYNAMODB_ENDPOINT:http://192.168.0.106:4566}
+    endpoint: ${AWS_DYNAMODB_ENDPOINT:http://192.168.0.111:4566}
     table-name: ${AWS_DYNAMODB_TABLE_NAME:marathon-participants}
