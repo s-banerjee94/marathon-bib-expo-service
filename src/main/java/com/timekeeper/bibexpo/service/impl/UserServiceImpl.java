@@ -170,10 +170,10 @@ public class UserServiceImpl implements UserService {
                 .phoneNumber(request.getPhoneNumber())
                 .role(role)
                 .organization(organization)
-                .enabled(request.getEnabled() != null ? request.getEnabled() : true)
-                .accountNonExpired(request.getAccountNonExpired() != null ? request.getAccountNonExpired() : true)
-                .accountNonLocked(request.getAccountNonLocked() != null ? request.getAccountNonLocked() : true)
-                .credentialsNonExpired(request.getCredentialsNonExpired() != null ? request.getCredentialsNonExpired() : true)
+                .enabled(defaultTrue(request.getEnabled()))
+                .accountNonExpired(defaultTrue(request.getAccountNonExpired()))
+                .accountNonLocked(defaultTrue(request.getAccountNonLocked()))
+                .credentialsNonExpired(defaultTrue(request.getCredentialsNonExpired()))
                 .deleted(false)
                 .build();
     }
@@ -194,6 +194,8 @@ public class UserServiceImpl implements UserService {
         return role == UserRole.ROOT ||
                role == UserRole.ADMIN;
     }
+
+    private static final Set<UserRole> PRIVILEGED_ROLES = EnumSet.of(UserRole.ROOT, UserRole.ADMIN, UserRole.ORGANIZER_ADMIN);
 
     private static final Map<UserRole, Set<UserRole>> CREATABLE_ROLES = new EnumMap<>(UserRole.class);
 
@@ -223,8 +225,7 @@ public class UserServiceImpl implements UserService {
                 log.error("{} {} has no organization assigned", currentRole, currentUser.getUsername());
                 throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
             }
-            if (targetOrganizationId == null ||
-                    !currentUser.getOrganization().getId().equals(targetOrganizationId)) {
+            if (!currentUser.getOrganization().getId().equals(targetOrganizationId)) {
                 log.error("{} {} attempted to create user for org {}. Own org: {}",
                         currentRole, currentUser.getUsername(),
                         targetOrganizationId, currentUser.getOrganization().getId());
@@ -296,10 +297,7 @@ public class UserServiceImpl implements UserService {
      * @throws UnauthorizedAccessException if users are not in the same organization or organization is null
      */
     private void validateSameOrganization(User currentUser, User targetUser, String action) {
-        if (currentUser.getOrganization() == null) {
-            log.error("{} {} has no organization assigned", currentUser.getRole(), currentUser.getUsername());
-            throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
-        }
+        requireOrganization(currentUser);
 
         if (targetUser.getOrganization() == null ||
             !currentUser.getOrganization().getId().equals(targetUser.getOrganization().getId())) {
@@ -309,20 +307,23 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    /**
-     * Checks if the target role is in the restricted roles list.
-     *
-     * @param targetRole The role to check
-     * @param restrictedRoles The roles that are restricted
-     * @return true if target role is in restricted roles, false otherwise
-     */
-    private boolean isRestrictedRole(UserRole targetRole, UserRole... restrictedRoles) {
-        for (UserRole restrictedRole : restrictedRoles) {
-            if (targetRole == restrictedRole) {
-                return true;
-            }
+    private void requireOrganization(User user) {
+        if (user.getOrganization() == null) {
+            log.error("{} {} has no organization assigned", user.getRole(), user.getUsername());
+            throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
         }
-        return false;
+    }
+
+    private boolean defaultTrue(Boolean val) {
+        return val == null || val;
+    }
+
+    private boolean isSelfUpdate(User currentUser, User targetUser) {
+        return currentUser.getId().equals(targetUser.getId());
+    }
+
+    private boolean isPrivilegedRole(UserRole role) {
+        return PRIVILEGED_ROLES.contains(role);
     }
 
     @Override
@@ -447,8 +448,7 @@ public class UserServiceImpl implements UserService {
      * Validates ADMIN user update permissions
      */
     private void validateAdminUpdateAuthorization(User currentUser, User targetUser) {
-        // ADMIN can update itself
-        if (currentUser.getId().equals(targetUser.getId())) {
+        if (isSelfUpdate(currentUser, targetUser)) {
             log.debug("ADMIN user updating itself");
             return;
         }
@@ -475,8 +475,7 @@ public class UserServiceImpl implements UserService {
      * Validates ORG_ADMIN user update permissions
      */
     private void validateOrgAdminUpdateAuthorization(User currentUser, User targetUser) {
-        // ORG_ADMIN can update itself
-        if (currentUser.getId().equals(targetUser.getId())) {
+        if (isSelfUpdate(currentUser, targetUser)) {
             log.debug("ORG_ADMIN user updating itself");
             return;
         }
@@ -484,7 +483,7 @@ public class UserServiceImpl implements UserService {
         UserRole targetRole = targetUser.getRole();
 
         // ORG_ADMIN cannot update ROOT, ADMIN, or other ORG_ADMINs
-        if (isRestrictedRole(targetRole, UserRole.ROOT, UserRole.ADMIN, UserRole.ORGANIZER_ADMIN)) {
+        if (isPrivilegedRole(targetRole)) {
             log.error("ORG_ADMIN {} attempted to update {} user",
                     currentUser.getUsername(), targetRole);
             throw new UnauthorizedAccessException("You cannot update users with equal or higher privileges.");
@@ -500,7 +499,7 @@ public class UserServiceImpl implements UserService {
      * Validates that users can only update themselves
      */
     private void validateSelfUpdateOnly(User currentUser, User targetUser) {
-        if (currentUser.getId().equals(targetUser.getId())) {
+        if (isSelfUpdate(currentUser, targetUser)) {
             log.debug("{} user updating itself", currentUser.getRole());
             return;
         }
@@ -558,7 +557,7 @@ public class UserServiceImpl implements UserService {
         // ORG_ADMIN restrictions
         if (currentRole == UserRole.ORGANIZER_ADMIN) {
             // ORG_ADMIN cannot disable ROOT, ADMIN, or other ORG_ADMINs
-            if (isRestrictedRole(targetRole, UserRole.ROOT, UserRole.ADMIN, UserRole.ORGANIZER_ADMIN)) {
+            if (isPrivilegedRole(targetRole)) {
                 log.error("ORG_ADMIN {} attempted to toggle enabled status for {} user",
                         currentUser.getUsername(), targetRole);
                 throw new UnauthorizedAccessException(
@@ -649,10 +648,7 @@ public class UserServiceImpl implements UserService {
         Boolean scopedIncludeDeleted = includeDeleted;
 
         if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
-            if (currentUser.getOrganization() == null) {
-                log.error("{} {} has no organization assigned", currentRole, currentUser.getUsername());
-                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
-            }
+            requireOrganization(currentUser);
             scopedOrgId = currentUser.getOrganization().getId();
             scopedIncludeDeleted = false;
         }
