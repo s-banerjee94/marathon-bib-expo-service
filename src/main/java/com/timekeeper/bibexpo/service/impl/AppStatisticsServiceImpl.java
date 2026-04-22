@@ -282,18 +282,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
     }
 
     private void persist(StatisticsScope scope, Long scopeKey, AppStatisticsResponse stats) {
-        String json = serialize(stats);
-
-        AppStatisticsSnapshot snapshot = snapshotRepository
-                .findByScopeAndOrganizationId(scope, scopeKey)
-                .orElseGet(AppStatisticsSnapshot::new);
-
-        snapshot.setScope(scope);
-        snapshot.setOrganizationId(scopeKey);
-        snapshot.setSnapshotData(json);
-        snapshot.setRefreshedAt(LocalDateTime.now());
-
-        snapshotRepository.save(snapshot);
+        snapshotRepository.upsert(scope.name(), scopeKey, serialize(stats), LocalDateTime.now());
     }
 
     private String serialize(AppStatisticsResponse stats) {
