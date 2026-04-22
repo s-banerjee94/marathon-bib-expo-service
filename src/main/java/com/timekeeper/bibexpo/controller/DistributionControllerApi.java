@@ -151,18 +151,18 @@ public interface DistributionControllerApi {
     @PostMapping("/goodies/{bibNumber}/distribute")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
-            summary = "Distribute a goodies item to a participant",
+            summary = "Distribute goodies items to a participant",
             description = """
-                    Distribute a specific goodies item to a participant. \
+                    Distribute one or more goodies items to a participant in a single operation. \
                     Requires that the bib has been collected first. \
-                    The goodies item must exist in the participant's goodies allocation. \
+                    Each goodies item must exist in the participant's goodies allocation. \
                     Each goodies item can only be distributed once. \
                     Staff member performing the distribution is automatically recorded."""
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Goodies item distributed successfully",
+                    description = "Goodies items distributed successfully",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = GoodiesDistributionResponse.class)
@@ -206,7 +206,7 @@ public interface DistributionControllerApi {
             @PathVariable Long eventId,
             @Parameter(description = "Bib number", example = "3001")
             @PathVariable String bibNumber,
-            @Parameter(description = "Goodies distribution request with item name", required = true)
+            @Parameter(description = "Goodies distribution request with one or more item names", required = true)
             @RequestBody DistributeGoodiesRequest request,
             @AuthenticationPrincipal User currentUser);
 

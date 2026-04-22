@@ -34,8 +34,8 @@ public class BulkDistributionResponse {
         @Schema(description = "Bib number", example = "3004")
         private String bibNumber;
 
-        @Schema(description = "Item name (for goodies distribution)", example = "T-Shirt")
-        private String itemName;
+        @Schema(description = "Goodies item names that failed to distribute", example = "[\"T-Shirt\", \"Medal\"]")
+        private List<String> itemNames;
 
         @Schema(description = "Failure reason", example = "Bib not found")
         private String reason;

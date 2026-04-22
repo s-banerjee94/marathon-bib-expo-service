@@ -4,6 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @Builder
 @Schema(description = "Distribution event log details")
@@ -22,8 +24,8 @@ public class DistributionLogResponse {
             example = "BIB_COLLECTED")
     private String action;
 
-    @Schema(description = "Goodies item name (null for bib actions)", example = "T-Shirt")
-    private String itemName;
+    @Schema(description = "Goodies item names distributed in this action (null for bib actions)", example = "[\"T-Shirt\", \"Medal\"]")
+    private List<String> itemNames;
 
     @Schema(description = "Staff member who performed the action (format: ID__|__Username)",
             example = "123__|__john_doe")

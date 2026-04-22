@@ -10,6 +10,8 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbParti
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondarySortKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -29,7 +31,7 @@ public class DistributionLogDDB {
     @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-ActionIndex"))
     private String action;
 
-    private String itemName;
+    private List<String> itemNames;
 
     @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-PerformedByIndex"))
     private String performedBy;

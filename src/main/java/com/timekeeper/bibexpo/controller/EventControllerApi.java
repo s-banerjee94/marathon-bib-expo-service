@@ -72,12 +72,12 @@ public interface EventControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/organization")
-    @PreAuthorize("hasAnyRole('ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @PreAuthorize("hasAnyRole('ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
             summary = "Get events in current user's organization",
             description = """
                     Retrieve all events in the current user's organization with optional filtering, search, and pagination. \
-                    Only ORGANIZER_ADMIN and ORGANIZER_USER can access this endpoint. \
+                    Only ORGANIZER_ADMIN, ORGANIZER_USER and ROLE_DISTRIBUTOR can access this endpoint. \
                     Automatically scoped to the user's organization."""
     )
     @ApiResponses(value = {

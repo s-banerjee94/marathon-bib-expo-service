@@ -322,7 +322,7 @@ public interface ParticipantControllerApi {
     );
 
     @GetMapping("/{eventId}/participants/lookup")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
             summary = "Lookup participants using LSI (cost-efficient alternative to search)",
             description = """
@@ -347,7 +347,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "400", description = "Invalid search parameters",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user does not belong to the event's organization or event is disabled",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found",

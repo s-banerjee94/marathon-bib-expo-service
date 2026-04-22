@@ -86,14 +86,14 @@ public class DistributionServiceImpl implements DistributionService {
                         now, distributedBy);
                 goodiesDistribution.put(itemName, distributionData);
                 goodiesDistributed.add(itemName);
-
-                logDistributionAction(String.valueOf(eventId), bibNumber, now,
-                        DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
-                        itemName, distributedBy, collectorName, collectorPhone, null);
-
-                log.info("Goodies item '{}' distributed for bib {} in event {} by staff {}",
-                        itemName, bibNumber, eventId, distributedBy);
             }
+
+            logDistributionAction(String.valueOf(eventId), bibNumber, now,
+                    DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
+                    goodiesDistributed, distributedBy, collectorName, collectorPhone, null);
+
+            log.info("Goodies items {} distributed for bib {} in event {} by staff {}",
+                    goodiesDistributed, bibNumber, eventId, distributedBy);
 
             participant.setGoodiesDistribution(goodiesDistribution);
         }
@@ -190,15 +190,15 @@ public class DistributionServiceImpl implements DistributionService {
                     now, distributedBy);
             goodiesDistribution.put(itemName, distributionData);
             itemsDistributed.add(itemName);
-
-            logDistributionAction(String.valueOf(eventId), bibNumber, now,
-                    DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
-                    itemName, distributedBy, participant.getBibCollectedByName(),
-                    participant.getBibCollectedByPhone(), null);
-
-            log.info("Goodies item '{}' distributed for bib {} in event {} by staff {}",
-                    itemName, bibNumber, eventId, distributedBy);
         }
+
+        logDistributionAction(String.valueOf(eventId), bibNumber, now,
+                DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
+                itemsDistributed, distributedBy, participant.getBibCollectedByName(),
+                participant.getBibCollectedByPhone(), null);
+
+        log.info("Goodies items {} distributed for bib {} in event {} by staff {}",
+                itemsDistributed, bibNumber, eventId, distributedBy);
 
         participant.setGoodiesDistribution(goodiesDistribution);
         participant.setUpdatedAt(now);
@@ -485,7 +485,7 @@ public class DistributionServiceImpl implements DistributionService {
                         item.getGoodiesItems(), item.getBibNumber(), e.getMessage());
                 failed.add(BulkDistributionResponse.FailedOperation.builder()
                         .bibNumber(item.getBibNumber())
-                        .itemName(String.join(",", item.getGoodiesItems()))
+                        .itemNames(item.getGoodiesItems())
                         .reason(e.getMessage())
                         .build());
             }
@@ -670,14 +670,14 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     private void logDistributionAction(String eventId, String bibNumber, String timestamp,
-                                       String action, String itemName, String performedBy,
+                                       String action, List<String> itemNames, String performedBy,
                                        String collectorName, String collectorPhone, String details) {
         DistributionLogDDB log = DistributionLogDDB.builder()
                 .eventId(eventId)
                 .timestamp(timestamp)
                 .bibNumber(bibNumber)
                 .action(action)
-                .itemName(itemName)
+                .itemNames(itemNames)
                 .performedBy(performedBy)
                 .collectorName(collectorName)
                 .collectorPhone(collectorPhone)
@@ -693,7 +693,7 @@ public class DistributionServiceImpl implements DistributionService {
                 .timestamp(logEntry.getTimestamp())
                 .bibNumber(logEntry.getBibNumber())
                 .action(logEntry.getAction())
-                .itemName(logEntry.getItemName())
+                .itemNames(logEntry.getItemNames())
                 .performedBy(logEntry.getPerformedBy())
                 .collectorName(logEntry.getCollectorName())
                 .collectorPhone(logEntry.getCollectorPhone())
