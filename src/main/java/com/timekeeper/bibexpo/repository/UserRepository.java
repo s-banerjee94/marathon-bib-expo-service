@@ -99,4 +99,8 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     long countByOrganizationIdAndEnabledTrueAndDeletedFalse(Long organizationId);
 
     long countByOrganizationIdAndEnabledFalseAndDeletedFalse(Long organizationId);
+
+    //@Query("SELECT COUNT(u) FROM User u WHERE u.organization.id = :orgId AND u.enabled = true AND u.deleted = false")
+    long countByOrganizationIdAndEnabledTrueAndDeletedFalseAndRole(Long organizationId, UserRole role);
+
 }

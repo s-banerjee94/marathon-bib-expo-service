@@ -1,8 +1,6 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
-import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.*;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
@@ -180,6 +178,8 @@ public class OrganizationServiceImpl implements OrganizationService {
         validateUpdateAuthorization(currentUser, id);
         validateEmailUniqueness(request.getEmail(), organization.getEmail());
         validateTaxIdUniqueness(request.getTaxId(), organization.getTaxId());
+        validateUserLimit(organization,  request);
+
         applyOrganizationUpdates(organization, request);
 
         Organization updatedOrganization = organizationRepository.save(organization);
@@ -331,6 +331,26 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     private String emptyToNull(String value) {
         return (value == null || value.isBlank()) ? null : value;
+    }
+
+    private void validateUserLimit(Organization organization, UpdateOrganizationRequest request){
+        if (request.getMaxOrganizerUsers() == null ||
+                request.getMaxOrganizerUsers().equals(organization.getMaxOrganizerUsers())){
+            return;
+        }
+        long currentNoOfUsers = organization.getUsers()
+                .stream()
+                .filter(u -> u.isEnabled())
+                .count();
+
+        if (request.getMaxOrganizerUsers() < organization.getMaxOrganizerUsers()){
+            long activeOrgUser = userRepository.countByOrganizationIdAndEnabledTrueAndDeletedFalseAndRole(organization.getId(), UserRole.ORGANIZER_USER);
+            if (request.getMaxOrganizerUsers() < activeOrgUser) {
+                throw new UserLimitReductionException(String.format(
+                        "You cannot reduce the user limit below the current number of active users (%d).",
+                         activeOrgUser));
+            }
+        }
     }
 
     @Override
