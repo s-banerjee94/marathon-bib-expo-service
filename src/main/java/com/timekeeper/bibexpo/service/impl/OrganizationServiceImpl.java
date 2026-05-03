@@ -1,6 +1,10 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.exception.*;
+
+import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
+import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.UserLimitReductionException;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
@@ -338,10 +342,6 @@ public class OrganizationServiceImpl implements OrganizationService {
                 request.getMaxOrganizerUsers().equals(organization.getMaxOrganizerUsers())){
             return;
         }
-        long currentNoOfUsers = organization.getUsers()
-                .stream()
-                .filter(u -> u.isEnabled())
-                .count();
 
         if (request.getMaxOrganizerUsers() < organization.getMaxOrganizerUsers()){
             long activeOrgUser = userRepository.countByOrganizationIdAndEnabledTrueAndDeletedFalseAndRole(organization.getId(), UserRole.ORGANIZER_USER);
