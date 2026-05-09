@@ -31,9 +31,6 @@ public class SmsTemplateResponse {
     @Schema(description = "Optional note or description", example = "Reminder to collect bib at expo")
     private String note;
 
-    @Schema(description = "Optional scheduled sending date and time", example = "2026-01-20T10:00:00")
-    private LocalDateTime scheduledDateTime;
-
     @Schema(description = "SMS Template enabled status", example = "true")
     private Boolean enabled;
 
@@ -65,7 +62,6 @@ public class SmsTemplateResponse {
                 .smsTemplateId(smsTemplate.getSmsTemplateId())
                 .template(smsTemplate.getTemplate())
                 .note(smsTemplate.getNote())
-                .scheduledDateTime(smsTemplate.getScheduledDateTime())
                 .enabled(smsTemplate.getEnabled())
                 .eventId(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getId() : null)
                 .eventName(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getEventName() : null)

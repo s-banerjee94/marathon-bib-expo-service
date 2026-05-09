@@ -1,5 +1,8 @@
 package com.timekeeper.bibexpo.service;
 
+import com.timekeeper.bibexpo.exception.SmsTemplateAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.SmsTemplateNotFoundException;
+import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.response.SmsTemplateResponse;
@@ -7,7 +10,6 @@ import com.timekeeper.bibexpo.model.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import java.time.LocalDate;
 
 public interface SmsTemplateService {
 
@@ -49,15 +51,12 @@ public interface SmsTemplateService {
      * @param eventId The event ID
      * @param search Partial match on name or smsTemplateId
      * @param enabled Filter by enabled status (null = all)
-     * @param fromDate Scheduled date from (inclusive, date only)
-     * @param toDate Scheduled date to (inclusive, date only)
      * @param pageable Pagination parameters
      * @param currentUser The authenticated user
      * @return Page of SMS template responses
      * @throws UnauthorizedAccessException if the user is not authorized
      */
     Page<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, Boolean enabled,
-                                                     LocalDate fromDate, LocalDate toDate,
                                                      Pageable pageable, User currentUser);
 
     /**

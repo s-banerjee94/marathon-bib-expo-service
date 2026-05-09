@@ -1,9 +1,6 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.SmsTemplateAlreadyExistsException;
-import com.timekeeper.bibexpo.exception.SmsTemplateNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.*;
 import com.timekeeper.bibexpo.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.response.SmsTemplateResponse;
@@ -14,6 +11,9 @@ import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.SmsTemplateRepository;
 import com.timekeeper.bibexpo.service.SmsTemplateService;
+import com.timekeeper.bibexpo.util.SmsTemplateContext;
+import com.timekeeper.bibexpo.util.SmsTemplateParser;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,8 +22,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,13 +45,13 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
                     "SMS template with ID '" + request.getSmsTemplateId() + "' already exists for this event");
         }
 
+        validateTemplatePlaceholders(request.getTemplate());
+
         SmsTemplate smsTemplate = SmsTemplate.builder()
                 .name(request.getName().toLowerCase().trim())
                 .smsTemplateId(request.getSmsTemplateId())
                 .template(request.getTemplate())
                 .note(request.getNote())
-                .scheduledDateTime(request.getScheduledDateTime())
-                .enabled(true)
                 .event(event)
                 .build();
 
@@ -72,9 +70,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
 
         validateEventAccess(eventId, currentUser);
 
-        SmsTemplate smsTemplate = smsTemplateRepository.findByIdAndEventId(templateId, eventId)
-                .orElseThrow(() -> new SmsTemplateNotFoundException(
-                        "SMS template not found with ID: " + templateId + " for event: " + eventId));
+        SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
 
         if (request.getName() != null && !request.getName().isBlank()) {
             smsTemplate.setName(request.getName().toLowerCase().trim());
@@ -90,15 +86,12 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         }
 
         if (request.getTemplate() != null && !request.getTemplate().isBlank()) {
+            validateTemplatePlaceholders(request.getTemplate());
             smsTemplate.setTemplate(request.getTemplate());
         }
 
         if (request.getNote() != null) {
             smsTemplate.setNote(request.getNote());
-        }
-
-        if (request.getScheduledDateTime() != null) {
-            smsTemplate.setScheduledDateTime(request.getScheduledDateTime());
         }
 
         SmsTemplate updatedTemplate = smsTemplateRepository.save(smsTemplate);
@@ -111,14 +104,13 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
     @Override
     @Transactional(readOnly = true)
     public Page<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, Boolean enabled,
-                                                            LocalDate fromDate, LocalDate toDate,
                                                             Pageable pageable, User currentUser) {
-        log.info("Fetching SMS templates for event ID: {} search: {} enabled: {} fromDate: {} toDate: {} by user: {}",
-                eventId, search, enabled, fromDate, toDate, currentUser.getUsername());
+        log.info("Fetching SMS templates for event ID: {} search: {} enabled: {} by user: {}",
+                eventId, search, enabled, currentUser.getUsername());
 
         validateEventAccess(eventId, currentUser);
 
-        Specification<SmsTemplate> spec = buildSmsTemplateSpecification(eventId, search, enabled, fromDate, toDate);
+        Specification<SmsTemplate> spec = buildSmsTemplateSpecification(eventId, search, enabled);
         Page<SmsTemplate> templates = smsTemplateRepository.findAll(spec, pageable);
 
         log.info("Successfully fetched {} SMS templates for event ID: {} by user: {}",
@@ -127,9 +119,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         return templates.map(SmsTemplateResponse::fromEntity);
     }
 
-    private Specification<SmsTemplate> buildSmsTemplateSpecification(Long eventId, String search,
-                                                                      Boolean enabled,
-                                                                      LocalDate fromDate, LocalDate toDate) {
+    private Specification<SmsTemplate> buildSmsTemplateSpecification(Long eventId, String search, Boolean enabled) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -147,14 +137,6 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
                 ));
             }
 
-            if (fromDate != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("scheduledDateTime"), fromDate.atStartOfDay()));
-            }
-
-            if (toDate != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("scheduledDateTime"), toDate.atTime(23, 59, 59)));
-            }
-
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
@@ -167,9 +149,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
 
         validateEventAccess(eventId, currentUser);
 
-        SmsTemplate smsTemplate = smsTemplateRepository.findByIdAndEventId(templateId, eventId)
-                .orElseThrow(() -> new SmsTemplateNotFoundException(
-                        "SMS template not found with ID: " + templateId + " for event: " + eventId));
+        SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
 
         log.info("Successfully fetched SMS template ID: {} by user: {}",
                 smsTemplate.getId(), currentUser.getUsername());
@@ -203,9 +183,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
 
         validateEventAccess(eventId, currentUser);
 
-        SmsTemplate smsTemplate = smsTemplateRepository.findByIdAndEventId(templateId, eventId)
-                .orElseThrow(() -> new SmsTemplateNotFoundException(
-                        "SMS template not found with ID: " + templateId + " for event: " + eventId));
+        SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
 
         smsTemplate.setEnabled(!smsTemplate.getEnabled());
         SmsTemplate updatedTemplate = smsTemplateRepository.save(smsTemplate);
@@ -224,12 +202,16 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
 
         validateEventAccess(eventId, currentUser);
 
-        SmsTemplate smsTemplate = smsTemplateRepository.findByIdAndEventId(templateId, eventId)
-                .orElseThrow(() -> new SmsTemplateNotFoundException(
-                        "SMS template not found with ID: " + templateId + " for event: " + eventId));
+        SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
 
         smsTemplateRepository.delete(smsTemplate);
         log.info("Successfully deleted SMS template ID: {} by user: {}", templateId, currentUser.getUsername());
+    }
+
+    private SmsTemplate findTemplateOrThrow(Long templateId, Long eventId) {
+        return smsTemplateRepository.findByIdAndEventId(templateId, eventId)
+                .orElseThrow(() -> new SmsTemplateNotFoundException(
+                        "SMS template not found with ID: " + templateId + " for event: " + eventId));
     }
 
     private Event validateEventAccess(Long eventId, User currentUser) {
@@ -241,6 +223,14 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         return event;
     }
 
+    private void validateTemplatePlaceholders(String template) {
+        List<String> invalid = SmsTemplateParser.validatePlaceholders(template, SmsTemplateContext.class);
+        if (!invalid.isEmpty()) {
+            throw new InvalidSmsTemplateException(
+                    "Invalid placeholders in template: " + invalid + ".");
+        }
+    }
+
     private void validateUserAuthorizationForEvent(User currentUser, Event event) {
         UserRole role = currentUser.getRole();
 
@@ -250,16 +240,16 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
 
         if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
             if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException("User does not belong to any organization");
+                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
             }
 
             if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
                 throw new UnauthorizedAccessException(
-                        "User can only access SMS templates from their own organization's events");
+                        "You can only manage SMS templates for your organization's events.");
             }
             return;
         }
 
-        throw new UnauthorizedAccessException("User does not have permission to access SMS templates");
+        throw new UnauthorizedAccessException("You are not allowed to manage SMS templates.");
     }
 }

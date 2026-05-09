@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 
-import java.time.LocalDate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -61,15 +60,13 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
             @PathVariable Long eventId,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean enabled,
-            @RequestParam(required = false) LocalDate fromDate,
-            @RequestParam(required = false) LocalDate toDate,
             Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get SMS templates for event ID: {} search: {} enabled: {} fromDate: {} toDate: {} by user: {}",
-                eventId, search, enabled, fromDate, toDate, currentUser.getUsername());
+        log.info("Received request to get SMS templates for event ID: {} search: {} enabled: {} by user: {}",
+                eventId, search, enabled, currentUser.getUsername());
 
         PageableResponse<SmsTemplateResponse> response = PageableResponse.of(
-                smsTemplateService.getSmsTemplatesByEvent(eventId, search, enabled, fromDate, toDate, pageable, currentUser));
+                smsTemplateService.getSmsTemplatesByEvent(eventId, search, enabled, pageable, currentUser));
 
         return ResponseEntity.ok(response);
     }

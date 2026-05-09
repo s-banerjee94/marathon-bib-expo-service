@@ -23,7 +23,6 @@ import java.time.LocalDateTime;
         indexes = {
                 @Index(name = "idx_sms_template_id", columnList = "sms_template_id"),
                 @Index(name = "idx_sms_event", columnList = "event_id"),
-                @Index(name = "idx_sms_scheduled", columnList = "scheduled_date_time"),
                 @Index(name = "idx_sms_enabled", columnList = "enabled")
         })
 @EntityListeners(AuditingEntityListener.class)
@@ -49,9 +48,6 @@ public class SmsTemplate implements Serializable {
     @Column(columnDefinition = "TEXT")
     @Convert(converter = EmptyStringToNullConverter.class)
     private String note;
-
-    @Column(name = "scheduled_date_time")
-    private LocalDateTime scheduledDateTime;
 
     @Column(nullable = false)
     @Builder.Default

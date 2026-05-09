@@ -8,8 +8,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -27,13 +25,18 @@ public class UpdateSmsTemplateRequest {
     private String smsTemplateId;
 
     @Size(min = 2, max = 1000, message = "Template text must be at least 2 characters")
-    @Schema(description = "SMS template text with placeholders", example = "Hello {participantName}, collect bib!")
+    @Schema(
+            description = """
+                    SMS message text. Use #{fieldName} placeholders to personalise the message. \
+                    Participant: #{fullName}, #{bibNumber}, #{raceName}, #{categoryName}, \
+                    #{bibCollectedAt}, #{bibCollectedByName}, #{bibCollectedByPhone}. \
+                    Event: #{eventName}, #{venueName}, #{eventStartDate}, #{eventEndDate}, #{eventCity}. \
+                    Any placeholder not in this list will be rejected with a validation error.""",
+            example = "Hi #{fullName}, your bib #{bibNumber} for #{eventName} is ready at #{venueName}, #{eventCity} on #{eventStartDate}!")
     private String template;
 
     @Size(max = 500, message = "Note must not exceed 500 characters")
     @Schema(description = "Optional note or description", example = "Updated reminder for bib collection")
     private String note;
 
-    @Schema(description = "Optional scheduled sending date and time", example = "2026-01-20T10:00:00")
-    private LocalDateTime scheduledDateTime;
 }

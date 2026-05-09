@@ -17,7 +17,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 
-import java.time.LocalDate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -158,7 +157,7 @@ public interface SmsTemplateControllerApi {
     @Operation(
             summary = "Get all SMS templates for an event",
             description = """
-                    Retrieve all SMS templates for an event with optional enabledOnly filter and pagination. \
+                    Retrieve all SMS templates for an event with optional search and enabled filter. \
                     ROOT and ADMIN can view templates for any event. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only view templates in their organization's events."""
     )
@@ -194,10 +193,6 @@ public interface SmsTemplateControllerApi {
             @RequestParam(required = false) String search,
             @Parameter(description = "Filter by enabled status (true/false, omit for all)")
             @RequestParam(required = false) Boolean enabled,
-            @Parameter(description = "Filter by scheduled date from (inclusive, format: yyyy-MM-dd)")
-            @RequestParam(required = false) LocalDate fromDate,
-            @Parameter(description = "Filter by scheduled date to (inclusive, format: yyyy-MM-dd)")
-            @RequestParam(required = false) LocalDate toDate,
             @Parameter(description = "Pagination and sorting parameters")
             Pageable pageable,
             @AuthenticationPrincipal User currentUser);

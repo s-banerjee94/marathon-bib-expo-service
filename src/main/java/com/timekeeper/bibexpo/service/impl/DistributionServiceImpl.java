@@ -16,6 +16,7 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.DistributionLogDDBRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.DistributionService;
+import com.timekeeper.bibexpo.service.SmsSendService;
 import com.timekeeper.bibexpo.service.util.DistributionConstants;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.service.validator.DistributionValidator;
@@ -43,6 +44,7 @@ public class DistributionServiceImpl implements DistributionService {
     private final DistributionLogDDBRepository logRepository;
     private final DynamoDBPaginationCodec paginationCodec;
     private final DistributionValidator validator;
+    private final SmsSendService smsSendService;
 
     @Override
     public BibDistributionResponse collectBib(Long eventId, String bibNumber, CollectBibRequest request, User currentUser) {
@@ -106,6 +108,8 @@ public class DistributionServiceImpl implements DistributionService {
 
         log.info("Bib {} collected for event {} by collector {} ({}), distributed by staff {}",
                 bibNumber, eventId, collectorName, collectorPhone, distributedBy);
+
+        smsSendService.sendBibCollectedSms(event, participant);
 
         return BibDistributionResponse.builder()
                 .success(true)

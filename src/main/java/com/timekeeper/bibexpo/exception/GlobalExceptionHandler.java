@@ -569,6 +569,70 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
+    @ExceptionHandler(InvalidSmsTemplateException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidSmsTemplate(
+            InvalidSmsTemplateException ex, WebRequest request) {
+        log.error("Invalid SMS template: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(BAD_REQUEST)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(SmsCampaignNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleSmsCampaignNotFound(
+            SmsCampaignNotFoundException ex, WebRequest request) {
+        log.error("SMS campaign not found: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.NOT_FOUND.value())
+                .error(NOT_FOUND)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(SmsCampaignAlreadyActiveException.class)
+    public ResponseEntity<ErrorResponse> handleSmsCampaignAlreadyActive(
+            SmsCampaignAlreadyActiveException ex, WebRequest request) {
+        log.warn("SMS campaign conflict: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error(CONFLICT)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(InvalidSmsCampaignException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidSmsCampaign(
+            InvalidSmsCampaignException ex, WebRequest request) {
+        log.error("Invalid SMS campaign operation: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(BAD_REQUEST)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
     @ExceptionHandler(InvalidCsvFormatException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCsvFormat(
             InvalidCsvFormatException ex, WebRequest request) {

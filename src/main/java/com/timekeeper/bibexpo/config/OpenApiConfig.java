@@ -58,7 +58,12 @@ public class OpenApiConfig {
                 .group("3-event-management")
                 .displayName("Event, Race & Category Management")
                 .pathsToMatch("/api/events/**", "/api/races/**", "/api/categories/**")
-                .pathsToExclude("/api/events/{eventId}/distribution/**", "/api/events/{eventId}/participants/**")
+                .pathsToExclude(
+                        "/api/events/{eventId}/distribution/**",
+                        "/api/events/{eventId}/participants/**",
+                        "/api/events/{eventId}/sms-templates/**",
+                        "/api/events/{eventId}/sms-campaigns/**"
+                )
                 .build();
     }
 
@@ -81,11 +86,11 @@ public class OpenApiConfig {
     }
 
     @Bean
-    public GroupedOpenApi communicationGroup() {
+    public GroupedOpenApi smsCampaignsGroup() {
         return GroupedOpenApi.builder()
-                .group("6-communication")
-                .displayName("Communication & Templates")
-                .pathsToMatch("/api/sms-templates/**")
+                .group("6-sms")
+                .displayName("SMS Campaigns & Templates")
+                .pathsToMatch("/api/events/{eventId}/sms-campaigns/**", "/api/events/{eventId}/sms-templates/**")
                 .build();
     }
 
