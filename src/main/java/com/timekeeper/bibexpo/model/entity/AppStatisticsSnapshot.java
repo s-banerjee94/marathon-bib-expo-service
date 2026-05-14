@@ -7,7 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "app_statistics_snapshot",
@@ -51,14 +51,14 @@ public class AppStatisticsSnapshot {
     private String snapshotData;
 
     @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(nullable = false)
-    private LocalDateTime refreshedAt;
+    private Instant refreshedAt;
 
     @PrePersist
     private void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         this.createdAt = now;
         this.refreshedAt = now;
     }

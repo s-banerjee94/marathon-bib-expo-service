@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -198,7 +199,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
 
         return AppStatisticsResponse.builder()
                 .scope(StatisticsScope.GLOBAL)
-                .refreshedAt(LocalDateTime.now())
+                .refreshedAt(Instant.now())
                 .users(UserStatsData.builder()
                         .total(total)
                         .active(active)
@@ -222,7 +223,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
         return AppStatisticsResponse.builder()
                 .scope(StatisticsScope.ORGANIZATION)
                 .organizationId(orgId)
-                .refreshedAt(LocalDateTime.now())
+                .refreshedAt(Instant.now())
                 .users(UserStatsData.builder()
                         .total(total)
                         .active(active)
@@ -282,7 +283,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
     }
 
     private void persist(StatisticsScope scope, Long scopeKey, AppStatisticsResponse stats) {
-        snapshotRepository.upsert(scope.name(), scopeKey, serialize(stats), LocalDateTime.now());
+        snapshotRepository.upsert(scope.name(), scopeKey, serialize(stats), Instant.now());
     }
 
     private String serialize(AppStatisticsResponse stats) {
@@ -306,7 +307,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
     }
 
     private boolean isStale(AppStatisticsSnapshot snapshot) {
-        return snapshot.getRefreshedAt().isBefore(LocalDateTime.now().minusMinutes(staleThresholdMinutes));
+        return snapshot.getRefreshedAt().isBefore(Instant.now().minusSeconds(staleThresholdMinutes * 60L));
     }
 
     private boolean isGlobalScope(User user) {

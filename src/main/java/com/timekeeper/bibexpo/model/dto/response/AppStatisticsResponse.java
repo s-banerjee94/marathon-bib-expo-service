@@ -10,7 +10,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -28,8 +28,8 @@ public class AppStatisticsResponse {
     @Schema(description = "Organization name (null for GLOBAL scope)", example = "ABC Marathon Club")
     private String organizationName;
 
-    @Schema(description = "When this snapshot was last refreshed", example = "2026-02-23T10:00:00")
-    private LocalDateTime refreshedAt;
+    @Schema(description = "When this snapshot was last refreshed", example = "2026-02-23T10:00:00Z")
+    private Instant refreshedAt;
 
     @Schema(description = "User statistics")
     private UserStatsData users;

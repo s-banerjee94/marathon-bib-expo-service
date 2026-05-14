@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 
 @Repository
@@ -37,5 +37,5 @@ public interface AppStatisticsSnapshotRepository extends JpaRepository<AppStatis
     void upsert(@Param("scope") String scope,
                 @Param("organizationId") Long organizationId,
                 @Param("snapshotData") String snapshotData,
-                @Param("refreshedAt") LocalDateTime refreshedAt);
+                @Param("refreshedAt") Instant refreshedAt);
 }

@@ -8,7 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -20,8 +20,8 @@ public class OrganizationStatisticsResponse {
     @Schema(description = "Always GLOBAL for this endpoint", example = "GLOBAL")
     private StatisticsScope scope;
 
-    @Schema(description = "When this snapshot was last refreshed", example = "2026-02-23T10:00:00")
-    private LocalDateTime refreshedAt;
+    @Schema(description = "When this snapshot was last refreshed", example = "2026-02-23T10:00:00Z")
+    private Instant refreshedAt;
 
     @Schema(description = "Organization statistics breakdown")
     private OrganizationStatsData organizations;
