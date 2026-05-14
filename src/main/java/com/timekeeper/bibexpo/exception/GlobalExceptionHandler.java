@@ -15,7 +15,7 @@ import org.springframework.web.context.request.async.AsyncRequestNotUsableExcept
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 @RestControllerAdvice
@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
             ImportAlreadyRunningException ex, WebRequest request) {
         log.warn("Concurrent import rejected: {}", ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -48,7 +48,7 @@ public class GlobalExceptionHandler {
         log.error("User already exists: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -64,7 +64,7 @@ public class GlobalExceptionHandler {
         log.error("Invalid user data: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(BAD_REQUEST)
                 .message(ex.getMessage())
@@ -80,7 +80,7 @@ public class GlobalExceptionHandler {
         log.error("User not found: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -96,7 +96,7 @@ public class GlobalExceptionHandler {
         log.error("Organization already exists: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -112,7 +112,7 @@ public class GlobalExceptionHandler {
         log.error("Organization not found: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -128,7 +128,7 @@ public class GlobalExceptionHandler {
         log.error("Event already exists: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -144,7 +144,7 @@ public class GlobalExceptionHandler {
         log.error("Event not found: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -160,7 +160,7 @@ public class GlobalExceptionHandler {
         log.error("Event deletion not allowed: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(BAD_REQUEST)
                 .message(ex.getMessage())
@@ -176,7 +176,7 @@ public class GlobalExceptionHandler {
         log.error("Event disabled: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.FORBIDDEN.value())
                 .error(FORBIDDEN)
                 .message(ex.getMessage())
@@ -192,7 +192,7 @@ public class GlobalExceptionHandler {
         log.error("Race not found: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -208,7 +208,7 @@ public class GlobalExceptionHandler {
         log.error("Race already exists: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -224,7 +224,7 @@ public class GlobalExceptionHandler {
         log.error("Race deletion not allowed: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(BAD_REQUEST)
                 .message(ex.getMessage())
@@ -240,7 +240,7 @@ public class GlobalExceptionHandler {
         log.error("Category not found: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -256,7 +256,7 @@ public class GlobalExceptionHandler {
         log.error("Category already exists: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -272,7 +272,7 @@ public class GlobalExceptionHandler {
         log.error("Category in use: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -288,7 +288,7 @@ public class GlobalExceptionHandler {
         log.error("Unauthorized access: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.FORBIDDEN.value())
                 .error(FORBIDDEN)
                 .message(ex.getMessage())
@@ -332,7 +332,7 @@ public class GlobalExceptionHandler {
         }
 
         ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(status.value())
                 .error(error)
                 .message(message)
@@ -376,7 +376,7 @@ public class GlobalExceptionHandler {
         }
 
         ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(status.value())
                 .error(error)
                 .message(message)
@@ -398,7 +398,7 @@ public class GlobalExceptionHandler {
                 .toList();
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("Validation Failed")
                 .message("Invalid input data")
@@ -415,7 +415,7 @@ public class GlobalExceptionHandler {
         log.error("JWT authentication error: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.UNAUTHORIZED.value())
                 .error(UNAUTHORIZED)
                 .message(ex.getMessage())
@@ -431,7 +431,7 @@ public class GlobalExceptionHandler {
         log.warn("Account access rejected: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.UNAUTHORIZED.value())
                 .error(UNAUTHORIZED)
                 .message(ex.getMessage())
@@ -447,7 +447,7 @@ public class GlobalExceptionHandler {
         log.warn("Invalid credentials: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.UNAUTHORIZED.value())
                 .error(UNAUTHORIZED)
                 .message("Invalid username or password")
@@ -463,7 +463,7 @@ public class GlobalExceptionHandler {
         log.error("Authentication failed: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.UNAUTHORIZED.value())
                 .error(UNAUTHORIZED)
                 .message("Authentication failed")
@@ -479,7 +479,7 @@ public class GlobalExceptionHandler {
         log.error("Access denied: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.FORBIDDEN.value())
                 .error(FORBIDDEN)
                 .message("You do not have permission to access this resource")
@@ -495,7 +495,7 @@ public class GlobalExceptionHandler {
         log.error("Participant not found: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -511,7 +511,7 @@ public class GlobalExceptionHandler {
         log.error("Bib already collected: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -527,7 +527,7 @@ public class GlobalExceptionHandler {
         log.error("Bib not collected: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(BAD_REQUEST)
                 .message(ex.getMessage())
@@ -543,7 +543,7 @@ public class GlobalExceptionHandler {
         log.error("Goodies item not found: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -559,7 +559,7 @@ public class GlobalExceptionHandler {
         log.error("Goodies already distributed: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -575,7 +575,7 @@ public class GlobalExceptionHandler {
         log.error("Invalid SMS template: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(BAD_REQUEST)
                 .message(ex.getMessage())
@@ -591,7 +591,7 @@ public class GlobalExceptionHandler {
         log.error("SMS campaign not found: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -607,7 +607,7 @@ public class GlobalExceptionHandler {
         log.warn("SMS campaign conflict: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -623,7 +623,7 @@ public class GlobalExceptionHandler {
         log.error("Invalid SMS campaign operation: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(BAD_REQUEST)
                 .message(ex.getMessage())
@@ -639,7 +639,7 @@ public class GlobalExceptionHandler {
         log.error("Invalid CSV format: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("Invalid CSV Format")
                 .message(ex.getMessage())
@@ -655,7 +655,7 @@ public class GlobalExceptionHandler {
         log.error("CSV import error: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("CSV Import Failed")
                 .message(ex.getMessage())
@@ -671,7 +671,7 @@ public class GlobalExceptionHandler {
         log.error("File size exceeded: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.PAYLOAD_TOO_LARGE.value())
                 .error("File Too Large")
                 .message("CSV file size exceeds maximum allowed size (10MB)")
@@ -687,7 +687,7 @@ public class GlobalExceptionHandler {
         log.error("SMS template not found: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -703,7 +703,7 @@ public class GlobalExceptionHandler {
         log.error("SMS template already exists: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.CONFLICT.value())
                 .error(CONFLICT)
                 .message(ex.getMessage())
@@ -719,7 +719,7 @@ public class GlobalExceptionHandler {
         log.error("Illegal argument error: {}", ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(BAD_REQUEST)
                 .message(ex.getMessage())
@@ -746,7 +746,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleNoResourceFound(
             NoResourceFoundException ex, WebRequest request) {
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(NOT_FOUND)
                 .message(ex.getMessage())
@@ -763,7 +763,7 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error: ", ex);
 
         ErrorResponse error = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .error("Internal Server Error")
                 .message("An unexpected error occurred")

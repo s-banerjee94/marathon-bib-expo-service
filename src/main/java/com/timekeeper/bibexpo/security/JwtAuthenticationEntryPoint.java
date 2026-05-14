@@ -10,7 +10,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Component
 @Slf4j
@@ -30,7 +30,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
         String jsonResponse = String.format(
                 "{\"timestamp\":\"%s\",\"status\":%d,\"error\":\"Unauthorized\",\"message\":\"Invalid or missing authentication token\",\"path\":\"%s\"}",
-				LocalDateTime.now(),
+                Instant.now().toString(),
                 HttpServletResponse.SC_UNAUTHORIZED,
                 request.getRequestURI()
         );
