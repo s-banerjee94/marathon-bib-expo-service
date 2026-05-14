@@ -7,7 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @NoArgsConstructor
@@ -37,11 +37,11 @@ public class SmsTemplateResponse {
     @Schema(description = "Event name for context", example = "Mumbai Marathon 2024")
     private String eventName;
 
-    @Schema(description = "Creation timestamp")
-    private LocalDateTime createdAt;
+    @Schema(description = "Creation timestamp", example = "2026-01-15T10:30:00Z")
+    private Instant createdAt;
 
-    @Schema(description = "Last update timestamp")
-    private LocalDateTime updatedAt;
+    @Schema(description = "Last update timestamp", example = "2026-01-15T10:30:00Z")
+    private Instant updatedAt;
 
     @Schema(description = "Created by username", example = "admin")
     private String createdBy;
