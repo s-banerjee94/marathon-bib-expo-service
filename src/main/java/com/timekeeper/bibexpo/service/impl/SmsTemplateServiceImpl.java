@@ -9,6 +9,7 @@ import com.timekeeper.bibexpo.model.entity.SmsTemplate;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.repository.SmsTemplateRepository;
 import com.timekeeper.bibexpo.service.SmsTemplateService;
 import com.timekeeper.bibexpo.util.SmsTemplateContext;
@@ -16,8 +17,6 @@ import com.timekeeper.bibexpo.util.SmsTemplateParser;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,12 +24,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 
+
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SmsTemplateServiceImpl implements SmsTemplateService {
 
+    private static final int MAX_TEMPLATES_PER_EVENT = 20;
+
     private final SmsTemplateRepository smsTemplateRepository;
+    private final SmsCampaignRepository smsCampaignRepository;
     private final EventRepository eventRepository;
 
     @Override
@@ -39,6 +43,10 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         log.info("Creating SMS template for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = validateEventAccess(eventId, currentUser);
+
+        if (smsTemplateRepository.countByEventId(eventId) >= MAX_TEMPLATES_PER_EVENT) {
+            throw new InvalidSmsTemplateException("An event can have a maximum of 20 SMS templates.");
+        }
 
         if (smsTemplateRepository.existsBySmsTemplateIdAndEventId(request.getSmsTemplateId(), eventId)) {
             throw new SmsTemplateAlreadyExistsException(
@@ -103,31 +111,26 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, Boolean enabled,
-                                                            Pageable pageable, User currentUser) {
-        log.info("Fetching SMS templates for event ID: {} search: {} enabled: {} by user: {}",
-                eventId, search, enabled, currentUser.getUsername());
+    public List<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, User currentUser) {
+        log.info("Fetching SMS templates for event ID: {} search: {} by user: {}",
+                eventId, search, currentUser.getUsername());
 
         validateEventAccess(eventId, currentUser);
 
-        Specification<SmsTemplate> spec = buildSmsTemplateSpecification(eventId, search, enabled);
-        Page<SmsTemplate> templates = smsTemplateRepository.findAll(spec, pageable);
+        Specification<SmsTemplate> spec = buildSmsTemplateSpecification(eventId, search);
+        List<SmsTemplate> templates = smsTemplateRepository.findAll(spec);
 
         log.info("Successfully fetched {} SMS templates for event ID: {} by user: {}",
-                templates.getNumberOfElements(), eventId, currentUser.getUsername());
+                templates.size(), eventId, currentUser.getUsername());
 
-        return templates.map(SmsTemplateResponse::fromEntity);
+        return templates.stream().map(SmsTemplateResponse::fromEntity).toList();
     }
 
-    private Specification<SmsTemplate> buildSmsTemplateSpecification(Long eventId, String search, Boolean enabled) {
+    private Specification<SmsTemplate> buildSmsTemplateSpecification(Long eventId, String search) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             predicates.add(cb.equal(root.get("event").get("id"), eventId));
-
-            if (enabled != null) {
-                predicates.add(cb.equal(root.get("enabled"), enabled));
-            }
 
             if (search != null && !search.isBlank()) {
                 String pattern = "%" + search.toLowerCase() + "%";
@@ -177,25 +180,6 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
 
     @Override
     @Transactional
-    public SmsTemplateResponse toggleSmsTemplateEnabled(Long eventId, Long templateId, User currentUser) {
-        log.info("Toggling SMS template ID: {} enabled status for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
-        validateEventAccess(eventId, currentUser);
-
-        SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
-
-        smsTemplate.setEnabled(!smsTemplate.getEnabled());
-        SmsTemplate updatedTemplate = smsTemplateRepository.save(smsTemplate);
-
-        log.info("Successfully toggled SMS template ID: {} enabled status to {} by user: {}",
-                updatedTemplate.getId(), updatedTemplate.getEnabled(), currentUser.getUsername());
-
-        return SmsTemplateResponse.fromEntity(updatedTemplate);
-    }
-
-    @Override
-    @Transactional
     public void deleteSmsTemplate(Long eventId, Long templateId, User currentUser) {
         log.info("Deleting SMS template ID: {} for event ID: {} by user: {}",
                 templateId, eventId, currentUser.getUsername());
@@ -203,6 +187,10 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         validateEventAccess(eventId, currentUser);
 
         SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
+
+        if (smsCampaignRepository.existsBySmsTemplateId(smsTemplate.getId())) {
+            throw new InvalidSmsTemplateException("This template is used by one or more campaigns and cannot be deleted.");
+        }
 
         smsTemplateRepository.delete(smsTemplate);
         log.info("Successfully deleted SMS template ID: {} by user: {}", templateId, currentUser.getUsername());

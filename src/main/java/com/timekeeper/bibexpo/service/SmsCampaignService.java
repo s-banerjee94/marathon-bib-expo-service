@@ -1,38 +1,33 @@
 package com.timekeeper.bibexpo.service;
 
-import com.timekeeper.bibexpo.exception.SmsCampaignAlreadyActiveException;
 import com.timekeeper.bibexpo.exception.SmsCampaignNotFoundException;
 import com.timekeeper.bibexpo.model.dto.request.CreateSmsCampaignRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsCampaignRequest;
 import com.timekeeper.bibexpo.model.dto.response.SmsCampaignResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import java.util.List;
 
 public interface SmsCampaignService {
 
     /**
-     * Create a new SMS campaign for an event.
-     * AUTO_BIB_COLLECTED starts as ACTIVE automatically. SCHEDULED and MANUAL start as DRAFT.
-     * Only one AUTO_BIB_COLLECTED campaign in DRAFT or ACTIVE status is allowed per event.
-     *
-     * @throws SmsCampaignAlreadyActiveException if an active AUTO_BIB_COLLECTED campaign already exists
+     * Create a new DRAFT campaign with name and template only.
+     * Use the update endpoint with a triggerType to arm it.
      */
     SmsCampaignResponse createCampaign(Long eventId, CreateSmsCampaignRequest request, User currentUser);
 
     /**
-     * Update a campaign. SENT campaigns cannot be updated.
-     * Changing triggerType automatically adjusts status:
-     * TO AUTO_BIB_COLLECTED → ACTIVE, to SCHEDULED/MANUAL → DRAFT.
+     * Update a DRAFT campaign. Only DRAFT campaigns can be modified.
+     * If triggerType is present in the request the campaign is armed and moves to ACTIVE.
+     * If triggerType is null only name and template are updated and the campaign stays DRAFT.
      *
      * @throws SmsCampaignNotFoundException if campaign does not exist
      */
     SmsCampaignResponse updateCampaign(Long eventId, Long campaignId, UpdateSmsCampaignRequest request, User currentUser);
 
     /**
-     * Get all campaigns for an event (paginated).
+     * Get all campaigns for an event.
      */
-    Page<SmsCampaignResponse> getCampaignsByEvent(Long eventId, Pageable pageable, User currentUser);
+    List<SmsCampaignResponse> getCampaignsByEvent(Long eventId, User currentUser);
 
     /**
      * Get a single campaign by ID.
@@ -42,11 +37,12 @@ public interface SmsCampaignService {
     SmsCampaignResponse getCampaignById(Long eventId, Long campaignId, User currentUser);
 
     /**
-     * Deactivate an ACTIVE campaign, moving it back to DRAFT.
+     * Disarm an ACTIVE campaign, clearing trigger config and moving back to DRAFT.
+     * SCHEDULED campaigns cannot be disarmed within 30 seconds of scheduledAt.
      *
      * @throws SmsCampaignNotFoundException if campaign does not exist
      */
-    SmsCampaignResponse deactivateCampaign(Long eventId, Long campaignId, User currentUser);
+    SmsCampaignResponse disarmCampaign(Long eventId, Long campaignId, User currentUser);
 
     /**
      * Delete a DRAFT campaign permanently.

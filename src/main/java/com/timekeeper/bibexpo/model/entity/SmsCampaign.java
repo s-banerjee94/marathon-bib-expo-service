@@ -47,11 +47,11 @@ public class SmsCampaign {
     private SmsTemplate smsTemplate;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "trigger_type", nullable = false, length = 30)
+    @Column(name = "trigger_type", length = 30)
     private SmsCampaignTriggerType triggerType;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "target_filter", nullable = false, length = 30)
+    @Column(name = "target_filter", length = 30)
     private SmsCampaignTargetFilter targetFilter;
 
     @Column(name = "scheduled_at")
@@ -65,6 +65,10 @@ public class SmsCampaign {
     @Column(nullable = false)
     @Builder.Default
     private Integer sentCount = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer retryCount = 0;
 
     @CreatedDate
     @Column(updatable = false)

@@ -31,9 +31,6 @@ public class SmsTemplateResponse {
     @Schema(description = "Optional note or description", example = "Reminder to collect bib at expo")
     private String note;
 
-    @Schema(description = "SMS Template enabled status", example = "true")
-    private Boolean enabled;
-
     @Schema(description = "Event ID associated with this template", example = "1")
     private Long eventId;
 
@@ -62,7 +59,6 @@ public class SmsTemplateResponse {
                 .smsTemplateId(smsTemplate.getSmsTemplateId())
                 .template(smsTemplate.getTemplate())
                 .note(smsTemplate.getNote())
-                .enabled(smsTemplate.getEnabled())
                 .eventId(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getId() : null)
                 .eventName(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getEventName() : null)
                 .createdAt(smsTemplate.getCreatedAt())

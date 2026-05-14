@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.controller;
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.dto.request.CreateSmsCampaignRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsCampaignRequest;
-import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.dto.response.SmsCampaignResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,7 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Pageable;
+import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,22 +25,25 @@ import org.springframework.web.bind.annotation.*;
 public interface SmsCampaignControllerApi {
 
     /**
-     * Create a new SMS campaign for an event
+     * Create a new campaign — DRAFT or fully armed depending on whether triggerType is provided
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Create a new SMS campaign",
             description = """
-                    Create a new SMS campaign for an event. \
-                    AUTO_BIB_COLLECTED campaigns start as ACTIVE immediately and fire per participant on bib collection. \
-                    SCHEDULED and MANUAL campaigns start as DRAFT and must be activated separately. \
-                    scheduledAt is required for SCHEDULED type and ignored for all others."""
+                    Create a new SMS campaign. \
+                    If triggerType is omitted the campaign is saved as DRAFT for future use. \
+                    If triggerType is present the campaign is armed and moves directly to ACTIVE. \
+                    targetFilter is required when triggerType is present. \
+                    scheduledAt is required when triggerType is SCHEDULED and must be at least 3 minutes in the future. \
+                    Only one AUTO_BIB_COLLECTED campaign can be ACTIVE per event. \
+                    An event can have a maximum of 20 campaigns."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Campaign created successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SmsCampaignResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request or validation error",
+            @ApiResponse(responseCode = "400", description = "Invalid request, validation failed, scheduledAt too soon, or event has reached the 20 campaign limit",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
@@ -56,25 +58,30 @@ public interface SmsCampaignControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     /**
-     * Update an existing SMS campaign (DRAFT or ACTIVE only)
+     * Update a DRAFT campaign — update fields and optionally arm in one request
      */
     @PatchMapping("/{campaignId}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
-            summary = "Update an SMS campaign",
+            summary = "Update a DRAFT campaign",
             description = """
-                    Update a DRAFT or ACTIVE campaign. SENT campaigns cannot be edited. \
-                    Changing triggerType automatically adjusts status: to AUTO_BIB_COLLECTED sets ACTIVE, to SCHEDULED or MANUAL sets DRAFT. \
-                    scheduledAt is applied only when triggerType is SCHEDULED; it is cleared for all other types."""
+                    Update a DRAFT campaign. Only DRAFT campaigns can be modified — disarm first if the campaign is ACTIVE. \
+                    name and smsTemplateId are optional and updated only when present. \
+                    If triggerType is included the campaign is armed and moves to ACTIVE in the same request. \
+                    targetFilter is required when triggerType is present. \
+                    scheduledAt is required when triggerType is SCHEDULED and must be at least 3 minutes in the future. \
+                    Only one AUTO_BIB_COLLECTED campaign can be ACTIVE per event."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Campaign updated successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SmsCampaignResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request or campaign cannot be edited",
+            @ApiResponse(responseCode = "400", description = "Campaign is not DRAFT, validation failed, or scheduledAt is too soon",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Campaign or SMS template not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "An active AUTO_BIB_COLLECTED campaign already exists for this event",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     ResponseEntity<SmsCampaignResponse> updateCampaign(
@@ -91,15 +98,14 @@ public interface SmsCampaignControllerApi {
     @Operation(summary = "Get all SMS campaigns for an event")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Campaigns retrieved successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PageableResponse.class))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = SmsCampaignResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
-    ResponseEntity<PageableResponse<SmsCampaignResponse>> getCampaignsByEvent(
+    ResponseEntity<List<SmsCampaignResponse>> getCampaignsByEvent(
             @Parameter(description = "Event ID", example = "1") @PathVariable Long eventId,
-            @Parameter(description = "Pagination and sorting parameters") Pageable pageable,
             @AuthenticationPrincipal User currentUser);
 
     /**
@@ -122,35 +128,38 @@ public interface SmsCampaignControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     /**
-     * Deactivate an ACTIVE campaign, moving it back to DRAFT
+     * Disarm an ACTIVE campaign — clears trigger config and moves back to DRAFT
      */
-    @PatchMapping("/{campaignId}/deactivate")
+    @PatchMapping("/{campaignId}/disarm")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(summary = "Deactivate a campaign", description = "Moves an ACTIVE campaign back to DRAFT. Only ACTIVE campaigns can be deactivated.")
+    @Operation(
+            summary = "Disarm a campaign",
+            description = "Clears trigger type, target filter, and scheduledAt and moves the campaign back to DRAFT. SCHEDULED campaigns cannot be disarmed within 30 seconds of the scheduled time."
+    )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Campaign deactivated successfully",
+            @ApiResponse(responseCode = "200", description = "Campaign disarmed successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SmsCampaignResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Campaign cannot be deactivated (not in ACTIVE status)",
+            @ApiResponse(responseCode = "400", description = "Campaign is not ACTIVE or within the 30-second disarm cutoff",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Campaign not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
-    ResponseEntity<SmsCampaignResponse> deactivateCampaign(
+    ResponseEntity<SmsCampaignResponse> disarmCampaign(
             @Parameter(description = "Event ID", example = "1") @PathVariable Long eventId,
             @Parameter(description = "Campaign ID", example = "1") @PathVariable Long campaignId,
             @AuthenticationPrincipal User currentUser);
 
     /**
-     * Delete a DRAFT or CANCELLED campaign
+     * Delete a DRAFT campaign permanently
      */
     @DeleteMapping("/{campaignId}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(summary = "Delete a campaign", description = "Only DRAFT or CANCELLED campaigns can be deleted.")
+    @Operation(summary = "Delete a campaign", description = "Only DRAFT campaigns can be deleted.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Campaign deleted successfully"),
-            @ApiResponse(responseCode = "400", description = "Campaign cannot be deleted (only DRAFT campaigns can be deleted)",
+            @ApiResponse(responseCode = "400", description = "Campaign is not in DRAFT status",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),

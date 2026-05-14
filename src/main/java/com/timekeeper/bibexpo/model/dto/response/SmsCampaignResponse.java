@@ -46,11 +46,14 @@ public class SmsCampaignResponse {
     @Schema(description = "Scheduled send time (SCHEDULED type only)", example = "2026-01-20T09:00:00")
     private LocalDateTime scheduledAt;
 
-    @Schema(description = "Campaign lifecycle status", example = "ACTIVE")
+    @Schema(description = "Campaign lifecycle status: DRAFT = saved, not yet armed; ACTIVE = armed and running; SENDING = batch dispatch in progress; SENT = completed; FAILED = dispatch failed after max retries", example = "ACTIVE")
     private SmsCampaignStatus status;
 
     @Schema(description = "Number of SMS messages sent", example = "4983")
     private Integer sentCount;
+
+    @Schema(description = "Number of send attempts made by the scheduler (0 = not yet retried)", example = "0")
+    private Integer retryCount;
 
     @Schema(description = "Creation timestamp")
     private LocalDateTime createdAt;
@@ -80,6 +83,7 @@ public class SmsCampaignResponse {
                 .scheduledAt(campaign.getScheduledAt())
                 .status(campaign.getStatus())
                 .sentCount(campaign.getSentCount())
+                .retryCount(campaign.getRetryCount())
                 .createdAt(campaign.getCreatedAt())
                 .updatedAt(campaign.getUpdatedAt())
                 .createdBy(campaign.getCreatedBy())

@@ -2,14 +2,13 @@ package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.model.dto.request.CreateSmsCampaignRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsCampaignRequest;
-import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.dto.response.SmsCampaignResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.SmsCampaignService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Pageable;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -43,12 +42,11 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
     }
 
     @Override
-    public ResponseEntity<PageableResponse<SmsCampaignResponse>> getCampaignsByEvent(
+    public ResponseEntity<List<SmsCampaignResponse>> getCampaignsByEvent(
             @PathVariable Long eventId,
-            Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
         log.info("Received request to get SMS campaigns for event ID: {} by user: {}", eventId, currentUser.getUsername());
-        return ResponseEntity.ok(PageableResponse.of(smsCampaignService.getCampaignsByEvent(eventId, pageable, currentUser)));
+        return ResponseEntity.ok(smsCampaignService.getCampaignsByEvent(eventId, currentUser));
     }
 
     @Override
@@ -61,12 +59,12 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
     }
 
     @Override
-    public ResponseEntity<SmsCampaignResponse> deactivateCampaign(
+    public ResponseEntity<SmsCampaignResponse> disarmCampaign(
             @PathVariable Long eventId,
             @PathVariable Long campaignId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to deactivate SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
-        return ResponseEntity.ok(smsCampaignService.deactivateCampaign(eventId, campaignId, currentUser));
+        log.info("Received request to disarm SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
+        return ResponseEntity.ok(smsCampaignService.disarmCampaign(eventId, campaignId, currentUser));
     }
 
     @Override

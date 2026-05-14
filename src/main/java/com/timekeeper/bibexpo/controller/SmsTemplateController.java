@@ -2,14 +2,13 @@ package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsTemplateRequest;
-import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.dto.response.SmsTemplateResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.SmsTemplateService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Pageable;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -56,19 +55,14 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
     }
 
     @Override
-    public ResponseEntity<PageableResponse<SmsTemplateResponse>> getSmsTemplatesByEvent(
+    public ResponseEntity<List<SmsTemplateResponse>> getSmsTemplatesByEvent(
             @PathVariable Long eventId,
             @RequestParam(required = false) String search,
-            @RequestParam(required = false) Boolean enabled,
-            Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get SMS templates for event ID: {} search: {} enabled: {} by user: {}",
-                eventId, search, enabled, currentUser.getUsername());
+        log.info("Received request to get SMS templates for event ID: {} search: {} by user: {}",
+                eventId, search, currentUser.getUsername());
 
-        PageableResponse<SmsTemplateResponse> response = PageableResponse.of(
-                smsTemplateService.getSmsTemplatesByEvent(eventId, search, enabled, pageable, currentUser));
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(smsTemplateService.getSmsTemplatesByEvent(eventId, search, currentUser));
     }
 
     @Override
@@ -93,19 +87,6 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
                 smsTemplateId, eventId, currentUser.getUsername());
 
         SmsTemplateResponse response = smsTemplateService.getSmsTemplateBySmsTemplateId(eventId, smsTemplateId, currentUser);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
-    public ResponseEntity<SmsTemplateResponse> toggleSmsTemplateEnabled(
-            @PathVariable Long eventId,
-            @PathVariable Long templateId,
-            @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to toggle SMS template ID: {} enabled status for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
-        SmsTemplateResponse response = smsTemplateService.toggleSmsTemplateEnabled(eventId, templateId, currentUser);
 
         return ResponseEntity.ok(response);
     }

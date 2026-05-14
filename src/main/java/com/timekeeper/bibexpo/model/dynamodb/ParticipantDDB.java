@@ -57,6 +57,9 @@ public class ParticipantDDB {
     private String bibDistributedBy;
 
     @Builder.Default
+    private Map<String, String> smsCampaignSends = new HashMap<>();
+
+    @Builder.Default
     private Map<String, String> goodies = new HashMap<>();
 
     @Builder.Default

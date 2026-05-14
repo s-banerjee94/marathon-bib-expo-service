@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.controller;
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsTemplateRequest;
-import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.dto.response.SmsTemplateResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,7 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Pageable;
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -40,7 +39,8 @@ public interface SmsTemplateControllerApi {
     @Operation(
             summary = "Create a new SMS template",
             description = """
-                    Create a new SMS template for an event. ROOT and ADMIN can create templates for any event. \
+                    Create a new SMS template for an event. An event can have a maximum of 20 SMS templates. \
+                    ROOT and ADMIN can create templates for any event. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only create templates for their organization's events."""
     )
     @ApiResponses(value = {
@@ -54,7 +54,7 @@ public interface SmsTemplateControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid request data or validation error",
+                    description = "Invalid request data, validation error, or event has reached the 20 template limit",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -157,7 +157,7 @@ public interface SmsTemplateControllerApi {
     @Operation(
             summary = "Get all SMS templates for an event",
             description = """
-                    Retrieve all SMS templates for an event with optional search and enabled filter. \
+                    Retrieve all SMS templates for an event with optional search. \
                     ROOT and ADMIN can view templates for any event. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only view templates in their organization's events."""
     )
@@ -167,7 +167,7 @@ public interface SmsTemplateControllerApi {
                     description = "SMS templates retrieved successfully",
                     content = @Content(
                             mediaType = "application/json",
-                            schema = @Schema(implementation = PageableResponse.class)
+                            schema = @Schema(implementation = SmsTemplateResponse.class)
                     )
             ),
             @ApiResponse(
@@ -187,14 +187,10 @@ public interface SmsTemplateControllerApi {
                     )
             )
     })
-    ResponseEntity<PageableResponse<SmsTemplateResponse>> getSmsTemplatesByEvent(
+    ResponseEntity<List<SmsTemplateResponse>> getSmsTemplatesByEvent(
             @PathVariable Long eventId,
             @Parameter(description = "Partial match on template name or DLT template ID")
             @RequestParam(required = false) String search,
-            @Parameter(description = "Filter by enabled status (true/false, omit for all)")
-            @RequestParam(required = false) Boolean enabled,
-            @Parameter(description = "Pagination and sorting parameters")
-            Pageable pageable,
             @AuthenticationPrincipal User currentUser);
 
     /**
@@ -284,49 +280,6 @@ public interface SmsTemplateControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     /**
-     * Toggle SMS template enabled status
-     */
-    @PatchMapping("/{templateId}/toggle-enabled")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(
-            summary = "Toggle SMS template enabled status",
-            description = """
-                    Toggle the enabled status of an SMS template. \
-                    ROOT and ADMIN can toggle any template. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only toggle templates in their organization's events."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "SMS template enabled status toggled successfully",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = SmsTemplateResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Access forbidden - user does not have permission",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "SMS template or event not found",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<SmsTemplateResponse> toggleSmsTemplateEnabled(
-            @PathVariable Long eventId,
-            @PathVariable Long templateId,
-            @AuthenticationPrincipal User currentUser);
-
-    /**
      * Delete an SMS template
      */
     @DeleteMapping("/{templateId}")
@@ -334,7 +287,7 @@ public interface SmsTemplateControllerApi {
     @Operation(
             summary = "Delete an SMS template",
             description = """
-                    Delete an SMS template. \
+                    Delete an SMS template. Cannot delete a template that is referenced by one or more campaigns. \
                     ROOT and ADMIN can delete any template. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only delete templates in their organization's events."""
     )
@@ -342,6 +295,14 @@ public interface SmsTemplateControllerApi {
             @ApiResponse(
                     responseCode = "204",
                     description = "SMS template deleted successfully"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Template is in use by one or more campaigns",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
             ),
             @ApiResponse(
                     responseCode = "403",

@@ -22,8 +22,7 @@ import java.time.LocalDateTime;
         },
         indexes = {
                 @Index(name = "idx_sms_template_id", columnList = "sms_template_id"),
-                @Index(name = "idx_sms_event", columnList = "event_id"),
-                @Index(name = "idx_sms_enabled", columnList = "enabled")
+                @Index(name = "idx_sms_event", columnList = "event_id")
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data
@@ -48,10 +47,6 @@ public class SmsTemplate implements Serializable {
     @Column(columnDefinition = "TEXT")
     @Convert(converter = EmptyStringToNullConverter.class)
     private String note;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Boolean enabled = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false, foreignKey = @ForeignKey(name = "fk_sms_template_event"))

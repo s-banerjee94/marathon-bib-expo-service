@@ -7,8 +7,7 @@ import com.timekeeper.bibexpo.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.response.SmsTemplateResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import java.util.List;
 
 
 public interface SmsTemplateService {
@@ -50,14 +49,11 @@ public interface SmsTemplateService {
      * - ORGANIZER_ADMIN and ORGANIZER_USER can view templates for their organization's events
      * @param eventId The event ID
      * @param search Partial match on name or smsTemplateId
-     * @param enabled Filter by enabled status (null = all)
-     * @param pageable Pagination parameters
      * @param currentUser The authenticated user
-     * @return Page of SMS template responses
+     * @return List of SMS template responses
      * @throws UnauthorizedAccessException if the user is not authorized
      */
-    Page<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, Boolean enabled,
-                                                     Pageable pageable, User currentUser);
+    List<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, User currentUser);
 
     /**
      * Get an SMS template by ID
@@ -86,20 +82,6 @@ public interface SmsTemplateService {
      * @throws UnauthorizedAccessException if the user is not authorized
      */
     SmsTemplateResponse getSmsTemplateBySmsTemplateId(Long eventId, String smsTemplateId, User currentUser);
-
-    /**
-     * Toggle the enabled status of an SMS template
-     * Authorization:
-     * - ROOT and ADMIN can toggle any template
-     * - ORGANIZER_ADMIN and ORGANIZER_USER can toggle templates in their organization's events
-     * @param eventId The event ID
-     * @param templateId The SMS template ID
-     * @param currentUser The authenticated user
-     * @return The updated SMS template response
-     * @throws SmsTemplateNotFoundException if the template does not exist
-     * @throws UnauthorizedAccessException if the user is not authorized
-     */
-    SmsTemplateResponse toggleSmsTemplateEnabled(Long eventId, Long templateId, User currentUser);
 
     /**
      * Delete an SMS template

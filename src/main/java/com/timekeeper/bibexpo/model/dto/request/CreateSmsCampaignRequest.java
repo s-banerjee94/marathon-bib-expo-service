@@ -17,7 +17,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "Request payload for creating a new SMS campaign")
+@Schema(description = """
+        Request payload for creating an SMS campaign. \
+        If triggerType is omitted the campaign is saved as DRAFT. \
+        If triggerType is present the campaign is armed and moves directly to ACTIVE.""")
 public class CreateSmsCampaignRequest {
 
     @NotBlank(message = "Campaign name is required")
@@ -26,17 +29,15 @@ public class CreateSmsCampaignRequest {
     private String name;
 
     @NotNull(message = "SMS template ID is required")
-    @Schema(description = "ID of the SMS template to use", example = "1")
+    @Schema(description = "ID of the SMS template to use", example = "12345")
     private Long smsTemplateId;
 
-    @NotNull(message = "Trigger type is required")
-    @Schema(description = "AUTO_BIB_COLLECTED: fires per participant on bib collection. SCHEDULED: fires once at scheduledAt. MANUAL: triggered by an operator.", example = "AUTO_BIB_COLLECTED")
+    @Schema(description = "Set to arm the campaign immediately. AUTO_BIB_COLLECTED: fires per participant on bib collection. SCHEDULED: fires once at scheduledAt.", example = "SCHEDULED")
     private SmsCampaignTriggerType triggerType;
 
-    @NotNull(message = "Target filter is required")
-    @Schema(description = "ALL: every participant. NOT_COLLECTED: only participants who have not yet collected their bib.", example = "ALL")
+    @Schema(description = "Required when triggerType is present. ALL: every participant. NOT_COLLECTED: only participants who have not yet collected their bib.", example = "ALL")
     private SmsCampaignTargetFilter targetFilter;
 
-    @Schema(description = "Required when triggerType is SCHEDULED. Ignored and not stored for all other trigger types.", example = "2026-01-20T09:00:00")
+    @Schema(description = "Required when triggerType is SCHEDULED. Must be at least 3 minutes in the future.", example = "2026-01-20T09:00:00")
     private LocalDateTime scheduledAt;
 }

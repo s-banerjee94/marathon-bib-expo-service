@@ -27,4 +27,6 @@ public interface SmsTemplateRepository extends JpaRepository<SmsTemplate, Long>,
      * Check if SMS template ID already exists for the event excluding current ID (for update validation)
      */
     boolean existsBySmsTemplateIdAndEventIdAndIdNot(String smsTemplateId, Long eventId, Long id);
+
+    int countByEventId(Long eventId);
 }

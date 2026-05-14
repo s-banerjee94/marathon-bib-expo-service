@@ -12,8 +12,11 @@ import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchWriteItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchWriteResult;
+import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.WriteBatch;
+import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 
 import java.util.List;
 
@@ -115,6 +118,18 @@ public class ParticipantDDBRepository {
 
         log.info("Deleted {} participants for event {}", deleted, eventId);
         return deleted;
+    }
+
+    public SdkIterable<Page<ParticipantDDB>> findPagesByEventId(Long eventId, int pageSize) {
+        QueryConditional queryConditional = QueryConditional.keyEqualTo(
+                Key.builder().partitionValue(String.valueOf(eventId)).build()
+        );
+        return table.query(
+                QueryEnhancedRequest.builder()
+                        .queryConditional(queryConditional)
+                        .limit(pageSize)
+                        .build()
+        );
     }
 
     public DynamoDbTable<ParticipantDDB> getTable() {

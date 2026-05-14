@@ -12,6 +12,7 @@ import com.timekeeper.bibexpo.model.entity.SmsTemplate;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.repository.SmsTemplateRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -39,6 +41,9 @@ class SmsTemplateServiceImplTest {
 
     @Mock
     private SmsTemplateRepository smsTemplateRepository;
+
+    @Mock
+    private SmsCampaignRepository smsCampaignRepository;
 
     @Mock
     private EventRepository eventRepository;
@@ -72,7 +77,7 @@ class SmsTemplateServiceImplTest {
     private SmsTemplate buildSavedTemplate(Long id, String name, String template) {
         return SmsTemplate.builder()
                 .id(id).name(name).smsTemplateId("12345678901234567890")
-                .template(template).enabled(true).event(event).build();
+                .template(template).event(event).build();
     }
 
     @Test
@@ -192,23 +197,6 @@ class SmsTemplateServiceImplTest {
                 () -> smsTemplateService.createSmsTemplate(10L, request, otherOrgUser));
 
         verify(smsTemplateRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Template is enabled by default on creation")
-    void createSmsTemplate_enabledDefaultsToTrue() {
-        CreateSmsTemplateRequest request = CreateSmsTemplateRequest.builder()
-                .name("Test").smsTemplateId("12345678901234567890").template("Hi #{fullName}.").build();
-
-        when(eventRepository.findById(10L)).thenReturn(Optional.of(event));
-        when(smsTemplateRepository.existsBySmsTemplateIdAndEventId(any(), eq(10L))).thenReturn(false);
-        when(smsTemplateRepository.save(any())).thenReturn(buildSavedTemplate(104L, "test", "Hi #{fullName}."));
-
-        smsTemplateService.createSmsTemplate(10L, request, adminUser);
-
-        ArgumentCaptor<SmsTemplate> captor = ArgumentCaptor.forClass(SmsTemplate.class);
-        verify(smsTemplateRepository).save(captor.capture());
-        assertTrue(captor.getValue().getEnabled());
     }
 
     @Test
