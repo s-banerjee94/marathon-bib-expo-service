@@ -8,7 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * DTO for user response.
@@ -60,11 +60,11 @@ public class UserResponse {
     @Schema(description = "Whether the user is deleted (soft delete)", example = "false")
     private Boolean deleted;
 
-    @Schema(description = "When the user was created", example = "2025-01-15T10:30:00")
-    private LocalDateTime createdAt;
+    @Schema(description = "When the user was created", example = "2026-01-15T10:30:00Z")
+    private Instant createdAt;
 
-    @Schema(description = "When the user was last updated", example = "2025-01-15T10:30:00")
-    private LocalDateTime updatedAt;
+    @Schema(description = "When the user was last updated", example = "2026-01-15T10:30:00Z")
+    private Instant updatedAt;
 
     @Schema(description = "Username who created this user", example = "root")
     private String createdBy;

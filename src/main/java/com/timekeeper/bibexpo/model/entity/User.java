@@ -14,7 +14,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -86,10 +86,10 @@ public class User implements UserDetails {
 
     @CreatedDate
     @Column(updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @LastModifiedDate
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
     @CreatedBy
     private String createdBy;  // Username of the user who created this user

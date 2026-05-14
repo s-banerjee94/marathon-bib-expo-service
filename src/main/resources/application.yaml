@@ -7,7 +7,7 @@ spring:
       enabled: false
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:192.168.0.111}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${DB_HOST:192.168.0.111}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
