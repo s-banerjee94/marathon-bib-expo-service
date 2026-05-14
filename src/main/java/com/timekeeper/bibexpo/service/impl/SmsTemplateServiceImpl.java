@@ -102,7 +102,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
             smsTemplate.setNote(request.getNote());
         }
 
-        SmsTemplate updatedTemplate = smsTemplateRepository.save(smsTemplate);
+        SmsTemplate updatedTemplate = smsTemplateRepository.saveAndFlush(smsTemplate);
         log.info("Successfully updated SMS template ID: {} for event ID: {} by user: {}",
                 updatedTemplate.getId(), eventId, currentUser.getUsername());
 

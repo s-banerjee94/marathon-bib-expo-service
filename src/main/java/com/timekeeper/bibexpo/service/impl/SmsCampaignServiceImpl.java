@@ -98,7 +98,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
             applyArm(campaign, request.getTriggerType(), request.getTargetFilter(), request.getScheduledAt(), eventId);
         }
 
-        SmsCampaign updated = smsCampaignRepository.save(campaign);
+        SmsCampaign updated = smsCampaignRepository.saveAndFlush(campaign);
         log.info("Successfully updated SMS campaign ID: {} status: {} by user: {}",
                 updated.getId(), updated.getStatus(), currentUser.getUsername());
 
@@ -153,7 +153,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         campaign.setTargetFilter(null);
         campaign.setScheduledAt(null);
 
-        SmsCampaign updated = smsCampaignRepository.save(campaign);
+        SmsCampaign updated = smsCampaignRepository.saveAndFlush(campaign);
         log.info("Successfully disarmed SMS campaign ID: {} by user: {}", campaignId, currentUser.getUsername());
 
         return SmsCampaignResponse.fromEntity(updated);
