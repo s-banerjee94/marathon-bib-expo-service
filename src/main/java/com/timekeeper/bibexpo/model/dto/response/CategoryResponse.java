@@ -7,7 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @NoArgsConstructor
@@ -31,11 +31,11 @@ public class CategoryResponse {
     @Schema(description = "Event ID (for context)", example = "1")
     private Long eventId;
 
-    @Schema(description = "Creation timestamp")
-    private LocalDateTime createdAt;
+    @Schema(description = "Creation timestamp", example = "2026-01-15T10:30:00Z")
+    private Instant createdAt;
 
-    @Schema(description = "Last update timestamp")
-    private LocalDateTime updatedAt;
+    @Schema(description = "Last update timestamp", example = "2026-01-15T10:30:00Z")
+    private Instant updatedAt;
 
     @Schema(description = "Created by username", example = "admin")
     private String createdBy;
