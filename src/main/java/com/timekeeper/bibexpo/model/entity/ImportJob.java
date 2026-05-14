@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "import_jobs")
@@ -54,7 +54,7 @@ public class ImportJob {
 
     @CreationTimestamp
     @Column(name = "imported_at", nullable = false, updatable = false)
-    private LocalDateTime importedAt;
+    private Instant importedAt;
 
     public enum ImportStatus {
         IN_PROGRESS,

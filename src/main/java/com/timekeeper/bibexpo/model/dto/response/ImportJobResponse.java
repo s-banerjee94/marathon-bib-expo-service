@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -45,6 +45,6 @@ public class ImportJobResponse {
     @Schema(description = "User ID who initiated the import", example = "5")
     private Long importedBy;
 
-    @Schema(description = "Import timestamp", example = "2024-01-15T10:30:00")
-    private LocalDateTime importedAt;
+    @Schema(description = "Import timestamp", example = "2026-01-15T10:30:00Z")
+    private Instant importedAt;
 }
