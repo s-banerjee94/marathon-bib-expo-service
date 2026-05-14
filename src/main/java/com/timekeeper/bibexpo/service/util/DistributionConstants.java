@@ -1,15 +1,10 @@
 package com.timekeeper.bibexpo.service.util;
 
-import java.time.format.DateTimeFormatter;
-
 public final class DistributionConstants {
 
     private DistributionConstants() {
         throw new UnsupportedOperationException("Utility class");
     }
-
-    public static final DateTimeFormatter DATE_TIME_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     public static final String DISTRIBUTOR_SEPARATOR = "__|__";
 

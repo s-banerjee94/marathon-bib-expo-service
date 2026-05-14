@@ -60,7 +60,7 @@ public class ParticipantResponse {
             example = "{\"T-Shirt\": \"L\", \"Cap\": \"M\"}")
     private Map<String, String> goodies;
 
-    @Schema(description = "Timestamp when bib was collected", example = "2024-01-10T10:30:00")
+    @Schema(description = "Timestamp when bib was collected", example = "2026-01-10T10:30:00Z")
     private String bibCollectedAt;
 
     @Schema(description = "Name of the person who collected the bib", example = "John Doe")
@@ -85,13 +85,13 @@ public class ParticipantResponse {
     @Schema(description = "Additional notes", example = "VIP participant")
     private String notes;
 
-    @Schema(description = "Creation timestamp", example = "2024-01-10T10:30:00")
+    @Schema(description = "Creation timestamp", example = "2026-01-10T10:30:00Z")
     private String createdAt;
 
     @Schema(description = "User who created the record", example = "admin")
     private String createdBy;
 
-    @Schema(description = "Last update timestamp", example = "2024-01-10T10:30:00")
+    @Schema(description = "Last update timestamp", example = "2026-01-10T10:30:00Z")
     private String updatedAt;
 
     @Schema(description = "User who last updated the record", example = "admin")

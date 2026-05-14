@@ -58,8 +58,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -92,7 +92,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     private static final int ERROR_RESPONSE_LIMIT = 100;
     private static final int ERROR_TTL_DAYS = 30;
     private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
 
     @PostConstruct
     public void init() {
@@ -132,7 +132,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         CategoryResponse category = categoryService.getCategoryById(eventId, request.getRaceId(),
                 request.getCategoryId(), currentUser);
 
-        String timestamp = LocalDateTime.now().format(DATE_TIME_FORMATTER);
+        String timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
 
         ParticipantDDB participant = ParticipantDDB.builder()
                 .eventId(eventId.toString())
@@ -427,7 +427,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         updateIfNotNull(request.getNotes(), participant::setNotes);
         updateIfNotNull(request.getBibCollectedAt(), participant::setBibCollectedAt);
 
-        String timestamp = LocalDateTime.now().format(DATE_TIME_FORMATTER);
+        String timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         participant.setUpdatedAt(timestamp);
         participant.setUpdatedBy(currentUser.getUsername());
 
@@ -587,7 +587,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         String categoryKey = race.getId() + ":" + categoryName;
         Category category = getOrCreateCategory(categoryName, race, categoryKey, categoryMap, currentUser);
 
-        String timestamp = LocalDateTime.now().format(DATE_TIME_FORMATTER);
+        String timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
 
         return ParticipantDDB.builder()
                 .eventId(eventId.toString())

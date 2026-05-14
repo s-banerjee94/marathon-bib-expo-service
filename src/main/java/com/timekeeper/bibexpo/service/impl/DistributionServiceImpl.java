@@ -30,7 +30,8 @@ import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -58,7 +59,7 @@ public class DistributionServiceImpl implements DistributionService {
             throw new BibAlreadyCollectedException(String.valueOf(eventId), bibNumber);
         }
 
-        String now = LocalDateTime.now().format(DistributionConstants.DATE_TIME_FORMATTER);
+        String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         String collectorName = (request != null && request.getCollectorName() != null)
                 ? request.getCollectorName()
                 : participant.getFullName();
@@ -135,7 +136,7 @@ public class DistributionServiceImpl implements DistributionService {
             throw new BibNotCollectedException(String.valueOf(eventId), bibNumber);
         }
 
-        String now = LocalDateTime.now().format(DistributionConstants.DATE_TIME_FORMATTER);
+        String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         String undoneBy = DistributionConstants.formatDistributorInfo(currentUser.getId(), currentUser.getUsername());
 
         participant.setBibCollectedAt(null);
@@ -183,7 +184,7 @@ public class DistributionServiceImpl implements DistributionService {
             goodiesDistribution = new HashMap<>();
         }
 
-        String now = LocalDateTime.now().format(DistributionConstants.DATE_TIME_FORMATTER);
+        String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         String distributedBy = DistributionConstants.formatDistributorInfo(currentUser.getId(), currentUser.getUsername());
 
         List<String> itemsDistributed = new ArrayList<>();
