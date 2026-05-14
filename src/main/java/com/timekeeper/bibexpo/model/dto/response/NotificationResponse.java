@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -33,6 +33,6 @@ public class NotificationResponse {
     @Schema(description = "Related batch job execution ID", example = "7")
     private Long jobExecutionId;
 
-    @Schema(description = "Timestamp when notification was created")
-    private LocalDateTime createdAt;
+    @Schema(description = "Timestamp when notification was created", example = "2026-01-15T10:30:00Z")
+    private Instant createdAt;
 }
