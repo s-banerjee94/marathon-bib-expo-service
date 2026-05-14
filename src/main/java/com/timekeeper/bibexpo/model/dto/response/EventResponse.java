@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Data
@@ -74,11 +75,11 @@ public class EventResponse {
     @Schema(description = "Event enabled status", example = "true")
     private Boolean enabled;
 
-    @Schema(description = "Creation timestamp")
-    private LocalDateTime createdAt;
+    @Schema(description = "Creation timestamp", example = "2026-01-15T10:30:00Z")
+    private Instant createdAt;
 
-    @Schema(description = "Last update timestamp")
-    private LocalDateTime updatedAt;
+    @Schema(description = "Last update timestamp", example = "2026-01-15T10:30:00Z")
+    private Instant updatedAt;
 
     @Schema(description = "Created by username", example = "admin")
     private String createdBy;
