@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.exception.UserNotFoundException;
 import com.timekeeper.bibexpo.model.dto.response.AppStatisticsResponse;
@@ -289,7 +289,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
     private String serialize(AppStatisticsResponse stats) {
         try {
             return objectMapper.writeValueAsString(stats);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Failed to serialize statistics snapshot", e);
             throw new IllegalStateException("Failed to serialize statistics snapshot", e);
         }
@@ -300,7 +300,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
             AppStatisticsResponse stats = objectMapper.readValue(snapshot.getSnapshotData(), AppStatisticsResponse.class);
             stats.setRefreshedAt(snapshot.getRefreshedAt());
             return stats;
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.warn("Failed to deserialize snapshot (id: {}), triggering refresh", snapshot.getId(), e);
             return computeAndPersist(snapshot.getScope(), scopeKey);
         }

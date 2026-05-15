@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.batch;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.timekeeper.bibexpo.model.dto.response.ErrorSummary;
 import com.timekeeper.bibexpo.model.dto.response.NotificationResponse;
 import com.timekeeper.bibexpo.model.entity.EventLatestImport;
