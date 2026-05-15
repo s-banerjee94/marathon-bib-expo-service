@@ -29,6 +29,10 @@ public class CreateEventRequest {
     @Schema(description = "Event logo URL", example = "https://example.com/logos/mumbai-marathon.png")
     private String logoUrl;
 
+    @NotBlank(message = "Timezone is required")
+    @Schema(description = "IANA timezone ID for the event location", example = "Asia/Kolkata")
+    private String timezone;
+
     @NotNull(message = "Event start date is required")
     @Future(message = "Event start date must be in the future")
     @Schema(description = "Event start date and time", example = "2024-01-15T06:00:00")

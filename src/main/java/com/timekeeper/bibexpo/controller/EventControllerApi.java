@@ -207,6 +207,7 @@ public interface EventControllerApi {
             description = """
                     Update an existing marathon event. Only provided fields will be updated (partial update). \
                     Supports updating event status (DRAFT, PUBLISHED, CANCELLED, COMPLETED). \
+                    Timezone cannot be changed once the event is PUBLISHED or COMPLETED. \
                     Permanent deletion is handled by a separate DELETE endpoint. \
                     ROOT and ADMIN can update events for any organization. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only update events for their own organization."""

@@ -22,6 +22,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -53,10 +55,13 @@ public class EventServiceImpl implements EventService {
                     "An event with this name already exists for this organization.");
         }
 
+        validateTimezone(request.getTimezone());
+
         Event event = Event.builder()
                 .eventName(request.getEventName())
                 .eventDescription(request.getEventDescription())
                 .logoUrl(request.getLogoUrl())
+                .timezone(request.getTimezone())
                 .eventStartDate(request.getEventStartDate())
                 .eventEndDate(request.getEventEndDate())
                 .venueName(request.getVenueName())
@@ -103,6 +108,15 @@ public class EventServiceImpl implements EventService {
 
         updateIfNotNull(request.getEventDescription(), event::setEventDescription);
         updateIfNotNull(request.getLogoUrl(), event::setLogoUrl);
+
+        if (request.getTimezone() != null) {
+            if (event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED) {
+                throw new InvalidUserDataException("Timezone cannot be changed after the event is published.");
+            }
+            validateTimezone(request.getTimezone());
+            event.setTimezone(request.getTimezone());
+        }
+
         updateIfNotNull(request.getEventStartDate(), event::setEventStartDate);
         updateIfNotNull(request.getEventEndDate(), event::setEventEndDate);
         updateRequiredStringIfNotBlank(request.getVenueName(), event::setVenueName);
@@ -395,6 +409,14 @@ public class EventServiceImpl implements EventService {
     private void updateRequiredStringIfNotBlank(String value, Consumer<String> setter) {
         if (value != null && !value.isBlank()) {
             setter.accept(value);
+        }
+    }
+
+    private void validateTimezone(String timezone) {
+        try {
+            ZoneId.of(timezone);
+        } catch (DateTimeException e) {
+            throw new InvalidUserDataException("Invalid timezone. Use a valid IANA timezone ID such as 'Asia/Kolkata' or 'Europe/London'.");
         }
     }
 }

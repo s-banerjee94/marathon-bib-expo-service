@@ -50,6 +50,9 @@ public class Event implements Serializable {
     @Convert(converter = EmptyStringToNullConverter.class)
     private String logoUrl;
 
+    @Column(length = 50)
+    private String timezone;
+
     @Column(nullable = false)
     private LocalDateTime eventStartDate;
 
