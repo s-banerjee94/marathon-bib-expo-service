@@ -15,7 +15,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "sms_campaigns",
@@ -56,7 +55,7 @@ public class SmsCampaign {
     private SmsCampaignTargetFilter targetFilter;
 
     @Column(name = "scheduled_at")
-    private LocalDateTime scheduledAt;
+    private Instant scheduledAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

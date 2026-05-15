@@ -14,7 +14,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
@@ -28,7 +27,7 @@ public class SmsCampaignScheduler {
 
     @Scheduled(fixedDelay = 60_000)
     public void tick() {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
 
         fireDueCampaigns(now);
         recoverStuckCampaigns(now);
@@ -47,7 +46,7 @@ public class SmsCampaignScheduler {
         }
     }
 
-    private void fireDueCampaigns(LocalDateTime now) {
+    private void fireDueCampaigns(Instant now) {
         List<SmsCampaign> due = smsCampaignRepository.findDueCampaigns(
                 SmsCampaignTriggerType.SCHEDULED, SmsCampaignStatus.ACTIVE, now);
 
@@ -59,8 +58,8 @@ public class SmsCampaignScheduler {
         }
     }
 
-    private void recoverStuckCampaigns(LocalDateTime now) {
-        Instant stuckThreshold = Instant.now().minusSeconds(schedulerProperties.getStuckThresholdMinutes() * 60L);
+    private void recoverStuckCampaigns(Instant now) {
+        Instant stuckThreshold = now.minusSeconds(schedulerProperties.getStuckThresholdMinutes() * 60L);
         List<SmsCampaign> stuck = smsCampaignRepository.findStuckCampaigns(SmsCampaignStatus.SENDING, stuckThreshold);
 
         for (SmsCampaign campaign : stuck) {

@@ -22,7 +22,13 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -60,7 +66,8 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
                 .build();
 
         if (request.getTriggerType() != null) {
-            applyArm(campaign, request.getTriggerType(), request.getTargetFilter(), request.getScheduledAt(), eventId);
+            applyArm(campaign, request.getTriggerType(), request.getTargetFilter(),
+                    request.getScheduledDate(), request.getScheduledTime(), event);
         }
 
         SmsCampaign saved = smsCampaignRepository.save(campaign);
@@ -75,7 +82,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
     public SmsCampaignResponse updateCampaign(Long eventId, Long campaignId, UpdateSmsCampaignRequest request, User currentUser) {
         log.info("Updating SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
 
-        validateEventAccess(eventId, currentUser);
+        Event event = validateEventAccess(eventId, currentUser);
 
         SmsCampaign campaign = findCampaignOrThrow(campaignId, eventId);
 
@@ -95,7 +102,8 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         }
 
         if (request.getTriggerType() != null) {
-            applyArm(campaign, request.getTriggerType(), request.getTargetFilter(), request.getScheduledAt(), eventId);
+            applyArm(campaign, request.getTriggerType(), request.getTargetFilter(),
+                    request.getScheduledDate(), request.getScheduledTime(), event);
         }
 
         SmsCampaign updated = smsCampaignRepository.saveAndFlush(campaign);
@@ -141,8 +149,8 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         }
 
         if (campaign.getTriggerType() == SmsCampaignTriggerType.SCHEDULED && campaign.getScheduledAt() != null) {
-            LocalDateTime cutoff = campaign.getScheduledAt().minusSeconds(DISARM_CUTOFF_SECONDS);
-            if (LocalDateTime.now().isAfter(cutoff)) {
+            Instant cutoff = campaign.getScheduledAt().minusSeconds(DISARM_CUTOFF_SECONDS);
+            if (Instant.now().isAfter(cutoff)) {
                 throw new InvalidSmsCampaignException(
                         "Scheduled campaigns cannot be disarmed within " + DISARM_CUTOFF_SECONDS + " seconds of the scheduled time.");
             }
@@ -177,16 +185,30 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
     }
 
     private void applyArm(SmsCampaign campaign, SmsCampaignTriggerType triggerType,
-                           SmsCampaignTargetFilter targetFilter, LocalDateTime scheduledAt, Long eventId) {
+                           SmsCampaignTargetFilter targetFilter, String scheduledDate, String scheduledTime,
+                           Event event) {
         if (targetFilter == null) {
             throw new InvalidSmsCampaignException("Target filter is required when arming a campaign.");
         }
 
+        Instant scheduledAt = null;
         if (triggerType == SmsCampaignTriggerType.SCHEDULED) {
-            if (scheduledAt == null) {
-                throw new InvalidSmsCampaignException("Scheduled date and time is required for a scheduled campaign.");
+            if (scheduledDate == null || scheduledTime == null) {
+                throw new InvalidSmsCampaignException("Scheduled date and time are required for a scheduled campaign.");
             }
-            LocalDateTime minAllowed = LocalDateTime.now().plusMinutes(MIN_SCHEDULE_AHEAD_MINUTES);
+            if (event.getTimezone() == null) {
+                throw new InvalidSmsCampaignException("The event does not have a timezone configured.");
+            }
+            try {
+                scheduledAt = ZonedDateTime.of(
+                        LocalDate.parse(scheduledDate),
+                        LocalTime.parse(scheduledTime),
+                        ZoneId.of(event.getTimezone())
+                ).toInstant();
+            } catch (DateTimeParseException e) {
+                throw new InvalidSmsCampaignException("Invalid scheduled date or time format. Use yyyy-MM-dd and HH:mm.");
+            }
+            Instant minAllowed = Instant.now().plus(MIN_SCHEDULE_AHEAD_MINUTES, ChronoUnit.MINUTES);
             if (!scheduledAt.isAfter(minAllowed)) {
                 throw new InvalidSmsCampaignException(
                         "Scheduled time must be at least " + MIN_SCHEDULE_AHEAD_MINUTES + " minutes in the future.");
@@ -194,12 +216,12 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         }
 
         if (triggerType == SmsCampaignTriggerType.AUTO_BIB_COLLECTED) {
-            validateNoDuplicateAutoBibCollected(eventId);
+            validateNoDuplicateAutoBibCollected(event.getId());
         }
 
         campaign.setTriggerType(triggerType);
         campaign.setTargetFilter(targetFilter);
-        campaign.setScheduledAt(triggerType == SmsCampaignTriggerType.SCHEDULED ? scheduledAt : null);
+        campaign.setScheduledAt(scheduledAt);
         campaign.setStatus(SmsCampaignStatus.ACTIVE);
     }
 

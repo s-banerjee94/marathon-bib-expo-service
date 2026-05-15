@@ -36,14 +36,14 @@ public interface SmsCampaignControllerApi {
                     If triggerType is omitted the campaign is saved as DRAFT for future use. \
                     If triggerType is present the campaign is armed and moves directly to ACTIVE. \
                     targetFilter is required when triggerType is present. \
-                    scheduledAt is required when triggerType is SCHEDULED and must be at least 3 minutes in the future. \
+                    scheduledDate and scheduledTime are required when triggerType is SCHEDULED and must be at least 3 minutes in the future (resolved using the event timezone). \
                     Only one AUTO_BIB_COLLECTED campaign can be ACTIVE per event. \
                     An event can have a maximum of 20 campaigns."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Campaign created successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SmsCampaignResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request, validation failed, scheduledAt too soon, or event has reached the 20 campaign limit",
+            @ApiResponse(responseCode = "400", description = "Invalid request, validation failed, schedule too soon, or event has reached the 20 campaign limit",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
@@ -69,13 +69,13 @@ public interface SmsCampaignControllerApi {
                     name and smsTemplateId are optional and updated only when present. \
                     If triggerType is included the campaign is armed and moves to ACTIVE in the same request. \
                     targetFilter is required when triggerType is present. \
-                    scheduledAt is required when triggerType is SCHEDULED and must be at least 3 minutes in the future. \
+                    scheduledDate and scheduledTime are required when triggerType is SCHEDULED and must be at least 3 minutes in the future (resolved using the event timezone). \
                     Only one AUTO_BIB_COLLECTED campaign can be ACTIVE per event."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Campaign updated successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SmsCampaignResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Campaign is not DRAFT, validation failed, or scheduledAt is too soon",
+            @ApiResponse(responseCode = "400", description = "Campaign is not DRAFT, validation failed, or schedule is too soon",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
@@ -134,7 +134,7 @@ public interface SmsCampaignControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Disarm a campaign",
-            description = "Clears trigger type, target filter, and scheduledAt and moves the campaign back to DRAFT. SCHEDULED campaigns cannot be disarmed within 30 seconds of the scheduled time."
+            description = "Clears trigger type, target filter, and scheduled time and moves the campaign back to DRAFT. SCHEDULED campaigns cannot be disarmed within 30 seconds of the scheduled time."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Campaign disarmed successfully",

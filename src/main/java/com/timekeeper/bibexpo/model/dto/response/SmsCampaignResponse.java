@@ -11,7 +11,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Data
 @NoArgsConstructor
@@ -44,8 +46,11 @@ public class SmsCampaignResponse {
     @Schema(description = "Who receives the SMS", example = "ALL")
     private SmsCampaignTargetFilter targetFilter;
 
-    @Schema(description = "Scheduled send time (SCHEDULED type only)", example = "2026-01-20T09:00:00")
-    private LocalDateTime scheduledAt;
+    @Schema(description = "Scheduled send date in event timezone (SCHEDULED type only)", example = "2026-01-20")
+    private String scheduledDate;
+
+    @Schema(description = "Scheduled send time in event timezone (SCHEDULED type only)", example = "09:00")
+    private String scheduledTime;
 
     @Schema(description = "Campaign lifecycle status: DRAFT = saved, not yet armed; ACTIVE = armed and running; SENDING = batch dispatch in progress; SENT = completed; FAILED = dispatch failed after max retries", example = "ACTIVE")
     private SmsCampaignStatus status;
@@ -71,7 +76,17 @@ public class SmsCampaignResponse {
     /**
      * Factory method to create SmsCampaignResponse from SmsCampaign entity
      */
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+
     public static SmsCampaignResponse fromEntity(SmsCampaign campaign) {
+        String scheduledDate = null;
+        String scheduledTime = null;
+        if (campaign.getScheduledAt() != null && campaign.getEvent() != null
+                && campaign.getEvent().getTimezone() != null) {
+            ZonedDateTime zdt = campaign.getScheduledAt().atZone(ZoneId.of(campaign.getEvent().getTimezone()));
+            scheduledDate = zdt.toLocalDate().toString();
+            scheduledTime = zdt.format(TIME_FMT);
+        }
         return SmsCampaignResponse.builder()
                 .id(campaign.getId())
                 .name(campaign.getName())
@@ -81,7 +96,8 @@ public class SmsCampaignResponse {
                 .smsTemplateName(campaign.getSmsTemplate() != null ? campaign.getSmsTemplate().getName() : null)
                 .triggerType(campaign.getTriggerType())
                 .targetFilter(campaign.getTargetFilter())
-                .scheduledAt(campaign.getScheduledAt())
+                .scheduledDate(scheduledDate)
+                .scheduledTime(scheduledTime)
                 .status(campaign.getStatus())
                 .sentCount(campaign.getSentCount())
                 .retryCount(campaign.getRetryCount())
