@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -50,7 +51,7 @@ public interface SmsCampaignRepository extends JpaRepository<SmsCampaign, Long>,
      */
     @Query("SELECT c FROM SmsCampaign c WHERE c.status = :status AND c.updatedAt < :threshold")
     List<SmsCampaign> findStuckCampaigns(@Param("status") SmsCampaignStatus status,
-                                         @Param("threshold") LocalDateTime threshold);
+                                         @Param("threshold") Instant threshold);
 
     /**
      * Find all campaigns by status — used on startup to recover SENDING campaigns

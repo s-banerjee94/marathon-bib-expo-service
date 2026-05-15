@@ -13,6 +13,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -59,7 +60,7 @@ public class SmsCampaignScheduler {
     }
 
     private void recoverStuckCampaigns(LocalDateTime now) {
-        LocalDateTime stuckThreshold = now.minusMinutes(schedulerProperties.getStuckThresholdMinutes());
+        Instant stuckThreshold = Instant.now().minusSeconds(schedulerProperties.getStuckThresholdMinutes() * 60L);
         List<SmsCampaign> stuck = smsCampaignRepository.findStuckCampaigns(SmsCampaignStatus.SENDING, stuckThreshold);
 
         for (SmsCampaign campaign : stuck) {
