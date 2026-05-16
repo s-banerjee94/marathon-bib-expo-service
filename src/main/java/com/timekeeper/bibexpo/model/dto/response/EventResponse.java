@@ -9,7 +9,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Data
 @NoArgsConstructor
@@ -33,11 +35,17 @@ public class EventResponse {
     @Schema(description = "IANA timezone ID for the event location", example = "Asia/Kolkata")
     private String timezone;
 
-    @Schema(description = "Event start date and time", example = "2024-01-15T06:00:00")
-    private LocalDateTime eventStartDate;
+    @Schema(description = "Event start date in event timezone (yyyy-MM-dd)", example = "2026-10-15")
+    private String eventStartDate;
 
-    @Schema(description = "Event end date and time", example = "2024-01-15T12:00:00")
-    private LocalDateTime eventEndDate;
+    @Schema(description = "Event start time in event timezone (HH:mm)", example = "06:00")
+    private String eventStartTime;
+
+    @Schema(description = "Event end date in event timezone (yyyy-MM-dd)", example = "2026-10-15")
+    private String eventEndDate;
+
+    @Schema(description = "Event end time in event timezone (HH:mm)", example = "13:00")
+    private String eventEndTime;
 
     @Schema(description = "Venue name", example = "Bandra Kurla Complex")
     private String venueName;
@@ -90,18 +98,36 @@ public class EventResponse {
     @Schema(description = "Last modified by username", example = "admin")
     private String lastModifiedBy;
 
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+
     /**
      * Factory method to create EventResponse from Event entity
      */
     public static EventResponse fromEntity(Event event) {
+        String startDate = null, startTime = null, endDate = null, endTime = null;
+        if (event.getTimezone() != null) {
+            ZoneId zone = ZoneId.of(event.getTimezone());
+            if (event.getEventStartDate() != null) {
+                ZonedDateTime zStart = event.getEventStartDate().atZone(zone);
+                startDate = zStart.toLocalDate().toString();
+                startTime = zStart.format(TIME_FMT);
+            }
+            if (event.getEventEndDate() != null) {
+                ZonedDateTime zEnd = event.getEventEndDate().atZone(zone);
+                endDate = zEnd.toLocalDate().toString();
+                endTime = zEnd.format(TIME_FMT);
+            }
+        }
         return EventResponse.builder()
                 .id(event.getId())
                 .eventName(event.getEventName())
                 .eventDescription(event.getEventDescription())
                 .logoUrl(event.getLogoUrl())
                 .timezone(event.getTimezone())
-                .eventStartDate(event.getEventStartDate())
-                .eventEndDate(event.getEventEndDate())
+                .eventStartDate(startDate)
+                .eventStartTime(startTime)
+                .eventEndDate(endDate)
+                .eventEndTime(endTime)
                 .venueName(event.getVenueName())
                 .addressLine1(event.getAddressLine1())
                 .addressLine2(event.getAddressLine2())

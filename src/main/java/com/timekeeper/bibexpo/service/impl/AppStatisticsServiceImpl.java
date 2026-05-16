@@ -28,7 +28,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -254,7 +253,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
 
     private EventStatsData buildGlobalEventStats() {
         long total = eventRepository.count();
-        long upcoming = eventRepository.countUpcoming(LocalDateTime.now());
+        long upcoming = eventRepository.countUpcoming(Instant.now());
 
         Map<EventStatus, Long> byStatus = new EnumMap<>(EventStatus.class);
         Arrays.stream(EventStatus.values())
@@ -269,7 +268,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
 
     private EventStatsData buildOrgEventStats(Long orgId) {
         long total = eventRepository.countByOrganizationId(orgId);
-        long upcoming = eventRepository.countUpcomingByOrganizationId(orgId, LocalDateTime.now());
+        long upcoming = eventRepository.countUpcomingByOrganizationId(orgId, Instant.now());
 
         Map<EventStatus, Long> byStatus = new EnumMap<>(EventStatus.class);
         Arrays.stream(EventStatus.values())

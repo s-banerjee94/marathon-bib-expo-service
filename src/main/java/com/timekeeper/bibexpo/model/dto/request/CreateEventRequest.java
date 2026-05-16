@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.model.dto.request;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
@@ -8,8 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -33,14 +30,21 @@ public class CreateEventRequest {
     @Schema(description = "IANA timezone ID for the event location", example = "Asia/Kolkata")
     private String timezone;
 
-    @NotNull(message = "Event start date is required")
-    @Future(message = "Event start date must be in the future")
-    @Schema(description = "Event start date and time", example = "2024-01-15T06:00:00")
-    private LocalDateTime eventStartDate;
+    @NotBlank(message = "Event start date is required")
+    @Schema(description = "Event start date in yyyy-MM-dd format", example = "2026-10-15")
+    private String eventStartDate;
 
-    @NotNull(message = "Event end date is required")
-    @Schema(description = "Event end date and time", example = "2024-01-15T12:00:00")
-    private LocalDateTime eventEndDate;
+    @NotBlank(message = "Event start time is required")
+    @Schema(description = "Event start time in HH:mm format", example = "06:00")
+    private String eventStartTime;
+
+    @NotBlank(message = "Event end date is required")
+    @Schema(description = "Event end date in yyyy-MM-dd format", example = "2026-10-15")
+    private String eventEndDate;
+
+    @NotBlank(message = "Event end time is required")
+    @Schema(description = "Event end time in HH:mm format", example = "13:00")
+    private String eventEndTime;
 
     @NotBlank(message = "Venue name is required")
     @Size(min = 2, max = 200, message = "Venue name must be between 2 and 200 characters")
@@ -91,12 +95,4 @@ public class CreateEventRequest {
     @Schema(description = "Event goodies as JSON string", example = "{\"tshirt\": true, \"medal\": true, \"certificate\": true}")
     private String eventGoodies;
 
-    @JsonIgnore
-    @AssertTrue(message = "Event end date must be after start date")
-    public boolean isEventDateValid() {
-        if (eventStartDate == null || eventEndDate == null) {
-            return true;
-        }
-        return eventEndDate.isAfter(eventStartDate);
-    }
 }

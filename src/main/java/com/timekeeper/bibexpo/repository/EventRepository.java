@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecificationExecutor<Event> {
@@ -26,8 +26,8 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
     long countByOrganizationIdAndStatus(Long organizationId, EventStatus status);
 
     @Query("SELECT COUNT(e) FROM Event e WHERE e.status = 'PUBLISHED' AND e.eventStartDate > :now")
-    long countUpcoming(@Param("now") LocalDateTime now);
+    long countUpcoming(@Param("now") Instant now);
 
     @Query("SELECT COUNT(e) FROM Event e WHERE e.organization.id = :orgId AND e.status = 'PUBLISHED' AND e.eventStartDate > :now")
-    long countUpcomingByOrganizationId(@Param("orgId") Long orgId, @Param("now") LocalDateTime now);
+    long countUpcomingByOrganizationId(@Param("orgId") Long orgId, @Param("now") Instant now);
 }

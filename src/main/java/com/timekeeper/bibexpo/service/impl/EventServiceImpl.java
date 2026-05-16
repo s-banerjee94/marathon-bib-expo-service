@@ -23,7 +23,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -57,13 +62,23 @@ public class EventServiceImpl implements EventService {
 
         validateTimezone(request.getTimezone());
 
+        Instant startInstant = parseToInstant(request.getEventStartDate(), request.getEventStartTime(), request.getTimezone());
+        Instant endInstant = parseToInstant(request.getEventEndDate(), request.getEventEndTime(), request.getTimezone());
+
+        if (!startInstant.isAfter(Instant.now())) {
+            throw new InvalidUserDataException("Event start date must be in the future.");
+        }
+        if (!endInstant.isAfter(startInstant)) {
+            throw new InvalidUserDataException("Event end date must be after the start date.");
+        }
+
         Event event = Event.builder()
                 .eventName(request.getEventName())
                 .eventDescription(request.getEventDescription())
                 .logoUrl(request.getLogoUrl())
                 .timezone(request.getTimezone())
-                .eventStartDate(request.getEventStartDate())
-                .eventEndDate(request.getEventEndDate())
+                .eventStartDate(startInstant)
+                .eventEndDate(endInstant)
                 .venueName(request.getVenueName())
                 .addressLine1(request.getAddressLine1())
                 .addressLine2(request.getAddressLine2())
@@ -117,8 +132,33 @@ public class EventServiceImpl implements EventService {
             event.setTimezone(request.getTimezone());
         }
 
-        updateIfNotNull(request.getEventStartDate(), event::setEventStartDate);
-        updateIfNotNull(request.getEventEndDate(), event::setEventEndDate);
+        boolean datesLocked = event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED;
+        String effectiveTimezone = request.getTimezone() != null ? request.getTimezone() : event.getTimezone();
+
+        if (request.getEventStartDate() != null || request.getEventStartTime() != null) {
+            if (request.getEventStartDate() == null || request.getEventStartTime() == null) {
+                throw new InvalidUserDataException("Both event start date and time must be provided together.");
+            }
+            if (datesLocked) {
+                throw new InvalidUserDataException("Event dates cannot be changed after the event is published.");
+            }
+            event.setEventStartDate(parseToInstant(request.getEventStartDate(), request.getEventStartTime(), effectiveTimezone));
+        }
+
+        if (request.getEventEndDate() != null || request.getEventEndTime() != null) {
+            if (request.getEventEndDate() == null || request.getEventEndTime() == null) {
+                throw new InvalidUserDataException("Both event end date and time must be provided together.");
+            }
+            if (datesLocked) {
+                throw new InvalidUserDataException("Event dates cannot be changed after the event is published.");
+            }
+            event.setEventEndDate(parseToInstant(request.getEventEndDate(), request.getEventEndTime(), effectiveTimezone));
+        }
+
+        if (event.getEventEndDate() != null && event.getEventStartDate() != null
+                && !event.getEventEndDate().isAfter(event.getEventStartDate())) {
+            throw new InvalidUserDataException("Event end date must be after the start date.");
+        }
         updateRequiredStringIfNotBlank(request.getVenueName(), event::setVenueName);
         updateIfNotNull(request.getAddressLine1(), event::setAddressLine1);
         updateIfNotNull(request.getAddressLine2(), event::setAddressLine2);
@@ -417,6 +457,14 @@ public class EventServiceImpl implements EventService {
             ZoneId.of(timezone);
         } catch (DateTimeException e) {
             throw new InvalidUserDataException("Invalid timezone. Use a valid IANA timezone ID such as 'Asia/Kolkata' or 'Europe/London'.");
+        }
+    }
+
+    private Instant parseToInstant(String date, String time, String timezone) {
+        try {
+            return ZonedDateTime.of(LocalDate.parse(date), LocalTime.parse(time), ZoneId.of(timezone)).toInstant();
+        } catch (DateTimeParseException e) {
+            throw new InvalidUserDataException("Invalid date or time format. Use yyyy-MM-dd and HH:mm.");
         }
     }
 }

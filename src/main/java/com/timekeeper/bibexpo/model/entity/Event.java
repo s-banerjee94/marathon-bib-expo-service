@@ -14,7 +14,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.io.Serializable;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -54,10 +53,10 @@ public class Event implements Serializable {
     private String timezone;
 
     @Column(nullable = false)
-    private LocalDateTime eventStartDate;
+    private Instant eventStartDate;
 
     @Column(nullable = false)
-    private LocalDateTime eventEndDate;
+    private Instant eventEndDate;
     
     @Column(nullable = false)
     private String venueName;

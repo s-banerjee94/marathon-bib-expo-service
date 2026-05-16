@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import lombok.Getter;
 
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 @Getter
@@ -38,10 +39,11 @@ public class SmsTemplateContext {
 
         this.eventName = event.getEventName();
         this.venueName = event.getVenueName();
+        ZoneId zone = event.getTimezone() != null ? ZoneId.of(event.getTimezone()) : ZoneId.of("UTC");
         this.eventStartDate = event.getEventStartDate() != null
-                ? event.getEventStartDate().format(DATE_FORMATTER) : null;
+                ? event.getEventStartDate().atZone(zone).format(DATE_FORMATTER) : null;
         this.eventEndDate = event.getEventEndDate() != null
-                ? event.getEventEndDate().format(DATE_FORMATTER) : null;
+                ? event.getEventEndDate().atZone(zone).format(DATE_FORMATTER) : null;
         this.eventCity = event.getCity();
     }
 }

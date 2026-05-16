@@ -10,7 +10,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -32,11 +31,17 @@ public class UpdateEventRequest {
     @Schema(description = "IANA timezone ID for the event location", example = "Asia/Kolkata")
     private String timezone;
 
-    @Schema(description = "Event start date and time", example = "2024-01-15T06:00:00")
-    private LocalDateTime eventStartDate;
+    @Schema(description = "Event start date in yyyy-MM-dd format", example = "2026-10-15")
+    private String eventStartDate;
 
-    @Schema(description = "Event end date and time", example = "2024-01-15T12:00:00")
-    private LocalDateTime eventEndDate;
+    @Schema(description = "Event start time in HH:mm format", example = "06:00")
+    private String eventStartTime;
+
+    @Schema(description = "Event end date in yyyy-MM-dd format", example = "2026-10-15")
+    private String eventEndDate;
+
+    @Schema(description = "Event end time in HH:mm format", example = "13:00")
+    private String eventEndTime;
 
     @Size(min = 2, max = 200, message = "Venue name must be between 2 and 200 characters")
     @Schema(description = "Venue name", example = "Bandra Kurla Complex")
