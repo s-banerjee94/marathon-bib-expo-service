@@ -107,19 +107,19 @@ public class UserServiceImpl implements UserService {
      * Validate username, email, and phone number uniqueness
      */
     private void validateUniqueness(CreateUserRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
+        if (userRepository.existsByUsernameAndDeletedFalse(request.getUsername())) {
             log.error("Username already exists: {}", request.getUsername());
             throw new UserAlreadyExistsException("This username is already taken.");
         }
 
         if (request.getEmail() != null && !request.getEmail().trim().isEmpty()
-                && userRepository.existsByEmail(request.getEmail())) {
+                && userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
             log.error("Email already exists: {}", request.getEmail());
             throw new UserAlreadyExistsException("This email is already registered.");
         }
 
         if (request.getPhoneNumber() != null && !request.getPhoneNumber().trim().isEmpty()
-                && userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+                && userRepository.existsByPhoneNumberAndDeletedFalse(request.getPhoneNumber())) {
             log.error("Phone number already exists: {}", request.getPhoneNumber());
             throw new UserAlreadyExistsException("This phone number is already registered.");
         }

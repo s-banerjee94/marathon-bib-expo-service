@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.model.entity;
 
+import com.timekeeper.bibexpo.config.EmptyStringToNullConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -48,12 +49,14 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private String password;  // BCrypt hashed
 
+    @Convert(converter = EmptyStringToNullConverter.class)
     @Column(nullable = true)
     private String email;
 
     @Column(nullable = true)
     private String fullName;
 
+    @Convert(converter = EmptyStringToNullConverter.class)
     @Column(nullable = true, unique = true)
     private String phoneNumber;
 
