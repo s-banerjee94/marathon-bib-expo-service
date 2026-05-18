@@ -27,7 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 public interface BatchImportControllerApi {
 
     @PostMapping(value = "/{eventId}/participants/batch-import", consumes = "multipart/form-data")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Launch async CSV import (202 Accepted)",
             description = """
@@ -60,7 +60,7 @@ public interface BatchImportControllerApi {
     );
 
     @GetMapping("/{eventId}/participants/batch-import/{jobExecutionId}/status")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Poll batch import job status",
             description = "Reads Spring Batch metadata to return current status and step counters. " +
@@ -85,7 +85,7 @@ public interface BatchImportControllerApi {
     );
 
     @GetMapping("/{eventId}/participants/batch-import/latest/errors")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get paginated errors from the latest batch import",
             description = "Returns row-level validation errors from the most recent batch import for the event. " +
