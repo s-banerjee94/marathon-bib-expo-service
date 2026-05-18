@@ -57,9 +57,6 @@ public class UserResponse {
     @Schema(description = "Whether the credentials are non-expired", example = "true")
     private Boolean credentialsNonExpired;
 
-    @Schema(description = "Whether the user is deleted (soft delete)", example = "false")
-    private Boolean deleted;
-
     @Schema(description = "When the user was created", example = "2026-01-15T10:30:00Z")
     private Instant createdAt;
 
@@ -89,7 +86,6 @@ public class UserResponse {
                 .accountNonExpired(user.getAccountNonExpired())
                 .accountNonLocked(user.getAccountNonLocked())
                 .credentialsNonExpired(user.getCredentialsNonExpired())
-                .deleted(user.getDeleted())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .createdBy(user.getCreatedBy())

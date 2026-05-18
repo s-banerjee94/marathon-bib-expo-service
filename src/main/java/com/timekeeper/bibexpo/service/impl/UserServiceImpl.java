@@ -10,8 +10,11 @@ import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.entity.UserArchive;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.repository.NotificationRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.UserService;
 import jakarta.persistence.criteria.Predicate;
@@ -24,6 +27,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -40,6 +44,8 @@ import java.util.Set;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final UserArchiveRepository userArchiveRepository;
+    private final NotificationRepository notificationRepository;
     private final OrganizationRepository organizationRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -67,7 +73,7 @@ public class UserServiceImpl implements UserService {
      * Fetch the current user who is creating a new user
      */
     private User fetchCurrentUser(String currentUsername) {
-        return userRepository.findByUsernameAndDeletedFalse(currentUsername)
+        return userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> {
                     log.error("Current user not found: {}", currentUsername);
                     return new InvalidUserDataException("Current user not found: " + currentUsername);
@@ -107,19 +113,19 @@ public class UserServiceImpl implements UserService {
      * Validate username, email, and phone number uniqueness
      */
     private void validateUniqueness(CreateUserRequest request) {
-        if (userRepository.existsByUsernameAndDeletedFalse(request.getUsername())) {
+        if (userRepository.existsByUsername(request.getUsername())) {
             log.error("Username already exists: {}", request.getUsername());
             throw new UserAlreadyExistsException("This username is already taken.");
         }
 
         if (request.getEmail() != null && !request.getEmail().trim().isEmpty()
-                && userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
+                && userRepository.existsByEmail(request.getEmail())) {
             log.error("Email already exists: {}", request.getEmail());
             throw new UserAlreadyExistsException("This email is already registered.");
         }
 
         if (request.getPhoneNumber() != null && !request.getPhoneNumber().trim().isEmpty()
-                && userRepository.existsByPhoneNumberAndDeletedFalse(request.getPhoneNumber())) {
+                && userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             log.error("Phone number already exists: {}", request.getPhoneNumber());
             throw new UserAlreadyExistsException("This phone number is already registered.");
         }
@@ -174,7 +180,6 @@ public class UserServiceImpl implements UserService {
                 .accountNonExpired(defaultTrue(request.getAccountNonExpired()))
                 .accountNonLocked(defaultTrue(request.getAccountNonLocked()))
                 .credentialsNonExpired(defaultTrue(request.getCredentialsNonExpired()))
-                .deleted(false)
                 .build();
     }
 
@@ -252,7 +257,7 @@ public class UserServiceImpl implements UserService {
             // Check distributor limit
             int maxDistributors = organization.getMaxDistributors();
             if (maxDistributors > 0) { // 0 means unlimited
-                long currentDistributorCount = userRepository.countByOrganizationIdAndRoleAndDeletedFalse(
+                long currentDistributorCount = userRepository.countByOrganizationIdAndRole(
                         organization.getId(), UserRole.DISTRIBUTOR);
 
                 if (currentDistributorCount >= maxDistributors) {
@@ -268,9 +273,9 @@ public class UserServiceImpl implements UserService {
             // Check organizer user limit (combined ORG_ADMIN + ORG_USER)
             int maxOrganizerUsers = organization.getMaxOrganizerUsers();
             if (maxOrganizerUsers > 0) { // 0 means unlimited
-                long currentOrgAdminCount = userRepository.countByOrganizationIdAndRoleAndDeletedFalse(
+                long currentOrgAdminCount = userRepository.countByOrganizationIdAndRole(
                         organization.getId(), UserRole.ORGANIZER_ADMIN);
-                long currentOrgUserCount = userRepository.countByOrganizationIdAndRoleAndDeletedFalse(
+                long currentOrgUserCount = userRepository.countByOrganizationIdAndRole(
                         organization.getId(), UserRole.ORGANIZER_USER);
                 long totalOrganizerUsers = currentOrgAdminCount + currentOrgUserCount;
 
@@ -370,7 +375,6 @@ public class UserServiceImpl implements UserService {
      */
     private User fetchTargetUser(Long userId) {
         return userRepository.findById(userId)
-                .filter(user -> !user.getDeleted())
                 .orElseThrow(() -> {
                     log.error("User not found with ID: {}", userId);
                     return new UserNotFoundException("User not found with ID: " + userId);
@@ -433,7 +437,12 @@ public class UserServiceImpl implements UserService {
             return;
         }
 
-        if (currentRole == UserRole.ORGANIZER_USER || currentRole == UserRole.DISTRIBUTOR) {
+        if (currentRole == UserRole.ORGANIZER_USER) {
+            validateOrgUserUpdateAuthorization(currentUser, targetUser);
+            return;
+        }
+
+        if (currentRole == UserRole.DISTRIBUTOR) {
             validateSelfUpdateOnly(currentUser, targetUser);
             return;
         }
@@ -493,6 +502,22 @@ public class UserServiceImpl implements UserService {
         validateSameOrganization(currentUser, targetUser, "update");
 
         log.debug("ORG_ADMIN user authorized to update user ID: {}", targetUser.getId());
+    }
+
+    private void validateOrgUserUpdateAuthorization(User currentUser, User targetUser) {
+        if (isSelfUpdate(currentUser, targetUser)) {
+            log.debug("ORG_USER user updating itself");
+            return;
+        }
+
+        if (targetUser.getRole() != UserRole.DISTRIBUTOR) {
+            log.error("ORG_USER {} attempted to update {} user",
+                    currentUser.getUsername(), targetUser.getRole());
+            throw new UnauthorizedAccessException("You can only update distributor accounts.");
+        }
+
+        validateSameOrganization(currentUser, targetUser, "update");
+        log.debug("ORG_USER user authorized to update distributor ID: {}", targetUser.getId());
     }
 
     /**
@@ -573,7 +598,11 @@ public class UserServiceImpl implements UserService {
 
         // ORG_USER restrictions
         if (currentRole == UserRole.ORGANIZER_USER) {
-            // ORG_USER can only disable DISTRIBUTORs
+            if (isSelfUpdate(currentUser, targetUser)) {
+                log.debug("ORG_USER user toggling own enabled status");
+                return;
+            }
+
             if (targetRole != UserRole.DISTRIBUTOR) {
                 log.error("ORG_USER {} attempted to toggle enabled status for {} user",
                         currentUser.getUsername(), targetRole);
@@ -581,7 +610,6 @@ public class UserServiceImpl implements UserService {
                         "You can only enable or disable distributor accounts.");
             }
 
-            // ORG_USER can only disable distributors within their own organization
             validateSameOrganization(currentUser, targetUser, "disable");
 
             log.debug("ORG_USER user authorized to toggle enabled status for distributor ID: {}", targetUser.getId());
@@ -636,24 +664,22 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public Page<UserResponse> getUsers(UserRole role, Long organizationId, Boolean enabled,
-                                       Boolean includeDeleted, String search, Pageable pageable,
+                                       String search, Pageable pageable,
                                        String currentUsername) {
-        log.info("Getting users - role: {}, orgId: {}, enabled: {}, includeDeleted: {}, search: {} by: {}",
-                role, organizationId, enabled, includeDeleted, search, currentUsername);
+        log.info("Getting users - role: {}, orgId: {}, enabled: {}, search: {} by: {}",
+                role, organizationId, enabled, search, currentUsername);
 
         User currentUser = fetchCurrentUser(currentUsername);
         UserRole currentRole = currentUser.getRole();
 
         Long scopedOrgId = organizationId;
-        Boolean scopedIncludeDeleted = includeDeleted;
 
         if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
             requireOrganization(currentUser);
             scopedOrgId = currentUser.getOrganization().getId();
-            scopedIncludeDeleted = false;
         }
 
-        Specification<User> spec = buildUserSpecification(role, scopedOrgId, enabled, scopedIncludeDeleted, search);
+        Specification<User> spec = buildUserSpecification(role, scopedOrgId, enabled, search);
         Page<UserResponse> responsePage = userRepository.findAll(spec, pageable).map(UserResponse::fromEntity);
 
         log.info("Successfully retrieved {} users (page {} of {})",
@@ -662,7 +688,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private Specification<User> buildUserSpecification(
-            UserRole role, Long organizationId, Boolean enabled, Boolean includeDeleted, String search) {
+            UserRole role, Long organizationId, Boolean enabled, String search) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -674,9 +700,6 @@ public class UserServiceImpl implements UserService {
             }
             if (enabled != null) {
                 predicates.add(cb.equal(root.get("enabled"), enabled));
-            }
-            if (!Boolean.TRUE.equals(includeDeleted)) {
-                predicates.add(cb.equal(root.get("deleted"), false));
             }
             if (search != null && !search.isBlank()) {
                 String pattern = "%" + search.toLowerCase() + "%";
@@ -700,6 +723,101 @@ public class UserServiceImpl implements UserService {
 
         log.info("Successfully retrieved current user profile for: {}", currentUsername);
         return UserResponse.fromEntity(currentUser);
+    }
+
+    @Override
+    @Transactional
+    public void deleteUser(Long userId, String currentUsername) {
+        log.info("Archiving user ID: {} by: {}", userId, currentUsername);
+
+        User currentUser = fetchCurrentUser(currentUsername);
+        User targetUser = fetchTargetUser(userId);
+
+        validateDeleteUserAuthorization(currentUser, targetUser);
+
+        UserArchive archive = buildArchiveFromUser(targetUser, currentUsername);
+        userArchiveRepository.save(archive);
+
+        int notificationsDeleted = notificationRepository.deleteAllByUserId(targetUser.getId());
+        log.debug("Deleted {} notifications for user ID: {}", notificationsDeleted, userId);
+
+        userRepository.delete(targetUser);
+
+        log.info("Successfully archived user ID: {} (username: {})", userId, targetUser.getUsername());
+    }
+
+    /**
+     * Validates that the current user has permission to archive the target user.
+     * ROOT users can never be archived.
+     */
+    private void validateDeleteUserAuthorization(User currentUser, User targetUser) {
+        if (targetUser.getRole() == UserRole.ROOT) {
+            log.error("Attempt to archive ROOT user by: {}", currentUser.getUsername());
+            throw new UnauthorizedAccessException("ROOT users cannot be archived.");
+        }
+
+        if (isSelfUpdate(currentUser, targetUser)) {
+            log.error("User {} attempted to archive itself", currentUser.getUsername());
+            throw new UnauthorizedAccessException("You cannot archive your own account.");
+        }
+
+        UserRole currentRole = currentUser.getRole();
+
+        if (currentRole == UserRole.ROOT) {
+            return;
+        }
+
+        if (currentRole == UserRole.ADMIN) {
+            if (targetUser.getRole() == UserRole.ADMIN) {
+                throw new UnauthorizedAccessException("You cannot archive users with equal or higher privileges.");
+            }
+            return;
+        }
+
+        if (currentRole == UserRole.ORGANIZER_ADMIN) {
+            if (isPrivilegedRole(targetUser.getRole())) {
+                throw new UnauthorizedAccessException("You cannot archive users with equal or higher privileges.");
+            }
+            validateSameOrganization(currentUser, targetUser, "archive");
+            return;
+        }
+
+        if (currentRole == UserRole.ORGANIZER_USER) {
+            if (targetUser.getRole() != UserRole.DISTRIBUTOR) {
+                log.error("ORG_USER {} attempted to archive {} user",
+                        currentUser.getUsername(), targetUser.getRole());
+                throw new UnauthorizedAccessException("You can only archive distributor accounts.");
+            }
+            validateSameOrganization(currentUser, targetUser, "archive");
+            return;
+        }
+
+        log.error("User {} with role {} attempted to archive a user",
+                currentUser.getUsername(), currentRole);
+        throw new UnauthorizedAccessException("You are not allowed to archive users.");
+    }
+
+    private UserArchive buildArchiveFromUser(User user, String archivedBy) {
+        return UserArchive.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .password(user.getPassword())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .phoneNumber(user.getPhoneNumber())
+                .role(user.getRole())
+                .organization(user.getOrganization())
+                .accountNonExpired(user.getAccountNonExpired())
+                .accountNonLocked(user.getAccountNonLocked())
+                .credentialsNonExpired(user.getCredentialsNonExpired())
+                .enabled(user.getEnabled())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .createdBy(user.getCreatedBy())
+                .lastModifiedBy(user.getLastModifiedBy())
+                .archivedAt(Instant.now())
+                .archivedBy(archivedBy)
+                .build();
     }
 
 }

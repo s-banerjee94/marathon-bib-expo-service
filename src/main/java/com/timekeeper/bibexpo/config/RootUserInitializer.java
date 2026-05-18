@@ -34,7 +34,7 @@ public class RootUserInitializer implements CommandLineRunner {
         }
 
         // Check if root user already exists
-        if (userRepository.existsByUsernameAndDeletedFalse(rootUsername)) {
+        if (userRepository.existsByUsername(rootUsername)) {
             log.info("Root user '{}' already exists. Skipping creation.", rootUsername);
             return;
         }
@@ -51,7 +51,6 @@ public class RootUserInitializer implements CommandLineRunner {
                 .accountNonExpired(true)
                 .accountNonLocked(true)
                 .credentialsNonExpired(true)
-                .deleted(false)
                 .build();
 
         userRepository.save(rootUser);

@@ -204,8 +204,8 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         // Cascading behavior: Only disable users when organization is being disabled
         if (Boolean.FALSE.equals(enabled)) {
-            // Disable all users in this organization (excluding deleted users)
-            List<User> organizationUsers = userRepository.findByOrganizationIdAndDeletedFalse(id);
+            // Disable all users in this organization
+            List<User> organizationUsers = userRepository.findByOrganizationId(id);
 
             if (!organizationUsers.isEmpty()) {
                 log.info("Disabling {} users for organization ID: {}", organizationUsers.size(), id);

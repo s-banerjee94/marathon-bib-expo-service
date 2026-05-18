@@ -31,72 +31,38 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     @Query("SELECT u.role FROM User u WHERE u.id = :id")
     Optional<UserRole> findRoleById(@Param("id") Long id);
 
-    // Query methods for getAllUsers filtering
     List<User> findByRole(UserRole role);
 
     List<User> findByOrganizationId(Long organizationId);
 
     List<User> findByRoleAndOrganizationId(UserRole role, Long organizationId);
 
-    // Query method for cascade deactivation
     List<User> findByOrganizationIdAndEnabledTrue(Long organizationId);
 
-    // Soft delete query methods - exclude deleted users
-    Optional<User> findByUsernameAndDeletedFalse(String username);
-
-    boolean existsByUsernameAndDeletedFalse(String username);
-
-    Optional<User> findByEmailAndDeletedFalse(String email);
-
-    boolean existsByEmailAndDeletedFalse(String email);
-
-    Optional<User> findByPhoneNumberAndDeletedFalse(String phoneNumber);
-
-    boolean existsByPhoneNumberAndDeletedFalse(String phoneNumber);
-
-    List<User> findByRoleAndDeletedFalse(UserRole role);
-
-    List<User> findByOrganizationIdAndDeletedFalse(Long organizationId);
-
-    List<User> findByRoleAndOrganizationIdAndDeletedFalse(UserRole role, Long organizationId);
-
-    List<User> findByOrganizationIdAndEnabledTrueAndDeletedFalse(Long organizationId);
-
     /**
-     * Count users by organization, role, and excluding deleted users.
+     * Count users by organization and role.
      * Used for enforcing organization user limits.
      *
      * @param organizationId the organization ID
      * @param role the user role
-     * @return count of non-deleted users with the specified role in the organization
+     * @return count of users with the specified role in the organization
      */
-    long countByOrganizationIdAndRoleAndDeletedFalse(Long organizationId, UserRole role);
+    long countByOrganizationIdAndRole(Long organizationId, UserRole role);
 
-    // Queries for deleted users
-    List<User> findByDeletedTrue();
-
-    List<User> findByRoleAndDeletedTrue(UserRole role);
-
-    List<User> findByOrganizationIdAndDeletedTrue(Long organizationId);
-
-    List<User> findByRoleAndOrganizationIdAndDeletedTrue(UserRole role, Long organizationId);
-
-    @Query("SELECT u FROM User u LEFT JOIN FETCH u.organization WHERE u.username = :username AND u.deleted = false")
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.organization WHERE u.username = :username")
     Optional<User> findByUsernameWithOrganization(@Param("username") String username);
 
     // --- Statistics count queries ---
 
-    long countByDeletedFalse();
+    long countByEnabledTrue();
 
-    long countByEnabledTrueAndDeletedFalse();
+    long countByEnabledFalse();
 
-    long countByEnabledFalseAndDeletedFalse();
+    long countByRole(UserRole role);
 
-    long countByRoleAndDeletedFalse(UserRole role);
+    long countByOrganizationId(Long organizationId);
 
-    long countByOrganizationIdAndDeletedFalse(Long organizationId);
+    long countByOrganizationIdAndEnabledTrue(Long organizationId);
 
-    long countByOrganizationIdAndEnabledTrueAndDeletedFalse(Long organizationId);
-
-    long countByOrganizationIdAndEnabledFalseAndDeletedFalse(Long organizationId);
+    long countByOrganizationIdAndEnabledFalse(Long organizationId);
 }

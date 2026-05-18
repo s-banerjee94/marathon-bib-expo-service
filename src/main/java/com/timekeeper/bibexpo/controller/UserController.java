@@ -54,12 +54,11 @@ public class UserController implements UserControllerApi {
 
     @Override
     public ResponseEntity<PageableResponse<UserResponse>> getUsers(UserRole role, Long organizationId,
-                                                                    Boolean enabled, Boolean includeDeleted,
-                                                                    String search, Pageable pageable,
-                                                                    User currentUser) {
+                                                                    Boolean enabled, String search,
+                                                                    Pageable pageable, User currentUser) {
         log.info("Request to get users by: {}", currentUser.getUsername());
         return ResponseEntity.ok(PageableResponse.of(
-                userService.getUsers(role, organizationId, enabled, includeDeleted, search, pageable,
+                userService.getUsers(role, organizationId, enabled, search, pageable,
                         currentUser.getUsername())));
     }
 
@@ -68,5 +67,12 @@ public class UserController implements UserControllerApi {
         log.info("Request to get current user profile: {}", currentUser.getUsername());
         UserResponse response = userService.getCurrentUser(currentUser.getUsername());
         return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<Void> deleteUser(Long userId, User currentUser) {
+        log.info("Request to archive user ID: {} by: {}", userId, currentUser.getUsername());
+        userService.deleteUser(userId, currentUser.getUsername());
+        return ResponseEntity.noContent().build();
     }
 }

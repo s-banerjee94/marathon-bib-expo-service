@@ -44,7 +44,7 @@ public class AuthServiceImpl implements AuthService {
             );
 
             // Load user entity
-            User user = userRepository.findByUsernameAndDeletedFalse(request.getUsername())
+            User user = userRepository.findByUsername(request.getUsername())
                     .orElseThrow(() -> new InvalidCredentialsException("Invalid username or password"));
 
             // Check account status

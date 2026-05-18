@@ -40,7 +40,7 @@ public interface UserService {
      * - ROOT can update: any user
      * - ADMIN can update: itself, ORG_ADMIN, ORG_USER, DISTRIBUTOR (but not ROOT or other ADMINs)
      * - ORG_ADMIN can update: itself, ORG_USER, DISTRIBUTOR (own organization only)
-     * - ORG_USER can update: itself only
+     * - ORG_USER can update: itself, DISTRIBUTOR (own organization only)
      * - DISTRIBUTOR can update: itself only
      *
      * @param userId the ID of the user to update
@@ -62,7 +62,7 @@ public interface UserService {
      * - ROOT can disable: any user
      * - ADMIN can disable: any user
      * - ORG_ADMIN can disable: ORG_USER, DISTRIBUTOR (own organization only)
-     * - ORG_USER can disable: DISTRIBUTOR (own organization only)
+     * - ORG_USER can disable: themselves, DISTRIBUTOR (own organization only)
      *
      * @param userId the ID of the user to toggle
      * @param currentUsername the username of the user performing the toggle
@@ -81,20 +81,19 @@ public interface UserService {
      * @param userId the ID of the user to retrieve
      * @param currentUsername the username of the user making the request
      * @return the user response
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found or deleted
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found or archived
      * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to view target user
      */
     UserResponse getUserById(Long userId, String currentUsername);
 
     /**
      * Get users with role-based scoping.
-     * ROOT/ADMIN: full access, organizationId and includeDeleted honored.
-     * ORGANIZER_ADMIN/ORGANIZER_USER/DISTRIBUTOR: auto-scoped to own org, organizationId and includeDeleted ignored.
+     * ROOT/ADMIN: full access, organizationId honored.
+     * ORGANIZER_ADMIN/ORGANIZER_USER/DISTRIBUTOR: auto-scoped to own org, organizationId ignored.
      *
      * @param role optional role filter
      * @param organizationId optional organization filter (ROOT/ADMIN only)
      * @param enabled optional enabled status filter
-     * @param includeDeleted include soft-deleted users (ROOT/ADMIN only)
      * @param search optional search term (searches username, email, fullName)
      * @param pageable pagination parameters
      * @param currentUsername the username of the user making the request
@@ -102,7 +101,7 @@ public interface UserService {
      * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission
      */
     Page<UserResponse> getUsers(UserRole role, Long organizationId, Boolean enabled,
-                                Boolean includeDeleted, String search, Pageable pageable,
+                                String search, Pageable pageable,
                                 String currentUsername);
 
     /**
@@ -114,4 +113,26 @@ public interface UserService {
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if current user not found
      */
     UserResponse getCurrentUser(String currentUsername);
+
+    /**
+     * Archive a user. Moves the user row into the users_archive table, deletes their
+     * notifications, and hard-deletes the row from the users table. This frees up
+     * username/email/phoneNumber for reuse.
+     *
+     * ROOT users cannot be archived.
+     *
+     * Permission hierarchy mirrors {@link #updateUser}:
+     * - ROOT can archive any non-ROOT user
+     * - ADMIN can archive ORG_ADMIN, ORG_USER, DISTRIBUTOR (not itself, not other ADMINs)
+     * - ORG_ADMIN can archive ORG_USER, DISTRIBUTOR in its own organization
+     * - ORG_USER can archive DISTRIBUTOR in its own organization
+     * - DISTRIBUTOR cannot archive users
+     *
+     * @param userId the id of the user to archive
+     * @param currentUsername the username of the user performing the archive
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission
+     *         or target user is ROOT
+     */
+    void deleteUser(Long userId, String currentUsername);
 }

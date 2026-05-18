@@ -188,13 +188,13 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
     }
 
     private AppStatisticsResponse buildGlobalStats() {
-        long total = userRepository.countByDeletedFalse();
-        long active = userRepository.countByEnabledTrueAndDeletedFalse();
-        long inactive = userRepository.countByEnabledFalseAndDeletedFalse();
+        long total = userRepository.count();
+        long active = userRepository.countByEnabledTrue();
+        long inactive = userRepository.countByEnabledFalse();
 
         Map<UserRole, Long> byRole = new EnumMap<>(UserRole.class);
         Arrays.stream(UserRole.values())
-                .forEach(role -> byRole.put(role, userRepository.countByRoleAndDeletedFalse(role)));
+                .forEach(role -> byRole.put(role, userRepository.countByRole(role)));
 
         return AppStatisticsResponse.builder()
                 .scope(StatisticsScope.GLOBAL)
@@ -211,13 +211,13 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
     }
 
     private AppStatisticsResponse buildOrgStats(Long orgId) {
-        long total = userRepository.countByOrganizationIdAndDeletedFalse(orgId);
-        long active = userRepository.countByOrganizationIdAndEnabledTrueAndDeletedFalse(orgId);
-        long inactive = userRepository.countByOrganizationIdAndEnabledFalseAndDeletedFalse(orgId);
+        long total = userRepository.countByOrganizationId(orgId);
+        long active = userRepository.countByOrganizationIdAndEnabledTrue(orgId);
+        long inactive = userRepository.countByOrganizationIdAndEnabledFalse(orgId);
 
         Map<UserRole, Long> byRole = new EnumMap<>(UserRole.class);
         Arrays.stream(ORG_ROLES)
-                .forEach(role -> byRole.put(role, userRepository.countByOrganizationIdAndRoleAndDeletedFalse(orgId, role)));
+                .forEach(role -> byRole.put(role, userRepository.countByOrganizationIdAndRole(orgId, role)));
 
         return AppStatisticsResponse.builder()
                 .scope(StatisticsScope.ORGANIZATION)

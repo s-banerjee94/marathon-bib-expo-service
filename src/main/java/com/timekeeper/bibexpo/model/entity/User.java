@@ -29,8 +29,7 @@ import java.util.Collections;
         indexes = {
                 @Index(name = "idx_user_username", columnList = "username"),
                 @Index(name = "idx_user_email", columnList = "email"),
-                @Index(name = "idx_user_phone", columnList = "phoneNumber"),
-                @Index(name = "idx_user_deleted", columnList = "deleted")
+                @Index(name = "idx_user_phone", columnList = "phoneNumber")
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data
@@ -83,9 +82,6 @@ public class User implements UserDetails {
 
     @Column(nullable = false)
     private Boolean enabled = true;
-
-    @Column(nullable = false)
-    private Boolean deleted = false;
 
     @CreatedDate
     @Column(updatable = false)

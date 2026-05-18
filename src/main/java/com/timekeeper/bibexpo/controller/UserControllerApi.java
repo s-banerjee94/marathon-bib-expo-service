@@ -19,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -110,7 +111,8 @@ public interface UserControllerApi {
                     ROOT can update any user. \
                     ADMIN can update itself and lower-level users (but not ROOT or other ADMINs). \
                     ORG_ADMIN can update itself and users in their organization (but not ROOT, ADMIN, or other ORG_ADMINs). \
-                    ORG_USER and DISTRIBUTOR can only update their own profile. \
+                    ORG_USER can update their own profile and DISTRIBUTOR accounts in their organization. \
+                    DISTRIBUTOR can only update their own profile. \
                     All fields in the request are optional - only provided fields will be updated."""
     )
     @ApiResponses(value = {
@@ -177,7 +179,7 @@ public interface UserControllerApi {
                     ROOT can disable any user. \
                     ADMIN can disable any user. \
                     ORG_ADMIN can disable ORG_USER and DISTRIBUTOR (own organization only). \
-                    ORG_USER can disable DISTRIBUTOR (own organization only)."""
+                    ORG_USER can disable themselves and DISTRIBUTOR (own organization only)."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -222,7 +224,7 @@ public interface UserControllerApi {
                     Permission hierarchy: \
                     ROOT and ADMIN can get any user. \
                     ORG_ADMIN, ORG_USER, and DISTRIBUTOR can only get users in their organization. \
-                    Deleted users return 404 Not Found."""
+                    Archived users return 404 Not Found."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -243,7 +245,7 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "User not found or deleted",
+                    description = "User not found or archived",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -264,9 +266,9 @@ public interface UserControllerApi {
             summary = "Get users",
             description = """
                     Retrieves users with optional filtering, searching, and pagination. \
-                    ROOT and ADMIN: full access across all organizations, organizationId and includeDeleted params honored. \
+                    ROOT and ADMIN: full access across all organizations, organizationId param honored. \
                     ORGANIZER_ADMIN and ORGANIZER_USER: automatically scoped to their own organization, \
-                    organizationId and includeDeleted params are ignored."""
+                    organizationId param is ignored."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -298,9 +300,6 @@ public interface UserControllerApi {
             @Parameter(description = "Filter by enabled status")
             @RequestParam(required = false) Boolean enabled,
 
-            @Parameter(description = "Include deleted users (ROOT/ADMIN only, default: false)")
-            @RequestParam(required = false, defaultValue = "false") Boolean includeDeleted,
-
             @Parameter(description = "Search by username, email, or full name (case-insensitive)")
             @RequestParam(required = false) String search,
 
@@ -310,6 +309,7 @@ public interface UserControllerApi {
             @Parameter(hidden = true)
             @AuthenticationPrincipal User currentUser
     );
+
 
     @Operation(
             summary = "Get current user profile",
@@ -338,6 +338,48 @@ public interface UserControllerApi {
     @GetMapping("/me")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     ResponseEntity<UserResponse> getCurrentUser(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
+            summary = "Archive (delete) a user",
+            description = """
+                    Archives a user by moving their record to the users_archive table and \
+                    deleting their notifications. The user's username, email, and phone number \
+                    become available for reuse. ROOT users cannot be archived. \
+                    Permission hierarchy: \
+                    ROOT can archive any non-ROOT user. \
+                    ADMIN can archive ORG_ADMIN, ORG_USER, DISTRIBUTOR (not itself or other ADMINs). \
+                    ORG_ADMIN can archive ORG_USER, DISTRIBUTOR in own organization. \
+                    ORG_USER can archive DISTRIBUTOR in own organization. \
+                    DISTRIBUTOR cannot archive users."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "User archived successfully"),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - Insufficient permissions or target is ROOT",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    @DeleteMapping("/{userId}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<Void> deleteUser(
+            @Parameter(description = "User ID", required = true)
+            @PathVariable Long userId,
+
             @Parameter(hidden = true)
             @AuthenticationPrincipal User currentUser
     );
