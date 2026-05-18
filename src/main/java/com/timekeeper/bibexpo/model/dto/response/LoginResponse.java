@@ -10,16 +10,13 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Schema(description = "Login response with JWT token and user details")
+@Schema(description = "Login response with short-lived access token and user details. Refresh token is set as an HttpOnly cookie.")
 public class LoginResponse {
 
-    @Schema(description = "JWT access token", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
-    private String token;
+    @Schema(description = "JWT access token (Bearer)", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+    private String accessToken;
 
-    @Schema(description = "Token type", example = "Bearer")
-    private String tokenType;
-
-    @Schema(description = "Token expiration time in milliseconds", example = "604800000")
+    @Schema(description = "Access token expiration in milliseconds", example = "900000")
     private Long expiresIn;
 
     @Schema(description = "User ID", example = "1")
@@ -28,7 +25,7 @@ public class LoginResponse {
     @Schema(description = "Username", example = "admin")
     private String username;
 
-    @Schema(description = "User role", example = "ADMIN")
+    @Schema(description = "User role", example = "ORGANIZER_ADMIN")
     private String role;
 
     @Schema(description = "Organization ID (nullable)", example = "123")

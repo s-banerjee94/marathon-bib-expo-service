@@ -9,6 +9,13 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class JwtConfig {
     private String secret;
-    private Long expiration;
     private String issuer;
+
+    private Long accessTokenExpiration;
+    private Long refreshTokenExpiration;
+
+    private String cookieDomain;
+    private String refreshCookieName;
+    private String csrfCookieName;
+    private Boolean cookieSecure;
 }

@@ -2,23 +2,31 @@ package com.timekeeper.bibexpo.service;
 
 import com.timekeeper.bibexpo.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.model.dto.response.LoginResponse;
+import com.timekeeper.bibexpo.model.dto.response.RefreshResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public interface AuthService {
 
     /**
-     * Authenticate user with username and password
+     * Authenticate the user, start a new session (overwriting any prior one),
+     * and write the refresh + CSRF cookies on {@code httpResponse}.
      *
-     * @param request login request containing username and password
-     * @return login response with JWT token and user details
+     * @return body containing the short-lived access token + user info
      */
-    LoginResponse login(LoginRequest request);
+    LoginResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse);
 
     /**
-     * Cleans up server-side resources for the user on logout.
-     * Closes all active SSE connections so no orphaned threads remain.
-     *
-     * @param user the authenticated user logging out
+     * Validate the refresh cookie + CSRF double-submit, then rotate the session:
+     * issue a new sid, new access token, and new refresh-cookie. Reuse of an
+     * already-rotated refresh token triggers a forced logout of the whole chain.
      */
-    void logout(User user);
+    RefreshResponse refresh(HttpServletRequest httpRequest, HttpServletResponse httpResponse);
+
+    /**
+     * Ends the user's session, clears auth cookies, and closes their SSE
+     * connections.
+     */
+    void logout(User user, HttpServletResponse httpResponse);
 }

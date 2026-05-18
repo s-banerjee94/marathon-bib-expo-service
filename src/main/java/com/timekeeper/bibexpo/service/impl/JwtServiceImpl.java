@@ -20,7 +20,6 @@ import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,38 +29,44 @@ public class JwtServiceImpl implements JwtService {
     private final JwtConfig jwtConfig;
 
     @Override
-    public String generateToken(User user) {
+    public String generateAccessToken(User user, String sid) {
         Map<String, Object> claims = new HashMap<>();
-
-        // Add custom claims
         claims.put("userId", user.getId());
         claims.put("role", user.getRole().name());
+        claims.put("sid", sid);
+        claims.put("type", TYPE_ACCESS);
 
-        // Add organization ID if present (null for system-level roles)
         if (user.getOrganization() != null) {
             claims.put("organizationId", user.getOrganization().getId());
         }
-
-        // Add email if present
         if (user.getEmail() != null) {
             claims.put("email", user.getEmail());
         }
-
-        // Add full name if present
         if (user.getFullName() != null) {
             claims.put("fullName", user.getFullName());
         }
-
-        // Add authorities list
         claims.put("authorities", user.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .toList());
 
+        return buildToken(claims, user.getUsername(), jwtConfig.getAccessTokenExpiration());
+    }
+
+    @Override
+    public String generateRefreshToken(User user, String sid) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("sid", sid);
+        claims.put("type", TYPE_REFRESH);
+        return buildToken(claims, user.getUsername(), jwtConfig.getRefreshTokenExpiration());
+    }
+
+    private String buildToken(Map<String, Object> claims, String subject, long expirationMs) {
+        long now = System.currentTimeMillis();
         return Jwts.builder()
                 .claims(claims)
-                .subject(user.getUsername())
-                .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + jwtConfig.getExpiration()))
+                .subject(subject)
+                .issuedAt(new Date(now))
+                .expiration(new Date(now + expirationMs))
                 .issuer(jwtConfig.getIssuer())
                 .signWith(getSigningKey())
                 .compact();
@@ -73,10 +78,15 @@ public class JwtServiceImpl implements JwtService {
     }
 
     @Override
-    public boolean isTokenValid(String token, UserDetails userDetails) {
+    public boolean isTokenValid(String token, UserDetails userDetails, String expectedType) {
         try {
-            final String username = extractUsername(token);
-            return username.equals(userDetails.getUsername()) && !isTokenExpired(token) && userDetails.isEnabled();
+            Claims claims = extractAllClaims(token);
+            final String username = claims.getSubject();
+            final String type = claims.get("type", String.class);
+            return username.equals(userDetails.getUsername())
+                    && expectedType.equals(type)
+                    && claims.getExpiration().after(new Date())
+                    && userDetails.isEnabled();
         } catch (ExpiredJwtException e) {
             log.debug("Token expired for user: {}", e.getClaims().getSubject());
             return false;
@@ -117,38 +127,43 @@ public class JwtServiceImpl implements JwtService {
 
     @Override
     public String extractRole(String token) {
-        Claims claims = extractAllClaims(token);
-        return claims.get("role", String.class);
+        return extractAllClaims(token).get("role", String.class);
     }
 
     @Override
     public Long extractOrganizationId(String token) {
-        Claims claims = extractAllClaims(token);
-        Object orgId = claims.get("organizationId");
-        if (orgId == null) {
-            return null;
-        }
-        if (orgId instanceof Integer) {
-            return ((Integer) orgId).longValue();
-        }
-        return (Long) orgId;
+        return toLong(extractAllClaims(token).get("organizationId"));
     }
 
     @Override
     public Long extractUserId(String token) {
-        Claims claims = extractAllClaims(token);
-        Object userId = claims.get("userId");
-        if (userId == null) {
-            return null;
-        }
-        if (userId instanceof Integer) {
-            return ((Integer) userId).longValue();
-        }
-        return (Long) userId;
+        return toLong(extractAllClaims(token).get("userId"));
     }
 
-    private boolean isTokenExpired(String token) {
-        return extractAllClaims(token).getExpiration().before(new Date());
+    @Override
+    public String extractSid(String token) {
+        return extractAllClaims(token).get("sid", String.class);
+    }
+
+    @Override
+    public String extractTokenType(String token) {
+        return extractAllClaims(token).get("type", String.class);
+    }
+
+    @Override
+    public long getAccessTokenExpirationMs() {
+        return jwtConfig.getAccessTokenExpiration();
+    }
+
+    @Override
+    public long getRefreshTokenExpirationMs() {
+        return jwtConfig.getRefreshTokenExpiration();
+    }
+
+    private Long toLong(Object value) {
+        if (value == null) return null;
+        if (value instanceof Integer i) return i.longValue();
+        return (Long) value;
     }
 
     private SecretKey getSigningKey() {

@@ -409,6 +409,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    @ExceptionHandler(CsrfValidationException.class)
+    public ResponseEntity<ErrorResponse> handleCsrfValidation(
+            CsrfValidationException ex, WebRequest request) {
+        log.warn("CSRF validation failed: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.FORBIDDEN.value())
+                .error(FORBIDDEN)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
     @ExceptionHandler(JwtAuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleJwtAuthenticationException(
             JwtAuthenticationException ex, WebRequest request) {
