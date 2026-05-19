@@ -51,21 +51,24 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
     public void onSkipInProcess(CsvRow item, Throwable t) {
         String field = null;
         String message;
+        String errorType = BatchValidationException.TYPE_VALIDATION;
 
-        String errorType;
-        if (t instanceof BatchValidationException bve && !bve.getValidationErrors().isEmpty()) {
-            errorType = "VALIDATION_ERROR";
+        if (t instanceof BatchValidationException bve) {
+            errorType = bve.getErrorType();
             List<ValidationError> validationErrors = bve.getValidationErrors();
-            if (validationErrors.size() == 1) {
-                field = validationErrors.get(0).getField();
-                message = validationErrors.get(0).getMessage();
+            if (validationErrors != null && !validationErrors.isEmpty()) {
+                if (validationErrors.size() == 1) {
+                    field = validationErrors.get(0).getField();
+                    message = validationErrors.get(0).getMessage();
+                } else {
+                    message = validationErrors.stream()
+                            .map(e -> e.getField() + ": " + e.getMessage())
+                            .collect(Collectors.joining("; "));
+                }
             } else {
-                message = validationErrors.stream()
-                        .map(e -> e.getField() + ": " + e.getMessage())
-                        .collect(Collectors.joining("; "));
+                message = bve.getMessage() != null ? bve.getMessage() : "Processing failed";
             }
         } else {
-            errorType = "VALIDATION_ERROR";
             message = t.getMessage() != null ? t.getMessage() : "Validation failed";
         }
 
@@ -77,7 +80,8 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
                 message,
                 ERROR_TTL_DAYS
         ));
-        log.debug("Recorded skip for row {}: field={}, message={}", item.getRowNumber(), field, message);
+        log.debug("Recorded skip for row {}: type={}, field={}, message={}",
+                item.getRowNumber(), errorType, field, message);
     }
 
     @Override

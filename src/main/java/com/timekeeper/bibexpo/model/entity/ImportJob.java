@@ -24,6 +24,11 @@ public class ImportJob {
     @Column(name = "event_id", nullable = false)
     private Long eventId;
 
+    // Spring Batch job execution id. Null until asyncJobLauncher.run() returns and we patch it onto
+    // the placeholder row. The sweeper / stop endpoint use this to target the underlying batch execution.
+    @Column(name = "job_execution_id")
+    private Long jobExecutionId;
+
     @Column(name = "event_name", nullable = false)
     private String eventName;
 

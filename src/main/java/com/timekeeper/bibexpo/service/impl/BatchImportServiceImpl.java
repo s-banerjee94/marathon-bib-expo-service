@@ -11,9 +11,11 @@ import com.timekeeper.bibexpo.model.dto.response.ImportError;
 import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
 import com.timekeeper.bibexpo.model.dynamodb.ImportErrorDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.ImportJob;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ImportErrorDDBRepository;
 import com.timekeeper.bibexpo.service.BatchImportService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
@@ -38,6 +40,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -52,6 +55,7 @@ public class BatchImportServiceImpl implements BatchImportService {
     private final EventAccessValidator eventAccessValidator;
     private final ObjectMapper objectMapper;
     private final EventLatestImportRepository eventLatestImportRepository;
+    private final ImportJobRepository importJobRepository;
 
     @Override
     public BatchImportResponse launchImport(Long eventId, MultipartFile file, User currentUser) {
@@ -60,9 +64,7 @@ public class BatchImportServiceImpl implements BatchImportService {
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
-        boolean alreadyRunning = jobExplorer.findRunningJobExecutions("csvImportJob").stream()
-                .anyMatch(e -> eventId.toString().equals(e.getJobParameters().getString("eventId")));
-        if (alreadyRunning) {
+        if (importJobRepository.existsByEventIdAndStatus(eventId, ImportJob.ImportStatus.IN_PROGRESS)) {
             throw new ImportAlreadyRunningException("An import is already running for this event.");
         }
 
@@ -74,20 +76,39 @@ public class BatchImportServiceImpl implements BatchImportService {
             throw new CsvImportException("Failed to save the uploaded file. Please try again.", e);
         }
 
+        String originalFileName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown";
+        ImportJob pendingJob = ImportJob.builder()
+                .importId(UUID.randomUUID().toString())
+                .eventId(eventId)
+                .eventName(event.getEventName())
+                .fileName(originalFileName)
+                .totalRows(0)
+                .successCount(0)
+                .failureCount(0)
+                .status(ImportJob.ImportStatus.IN_PROGRESS)
+                .importedBy(currentUser.getId())
+                .build();
+        importJobRepository.save(pendingJob);
+
         JobParameters params = new JobParametersBuilder()
                 .addString("eventId", eventId.toString())
                 .addString("eventName", event.getEventName())
                 .addString("filePath", tempFile.toString())
-                .addString("fileName", file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown")
+                .addString("fileName", originalFileName)
                 .addString("uploadedByUserId", currentUser.getId().toString())
                 .addLong("run", System.currentTimeMillis())
                 .toJobParameters();
 
         try {
             JobExecution execution = asyncJobLauncher.run(csvImportJob, params);
+            pendingJob.setJobExecutionId(execution.getId());
+            importJobRepository.save(pendingJob);
             log.info("Launched batch import job {} for event {}", execution.getId(), eventId);
             return new BatchImportResponse(execution.getId(), execution.getStatus().toString());
         } catch (Exception e) {
+            pendingJob.setStatus(ImportJob.ImportStatus.FAILED);
+            pendingJob.setErrorSummary("{\"reason\":\"Failed to launch the import job\"}");
+            importJobRepository.save(pendingJob);
             throw new CsvImportException("Failed to start the import. Please try again.", e);
         }
     }

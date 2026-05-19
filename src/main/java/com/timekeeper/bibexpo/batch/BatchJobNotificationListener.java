@@ -142,6 +142,11 @@ public class BatchJobNotificationListener implements JobExecutionListener {
                 ? ImportJob.ImportStatus.COMPLETED
                 : ImportJob.ImportStatus.FAILED;
 
+        // Replace the IN_PROGRESS placeholder inserted at launch time. The PK changes from UUID to
+        // jobExecutionId so delete-then-insert keeps downstream consumers (EventLatestImport, DDB) consistent.
+        importJobRepository.findByEventIdAndStatus(eventId, ImportJob.ImportStatus.IN_PROGRESS)
+                .ifPresent(importJobRepository::delete);
+
         ImportJob importJob = ImportJob.builder()
                 .importId(jobExecutionId.toString())
                 .eventId(eventId)

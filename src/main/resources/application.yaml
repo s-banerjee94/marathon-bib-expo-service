@@ -2,6 +2,9 @@ spring:
   application:
     name: marathon-bib-expo
 
+  lifecycle:
+    timeout-per-shutdown-phase: 180s
+
   batch:
     job:
       enabled: false
@@ -58,6 +61,7 @@ management:
 server:
   address: 0.0.0.0
   port: ${SERVER_PORT:8080}
+  shutdown: graceful
 
 # CORS Configuration
 cors:
@@ -95,6 +99,13 @@ logging:
 app:
   statistics:
     stale-threshold-minutes: ${STATS_STALE_THRESHOLD_MINUTES:15}
+
+# Batch import tuning
+batch:
+  import:
+    max-duration-minutes: ${BATCH_IMPORT_MAX_DURATION_MINUTES:120}
+    sweeper-interval-ms: ${BATCH_IMPORT_SWEEPER_INTERVAL_MS:900000}
+    sweeper-initial-delay-ms: ${BATCH_IMPORT_SWEEPER_INITIAL_DELAY_MS:300000}
 
 # SMS Configuration
 sms:
