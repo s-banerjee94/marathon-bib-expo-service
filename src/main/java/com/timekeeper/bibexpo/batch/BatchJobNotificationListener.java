@@ -3,11 +3,14 @@ package com.timekeeper.bibexpo.batch;
 import tools.jackson.databind.ObjectMapper;
 import com.timekeeper.bibexpo.model.dto.response.ErrorSummary;
 import com.timekeeper.bibexpo.model.dto.response.NotificationResponse;
+import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLatestImport;
 import com.timekeeper.bibexpo.model.entity.ImportJob;
 import com.timekeeper.bibexpo.model.entity.Notification;
 import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
+import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.ImportJobRepository;
+import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.NotificationService;
 import com.timekeeper.bibexpo.service.SseEmitterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -29,7 +33,23 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private final SseEmitterRegistry sseEmitterRegistry;
     private final ImportJobRepository importJobRepository;
     private final EventLatestImportRepository eventLatestImportRepository;
+    private final ParticipantDDBRepository participantDDBRepository;
+    private final EventRepository eventRepository;
     private final ObjectMapper objectMapper;
+
+    @Override
+    public void beforeJob(JobExecution jobExecution) {
+        String eventIdParam = jobExecution.getJobParameters().getString("eventId");
+        if (eventIdParam == null) return;
+
+        try {
+            int deleted = participantDDBRepository.deleteAllByEventId(eventIdParam);
+            log.info("Deleted {} existing participants for event {} before import", deleted, eventIdParam);
+        } catch (Exception e) {
+            log.error("Failed to delete existing participants for event {} — aborting import", eventIdParam, e);
+            throw new RuntimeException("Failed to clear existing participants before import.", e);
+        }
+    }
 
     @Override
     public void afterJob(JobExecution jobExecution) {
@@ -58,6 +78,12 @@ public class BatchJobNotificationListener implements JobExecutionListener {
             skipCount = (int) step.getSkipCount();
             readCount = (int) step.getReadCount();
             readSkipCount = (int) step.getReadSkipCount();
+        }
+
+        try {
+            updateEventGoodies(eventId, jobExecution);
+        } catch (Exception e) {
+            log.error("Failed to update goodies for event {} job {}", eventId, jobExecutionId, e);
         }
 
         try {
@@ -132,6 +158,26 @@ public class BatchJobNotificationListener implements JobExecutionListener {
 
         importJobRepository.save(importJob);
         log.info("Saved ImportJob {} for event {} status={}", jobExecutionId, eventId, status);
+    }
+
+    private void updateEventGoodies(Long eventId, JobExecution jobExecution) {
+        String goodiesColumns = jobExecution.getExecutionContext().getString("goodiesColumns", null);
+        if (goodiesColumns == null || goodiesColumns.isBlank()) return;
+
+        Event event = eventRepository.findById(eventId).orElse(null);
+        if (event == null) {
+            log.warn("Event {} not found when updating goodies", eventId);
+            return;
+        }
+
+        try {
+            List<String> goodiesList = List.of(goodiesColumns.split(","));
+            event.setEventGoodies(objectMapper.writeValueAsString(goodiesList));
+            eventRepository.save(event);
+            log.info("Updated event {} goodies: {}", eventId, goodiesColumns);
+        } catch (Exception e) {
+            log.error("Failed to serialize goodies for event {}", eventId, e);
+        }
     }
 
     private void deleteTempFile(JobExecution jobExecution) {

@@ -8,5 +8,4 @@ import lombok.Data;
 public class BatchImportResponse {
     private Long jobExecutionId;
     private String status;
-    private int deletedCount;
 }

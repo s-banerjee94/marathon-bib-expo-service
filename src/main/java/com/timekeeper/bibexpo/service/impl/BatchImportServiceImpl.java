@@ -15,7 +15,6 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ImportErrorDDBRepository;
-import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.BatchImportService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +47,6 @@ public class BatchImportServiceImpl implements BatchImportService {
     private final JobLauncher asyncJobLauncher;
     private final Job csvImportJob;
     private final JobExplorer jobExplorer;
-    private final ParticipantDDBRepository participantDDBRepository;
     private final ImportErrorDDBRepository importErrorDDBRepository;
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
@@ -76,9 +74,6 @@ public class BatchImportServiceImpl implements BatchImportService {
             throw new CsvImportException("Failed to save the uploaded file. Please try again.", e);
         }
 
-        int deletedCount = participantDDBRepository.deleteAllByEventId(eventId.toString());
-        log.info("Deleted {} existing participants for event {} before batch import", deletedCount, eventId);
-
         JobParameters params = new JobParametersBuilder()
                 .addString("eventId", eventId.toString())
                 .addString("eventName", event.getEventName())
@@ -91,7 +86,7 @@ public class BatchImportServiceImpl implements BatchImportService {
         try {
             JobExecution execution = asyncJobLauncher.run(csvImportJob, params);
             log.info("Launched batch import job {} for event {}", execution.getId(), eventId);
-            return new BatchImportResponse(execution.getId(), execution.getStatus().toString(), deletedCount);
+            return new BatchImportResponse(execution.getId(), execution.getStatus().toString());
         } catch (Exception e) {
             throw new CsvImportException("Failed to start the import. Please try again.", e);
         }
