@@ -1,11 +1,6 @@
 package com.timekeeper.bibexpo.config;
 
-import org.springframework.batch.core.configuration.JobRegistry;
-import org.springframework.batch.core.configuration.support.JobRegistrySmartInitializingSingleton;
-import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.launch.JobOperator;
-import org.springframework.batch.core.launch.support.SimpleJobOperator;
 import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.context.annotation.Bean;
@@ -59,27 +54,5 @@ public class BatchConfig {
         launcher.setTaskExecutor(batchJobTaskExecutor);
         launcher.afterPropertiesSet();
         return launcher;
-    }
-
-    // Registers every Job bean with the JobRegistry so SimpleJobOperator can resolve them by name on stop/restart.
-    // SmartInitializingSingleton variant avoids the early-bean-initialization problem of the old BeanPostProcessor.
-    // It auto-discovers Job beans via the BeanFactory once all singletons are instantiated.
-    @Bean
-    public JobRegistrySmartInitializingSingleton jobRegistrar(JobRegistry jobRegistry) {
-        return new JobRegistrySmartInitializingSingleton(jobRegistry);
-    }
-
-    @Bean
-    public JobOperator jobOperator(JobLauncher asyncJobLauncher,
-                                    JobRepository jobRepository,
-                                    JobRegistry jobRegistry,
-                                    JobExplorer jobExplorer) throws Exception {
-        SimpleJobOperator operator = new SimpleJobOperator();
-        operator.setJobLauncher(asyncJobLauncher);
-        operator.setJobRepository(jobRepository);
-        operator.setJobRegistry(jobRegistry);
-        operator.setJobExplorer(jobExplorer);
-        operator.afterPropertiesSet();
-        return operator;
     }
 }

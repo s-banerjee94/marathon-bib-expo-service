@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.CsvImportException;
 import com.timekeeper.bibexpo.exception.ImportAlreadyRunningException;
+import com.timekeeper.bibexpo.exception.ImportNotRunningException;
 import com.timekeeper.bibexpo.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportError;
@@ -27,6 +28,7 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
@@ -48,6 +50,7 @@ import java.util.UUID;
 public class BatchImportServiceImpl implements BatchImportService {
 
     private final JobLauncher asyncJobLauncher;
+    private final JobOperator jobOperator;
     private final Job csvImportJob;
     private final JobExplorer jobExplorer;
     private final ImportErrorDDBRepository importErrorDDBRepository;
@@ -111,6 +114,31 @@ public class BatchImportServiceImpl implements BatchImportService {
             importJobRepository.save(pendingJob);
             throw new CsvImportException("Failed to start the import. Please try again.", e);
         }
+    }
+
+    @Override
+    public BatchJobStatusResponse stopImport(Long eventId, Long jobExecutionId, User currentUser) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+
+        ImportJob job = importJobRepository.findByJobExecutionIdAndEventId(jobExecutionId, eventId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "This import job does not belong to the selected event."));
+
+        if (job.getStatus() != ImportJob.ImportStatus.IN_PROGRESS) {
+            throw new ImportNotRunningException("This import is not currently running.");
+        }
+
+        try {
+            boolean stopped = jobOperator.stop(jobExecutionId);
+            log.info("Stop requested for jobExecutionId={} by user {} (signalled={})",
+                    jobExecutionId, currentUser.getId(), stopped);
+        } catch (Exception e) {
+            log.warn("Failed to signal stop for jobExecutionId={}: {}", jobExecutionId, e.getMessage());
+        }
+
+        return getJobStatus(eventId, jobExecutionId);
     }
 
     @Override

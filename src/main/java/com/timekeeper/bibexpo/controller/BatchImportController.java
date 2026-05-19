@@ -45,6 +45,16 @@ public class BatchImportController implements BatchImportControllerApi {
     }
 
     @Override
+    public ResponseEntity<BatchJobStatusResponse> stopBatchImport(
+            Long eventId, Long jobExecutionId, User currentUser) {
+
+        log.info("Stop request - jobExecutionId: {}, event: {}, user: {}",
+                jobExecutionId, eventId, currentUser.getUsername());
+
+        return ResponseEntity.ok(batchImportService.stopImport(eventId, jobExecutionId, currentUser));
+    }
+
+    @Override
     public ResponseEntity<ImportErrorListResponse> getLatestBatchImportErrors(
             Long eventId, int limit, String lastEvaluatedKey, User currentUser) {
 

@@ -25,6 +25,18 @@ public interface BatchImportService {
     BatchJobStatusResponse getJobStatus(Long eventId, Long jobExecutionId);
 
     /**
+     * Cooperatively stop a running batch import. Signals Spring Batch via JobOperator.stop()
+     * so the next chunk boundary halts execution. The afterJob listener then marks the
+     * ImportJob row FAILED with a "Stopped by user" reason. Returns 409 if the job is
+     * not currently IN_PROGRESS for the given event.
+     * @param eventId        event the job was launched for
+     * @param jobExecutionId the ID returned by launchImport
+     * @param currentUser    user invoking the stop
+     * @return the final status snapshot after signalling stop
+     */
+    BatchJobStatusResponse stopImport(Long eventId, Long jobExecutionId, User currentUser);
+
+    /**
      * Retrieve paginated errors from the most recent batch import for an event.
      * Resolves the latest job from event_latest_import, then queries DynamoDB for errors.
      * Returns an empty response if no batch import has been run for the event.

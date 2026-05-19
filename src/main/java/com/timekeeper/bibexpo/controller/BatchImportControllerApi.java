@@ -84,6 +84,40 @@ public interface BatchImportControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
+    @PostMapping("/{eventId}/participants/batch-import/{jobExecutionId}/stop")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Cooperatively stop a running batch import",
+            description = """
+                    Signals Spring Batch to terminate the job at the next chunk boundary. \
+                    The job will transition to STOPPING then STOPPED, and the ImportJob row \
+                    will be marked FAILED with a 'Stopped by user' reason once the worker thread exits. \
+                    Returns 409 if the job is not currently running."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Stop signal sent",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = BatchJobStatusResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Job execution not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Import is not currently running",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<BatchJobStatusResponse> stopBatchImport(
+            @Parameter(description = "Event ID", required = true) @PathVariable Long eventId,
+            @Parameter(description = "Job execution ID returned by POST batch-import", required = true)
+            @PathVariable Long jobExecutionId,
+            @AuthenticationPrincipal User currentUser
+    );
+
     @GetMapping("/{eventId}/participants/batch-import/latest/errors")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(

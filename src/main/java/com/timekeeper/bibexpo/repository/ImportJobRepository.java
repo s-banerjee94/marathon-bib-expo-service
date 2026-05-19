@@ -20,5 +20,7 @@ public interface ImportJobRepository extends JpaRepository<ImportJob, String> {
 
     Optional<ImportJob> findByEventIdAndStatus(Long eventId, ImportJob.ImportStatus status);
 
+    Optional<ImportJob> findByJobExecutionIdAndEventId(Long jobExecutionId, Long eventId);
+
     List<ImportJob> findByStatus(ImportJob.ImportStatus status);
 }

@@ -126,16 +126,20 @@ public class BatchJobNotificationListener implements JobExecutionListener {
         String fileName = jobExecution.getJobParameters().getString("fileName");
         String goodiesDetected = jobExecution.getExecutionContext().getString("goodiesColumns", null);
 
-        // Only validationErrors is reliably tracked; other breakdown fields are unknown from Spring Batch counters
-        ErrorSummary errorSummary = ErrorSummary.builder()
-                .validationErrors(skipCount)
-                .build();
-
-        String errorSummaryJson = null;
-        try {
-            errorSummaryJson = objectMapper.writeValueAsString(errorSummary);
-        } catch (Exception e) {
-            log.warn("Failed to serialize error summary for job {}", jobExecutionId, e);
+        String errorSummaryJson;
+        if ("STOPPED".equals(jobStatus)) {
+            errorSummaryJson = "{\"reason\":\"Stopped by user\"}";
+        } else {
+            // Only validationErrors is reliably tracked; other breakdown fields are unknown from Spring Batch counters
+            ErrorSummary errorSummary = ErrorSummary.builder()
+                    .validationErrors(skipCount)
+                    .build();
+            try {
+                errorSummaryJson = objectMapper.writeValueAsString(errorSummary);
+            } catch (Exception e) {
+                log.warn("Failed to serialize error summary for job {}", jobExecutionId, e);
+                errorSummaryJson = null;
+            }
         }
 
         ImportJob.ImportStatus status = "COMPLETED".equals(jobStatus)

@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.batch;
 
-import com.timekeeper.bibexpo.util.CsvParseResult;
+import com.timekeeper.bibexpo.util.CsvParseStream;
 import com.timekeeper.bibexpo.util.CsvParserUtil;
 import com.timekeeper.bibexpo.util.CsvRow;
 import lombok.RequiredArgsConstructor;
@@ -15,9 +15,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.FileInputStream;
-import java.util.ArrayList;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
 
@@ -28,6 +28,7 @@ import java.util.StringJoiner;
 public class CsvItemReader implements ItemStreamReader<CsvRow> {
 
     private static final String CURRENT_INDEX_KEY = "csv.reader.current.index";
+    private static final String DUPLICATES_KEY = "duplicateBibErrors";
 
     private final CsvParserUtil csvParserUtil;
 
@@ -35,8 +36,12 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
     private String filePath;
 
     private StepExecution stepExecution;
-    private List<CsvRow> rows;
-    private int currentIndex = 0;
+    private InputStream inputStream;
+    private CsvParseStream stream;
+    private Set<String> seenBibs;
+    private StringJoiner duplicates;
+    private int currentIndex;
+    private int skipToIndex;
 
     @BeforeStep
     public void beforeStep(StepExecution stepExecution) {
@@ -45,58 +50,76 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
 
     @Override
     public void open(ExecutionContext executionContext) throws ItemStreamException {
-        log.info("CsvItemReader: parsing CSV file at {}", filePath);
-        try (var stream = new FileInputStream(filePath)) {
-            CsvParseResult result = csvParserUtil.parseCsv(stream);
+        log.info("CsvItemReader: opening CSV file at {}", filePath);
+        try {
+            inputStream = new FileInputStream(filePath);
+            stream = csvParserUtil.openStream(inputStream);
+            seenBibs = new HashSet<>();
+            duplicates = new StringJoiner(",");
+            currentIndex = 0;
 
-            Set<String> seenBibs = new HashSet<>();
-            List<CsvRow> unique = new ArrayList<>();
-            StringJoiner duplicates = new StringJoiner(",");
+            stepExecution.getJobExecution().getExecutionContext()
+                    .put("goodiesColumns", String.join(",", stream.getGoodiesColumns()));
 
-            for (CsvRow row : result.getRows()) {
-                if (seenBibs.add(row.getBibNumber())) {
-                    unique.add(row);
-                } else {
-                    duplicates.add(row.getRowNumber() + ":" + row.getBibNumber());
-                    log.warn("Duplicate BIB {} at row {}, excluding from import",
-                            row.getBibNumber(), row.getRowNumber());
-                }
+            skipToIndex = executionContext.containsKey(CURRENT_INDEX_KEY)
+                    ? executionContext.getInt(CURRENT_INDEX_KEY) : 0;
+            if (skipToIndex > 0) {
+                log.info("Resuming CSV import from row index {}", skipToIndex);
             }
-
-            rows = unique;
-
-            ExecutionContext jobContext = stepExecution.getJobExecution().getExecutionContext();
-            jobContext.put("goodiesColumns", String.join(",", result.getGoodiesColumns()));
-            jobContext.putInt("totalRows", result.getRows().size());
-            stepExecution.getExecutionContext().put("duplicateBibErrors", duplicates.toString());
-
-            if (executionContext.containsKey(CURRENT_INDEX_KEY)) {
-                currentIndex = executionContext.getInt(CURRENT_INDEX_KEY);
-                log.info("Resuming import from row index {}", currentIndex);
-            }
-
-            log.info("CsvItemReader: {} rows to process, {} duplicate BIBs excluded",
-                    rows.size(), result.getRows().size() - rows.size());
         } catch (Exception e) {
-            throw new ItemStreamException("Failed to parse CSV file: " + filePath, e);
+            closeQuietly();
+            throw new ItemStreamException("Failed to open CSV file: " + filePath, e);
         }
+    }
+
+    @Override
+    public CsvRow read() {
+        if (stream == null) return null;
+
+        CsvRow row;
+        while ((row = stream.nextRow()) != null) {
+            if (!seenBibs.add(row.getBibNumber())) {
+                duplicates.add(row.getRowNumber() + ":" + row.getBibNumber());
+                log.warn("Duplicate BIB {} at row {}, excluding from import",
+                        row.getBibNumber(), row.getRowNumber());
+                continue;
+            }
+            if (currentIndex < skipToIndex) {
+                currentIndex++;
+                continue;
+            }
+            currentIndex++;
+            return row;
+        }
+        return null;
     }
 
     @Override
     public void update(ExecutionContext executionContext) throws ItemStreamException {
         executionContext.putInt(CURRENT_INDEX_KEY, currentIndex);
+        if (duplicates != null) {
+            stepExecution.getExecutionContext().putString(DUPLICATES_KEY, duplicates.toString());
+        }
     }
 
     @Override
     public void close() throws ItemStreamException {
-        rows = null;
+        closeQuietly();
     }
 
-    @Override
-    public CsvRow read() {
-        if (rows == null || currentIndex >= rows.size()) {
-            return null;
+    private void closeQuietly() {
+        if (stream != null) {
+            try { stream.close(); } catch (IOException e) {
+                log.warn("Failed to close CSV parser", e);
+            }
+            stream = null;
         }
-        return rows.get(currentIndex++);
+        if (inputStream != null) {
+            try { inputStream.close(); } catch (IOException e) {
+                log.warn("Failed to close CSV input stream", e);
+            }
+            inputStream = null;
+        }
+        seenBibs = null;
     }
 }

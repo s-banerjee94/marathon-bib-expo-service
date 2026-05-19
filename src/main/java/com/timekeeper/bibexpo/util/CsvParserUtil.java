@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.util;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -11,7 +10,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
@@ -24,7 +28,12 @@ public class CsvParserUtil {
             "phone", "email-id", "country", "city"
     );
 
-    public CsvParseResult parseCsv(InputStream inputStream) throws IOException {
+    /**
+     * Open a streaming view over the CSV. The header is parsed and validated eagerly;
+     * data rows are read lazily as the caller pulls them via {@link CsvParseStream#nextRow()}.
+     * The returned stream owns the underlying parser and must be closed by the caller.
+     */
+    public CsvParseStream openStream(InputStream inputStream) throws IOException {
         Reader reader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
         CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT
                 .builder()
@@ -35,7 +44,6 @@ public class CsvParserUtil {
                 .build());
 
         Map<String, Integer> originalHeaderMap = csvParser.getHeaderMap();
-
         validateEmptyHeaders(originalHeaderMap);
 
         Map<String, Integer> normalizedHeaderMap = new HashMap<>();
@@ -62,56 +70,26 @@ public class CsvParserUtil {
 
         log.info("Detected {} goodies columns: {}", goodiesColumns.size(), goodiesColumns);
 
-        List<CsvRow> rows = new ArrayList<>();
-        int rowNumber = 1;
+        return new CsvParseStream(csvParser, headerCaseMapping, goodiesColumns);
+    }
 
-        for (CSVRecord record : csvParser) {
-            rowNumber++;
-            CsvRow csvRow = CsvRow.builder()
-                    .rowNumber(rowNumber)
-                    .chipNumber(getField(record, headerCaseMapping.get("chip no")))
-                    .bibNumber(getField(record, headerCaseMapping.get("bib no")))
-                    .fullName(getField(record, headerCaseMapping.get("name")))
-                    .dateOfBirth(getField(record, headerCaseMapping.get("dob(dd-mm-yyy)")))
-                    .age(parseInteger(getField(record, headerCaseMapping.get("age"))))
-                    .gender(normalizeString(getField(record, headerCaseMapping.get("gender"))))
-                    .raceName(getField(record, headerCaseMapping.get("race")))
-                    .categoryName(getField(record, headerCaseMapping.get("category")))
-                    .phone(getField(record, headerCaseMapping.get("phone")))
-                    .email(normalizeEmail(getField(record, headerCaseMapping.get("email-id"))))
-                    .country(getField(record, headerCaseMapping.get("country")))
-                    .city(getField(record, headerCaseMapping.get("city")))
+    /**
+     * Eagerly parse the entire CSV into a {@link CsvParseResult}. Backed by {@link #openStream}.
+     * Prefer {@link #openStream} for large files to avoid loading every row into memory.
+     */
+    public CsvParseResult parseCsv(InputStream inputStream) throws IOException {
+        try (CsvParseStream stream = openStream(inputStream)) {
+            List<CsvRow> rows = new ArrayList<>();
+            CsvRow row;
+            while ((row = stream.nextRow()) != null) {
+                rows.add(row);
+            }
+            return CsvParseResult.builder()
+                    .rows(rows)
+                    .goodiesColumns(stream.getGoodiesColumns())
+                    .totalRows(rows.size())
                     .build();
-
-            Map<String, String> goodies = new HashMap<>();
-            for (String goodieColumn : goodiesColumns) {
-                String value = getField(record, goodieColumn);
-                if (rowNumber <= 3) {
-                    log.info("Row {}: Column '{}' raw value = '{}'", rowNumber, goodieColumn, value);
-                }
-                if (value != null && !value.isEmpty()) {
-                    goodies.put(goodieColumn, value);
-                } else {
-                    goodies.put(goodieColumn, "Not mentioned");
-                    if (rowNumber <= 3) {
-                        log.info("Row {}: Column '{}' is null or empty - storing as 'Not mentioned'", rowNumber, goodieColumn);
-                    }
-                }
-            }
-            csvRow.setGoodies(goodies);
-
-            if (rowNumber <= 5) {
-                log.info("Row {}: Captured {} goodies: {}", rowNumber, goodies.size(), goodies);
-            }
-
-            rows.add(csvRow);
         }
-
-        return CsvParseResult.builder()
-                .rows(rows)
-                .goodiesColumns(goodiesColumns)
-                .totalRows(rows.size())
-                .build();
     }
 
     private void validateEmptyHeaders(Map<String, Integer> originalHeaderMap) {
@@ -161,40 +139,5 @@ public class CsvParserUtil {
         }
 
         log.info("CSV header validation passed. All {} standard columns matched", STANDARD_COLUMNS.size());
-    }
-
-    private String getField(CSVRecord record, String columnName) {
-        try {
-            String value = record.get(columnName);
-            return value != null && !value.trim().isEmpty() ? value.trim() : null;
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private Integer parseInteger(String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            log.warn("Failed to parse integer value: {}", value);
-            return null;
-        }
-    }
-
-    private String normalizeEmail(String email) {
-        if (email == null || email.trim().isEmpty()) {
-            return null;
-        }
-        return email.trim().toLowerCase();
-    }
-
-    private String normalizeString(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return null;
-        }
-        return value.trim().toUpperCase();
     }
 }
