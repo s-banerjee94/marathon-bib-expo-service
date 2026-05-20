@@ -413,22 +413,17 @@ public interface ParticipantControllerApi {
     @GetMapping("/{eventId}/participants/statistics")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
-            summary = "Get participant statistics for an event (COMING SOON)",
+            summary = "Get participant statistics for an event",
             description = """
-                    ⚠️ PLACEHOLDER ENDPOINT - Full implementation coming soon. \
+                    Returns aggregated participant statistics for the event, computed live from current data. \
 
-                    Currently returns a minimal response with only eventId and status. \
-
-                    **Future Implementation Will Include:** \
+                    **Response includes:** \
                     - totalParticipants: Total number of registered participants \
                     - bibCollectedCount: Number of participants who collected their BIB \
                     - pendingCount: Number of participants pending BIB collection \
-                    - raceBreakdown: Participant counts grouped by race \
-                    - categoryBreakdown: Participant counts grouped by category \
-                    - genderBreakdown: Participant counts grouped by gender (M/F/O) \
-
-                    This is a placeholder endpoint for future enhancements. Use the search/lookup endpoints \
-                    for current participant data retrieval."""
+                    - raceBreakdown: Counts per race (raceId, raceName, count, bibCollectedCount) \
+                    - categoryBreakdown: Counts per category (categoryId, categoryName, count) \
+                    - genderBreakdown: Counts by gender (male, female, other)"""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Statistics retrieved successfully",

@@ -89,7 +89,6 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     private static final int BATCH_SIZE = 25;
     private static final int ERROR_BATCH_SIZE = 25;
-    private static final int ERROR_RESPONSE_LIMIT = 100;
     private static final int ERROR_TTL_DAYS = 30;
     private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
 
@@ -1702,9 +1701,65 @@ public class ParticipantServiceImpl implements ParticipantService {
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
 
+        int total = 0;
+        int bibCollected = 0;
+        int male = 0;
+        int female = 0;
+        int other = 0;
+        Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap = new LinkedHashMap<>();
+        Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap = new LinkedHashMap<>();
+
+        QueryConditional queryConditional = QueryConditional.keyEqualTo(
+                Key.builder().partitionValue(eventId.toString()).build()
+        );
+
+        for (Page<ParticipantDDB> page : participantTable.query(queryConditional)) {
+            for (ParticipantDDB p : page.items()) {
+                total++;
+                boolean collected = p.getBibCollectedAt() != null && !p.getBibCollectedAt().isBlank();
+                if (collected) bibCollected++;
+
+                String gender = p.getGender();
+                if ("M".equalsIgnoreCase(gender)) male++;
+                else if ("F".equalsIgnoreCase(gender)) female++;
+                else other++;
+
+                String raceKey = p.getRaceId() != null ? p.getRaceId() : "UNKNOWN";
+                ParticipantStatisticsResponse.RaceStatistics rs = raceMap.computeIfAbsent(raceKey,
+                        k -> ParticipantStatisticsResponse.RaceStatistics.builder()
+                                .raceId(p.getRaceId())
+                                .raceName(p.getRaceName())
+                                .count(0)
+                                .bibCollectedCount(0)
+                                .build());
+                rs.setCount(rs.getCount() + 1);
+                if (collected) rs.setBibCollectedCount(rs.getBibCollectedCount() + 1);
+
+                String catKey = p.getCategoryId() != null ? p.getCategoryId() : "UNKNOWN";
+                ParticipantStatisticsResponse.CategoryStatistics cs = categoryMap.computeIfAbsent(catKey,
+                        k -> ParticipantStatisticsResponse.CategoryStatistics.builder()
+                                .categoryId(p.getCategoryId())
+                                .categoryName(p.getCategoryName())
+                                .count(0)
+                                .build());
+                cs.setCount(cs.getCount() + 1);
+            }
+        }
+
+        log.info("Computed statistics for event {}: total={} bibCollected={}", eventId, total, bibCollected);
+
         return ParticipantStatisticsResponse.builder()
                 .eventId(eventId)
-                .status("COMING_SOON")
+                .totalParticipants(total)
+                .bibCollectedCount(bibCollected)
+                .pendingCount(total - bibCollected)
+                .raceBreakdown(new ArrayList<>(raceMap.values()))
+                .categoryBreakdown(new ArrayList<>(categoryMap.values()))
+                .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
+                        .male(male)
+                        .female(female)
+                        .other(other)
+                        .build())
                 .build();
     }
 

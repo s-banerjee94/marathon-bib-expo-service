@@ -36,9 +36,6 @@ public class ParticipantStatisticsResponse {
     @Schema(description = "Statistics breakdown by gender")
     private GenderStatistics genderBreakdown;
 
-    @Schema(description = "Indicates if this endpoint is fully implemented")
-    private String status;
-
     @Data
     @Builder
     @NoArgsConstructor
