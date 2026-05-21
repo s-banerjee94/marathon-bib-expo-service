@@ -7,10 +7,13 @@ import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLatestImport;
 import com.timekeeper.bibexpo.model.entity.ImportJob;
 import com.timekeeper.bibexpo.model.entity.Notification;
+import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.ImportJobRepository;
+import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
+import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.NotificationService;
 import com.timekeeper.bibexpo.service.SseEmitterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +38,8 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private final EventLatestImportRepository eventLatestImportRepository;
     private final ParticipantDDBRepository participantDDBRepository;
     private final EventRepository eventRepository;
+    private final UserRepository userRepository;
+    private final EventStatsService eventStatsService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -98,6 +103,10 @@ public class BatchJobNotificationListener implements JobExecutionListener {
             log.error("Failed to update latest import pointer for job {} event {}", jobExecutionId, eventId, e);
         }
 
+        if ("COMPLETED".equals(jobStatus)) {
+            reconcileStats(eventId, userId, jobExecutionId);
+        }
+
         try {
             Notification notification = notificationService.createJobNotification(
                     userId, eventId, jobExecutionId, writeCount, skipCount, jobStatus);
@@ -116,6 +125,22 @@ public class BatchJobNotificationListener implements JobExecutionListener {
             sseEmitterRegistry.send(userId, eventName, payload);
         } catch (Exception e) {
             log.error("Failed to create or send notification for job {} user {}", jobExecutionId, userId, e);
+        }
+    }
+
+    private void reconcileStats(Long eventId, Long userId, Long jobExecutionId) {
+        try {
+            User user = userRepository.findById(userId).orElse(null);
+            if (user == null) {
+                log.warn("Skipping stats reconcile for job {} event {}: uploader user {} not found",
+                        jobExecutionId, eventId, userId);
+                return;
+            }
+            eventStatsService.reconcile(eventId, user);
+            log.info("Reconciled stats counters after batch import job {} for event {}", jobExecutionId, eventId);
+        } catch (Exception e) {
+            log.error("Failed to reconcile stats counters after batch import job {} for event {}",
+                    jobExecutionId, eventId, e);
         }
     }
 

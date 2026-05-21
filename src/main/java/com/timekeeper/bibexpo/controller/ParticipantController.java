@@ -7,6 +7,7 @@ import com.timekeeper.bibexpo.model.dto.response.*;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
+import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.ParticipantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ import java.util.Map;
 public class ParticipantController implements ParticipantControllerApi {
 
     private final ParticipantService participantService;
+    private final EventStatsService eventStatsService;
 
     @Override
     public ResponseEntity<ParticipantResponse> createParticipant(
@@ -290,6 +292,22 @@ public class ParticipantController implements ParticipantControllerApi {
                 eventId, currentUser.getUsername());
 
         ParticipantStatisticsResponse response = participantService.getParticipantStatistics(eventId, currentUser);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<ParticipantStatisticsResponse> reconcileParticipantStatistics(
+            Long eventId,
+            User currentUser) {
+
+        log.info("Reconcile participant statistics request - Event: {}, user: {}",
+                eventId, currentUser.getUsername());
+
+        ParticipantStatisticsResponse response = eventStatsService.reconcile(eventId, currentUser);
+
+        log.info("Reconcile completed for event {}. Total: {}, BibCollected: {}",
+                eventId, response.getTotalParticipants(), response.getBibCollectedCount());
 
         return ResponseEntity.ok(response);
     }

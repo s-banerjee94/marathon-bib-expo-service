@@ -16,6 +16,7 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.DistributionLogDDBRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.DistributionService;
+import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.SmsSendService;
 import com.timekeeper.bibexpo.service.util.DistributionConstants;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
@@ -46,6 +47,7 @@ public class DistributionServiceImpl implements DistributionService {
     private final DynamoDBPaginationCodec paginationCodec;
     private final DistributionValidator validator;
     private final SmsSendService smsSendService;
+    private final EventStatsService eventStatsService;
 
     @Override
     public BibDistributionResponse collectBib(Long eventId, String bibNumber, CollectBibRequest request, User currentUser) {
@@ -102,6 +104,7 @@ public class DistributionServiceImpl implements DistributionService {
         }
 
         participantRepository.save(participant);
+        eventStatsService.onBibCollected(participant, goodiesDistributed);
 
         logDistributionAction(String.valueOf(eventId), bibNumber, now,
                 DistributionConstants.ACTION_BIB_COLLECTED,
@@ -136,6 +139,8 @@ public class DistributionServiceImpl implements DistributionService {
             throw new BibNotCollectedException(String.valueOf(eventId), bibNumber);
         }
 
+        ParticipantDDB beforeSnapshot = snapshotForStats(participant);
+
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         String undoneBy = DistributionConstants.formatDistributorInfo(currentUser.getId(), currentUser.getUsername());
 
@@ -148,6 +153,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedBy(currentUser.getUsername());
 
         participantRepository.save(participant);
+        eventStatsService.onBibUndone(beforeSnapshot);
 
         logDistributionAction(String.valueOf(eventId), bibNumber, now,
                 DistributionConstants.ACTION_BIB_UNDONE,
@@ -210,6 +216,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedBy(currentUser.getUsername());
 
         participantRepository.save(participant);
+        eventStatsService.onGoodiesDistributed(participant, itemsDistributed);
 
         return GoodiesDistributionResponse.builder()
                 .success(true)
@@ -569,6 +576,23 @@ public class DistributionServiceImpl implements DistributionService {
                 .lastEvaluatedKey(newLastEvaluatedKey)
                 .count(logs.size())
                 .hasMore(newLastEvaluatedKey != null)
+                .build();
+    }
+
+    private ParticipantDDB snapshotForStats(ParticipantDDB p) {
+        Map<String, String> goodiesCopy = p.getGoodiesDistribution() != null
+                ? new HashMap<>(p.getGoodiesDistribution())
+                : null;
+        return ParticipantDDB.builder()
+                .eventId(p.getEventId())
+                .bibNumber(p.getBibNumber())
+                .raceId(p.getRaceId())
+                .raceName(p.getRaceName())
+                .categoryId(p.getCategoryId())
+                .categoryName(p.getCategoryName())
+                .gender(p.getGender())
+                .bibCollectedAt(p.getBibCollectedAt())
+                .goodiesDistribution(goodiesCopy)
                 .build();
     }
 

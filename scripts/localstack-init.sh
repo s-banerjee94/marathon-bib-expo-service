@@ -141,4 +141,17 @@ awslocal dynamodb create-table \
     --billing-mode PAY_PER_REQUEST
 
 echo "DynamoDB table marathon-distribution-logs created successfully!"
+
+echo "Creating DynamoDB table: marathon-event-stats"
+awslocal dynamodb create-table \
+    --table-name marathon-event-stats \
+    --attribute-definitions \
+        AttributeName=eventId,AttributeType=S \
+        AttributeName=statKey,AttributeType=S \
+    --key-schema \
+        AttributeName=eventId,KeyType=HASH \
+        AttributeName=statKey,KeyType=RANGE \
+    --billing-mode PAY_PER_REQUEST
+
+echo "DynamoDB table marathon-event-stats created successfully!"
 echo "LocalStack initialization complete!"

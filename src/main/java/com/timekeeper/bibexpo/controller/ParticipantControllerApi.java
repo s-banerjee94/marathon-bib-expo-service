@@ -443,6 +443,40 @@ public interface ParticipantControllerApi {
             @AuthenticationPrincipal User currentUser
     );
 
+    @PostMapping("/{eventId}/participants/statistics/reconcile")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Rebuild participant statistics counters from source-of-truth data",
+            description = """
+                    Wipes the pre-aggregated statistics counters for the event and rebuilds them by querying \
+                    all participant rows and aggregating in memory. \
+
+                    **Use cases:** \
+                    - Initial backfill for an existing event before the counter-based statistics endpoint is used \
+                    - Drift recovery if counter updates were missed due to transient DynamoDB failures \
+                    - Post-batch-import refresh (also invoked automatically by the batch import job) \
+
+                    Returns the freshly computed statistics so the caller does not need to issue a follow-up \
+                    GET request."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Counters rebuilt successfully and freshly computed statistics returned",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ParticipantStatisticsResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<ParticipantStatisticsResponse> reconcileParticipantStatistics(
+            @Parameter(description = "Event ID", required = true, example = "1")
+            @PathVariable Long eventId,
+
+            @AuthenticationPrincipal User currentUser
+    );
+
     @DeleteMapping("/{eventId}/participants")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(

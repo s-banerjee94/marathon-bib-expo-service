@@ -19,6 +19,7 @@ import com.timekeeper.bibexpo.model.dto.response.ParticipantListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.model.dto.response.RaceResponse;
+import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
 import com.timekeeper.bibexpo.model.dynamodb.ImportErrorDDB;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.*;
@@ -26,8 +27,10 @@ import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.ImportJobRepository;
+import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.service.CategoryService;
 import com.timekeeper.bibexpo.service.EventService;
+import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.ParticipantService;
 import com.timekeeper.bibexpo.service.RaceService;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
@@ -83,6 +86,8 @@ public class ParticipantServiceImpl implements ParticipantService {
     private final ImportJobRepository importJobRepository;
     private final EventAccessValidator validator;
     private final DynamoDBPaginationCodec paginationCodec;
+    private final EventStatsDDBRepository eventStatsRepo;
+    private final EventStatsService eventStatsService;
 
     private DynamoDbTable<ParticipantDDB> participantTable;
     private DynamoDbTable<ImportErrorDDB> importErrorTable;
@@ -161,6 +166,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .build();
 
         participantTable.putItem(participant);
+        eventStatsService.onParticipantCreated(participant);
 
         log.info("Successfully created participant with BIB {} for event ID: {}", request.getBibNumber(), eventId);
 
@@ -262,6 +268,12 @@ public class ParticipantServiceImpl implements ParticipantService {
         importJob.setErrorSummary(serializeErrorSummary(errorSummary));
         importJob.setGoodiesDetected(String.join(",", parseResult.getGoodiesColumns()));
         importJobRepository.save(importJob);
+
+        try {
+            eventStatsService.reconcile(eventId, currentUser);
+        } catch (Exception ex) {
+            log.error("Failed to reconcile stats counters after sync CSV import for event {}: {}", eventId, ex.getMessage());
+        }
 
         log.info("CSV import {} completed for event ID: {}. Deleted: {}, Success: {}, Failed: {}",
                 importId, eventId, deletedCount, successCount, allErrors.size());
@@ -386,6 +398,8 @@ public class ParticipantServiceImpl implements ParticipantService {
             throw new ParticipantNotFoundException(eventId.toString(), bibNumber);
         }
 
+        ParticipantDDB beforeSnapshot = snapshotForStats(participant);
+
         boolean bibNumberChanged = false;
         String newBibNumber = bibNumber;
 
@@ -449,6 +463,8 @@ public class ParticipantServiceImpl implements ParticipantService {
 
             log.info("Successfully updated participant BIB {} for event ID: {}", bibNumber, eventId);
         }
+
+        eventStatsService.onParticipantUpdated(beforeSnapshot, participant);
 
         return mapParticipantToResponse(participant);
     }
@@ -1076,6 +1092,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                         .sortValue(bibNumber)
                         .build()
         );
+        eventStatsService.onParticipantDeleted(participant);
 
         String message = String.format("Successfully deleted participant with bib %s from event '%s'", bibNumber, event.getEventName());
         log.info(message);
@@ -1100,6 +1117,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         eventService.validateEventEnabled(event, currentUser);
 
         int deletedCount = deleteAllParticipantsForEvent(eventId);
+        eventStatsRepo.deleteAllByEventId(eventId.toString());
 
         String message = String.format("Successfully deleted %d participants for event '%s'", deletedCount, event.getEventName());
         log.info(message);
@@ -1158,6 +1176,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                     log.warn("Bulk delete had {} unprocessed items", unprocessedCount);
                     failedCount += unprocessedCount;
                 }
+                eventStatsService.onBulkDeleted(participantsToDelete);
             } catch (Exception e) {
                 log.error("Failed to delete participants in bulk for event {}", eventId, e);
                 throw new CsvImportException("Failed to delete participants: " + e.getMessage(), e);
@@ -1701,6 +1720,17 @@ public class ParticipantServiceImpl implements ParticipantService {
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
 
+        List<EventStatsDDB> rows = eventStatsRepo.queryAll(eventId.toString());
+        if (rows.isEmpty()) {
+            log.warn("No stats counters found for event {} — call POST /participants/statistics/reconcile to backfill",
+                    eventId);
+            return emptyStatistics(eventId);
+        }
+
+        return buildStatisticsFromRows(eventId, rows);
+    }
+
+    private ParticipantStatisticsResponse buildStatisticsFromRows(Long eventId, List<EventStatsDDB> rows) {
         int total = 0;
         int bibCollected = 0;
         int male = 0;
@@ -1709,50 +1739,29 @@ public class ParticipantServiceImpl implements ParticipantService {
         Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap = new LinkedHashMap<>();
         Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap = new LinkedHashMap<>();
 
-        QueryConditional queryConditional = QueryConditional.keyEqualTo(
-                Key.builder().partitionValue(eventId.toString()).build()
-        );
+        for (EventStatsDDB row : rows) {
+            String key = row.getStatKey();
+            long count = row.getCount() != null ? row.getCount() : 0L;
+            if (count < 0) continue;
 
-        for (Page<ParticipantDDB> page : participantTable.query(queryConditional)) {
-            for (ParticipantDDB p : page.items()) {
-                total++;
-                boolean collected = p.getBibCollectedAt() != null && !p.getBibCollectedAt().isBlank();
-                if (collected) bibCollected++;
-
-                String gender = p.getGender();
-                if ("M".equalsIgnoreCase(gender)) male++;
-                else if ("F".equalsIgnoreCase(gender)) female++;
-                else other++;
-
-                String raceKey = p.getRaceId() != null ? p.getRaceId() : "UNKNOWN";
-                ParticipantStatisticsResponse.RaceStatistics rs = raceMap.computeIfAbsent(raceKey,
-                        k -> ParticipantStatisticsResponse.RaceStatistics.builder()
-                                .raceId(p.getRaceId())
-                                .raceName(p.getRaceName())
-                                .count(0)
-                                .bibCollectedCount(0)
-                                .build());
-                rs.setCount(rs.getCount() + 1);
-                if (collected) rs.setBibCollectedCount(rs.getBibCollectedCount() + 1);
-
-                String catKey = p.getCategoryId() != null ? p.getCategoryId() : "UNKNOWN";
-                ParticipantStatisticsResponse.CategoryStatistics cs = categoryMap.computeIfAbsent(catKey,
-                        k -> ParticipantStatisticsResponse.CategoryStatistics.builder()
-                                .categoryId(p.getCategoryId())
-                                .categoryName(p.getCategoryName())
-                                .count(0)
-                                .build());
-                cs.setCount(cs.getCount() + 1);
+            switch (key) {
+                case EventStatsServiceImpl.KEY_TOTAL -> total = (int) count;
+                case EventStatsServiceImpl.KEY_BIB_COLLECTED -> bibCollected = (int) count;
+                case EventStatsServiceImpl.GENDER_M -> male = (int) count;
+                case EventStatsServiceImpl.GENDER_F -> female = (int) count;
+                case EventStatsServiceImpl.GENDER_O -> other = (int) count;
+                default -> applyDimensionRow(key, count, row, raceMap, categoryMap);
             }
         }
 
-        log.info("Computed statistics for event {}: total={} bibCollected={}", eventId, total, bibCollected);
+        log.info("Loaded statistics for event {} from counters: total={} bibCollected={}",
+                eventId, total, bibCollected);
 
         return ParticipantStatisticsResponse.builder()
                 .eventId(eventId)
                 .totalParticipants(total)
                 .bibCollectedCount(bibCollected)
-                .pendingCount(total - bibCollected)
+                .pendingCount(Math.max(0, total - bibCollected))
                 .raceBreakdown(new ArrayList<>(raceMap.values()))
                 .categoryBreakdown(new ArrayList<>(categoryMap.values()))
                 .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
@@ -1760,6 +1769,92 @@ public class ParticipantServiceImpl implements ParticipantService {
                         .female(female)
                         .other(other)
                         .build())
+                .build();
+    }
+
+    private void applyDimensionRow(
+            String key, long count, EventStatsDDB row,
+            Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap,
+            Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap) {
+
+        if (key.startsWith(EventStatsServiceImpl.PREFIX_RACE)) {
+            applyRaceRow(key, count, row, raceMap);
+        } else if (key.startsWith(EventStatsServiceImpl.PREFIX_CATEGORY)) {
+            applyCategoryRow(key, count, row, categoryMap);
+        }
+    }
+
+    private void applyRaceRow(
+            String key, long count, EventStatsDDB row,
+            Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap) {
+
+        boolean collected = key.endsWith(EventStatsServiceImpl.SUFFIX_COLLECTED);
+        String raceId = collected
+                ? key.substring(EventStatsServiceImpl.PREFIX_RACE.length(),
+                        key.length() - EventStatsServiceImpl.SUFFIX_COLLECTED.length())
+                : key.substring(EventStatsServiceImpl.PREFIX_RACE.length());
+
+        ParticipantStatisticsResponse.RaceStatistics rs = raceMap.computeIfAbsent(raceId,
+                k -> ParticipantStatisticsResponse.RaceStatistics.builder()
+                        .raceId(k)
+                        .raceName(row.getRaceName())
+                        .count(0)
+                        .bibCollectedCount(0)
+                        .build());
+
+        if (rs.getRaceName() == null && row.getRaceName() != null) {
+            rs.setRaceName(row.getRaceName());
+        }
+        if (collected) {
+            rs.setBibCollectedCount((int) count);
+        } else {
+            rs.setCount((int) count);
+        }
+    }
+
+    private void applyCategoryRow(
+            String key, long count, EventStatsDDB row,
+            Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap) {
+
+        if (key.endsWith(EventStatsServiceImpl.SUFFIX_COLLECTED)) return;
+
+        String categoryId = key.substring(EventStatsServiceImpl.PREFIX_CATEGORY.length());
+        ParticipantStatisticsResponse.CategoryStatistics cs = categoryMap.computeIfAbsent(categoryId,
+                k -> ParticipantStatisticsResponse.CategoryStatistics.builder()
+                        .categoryId(k)
+                        .categoryName(row.getCategoryName())
+                        .count(0)
+                        .build());
+
+        if (cs.getCategoryName() == null && row.getCategoryName() != null) {
+            cs.setCategoryName(row.getCategoryName());
+        }
+        cs.setCount((int) count);
+    }
+
+    private ParticipantDDB snapshotForStats(ParticipantDDB p) {
+        return ParticipantDDB.builder()
+                .eventId(p.getEventId())
+                .bibNumber(p.getBibNumber())
+                .raceId(p.getRaceId())
+                .raceName(p.getRaceName())
+                .categoryId(p.getCategoryId())
+                .categoryName(p.getCategoryName())
+                .gender(p.getGender())
+                .bibCollectedAt(p.getBibCollectedAt())
+                .build();
+    }
+
+    private ParticipantStatisticsResponse emptyStatistics(Long eventId) {
+        return ParticipantStatisticsResponse.builder()
+                .eventId(eventId)
+                .totalParticipants(0)
+                .bibCollectedCount(0)
+                .pendingCount(0)
+                .raceBreakdown(new ArrayList<>())
+                .categoryBreakdown(new ArrayList<>())
+                .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
+                        .male(0).female(0).other(0).build())
                 .build();
     }
 
