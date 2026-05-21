@@ -66,6 +66,13 @@ application-local.properties
 application-local.yml
 application-local.yaml
 
+### Certificates / Keystores ###
+*.p12
+*.jks
+*.pem
+*.key
+*.crt
+
 CLAUDE.md
 .claude
 AGENTS.md

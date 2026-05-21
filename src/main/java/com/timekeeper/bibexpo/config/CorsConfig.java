@@ -8,12 +8,11 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 public class CorsConfig {
 
-    @Value("${cors.allowed-origins:http://localhost:3000,http://localhost:4200}")
+    @Value("${cors.allowed-origins:http://localhost:[*],https://localhost:[*],http://192.168.*.*:[*],https://192.168.*.*:[*],http://10.*.*.*:[*],https://10.*.*.*:[*],http://172.*.*.*:[*],https://172.*.*.*:[*]}")
     private String[] allowedOrigins;
 
     @Value("${cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS}")
@@ -35,7 +34,7 @@ public class CorsConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins));
+        configuration.setAllowedOriginPatterns(Arrays.asList(allowedOrigins));
         configuration.setAllowedMethods(Arrays.asList(allowedMethods));
         configuration.setAllowedHeaders(Arrays.asList(allowedHeaders));
         configuration.setExposedHeaders(Arrays.asList(exposedHeaders));

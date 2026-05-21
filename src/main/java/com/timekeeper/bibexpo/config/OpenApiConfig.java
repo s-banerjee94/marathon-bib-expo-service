@@ -23,8 +23,8 @@ public class OpenApiConfig {
                                 .name("Bibliographic Expo Team")
                                 .email("support@bibexpo.com")))
                 .addServersItem(new Server()
-                        .url("http://localhost:8080")
-                        .description("Local Development Server"))
+                        .url("/")
+                        .description("Current Host"))
                 .components(new io.swagger.v3.oas.models.Components()
                         .addSecuritySchemes("bearerAuth",
                                 new SecurityScheme()
