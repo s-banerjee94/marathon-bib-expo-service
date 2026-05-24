@@ -76,7 +76,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
         if (eventId == null) {
             eventId = Long.parseLong(eventIdParam);
             event = eventRepository.findById(eventId)
-                    .orElseThrow(() -> new EventNotFoundException("Event not found: " + eventId));
+                    .orElseThrow(() -> new EventNotFoundException());
             if (userIdParam != null) {
                 User user = userRepository.findById(Long.parseLong(userIdParam)).orElse(null);
                 username = user != null ? user.getUsername() : "batch-import";

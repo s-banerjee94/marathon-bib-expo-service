@@ -72,7 +72,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ParticipantServiceImpl implements ParticipantService {
 
-    public static final String EVENT_NOT_FOUND_WITH_ID = "Event not found with ID: ";
     public static final String BATCH_WRITE_ERROR = "BATCH_WRITE_ERROR";
     public static final String FAILED_TO_DECODE_PAGINATION_KEY = "Failed to decode pagination key";
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
@@ -116,7 +115,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 request.getBibNumber(), eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
@@ -182,7 +181,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         validateFile(file);
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
@@ -297,7 +296,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 eventId, limit, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
@@ -353,7 +352,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 bibNumber, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
 
@@ -365,7 +364,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         );
 
         if (participant == null) {
-            throw new ParticipantNotFoundException(eventId.toString(), bibNumber);
+            throw new ParticipantNotFoundException();
         }
 
         log.info("Retrieved participant BIB {} from DynamoDB with {} goodies: {}",
@@ -383,7 +382,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 bibNumber, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
 
@@ -395,7 +394,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         );
 
         if (participant == null) {
-            throw new ParticipantNotFoundException(eventId.toString(), bibNumber);
+            throw new ParticipantNotFoundException();
         }
 
         ParticipantDDB beforeSnapshot = snapshotForStats(participant);
@@ -474,7 +473,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Counting participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
@@ -917,7 +916,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 eventId, page, size, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserOrganizationAccess(currentUser, event);
 
@@ -949,7 +948,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 importId, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserOrganizationAccess(currentUser, event);
 
@@ -965,7 +964,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 importId, limit, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserOrganizationAccess(currentUser, event);
 
@@ -1071,7 +1070,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Deleting participant with bib {} for event ID: {} by user: {}", bibNumber, eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
 
@@ -1083,7 +1082,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         );
 
         if (participant == null) {
-            throw new ParticipantNotFoundException("Participant not found with bib number: " + bibNumber);
+            throw new ParticipantNotFoundException();
         }
 
         participantTable.deleteItem(
@@ -1111,7 +1110,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Deleting all participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
@@ -1136,7 +1135,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Deleting {} participants for event ID: {} by user: {}", bibNumbers.size(), eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
 
@@ -1247,7 +1246,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 eventId, searchTerm, raceId, categoryId, gender, minAge, maxAge, city, country, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
@@ -1454,7 +1453,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 eventId, searchType, searchValue, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
@@ -1576,7 +1575,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Exporting participants to CSV for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
@@ -1715,7 +1714,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Getting participant statistics for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);

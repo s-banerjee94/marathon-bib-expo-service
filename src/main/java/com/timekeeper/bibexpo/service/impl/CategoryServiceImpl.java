@@ -1,56 +1,43 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.exception.CategoryAlreadyExistsException;
-import com.timekeeper.bibexpo.exception.CategoryInUseException;
-import com.timekeeper.bibexpo.exception.CategoryNotFoundException;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.RaceNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.*;
 import com.timekeeper.bibexpo.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.response.CategoryResponse;
-import com.timekeeper.bibexpo.model.entity.Category;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.Gender;
-import com.timekeeper.bibexpo.model.entity.Race;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.model.entity.*;
 import com.timekeeper.bibexpo.repository.CategoryRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.CategoryService;
-import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.ParticipantService;
-import lombok.RequiredArgsConstructor;
+import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class CategoryServiceImpl implements CategoryService {
 
-    public static final String CATEGORY_NOT_FOUND_WITH_ID = "Category not found with ID: ";
     private final CategoryRepository categoryRepository;
     private final RaceRepository raceRepository;
     private final EventRepository eventRepository;
-    private final EventService eventService;
+    private final EventAccessValidator eventAccessValidator;
     private final ParticipantService participantService;
 
     public CategoryServiceImpl(
             CategoryRepository categoryRepository,
             RaceRepository raceRepository,
             EventRepository eventRepository,
-            EventService eventService,
+            EventAccessValidator eventAccessValidator,
             @Lazy ParticipantService participantService) {
         this.categoryRepository = categoryRepository;
         this.raceRepository = raceRepository;
         this.eventRepository = eventRepository;
-        this.eventService = eventService;
+        this.eventAccessValidator = eventAccessValidator;
         this.participantService = participantService;
     }
 
@@ -87,14 +74,13 @@ public class CategoryServiceImpl implements CategoryService {
         log.info("Updating category with ID: {} for race ID: {} in event ID: {} by user: {}",
                 categoryId, raceId, eventId, currentUser.getUsername());
 
-        Race race = validateRaceAndEvent(eventId, raceId, currentUser);
+        validateRaceAndEvent(eventId, raceId, currentUser);
 
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new CategoryNotFoundException(CATEGORY_NOT_FOUND_WITH_ID + categoryId));
+                .orElseThrow(CategoryNotFoundException::new);
 
         if (!category.getRace().getId().equals(raceId)) {
-            throw new CategoryNotFoundException(
-                    "Category not found for this race.");
+            throw new CategoryNotFoundException();
         }
 
         if (request.getCategoryName() != null && !request.getCategoryName().isBlank() &&
@@ -126,11 +112,10 @@ public class CategoryServiceImpl implements CategoryService {
         validateRaceAndEvent(eventId, raceId, currentUser);
 
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new CategoryNotFoundException(CATEGORY_NOT_FOUND_WITH_ID + categoryId));
+                .orElseThrow(CategoryNotFoundException::new);
 
         if (!category.getRace().getId().equals(raceId)) {
-            throw new CategoryNotFoundException(
-                    "Category not found for this race.");
+            throw new CategoryNotFoundException();
         }
 
         log.info("Successfully fetched category with ID: {} for user: {}",
@@ -151,7 +136,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         List<CategoryResponse> categoryResponses = categories.stream()
                 .map(CategoryResponse::fromEntity)
-                .collect(Collectors.toList());
+                .toList();
 
         log.info("Successfully fetched {} categories for race ID: {} by user: {}",
                 categoryResponses.size(), raceId, currentUser.getUsername());
@@ -168,11 +153,10 @@ public class CategoryServiceImpl implements CategoryService {
         validateRaceAndEvent(eventId, raceId, currentUser);
 
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new CategoryNotFoundException(CATEGORY_NOT_FOUND_WITH_ID + categoryId));
+                .orElseThrow(CategoryNotFoundException::new);
 
         if (!category.getRace().getId().equals(raceId)) {
-            throw new CategoryNotFoundException(
-                    "Category not found for this race.");
+            throw new CategoryNotFoundException();
         }
 
         long participantCount = participantService.countParticipantsByCategoryId(eventId, categoryId);
@@ -189,41 +173,18 @@ public class CategoryServiceImpl implements CategoryService {
 
     private Race validateRaceAndEvent(Long eventId, Long raceId, User currentUser) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(EventNotFoundException::new);
 
-        validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
+        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
         Race race = raceRepository.findById(raceId)
-                .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
+                .orElseThrow(RaceNotFoundException::new);
 
         if (!race.getEvent().getId().equals(eventId)) {
-            throw new RaceNotFoundException("Race not found for this event.");
+            throw new RaceNotFoundException();
         }
 
         return race;
-    }
-
-    private void validateUserAuthorizationForEvent(User currentUser, Event event) {
-        UserRole role = currentUser.getRole();
-
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
-            return;
-        }
-
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER || role == UserRole.DISTRIBUTOR) {
-            if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
-            }
-
-            if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
-                throw new UnauthorizedAccessException(
-                        "You can only access categories from your organization's events.");
-            }
-            return;
-        }
-
-        throw new UnauthorizedAccessException("You are not allowed to access categories.");
     }
 
     @Override
@@ -233,15 +194,14 @@ public class CategoryServiceImpl implements CategoryService {
                 raceId, categoryName, currentUser.getUsername());
 
         Race race = raceRepository.findById(raceId)
-                .orElseThrow(() -> new RaceNotFoundException("Race not found with ID: " + raceId));
+                .orElseThrow(RaceNotFoundException::new);
 
         Event event = eventRepository.findById(race.getEvent().getId())
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + race.getEvent().getId()));
+                .orElseThrow(EventNotFoundException::new);
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
         return categoryRepository.findByCategoryNameAndRaceId(categoryName, raceId)
-                .orElseThrow(() -> new CategoryNotFoundException(
-                        "Category with name '" + categoryName + "' not found for race with ID: " + raceId));
+                .orElseThrow(CategoryNotFoundException::new);
     }
 }

@@ -151,8 +151,7 @@ public class UserServiceImpl implements UserService {
                 .filter(org -> !org.getDeleted())
                 .orElseThrow(() -> {
                     log.error("Organization not found or deleted with ID: {}", request.getOrganizationId());
-                    return new OrganizationNotFoundException(
-                            "Organization not found with ID: " + request.getOrganizationId());
+                    return new OrganizationNotFoundException();
                 });
 
         if (Boolean.FALSE.equals(organization.getEnabled()) || Boolean.TRUE.equals(organization.getDeleted())) {
@@ -377,7 +376,7 @@ public class UserServiceImpl implements UserService {
         return userRepository.findById(userId)
                 .orElseThrow(() -> {
                     log.error("User not found with ID: {}", userId);
-                    return new UserNotFoundException("User not found with ID: " + userId);
+                    return new UserNotFoundException();
                 });
     }
 

@@ -45,7 +45,7 @@ public class ParticipantDDBRepository {
 
         ParticipantDDB participant = table.getItem(key);
         if (participant == null) {
-            throw new ParticipantNotFoundException(eventIdStr, bibNumber);
+            throw new ParticipantNotFoundException();
         }
 
         log.debug("Found participant with bib {} for event {}", bibNumber, eventId);

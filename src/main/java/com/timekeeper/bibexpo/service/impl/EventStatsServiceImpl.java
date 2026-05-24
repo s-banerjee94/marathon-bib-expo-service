@@ -141,7 +141,7 @@ public class EventStatsServiceImpl implements EventStatsService {
         log.info("Reconciling event stats for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
 

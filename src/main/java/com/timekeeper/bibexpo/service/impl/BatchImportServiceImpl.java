@@ -63,7 +63,7 @@ public class BatchImportServiceImpl implements BatchImportService {
     @Override
     public BatchImportResponse launchImport(Long eventId, MultipartFile file, User currentUser) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(() -> new EventNotFoundException());
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
@@ -119,7 +119,7 @@ public class BatchImportServiceImpl implements BatchImportService {
     @Override
     public BatchJobStatusResponse stopImport(Long eventId, Long jobExecutionId, User currentUser) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(EventNotFoundException::new);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
         ImportJob job = importJobRepository.findByJobExecutionIdAndEventId(jobExecutionId, eventId)
@@ -171,7 +171,7 @@ public class BatchImportServiceImpl implements BatchImportService {
     @Override
     public ImportErrorListResponse getLatestBatchImportErrors(Long eventId, int limit, String lastEvaluatedKey) {
         if (!eventRepository.existsById(eventId)) {
-            throw new EventNotFoundException("Event not found with ID: " + eventId);
+            throw new EventNotFoundException();
         }
         return eventLatestImportRepository.findById(eventId)
                 .map(latest -> {

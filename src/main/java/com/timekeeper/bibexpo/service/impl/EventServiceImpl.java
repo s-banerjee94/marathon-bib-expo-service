@@ -13,6 +13,7 @@ import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.service.EventService;
+import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,9 +39,9 @@ import java.util.function.Consumer;
 @Slf4j
 public class EventServiceImpl implements EventService {
 
-    public static final String EVENT_NOT_FOUND_WITH_ID = "Event not found with ID: ";
     private final EventRepository eventRepository;
     private final OrganizationRepository organizationRepository;
+    private final EventAccessValidator eventAccessValidator;
 
     @Override
     @Transactional
@@ -49,8 +50,7 @@ public class EventServiceImpl implements EventService {
                 request.getEventName(), request.getOrganizationId(), currentUser.getUsername());
 
         Organization organization = organizationRepository.findByIdAndDeletedFalse(request.getOrganizationId())
-                .orElseThrow(() -> new OrganizationNotFoundException(
-                        "Organization not found with ID: " + request.getOrganizationId()));
+                .orElseThrow(OrganizationNotFoundException::new);
 
         validateUserAuthorization(currentUser, organization);
 
@@ -60,10 +60,10 @@ public class EventServiceImpl implements EventService {
                     "An event with this name already exists for this organization.");
         }
 
-        validateTimezone(request.getTimezone());
+        ZoneId zone = validateTimezone(request.getTimezone());
 
-        Instant startInstant = parseToInstant(request.getEventStartDate(), request.getEventStartTime(), request.getTimezone());
-        Instant endInstant = parseToInstant(request.getEventEndDate(), request.getEventEndTime(), request.getTimezone());
+        Instant startInstant = parseToInstant(request.getEventStartDate(), request.getEventStartTime(), zone);
+        Instant endInstant = parseToInstant(request.getEventEndDate(), request.getEventEndTime(), zone);
 
         if (!startInstant.isAfter(Instant.now())) {
             throw new InvalidUserDataException("Event start date must be in the future.");
@@ -106,10 +106,9 @@ public class EventServiceImpl implements EventService {
         log.info("Updating event with ID: {} by user: {}", id, currentUser.getUsername());
 
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
+                .orElseThrow(EventNotFoundException::new);
 
-        validateUserAuthorizationForView(currentUser, event);
-        validateEventEnabled(event, currentUser);
+        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
         applyEventNameUpdate(event, request);
 
@@ -163,11 +162,11 @@ public class EventServiceImpl implements EventService {
 
     private void applyEventDateUpdates(Event event, UpdateEventRequest request) {
         boolean datesLocked = event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED;
-        String effectiveTimezone = request.getTimezone() != null ? request.getTimezone() : event.getTimezone();
+        ZoneId effectiveZone = ZoneId.of(request.getTimezone() != null ? request.getTimezone() : event.getTimezone());
 
-        applyDateUpdate(datesLocked, effectiveTimezone, request.getEventStartDate(),
+        applyDateUpdate(datesLocked, effectiveZone, request.getEventStartDate(),
                 request.getEventStartTime(), "start", event::setEventStartDate);
-        applyDateUpdate(datesLocked, effectiveTimezone, request.getEventEndDate(),
+        applyDateUpdate(datesLocked, effectiveZone, request.getEventEndDate(),
                 request.getEventEndTime(), "end", event::setEventEndDate);
 
         if (event.getEventEndDate() != null && event.getEventStartDate() != null
@@ -176,7 +175,7 @@ public class EventServiceImpl implements EventService {
         }
     }
 
-    private void applyDateUpdate(boolean datesLocked, String effectiveTimezone, String date,
+    private void applyDateUpdate(boolean datesLocked, ZoneId effectiveZone, String date,
                                  String time, String fieldLabel, Consumer<Instant> setter) {
         if (date == null && time == null) {
             return;
@@ -188,7 +187,7 @@ public class EventServiceImpl implements EventService {
         if (datesLocked) {
             throw new InvalidUserDataException("Event dates cannot be changed after the event is published.");
         }
-        setter.accept(parseToInstant(date, time, effectiveTimezone));
+        setter.accept(parseToInstant(date, time, effectiveZone));
     }
 
     @Override
@@ -260,7 +259,7 @@ public class EventServiceImpl implements EventService {
         log.info("Toggling enabled status for event with ID: {} by user: {}", id, currentUser.getUsername());
 
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
+                .orElseThrow(EventNotFoundException::new);
 
         event.setEnabled(!event.getEnabled());
 
@@ -293,24 +292,14 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public void validateEventEnabled(Event event, User currentUser) {
-        UserRole role = currentUser.getRole();
-
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
-            return;
-        }
-
-        if (Boolean.FALSE.equals(event.getEnabled())) {
-            throw new com.timekeeper.bibexpo.exception.EventDisabledException(
-                    "This event is currently disabled.");
-        }
+        eventAccessValidator.validateEventAvailability(currentUser, event);
     }
 
     private Event findAndValidateEvent(Long id, User currentUser) {
         Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
+                .orElseThrow(EventNotFoundException::new);
 
-        validateUserAuthorizationForView(currentUser, event);
-        validateEventEnabled(event, currentUser);
+        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
         return event;
     }
@@ -423,29 +412,6 @@ public class EventServiceImpl implements EventService {
         throw new UnauthorizedAccessException("You are not allowed to create events.");
     }
 
-    private void validateUserAuthorizationForView(User currentUser, Event event) {
-        UserRole role = currentUser.getRole();
-
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
-            return;
-        }
-
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER || role == UserRole.DISTRIBUTOR) {
-            if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException(
-                        "Your account is not assigned to an organization.");
-            }
-
-            if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
-                throw new UnauthorizedAccessException(
-                        "You can only view events from your organization.");
-            }
-            return;
-        }
-
-        throw new UnauthorizedAccessException("You are not allowed to view events.");
-    }
-
     private <T> void updateIfNotNull(T value, Consumer<T> setter) {
         if (value != null) {
             setter.accept(value);
@@ -458,17 +424,17 @@ public class EventServiceImpl implements EventService {
         }
     }
 
-    private void validateTimezone(String timezone) {
+    private ZoneId validateTimezone(String timezone) {
         try {
-            ZoneId.of(timezone);
+            return ZoneId.of(timezone);
         } catch (DateTimeException e) {
             throw new InvalidUserDataException("Invalid timezone. Use a valid IANA timezone ID such as 'Asia/Kolkata' or 'Europe/London'.");
         }
     }
 
-    private Instant parseToInstant(String date, String time, String timezone) {
+    private Instant parseToInstant(String date, String time, ZoneId zone) {
         try {
-            return ZonedDateTime.of(LocalDate.parse(date), LocalTime.parse(time), ZoneId.of(timezone)).toInstant();
+            return ZonedDateTime.of(LocalDate.parse(date), LocalTime.parse(time), zone).toInstant();
         } catch (DateTimeParseException e) {
             throw new InvalidUserDataException("Invalid date or time format. Use yyyy-MM-dd and HH:mm.");
         }

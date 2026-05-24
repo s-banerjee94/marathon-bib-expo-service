@@ -1,65 +1,95 @@
 package com.timekeeper.bibexpo.service.validator;
 
 import com.timekeeper.bibexpo.exception.EventDisabledException;
+import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import org.springframework.stereotype.Component;
 
+/**
+ * Central authority for event-scoped access decisions.
+ *
+ * <p>Coarse role gating (which roles may reach an endpoint) is handled by
+ * {@code @PreAuthorize} on the controllers. This component owns the fine-grained,
+ * data-dependent rules: organization ownership and event availability.
+ * ROOT and ADMIN bypass these checks.
+ *
+ * <p>{@link #enforceEventAvailable(Event)} is the single extension point for
+ * event-level restrictions. New constraints (for example subscription-plan or
+ * feature-gate rules) added there apply to every event-scoped operation
+ * automatically.
+ */
 @Component
 public class EventAccessValidator {
 
     /**
-     * Validates that the user belongs to the same organization as the event AND the event is enabled.
-     * Use for participant write operations where event status matters.
+     * Full access required to operate on an event or any of its child resources.
+     * The caller's organization must own the event and the event must be available.
+     *
+     * @throws UnauthorizedAccessException if the user does not own the event
+     * @throws EventDisabledException      if the event is not available
      */
     public void validateUserAuthorizationForEvent(User currentUser, Event event) {
-        if (Boolean.FALSE.equals(event.getEnabled())) {
-            throw new EventDisabledException(
-                    "Event is disabled. Operations are not allowed for event ID: " + event.getId());
-        }
-
-        UserRole role = currentUser.getRole();
-
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
+        if (isPlatformAdmin(currentUser)) {
             return;
         }
-
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER || role == UserRole.DISTRIBUTOR) {
-            if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException("User does not belong to any organization");
-            }
-
-            if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
-                throw new UnauthorizedAccessException(
-                        "User can only access events from their own organization");
-            }
-            return;
-        }
-
-        throw new UnauthorizedAccessException("User does not have permission to access events");
+        requireSameOrganization(currentUser, event);
+        enforceEventAvailable(event);
     }
 
     /**
-     * Validates only org membership, without checking event-enabled status.
-     * Use for read-only operations (import history, error logs) that should work even on disabled events.
+     * Organization-scoped read access that stays available even when the event is
+     * not operable (for example import history or error logs).
+     *
+     * @throws UnauthorizedAccessException if the user does not own the event
      */
     public void validateUserOrganizationAccess(User currentUser, Event event) {
-        UserRole role = currentUser.getRole();
-
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) return;
-
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER || role == UserRole.DISTRIBUTOR) {
-            if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException("User does not belong to any organization");
-            }
-            if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
-                throw new UnauthorizedAccessException("User can only access events from their own organization");
-            }
+        if (isPlatformAdmin(currentUser)) {
             return;
         }
+        requireSameOrganization(currentUser, event);
+    }
 
-        throw new UnauthorizedAccessException("User does not have permission to access events");
+    /**
+     * Availability check that keeps the ROOT/ADMIN bypass but skips the organization
+     * check, for callers that have already established organization ownership.
+     *
+     * @throws EventDisabledException if the event is not available
+     */
+    public void validateEventAvailability(User currentUser, Event event) {
+        if (isPlatformAdmin(currentUser)) {
+            return;
+        }
+        enforceEventAvailable(event);
+    }
+
+    /**
+     * Single source of truth for event-level constraints. Future subscription-plan
+     * or feature-gate restrictions belong here so that every caller enforces them.
+     *
+     * @throws EventDisabledException if the event is not available
+     */
+    public void enforceEventAvailable(Event event) {
+        if (Boolean.FALSE.equals(event.getEnabled())) {
+            throw new EventDisabledException("This event is currently disabled.");
+        }
+    }
+
+    private boolean isPlatformAdmin(User currentUser) {
+        UserRole role = currentUser.getRole();
+        return role == UserRole.ROOT || role == UserRole.ADMIN;
+    }
+
+    private void requireSameOrganization(User currentUser, Event event) {
+        if (currentUser.getOrganization() == null) {
+            throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
+        }
+        // Events outside the caller's organization are reported as not found so their
+        // existence is not disclosed across organizations.
+        if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
+            throw new EventNotFoundException();
+        }
     }
 }

@@ -322,7 +322,7 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
 
     private User fetchUserWithOrganization(String username) {
         return userRepository.findByUsernameWithOrganization(username)
-                .orElseThrow(() -> new UserNotFoundException("User not found: " + username));
+                .orElseThrow(UserNotFoundException::new);
     }
 
     private void validateOrgUserHasOrganization(User user) {

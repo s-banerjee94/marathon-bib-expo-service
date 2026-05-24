@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.service.validator;
 
-import com.timekeeper.bibexpo.exception.EventDisabledException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -14,15 +13,10 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class DistributionValidator {
 
-    public void validateEventEnabled(Event event) {
-        if (Boolean.FALSE.equals(event.getEnabled())) {
-            throw new EventDisabledException(
-                    "Event is disabled. Distribution operations are not allowed for event ID: " + event.getId());
-        }
-    }
+    private final EventAccessValidator eventAccessValidator;
 
     public void validateUserAuthorizationForEvent(User currentUser, Event event) {
-        validateEventEnabled(event);
+        eventAccessValidator.validateEventAvailability(currentUser, event);
 
         UserRole role = currentUser.getRole();
 
@@ -46,7 +40,7 @@ public class DistributionValidator {
     }
 
     public void validateUserAuthorizationForUndoOperation(User currentUser, Event event) {
-        validateEventEnabled(event);
+        eventAccessValidator.validateEventAvailability(currentUser, event);
 
         UserRole role = currentUser.getRole();
 
@@ -76,7 +70,7 @@ public class DistributionValidator {
     }
 
     public void validateUserAuthorizationForLogAccess(User currentUser, Event event) {
-        validateEventEnabled(event);
+        eventAccessValidator.validateEventAvailability(currentUser, event);
 
         UserRole role = currentUser.getRole();
 

@@ -7,11 +7,11 @@ import com.timekeeper.bibexpo.model.dto.response.SmsTemplateResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.SmsTemplate;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.repository.SmsTemplateRepository;
 import com.timekeeper.bibexpo.service.SmsTemplateService;
+import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.util.SmsTemplateContext;
 import com.timekeeper.bibexpo.util.SmsTemplateParser;
 import jakarta.persistence.criteria.Predicate;
@@ -36,6 +36,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
     private final SmsTemplateRepository smsTemplateRepository;
     private final SmsCampaignRepository smsCampaignRepository;
     private final EventRepository eventRepository;
+    private final EventAccessValidator eventAccessValidator;
 
     @Override
     @Transactional
@@ -169,8 +170,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         validateEventAccess(eventId, currentUser);
 
         SmsTemplate smsTemplate = smsTemplateRepository.findBySmsTemplateIdAndEventId(smsTemplateId, eventId)
-                .orElseThrow(() -> new SmsTemplateNotFoundException(
-                        "SMS template not found with DLT ID: " + smsTemplateId + " for event: " + eventId));
+                .orElseThrow(SmsTemplateNotFoundException::new);
 
         log.info("Successfully fetched SMS template by DLT ID: {} by user: {}",
                 smsTemplateId, currentUser.getUsername());
@@ -198,15 +198,14 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
 
     private SmsTemplate findTemplateOrThrow(Long templateId, Long eventId) {
         return smsTemplateRepository.findByIdAndEventId(templateId, eventId)
-                .orElseThrow(() -> new SmsTemplateNotFoundException(
-                        "SMS template not found with ID: " + templateId + " for event: " + eventId));
+                .orElseThrow(SmsTemplateNotFoundException::new);
     }
 
     private Event validateEventAccess(Long eventId, User currentUser) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(EventNotFoundException::new);
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
         return event;
     }
@@ -219,25 +218,4 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         }
     }
 
-    private void validateUserAuthorizationForEvent(User currentUser, Event event) {
-        UserRole role = currentUser.getRole();
-
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
-            return;
-        }
-
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
-            if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
-            }
-
-            if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
-                throw new UnauthorizedAccessException(
-                        "You can only manage SMS templates for your organization's events.");
-            }
-            return;
-        }
-
-        throw new UnauthorizedAccessException("You are not allowed to manage SMS templates.");
-    }
 }

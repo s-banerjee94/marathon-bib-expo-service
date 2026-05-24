@@ -608,7 +608,7 @@ public class DistributionServiceImpl implements DistributionService {
 
     private Event findEventOrThrow(Long eventId) {
         return eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(EventNotFoundException::new);
     }
 
     private Page<ParticipantDDB> queryParticipantsWithPagination(Long eventId, Integer limit, String lastEvaluatedKey) {
@@ -690,7 +690,7 @@ public class DistributionServiceImpl implements DistributionService {
     private void validateGoodiesItem(ParticipantDDB participant, Map<String, String> goodiesDistribution,
                                       String itemName, String bibNumber) {
         if (participant.getGoodies() == null || !participant.getGoodies().containsKey(itemName)) {
-            throw new GoodiesItemNotFoundException(itemName, bibNumber);
+            throw new GoodiesItemNotFoundException();
         }
 
         if (goodiesDistribution.containsKey(itemName)) {

@@ -27,7 +27,7 @@ public class NotificationServiceImpl implements com.timekeeper.bibexpo.service.N
     public Notification createJobNotification(Long userId, Long eventId, Long jobExecutionId,
                                               int writeCount, int skipCount, String jobStatus) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
+                .orElseThrow(UserNotFoundException::new);
 
         String title;
         String message;

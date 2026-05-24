@@ -8,7 +8,6 @@ import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.SmsCampaign;
 import com.timekeeper.bibexpo.model.entity.SmsTemplate;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.SmsCampaignStatus;
 import com.timekeeper.bibexpo.model.enums.SmsCampaignTargetFilter;
 import com.timekeeper.bibexpo.model.enums.SmsCampaignTriggerType;
@@ -16,19 +15,16 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.repository.SmsTemplateRepository;
 import com.timekeeper.bibexpo.service.SmsCampaignService;
+import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +38,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
     private final SmsCampaignRepository smsCampaignRepository;
     private final SmsTemplateRepository smsTemplateRepository;
     private final EventRepository eventRepository;
+    private final EventAccessValidator eventAccessValidator;
 
     @Override
     @Transactional
@@ -55,8 +52,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         }
 
         SmsTemplate template = smsTemplateRepository.findByIdAndEventId(request.getSmsTemplateId(), eventId)
-                .orElseThrow(() -> new SmsTemplateNotFoundException(
-                        "SMS template not found with ID: " + request.getSmsTemplateId() + " for event: " + eventId));
+                .orElseThrow(SmsTemplateNotFoundException::new);
 
         SmsCampaign campaign = SmsCampaign.builder()
                 .name(request.getName().trim())
@@ -96,8 +92,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
 
         if (request.getSmsTemplateId() != null) {
             SmsTemplate template = smsTemplateRepository.findByIdAndEventId(request.getSmsTemplateId(), eventId)
-                    .orElseThrow(() -> new SmsTemplateNotFoundException(
-                            "SMS template not found with ID: " + request.getSmsTemplateId() + " for event: " + eventId));
+                    .orElseThrow(SmsTemplateNotFoundException::new);
             campaign.setSmsTemplate(template);
         }
 
@@ -239,36 +234,15 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
 
     private SmsCampaign findCampaignOrThrow(Long campaignId, Long eventId) {
         return smsCampaignRepository.findByIdAndEventId(campaignId, eventId)
-                .orElseThrow(() -> new SmsCampaignNotFoundException(
-                        "SMS campaign not found with ID: " + campaignId + " for event: " + eventId));
+                .orElseThrow(SmsCampaignNotFoundException::new);
     }
 
     private Event validateEventAccess(Long eventId, User currentUser) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException("Event not found with ID: " + eventId));
+                .orElseThrow(EventNotFoundException::new);
 
-        validateUserAuthorizationForEvent(currentUser, event);
+        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
         return event;
-    }
-
-    private void validateUserAuthorizationForEvent(User currentUser, Event event) {
-        UserRole role = currentUser.getRole();
-
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
-            return;
-        }
-
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
-            if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
-            }
-            if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
-                throw new UnauthorizedAccessException("You can only manage SMS campaigns for your organization's events.");
-            }
-            return;
-        }
-
-        throw new UnauthorizedAccessException("You are not allowed to manage SMS campaigns.");
     }
 }

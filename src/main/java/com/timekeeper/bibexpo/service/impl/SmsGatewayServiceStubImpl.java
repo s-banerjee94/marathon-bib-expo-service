@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 @Service
-@Profile({"dev", "test"})
+@Profile({"default", "dev", "test", "local"})
 @Slf4j
 public class SmsGatewayServiceStubImpl implements SmsGatewayService {
 
