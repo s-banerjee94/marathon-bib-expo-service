@@ -27,13 +27,13 @@ import java.util.List;
 public interface RaceControllerApi {
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
             summary = "Get all races for an event",
             description = """
                     Retrieve all races for a specific event. \
                     ROOT and ADMIN can access races for any event. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only access races for events in their organization."""
+                    ORGANIZER_ADMIN, ORGANIZER_USER and DISTRIBUTOR can only access races for events in their organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -67,13 +67,13 @@ public interface RaceControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/{raceId}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
             summary = "Get race by ID",
             description = """
                     Retrieve a specific race by its ID. \
                     ROOT and ADMIN can view any race. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only view races from their organization's events."""
+                    ORGANIZER_ADMIN, ORGANIZER_USER and DISTRIBUTOR can only view races from their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(

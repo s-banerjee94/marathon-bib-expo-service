@@ -187,7 +187,7 @@ public class RaceServiceImpl implements RaceService {
             return;
         }
 
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
+        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER || role == UserRole.DISTRIBUTOR) {
             if (currentUser.getOrganization() == null) {
                 throw new UnauthorizedAccessException("User does not belong to any organization");
             }

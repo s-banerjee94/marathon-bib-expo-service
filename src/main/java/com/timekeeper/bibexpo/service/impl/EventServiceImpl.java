@@ -111,54 +111,14 @@ public class EventServiceImpl implements EventService {
         validateUserAuthorizationForView(currentUser, event);
         validateEventEnabled(event, currentUser);
 
-        if (request.getEventName() != null && !request.getEventName().isBlank() &&
-                !request.getEventName().equals(event.getEventName())) {
-            if (eventRepository.existsByEventNameAndOrganizationId(
-                    request.getEventName(), event.getOrganization().getId())) {
-                throw new EventAlreadyExistsException(
-                        "Event with name '" + request.getEventName() + "' already exists for this organization");
-            }
-            event.setEventName(request.getEventName());
-        }
+        applyEventNameUpdate(event, request);
 
         updateIfNotNull(request.getEventDescription(), event::setEventDescription);
         updateIfNotNull(request.getLogoUrl(), event::setLogoUrl);
 
-        if (request.getTimezone() != null) {
-            if (event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED) {
-                throw new InvalidUserDataException("Timezone cannot be changed after the event is published.");
-            }
-            validateTimezone(request.getTimezone());
-            event.setTimezone(request.getTimezone());
-        }
+        applyTimezoneUpdate(event, request);
+        applyEventDateUpdates(event, request);
 
-        boolean datesLocked = event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED;
-        String effectiveTimezone = request.getTimezone() != null ? request.getTimezone() : event.getTimezone();
-
-        if (request.getEventStartDate() != null || request.getEventStartTime() != null) {
-            if (request.getEventStartDate() == null || request.getEventStartTime() == null) {
-                throw new InvalidUserDataException("Both event start date and time must be provided together.");
-            }
-            if (datesLocked) {
-                throw new InvalidUserDataException("Event dates cannot be changed after the event is published.");
-            }
-            event.setEventStartDate(parseToInstant(request.getEventStartDate(), request.getEventStartTime(), effectiveTimezone));
-        }
-
-        if (request.getEventEndDate() != null || request.getEventEndTime() != null) {
-            if (request.getEventEndDate() == null || request.getEventEndTime() == null) {
-                throw new InvalidUserDataException("Both event end date and time must be provided together.");
-            }
-            if (datesLocked) {
-                throw new InvalidUserDataException("Event dates cannot be changed after the event is published.");
-            }
-            event.setEventEndDate(parseToInstant(request.getEventEndDate(), request.getEventEndTime(), effectiveTimezone));
-        }
-
-        if (event.getEventEndDate() != null && event.getEventStartDate() != null
-                && !event.getEventEndDate().isAfter(event.getEventStartDate())) {
-            throw new InvalidUserDataException("Event end date must be after the start date.");
-        }
         updateRequiredStringIfNotBlank(request.getVenueName(), event::setVenueName);
         updateIfNotNull(request.getAddressLine1(), event::setAddressLine1);
         updateIfNotNull(request.getAddressLine2(), event::setAddressLine2);
@@ -175,6 +135,60 @@ public class EventServiceImpl implements EventService {
         log.info("Successfully updated event with ID: {} by user: {}", updatedEvent.getId(), currentUser.getUsername());
 
         return EventResponse.fromEntity(updatedEvent);
+    }
+
+    private void applyEventNameUpdate(Event event, UpdateEventRequest request) {
+        if (request.getEventName() == null || request.getEventName().isBlank()
+                || request.getEventName().equals(event.getEventName())) {
+            return;
+        }
+        if (eventRepository.existsByEventNameAndOrganizationId(
+                request.getEventName(), event.getOrganization().getId())) {
+            throw new EventAlreadyExistsException(
+                    "Event with name '" + request.getEventName() + "' already exists for this organization");
+        }
+        event.setEventName(request.getEventName());
+    }
+
+    private void applyTimezoneUpdate(Event event, UpdateEventRequest request) {
+        if (request.getTimezone() == null) {
+            return;
+        }
+        if (event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED) {
+            throw new InvalidUserDataException("Timezone cannot be changed after the event is published.");
+        }
+        validateTimezone(request.getTimezone());
+        event.setTimezone(request.getTimezone());
+    }
+
+    private void applyEventDateUpdates(Event event, UpdateEventRequest request) {
+        boolean datesLocked = event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED;
+        String effectiveTimezone = request.getTimezone() != null ? request.getTimezone() : event.getTimezone();
+
+        applyDateUpdate(datesLocked, effectiveTimezone, request.getEventStartDate(),
+                request.getEventStartTime(), "start", event::setEventStartDate);
+        applyDateUpdate(datesLocked, effectiveTimezone, request.getEventEndDate(),
+                request.getEventEndTime(), "end", event::setEventEndDate);
+
+        if (event.getEventEndDate() != null && event.getEventStartDate() != null
+                && !event.getEventEndDate().isAfter(event.getEventStartDate())) {
+            throw new InvalidUserDataException("Event end date must be after the start date.");
+        }
+    }
+
+    private void applyDateUpdate(boolean datesLocked, String effectiveTimezone, String date,
+                                 String time, String fieldLabel, Consumer<Instant> setter) {
+        if (date == null && time == null) {
+            return;
+        }
+        if (date == null || time == null) {
+            throw new InvalidUserDataException(
+                    "Both event " + fieldLabel + " date and time must be provided together.");
+        }
+        if (datesLocked) {
+            throw new InvalidUserDataException("Event dates cannot be changed after the event is published.");
+        }
+        setter.accept(parseToInstant(date, time, effectiveTimezone));
     }
 
     @Override
@@ -232,12 +246,7 @@ public class EventServiceImpl implements EventService {
     public EventResponse getEventById(Long id, User currentUser) {
         log.info("Fetching event by ID: {} for user: {}", id, currentUser.getUsername());
 
-        Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException(
-                        EVENT_NOT_FOUND_WITH_ID + id));
-
-        validateUserAuthorizationForView(currentUser, event);
-        validateEventEnabled(event, currentUser);
+        Event event = findAndValidateEvent(id, currentUser);
 
         log.info("Successfully fetched event with ID: {} for user: {}",
                 event.getId(), currentUser.getUsername());
@@ -267,11 +276,7 @@ public class EventServiceImpl implements EventService {
     public EventResponse changeEventStatus(Long id, EventStatus status, User currentUser) {
         log.info("Changing status for event with ID: {} to {} by user: {}", id, status, currentUser.getUsername());
 
-        Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
-
-        validateUserAuthorizationForView(currentUser, event);
-        validateEventEnabled(event, currentUser);
+        Event event = findAndValidateEvent(id, currentUser);
 
         if (status == null) {
             throw new InvalidUserDataException("Event status is required.");
@@ -300,16 +305,22 @@ public class EventServiceImpl implements EventService {
         }
     }
 
-    @Override
-    @Transactional
-    public void deleteEvent(Long id, User currentUser) {
-        log.info("Deleting event with ID: {} by user: {}", id, currentUser.getUsername());
-
+    private Event findAndValidateEvent(Long id, User currentUser) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
 
         validateUserAuthorizationForView(currentUser, event);
         validateEventEnabled(event, currentUser);
+
+        return event;
+    }
+
+    @Override
+    @Transactional
+    public void deleteEvent(Long id, User currentUser) {
+        log.info("Deleting event with ID: {} by user: {}", id, currentUser.getUsername());
+
+        Event event = findAndValidateEvent(id, currentUser);
 
         if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.CANCELLED) {
             throw new EventDeletionNotAllowedException(
@@ -331,16 +342,11 @@ public class EventServiceImpl implements EventService {
     public EventSummaryResponse getEventSummary(Long id, User currentUser) {
         log.info("Fetching event summary for event ID: {} by user: {}", id, currentUser.getUsername());
 
-        Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new EventNotFoundException(EVENT_NOT_FOUND_WITH_ID + id));
+        Event event = findAndValidateEvent(id, currentUser);
 
-        validateUserAuthorizationForView(currentUser, event);
-        validateEventEnabled(event, currentUser);
+        event.getRaces().forEach(race -> race.getCategories().forEach(category -> {}));
 
-        Event eventWithRacesAndCategories = eventRepository.findById(id).orElseThrow();
-        eventWithRacesAndCategories.getRaces().forEach(race -> race.getCategories().forEach(category -> {}));
-
-        EventSummaryResponse summary = EventSummaryResponse.fromEntity(eventWithRacesAndCategories);
+        EventSummaryResponse summary = EventSummaryResponse.fromEntity(event);
 
         log.info("Successfully fetched event summary for event ID: {} with {} races and {} categories by user: {}",
                 id, summary.getTotalRaces(), summary.getTotalCategories(), currentUser.getUsername());
@@ -424,7 +430,7 @@ public class EventServiceImpl implements EventService {
             return;
         }
 
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
+        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER || role == UserRole.DISTRIBUTOR) {
             if (currentUser.getOrganization() == null) {
                 throw new UnauthorizedAccessException(
                         "Your account is not assigned to an organization.");

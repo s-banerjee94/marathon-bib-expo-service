@@ -108,13 +108,14 @@ public interface EventControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
             summary = "Get event by ID",
             description = """
                     Retrieve a single event by its ID. \
                     ROOT and ADMIN can view any event. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only view events from their own organization."""
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only view events from their own organization. \
+                    DISTRIBUTOR can view events from their own organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(

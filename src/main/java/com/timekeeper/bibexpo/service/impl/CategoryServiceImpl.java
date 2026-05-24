@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class CategoryServiceImpl implements CategoryService {
 
+    public static final String CATEGORY_NOT_FOUND_WITH_ID = "Category not found with ID: ";
     private final CategoryRepository categoryRepository;
     private final RaceRepository raceRepository;
     private final EventRepository eventRepository;
@@ -89,7 +90,7 @@ public class CategoryServiceImpl implements CategoryService {
         Race race = validateRaceAndEvent(eventId, raceId, currentUser);
 
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new CategoryNotFoundException("Category not found with ID: " + categoryId));
+                .orElseThrow(() -> new CategoryNotFoundException(CATEGORY_NOT_FOUND_WITH_ID + categoryId));
 
         if (!category.getRace().getId().equals(raceId)) {
             throw new CategoryNotFoundException(
@@ -125,7 +126,7 @@ public class CategoryServiceImpl implements CategoryService {
         validateRaceAndEvent(eventId, raceId, currentUser);
 
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new CategoryNotFoundException("Category not found with ID: " + categoryId));
+                .orElseThrow(() -> new CategoryNotFoundException(CATEGORY_NOT_FOUND_WITH_ID + categoryId));
 
         if (!category.getRace().getId().equals(raceId)) {
             throw new CategoryNotFoundException(
@@ -167,7 +168,7 @@ public class CategoryServiceImpl implements CategoryService {
         validateRaceAndEvent(eventId, raceId, currentUser);
 
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new CategoryNotFoundException("Category not found with ID: " + categoryId));
+                .orElseThrow(() -> new CategoryNotFoundException(CATEGORY_NOT_FOUND_WITH_ID + categoryId));
 
         if (!category.getRace().getId().equals(raceId)) {
             throw new CategoryNotFoundException(
@@ -210,7 +211,7 @@ public class CategoryServiceImpl implements CategoryService {
             return;
         }
 
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
+        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER || role == UserRole.DISTRIBUTOR) {
             if (currentUser.getOrganization() == null) {
                 throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
             }

@@ -28,13 +28,13 @@ import java.util.List;
 public interface CategoryControllerApi {
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
             summary = "Get all categories for a race",
             description = """
                     Retrieve all categories for a specific race with optional gender filtering. \
                     ROOT and ADMIN can access categories for any race. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only access categories for races in their organization's events."""
+                    ORGANIZER_ADMIN, ORGANIZER_USER and DISTRIBUTOR can only access categories for races in their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -72,13 +72,14 @@ public interface CategoryControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/{categoryId}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
             summary = "Get category by ID",
             description = """
                     Retrieve a specific category by its ID. \
                     ROOT and ADMIN can view any category. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only view categories from their organization's events."""
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only view categories from their organization's events. \
+                    DISTRIBUTOR can view categories from their organization's events."""
     )
     @ApiResponses(value = {
             @ApiResponse(
