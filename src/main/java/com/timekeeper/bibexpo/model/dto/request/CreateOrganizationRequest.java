@@ -65,10 +65,12 @@ public class CreateOrganizationRequest {
 
     @Min(value = 0, message = "Max organizer users must be 0 or greater (0 = unlimited)")
     @Schema(description = "Maximum number of organizer users (0 = unlimited)", example = "5", defaultValue = "5")
+    @Builder.Default
     private Integer maxOrganizerUsers = 5;
 
     @Min(value = 0, message = "Max distributors must be 0 or greater (0 = unlimited)")
     @Schema(description = "Maximum number of distributors (0 = unlimited)", example = "30", defaultValue = "30")
+    @Builder.Default
     private Integer maxDistributors = 30;
 
     @Size(max = 50, message = "Subscription tier must not exceed 50 characters")

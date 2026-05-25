@@ -71,15 +71,19 @@ public class User implements UserDetails {
     private Organization organization;
 
     // UserDetails properties
+    @Builder.Default
     @Column(nullable = false)
     private Boolean accountNonExpired = true;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean accountNonLocked = true;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean credentialsNonExpired = true;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean enabled = true;
 

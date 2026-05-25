@@ -702,13 +702,13 @@ public class GlobalExceptionHandler {
 
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(Instant.now())
-                .status(HttpStatus.PAYLOAD_TOO_LARGE.value())
+                .status(HttpStatus.CONTENT_TOO_LARGE.value())
                 .error("File Too Large")
                 .message("CSV file size exceeds maximum allowed size (10MB)")
                 .path(request.getDescription(false).replace("uri=", ""))
                 .build();
 
-        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(error);
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(error);
     }
 
     @ExceptionHandler(SmsTemplateNotFoundException.class)
@@ -785,6 +785,34 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .body(error);
+    }
+
+    @ExceptionHandler(ShortUrlNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleShortUrlNotFound(
+            ShortUrlNotFoundException ex, WebRequest request) {
+        log.warn("Short URL not found: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.NOT_FOUND.value())
+                .error(NOT_FOUND)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(InvalidQrCodeException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidQrCode(
+            InvalidQrCodeException ex, WebRequest request) {
+        log.warn("Invalid QR code: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(BAD_REQUEST)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     @ExceptionHandler(Exception.class)
