@@ -68,6 +68,7 @@ public class ParticipantDDB {
     private String emergencyContactName;
     private String emergencyContactPhone;
     private String notes;
+    private String verifyShortCode;
     private String createdAt;
     private String createdBy;
     private String updatedAt;

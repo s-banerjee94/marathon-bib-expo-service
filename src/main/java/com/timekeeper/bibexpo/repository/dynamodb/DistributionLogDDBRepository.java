@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
 import com.timekeeper.bibexpo.model.dynamodb.DistributionLogDDB;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -15,23 +14,22 @@ import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 public class DistributionLogDDBRepository {
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
-    private DynamoDbTable<DistributionLogDDB> table;
+    private volatile DynamoDbTable<DistributionLogDDB> table;
 
-    @PostConstruct
-    public void init() {
-        this.table = dynamoDbEnhancedClient.table(
-                "marathon-distribution-logs",
-                TableSchema.fromBean(DistributionLogDDB.class)
-        );
+    public DynamoDbTable<DistributionLogDDB> getTable() {
+        if (table == null) {
+            synchronized (this) {
+                if (table == null) {
+                    table = dynamoDbEnhancedClient.table("marathon-distribution-logs", TableSchema.fromBean(DistributionLogDDB.class));
+                }
+            }
+        }
+        return table;
     }
 
     public void save(DistributionLogDDB logEntry) {
-        table.putItem(logEntry);
+        getTable().putItem(logEntry);
         log.debug("Saved distribution log for event {} bib {} action {}",
                 logEntry.getEventId(), logEntry.getBibNumber(), logEntry.getAction());
-    }
-
-    public DynamoDbTable<DistributionLogDDB> getTable() {
-        return table;
     }
 }

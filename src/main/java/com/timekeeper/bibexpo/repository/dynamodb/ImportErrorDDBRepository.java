@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
 import com.timekeeper.bibexpo.model.dynamodb.ImportErrorDDB;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -25,14 +24,17 @@ import java.util.Map;
 public class ImportErrorDDBRepository {
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
-    private DynamoDbTable<ImportErrorDDB> table;
+    private volatile DynamoDbTable<ImportErrorDDB> table;
 
-    @PostConstruct
-    public void init() {
-        this.table = dynamoDbEnhancedClient.table(
-                "marathon-import-errors",
-                TableSchema.fromBean(ImportErrorDDB.class)
-        );
+    private DynamoDbTable<ImportErrorDDB> getTable() {
+        if (table == null) {
+            synchronized (this) {
+                if (table == null) {
+                    table = dynamoDbEnhancedClient.table("marathon-import-errors", TableSchema.fromBean(ImportErrorDDB.class));
+                }
+            }
+        }
+        return table;
     }
 
     public void saveAll(List<ImportErrorDDB> errors) {
@@ -42,7 +44,7 @@ public class ImportErrorDDBRepository {
         for (int i = 0; i < errors.size(); i += batchSize) {
             List<ImportErrorDDB> batch = errors.subList(i, Math.min(i + batchSize, errors.size()));
             WriteBatch.Builder<ImportErrorDDB> batchBuilder = WriteBatch.builder(ImportErrorDDB.class)
-                    .mappedTableResource(table);
+                    .mappedTableResource(getTable());
             batch.forEach(batchBuilder::addPutItem);
             dynamoDbEnhancedClient.batchWriteItem(
                     BatchWriteItemEnhancedRequest.builder()
@@ -70,6 +72,6 @@ public class ImportErrorDDBRepository {
             reqBuilder.exclusiveStartKey(exclusiveStartKey);
         }
 
-        return table.query(reqBuilder.build()).stream().findFirst().orElse(null);
+        return getTable().query(reqBuilder.build()).stream().findFirst().orElse(null);
     }
 }

@@ -154,4 +154,20 @@ awslocal dynamodb create-table \
     --billing-mode PAY_PER_REQUEST
 
 echo "DynamoDB table marathon-event-stats created successfully!"
+
+echo "Creating DynamoDB table: marathon-short-urls"
+awslocal dynamodb create-table \
+    --table-name marathon-short-urls \
+    --attribute-definitions \
+        AttributeName=shortCode,AttributeType=S \
+    --key-schema \
+        AttributeName=shortCode,KeyType=HASH \
+    --billing-mode PAY_PER_REQUEST
+
+echo "Enabling TTL on marathon-short-urls table (expirationTime attribute)"
+awslocal dynamodb update-time-to-live \
+    --table-name marathon-short-urls \
+    --time-to-live-specification "Enabled=true, AttributeName=expirationTime"
+
+echo "DynamoDB table marathon-short-urls created successfully with TTL enabled!"
 echo "LocalStack initialization complete!"

@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
 import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,16 +40,29 @@ public class EventStatsDDBRepository {
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final DynamoDbClient dynamoDbClient;
 
-    private DynamoDbTable<EventStatsDDB> table;
-    private ExecutorService updateExecutor;
+    private volatile DynamoDbTable<EventStatsDDB> table;
+    private volatile ExecutorService updateExecutor;
 
-    @PostConstruct
-    public void init() {
-        this.table = dynamoDbEnhancedClient.table(
-                TABLE_NAME,
-                TableSchema.fromBean(EventStatsDDB.class)
-        );
-        this.updateExecutor = Executors.newFixedThreadPool(UPDATE_PARALLELISM);
+    private DynamoDbTable<EventStatsDDB> getTable() {
+        if (table == null) {
+            synchronized (this) {
+                if (table == null) {
+                    table = dynamoDbEnhancedClient.table(TABLE_NAME, TableSchema.fromBean(EventStatsDDB.class));
+                }
+            }
+        }
+        return table;
+    }
+
+    private ExecutorService getUpdateExecutor() {
+        if (updateExecutor == null) {
+            synchronized (this) {
+                if (updateExecutor == null) {
+                    updateExecutor = Executors.newFixedThreadPool(UPDATE_PARALLELISM);
+                }
+            }
+        }
+        return updateExecutor;
     }
 
     @PreDestroy
@@ -67,7 +79,7 @@ public class EventStatsDDBRepository {
         List<CompletableFuture<Void>> futures = deltas.entrySet().stream()
                 .map(entry -> CompletableFuture.runAsync(
                         () -> applySingleDelta(eventId, entry.getKey(), entry.getValue(), now),
-                        updateExecutor))
+                        getUpdateExecutor()))
                 .toList();
 
         try {
@@ -124,7 +136,7 @@ public class EventStatsDDBRepository {
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId).build()
         );
-        return table.query(queryConditional).stream()
+        return getTable().query(queryConditional).stream()
                 .flatMap(page -> page.items().stream())
                 .toList();
     }
@@ -135,8 +147,8 @@ public class EventStatsDDBRepository {
         chunkedBatchWrite(
                 rows,
                 WriteBatch.Builder::addPutItem,
-                result -> result.unprocessedPutItemsForTable(table),
-                table::putItem
+                result -> result.unprocessedPutItemsForTable(getTable()),
+                getTable()::putItem
         );
         log.debug("Put {} stats rows", rows.size());
     }
@@ -148,7 +160,7 @@ public class EventStatsDDBRepository {
         int deleted = chunkedBatchWrite(
                 all,
                 WriteBatch.Builder::addDeleteItem,
-                result -> result.unprocessedDeleteItemsForTable(table),
+                result -> result.unprocessedDeleteItemsForTable(getTable()),
                 null
         );
         log.info("Deleted {} stats rows for event {}", deleted, eventId);
@@ -165,7 +177,7 @@ public class EventStatsDDBRepository {
             List<EventStatsDDB> batch = rows.subList(i, Math.min(i + BATCH_SIZE, rows.size()));
 
             WriteBatch.Builder<EventStatsDDB> batchBuilder = WriteBatch.builder(EventStatsDDB.class)
-                    .mappedTableResource(table);
+                    .mappedTableResource(getTable());
             batch.forEach(item -> op.accept(batchBuilder, item));
 
             BatchWriteResult result = dynamoDbEnhancedClient.batchWriteItem(

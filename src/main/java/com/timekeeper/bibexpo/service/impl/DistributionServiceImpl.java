@@ -388,22 +388,8 @@ public class DistributionServiceImpl implements DistributionService {
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
-        return ParticipantDistributionResponse.builder()
-                .eventId(participant.getEventId())
-                .bibNumber(participant.getBibNumber())
-                .fullName(participant.getFullName())
-                .email(participant.getEmail())
-                .phoneNumber(participant.getPhoneNumber())
-                .raceName(participant.getRaceName())
-                .categoryName(participant.getCategoryName())
-                .bibCollectedAt(participant.getBibCollectedAt())
-                .bibCollectedByName(participant.getBibCollectedByName())
-                .bibCollectedByPhone(participant.getBibCollectedByPhone())
-                .bibDistributedBy(participant.getBibDistributedBy())
-                .goodies(participant.getGoodies())
-                .goodiesDistribution(participant.getGoodiesDistribution())
-                .build();
-    }
+        return ParticipantDistributionResponse.from(participant);
+	}
 
     @Override
     public PendingGoodiesListResponse getPendingGoodies(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser) {

@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.model.dto.response;
 
+import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
@@ -52,4 +53,22 @@ public class ParticipantDistributionResponse {
     @Schema(description = "Goodies distribution status with timestamp and distributor",
             example = "{\"T-Shirt\": \"{\\\"collectedAt\\\":\\\"2024-01-15T10:30:00\\\",\\\"distributedBy\\\":\\\"123__|__john_doe\\\"}\"}")
     private Map<String, String> goodiesDistribution;
+
+    public static ParticipantDistributionResponse from(ParticipantDDB p) {
+        return ParticipantDistributionResponse.builder()
+                .eventId(p.getEventId())
+                .bibNumber(p.getBibNumber())
+                .fullName(p.getFullName())
+                .email(p.getEmail())
+                .phoneNumber(p.getPhoneNumber())
+                .raceName(p.getRaceName())
+                .categoryName(p.getCategoryName())
+                .bibCollectedAt(p.getBibCollectedAt())
+                .bibCollectedByName(p.getBibCollectedByName())
+                .bibCollectedByPhone(p.getBibCollectedByPhone())
+                .bibDistributedBy(p.getBibDistributedBy())
+                .goodies(p.getGoodies())
+                .goodiesDistribution(p.getGoodiesDistribution())
+                .build();
+    }
 }

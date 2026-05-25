@@ -2,7 +2,6 @@ package com.timekeeper.bibexpo.repository.dynamodb;
 
 import com.timekeeper.bibexpo.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
@@ -17,23 +16,33 @@ import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.WriteBatch;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.List;
+import java.util.Map;
 
 @Repository
 @RequiredArgsConstructor
 @Slf4j
 public class ParticipantDDBRepository {
 
-    private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
-    private DynamoDbTable<ParticipantDDB> table;
+    private static final String TABLE_NAME = "marathon-participants";
 
-    @PostConstruct
-    public void init() {
-        this.table = dynamoDbEnhancedClient.table(
-                "marathon-participants",
-                TableSchema.fromBean(ParticipantDDB.class)
-        );
+    private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final DynamoDbClient dynamoDbClient;
+    private volatile DynamoDbTable<ParticipantDDB> table;
+
+    public DynamoDbTable<ParticipantDDB> getTable() {
+        if (table == null) {
+            synchronized (this) {
+                if (table == null) {
+                    table = dynamoDbEnhancedClient.table(TABLE_NAME, TableSchema.fromBean(ParticipantDDB.class));
+                }
+            }
+        }
+        return table;
     }
 
     public ParticipantDDB findByEventAndBibOrThrow(Long eventId, String bibNumber) {
@@ -43,7 +52,7 @@ public class ParticipantDDBRepository {
                 .sortValue(bibNumber)
                 .build();
 
-        ParticipantDDB participant = table.getItem(key);
+        ParticipantDDB participant = getTable().getItem(key);
         if (participant == null) {
             throw new ParticipantNotFoundException();
         }
@@ -53,9 +62,24 @@ public class ParticipantDDBRepository {
     }
 
     public void save(ParticipantDDB participant) {
-        table.putItem(participant);
+        getTable().putItem(participant);
         log.debug("Saved participant with bib {} for event {}",
                 participant.getBibNumber(), participant.getEventId());
+    }
+
+    /**
+     * Sets only the verifyShortCode attribute via a targeted update, leaving every other
+     * attribute untouched so a concurrent edit (e.g. a bib collection) is not overwritten.
+     */
+    public void updateVerifyShortCode(Long eventId, String bibNumber, String code) {
+        dynamoDbClient.updateItem(UpdateItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "eventId", AttributeValue.fromS(String.valueOf(eventId)),
+                        "bibNumber", AttributeValue.fromS(bibNumber)))
+                .updateExpression("SET verifyShortCode = :code")
+                .expressionAttributeValues(Map.of(":code", AttributeValue.fromS(code)))
+                .build());
     }
 
     public void batchSave(List<ParticipantDDB> participants) {
@@ -66,7 +90,7 @@ public class ParticipantDDBRepository {
             List<ParticipantDDB> batch = participants.subList(i, Math.min(i + batchSize, participants.size()));
 
             WriteBatch.Builder<ParticipantDDB> batchBuilder = WriteBatch.builder(ParticipantDDB.class)
-                    .mappedTableResource(table);
+                    .mappedTableResource(getTable());
             batch.forEach(batchBuilder::addPutItem);
 
             BatchWriteResult result = dynamoDbEnhancedClient.batchWriteItem(
@@ -75,11 +99,11 @@ public class ParticipantDDBRepository {
                             .build()
             );
 
-            List<ParticipantDDB> unprocessed = result.unprocessedPutItemsForTable(table);
+            List<ParticipantDDB> unprocessed = result.unprocessedPutItemsForTable(getTable());
             if (!unprocessed.isEmpty()) {
                 log.warn("DynamoDB batch write had {} unprocessed items, retrying individually", unprocessed.size());
                 unprocessed.forEach(p -> {
-                    table.putItem(p);
+                    getTable().putItem(p);
                     log.debug("Retry-saved participant bib {} for event {}", p.getBibNumber(), p.getEventId());
                 });
             }
@@ -93,7 +117,7 @@ public class ParticipantDDBRepository {
                 Key.builder().partitionValue(eventId).build()
         );
 
-        List<ParticipantDDB> all = table.query(queryConditional).stream()
+        List<ParticipantDDB> all = getTable().query(queryConditional).stream()
                 .flatMap(page -> page.items().stream())
                 .toList();
 
@@ -106,14 +130,14 @@ public class ParticipantDDBRepository {
         for (int i = 0; i < all.size(); i += batchSize) {
             List<ParticipantDDB> batch = all.subList(i, Math.min(i + batchSize, all.size()));
             WriteBatch.Builder<ParticipantDDB> batchBuilder = WriteBatch.builder(ParticipantDDB.class)
-                    .mappedTableResource(table);
+                    .mappedTableResource(getTable());
             batch.forEach(batchBuilder::addDeleteItem);
             BatchWriteResult result = dynamoDbEnhancedClient.batchWriteItem(
                     BatchWriteItemEnhancedRequest.builder()
                             .writeBatches(batchBuilder.build())
                             .build()
             );
-            deleted += batch.size() - result.unprocessedDeleteItemsForTable(table).size();
+            deleted += batch.size() - result.unprocessedDeleteItemsForTable(getTable()).size();
         }
 
         log.info("Deleted {} participants for event {}", deleted, eventId);
@@ -124,15 +148,11 @@ public class ParticipantDDBRepository {
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(String.valueOf(eventId)).build()
         );
-        return table.query(
+        return getTable().query(
                 QueryEnhancedRequest.builder()
                         .queryConditional(queryConditional)
                         .limit(pageSize)
                         .build()
         );
-    }
-
-    public DynamoDbTable<ParticipantDDB> getTable() {
-        return table;
     }
 }
