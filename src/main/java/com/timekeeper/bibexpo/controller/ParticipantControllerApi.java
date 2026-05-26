@@ -20,7 +20,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -61,45 +60,6 @@ public interface ParticipantControllerApi {
                     required = true,
                     content = @Content(schema = @Schema(implementation = CreateParticipantRequest.class)))
             @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody CreateParticipantRequest request,
-
-            @AuthenticationPrincipal User currentUser
-    );
-
-    @Deprecated
-    @PostMapping(value = "/{eventId}/participants/import", consumes = "multipart/form-data")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
-    @Operation(
-            summary = "[DEPRECATED] Import participants from CSV file (sync, blocking)",
-            description = """
-                    ⚠️ **DEPRECATED** — Use `POST /{eventId}/participants/batch-import` instead. \
-                    That endpoint runs asynchronously, sends real-time SSE progress notifications, \
-                    and tracks the latest import per event for error retrieval. \
-
-                    This endpoint is synchronous and blocks until the import completes. \
-                    It DELETES ALL existing participants before importing new ones. \
-                    No SSE notification is sent and no latest-import tracking is updated.""",
-            deprecated = true
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Import job completed successfully. All old participants deleted, new ones imported. Check response message and use importId to query detailed results.",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ImportParticipantsResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid CSV format, missing required columns, file too large, or data validation errors",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden - user does not have ORGANIZER_ADMIN or higher role",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    ResponseEntity<ImportParticipantsResponse> importParticipants(
-            @Parameter(description = "Event ID", required = true)
-            @PathVariable Long eventId,
-
-            @Parameter(description = "CSV file containing participant data", required = true)
-            @RequestParam("file") MultipartFile file,
 
             @AuthenticationPrincipal User currentUser
     );
@@ -153,101 +113,6 @@ public interface ParticipantControllerApi {
     ResponseEntity<Map<String, Long>> getParticipantCount(
             @Parameter(description = "Event ID", required = true)
             @PathVariable Long eventId,
-
-            @AuthenticationPrincipal User currentUser
-    );
-
-    @Deprecated
-    @GetMapping("/{eventId}/participants/imports")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
-    @Operation(
-            summary = "[DEPRECATED] Get import job history for an event",
-            description = """
-                    ⚠️ **DEPRECATED** — Import history tracked by the sync import flow. \
-                    Use `POST /{eventId}/participants/batch-import` for new imports. \
-                    Batch imports are tracked via `GET /{eventId}/participants/imports/latest/errors`.""",
-            deprecated = true
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Import jobs retrieved successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ImportJobListResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden"),
-            @ApiResponse(responseCode = "404", description = "Event not found")
-    })
-    ResponseEntity<ImportJobListResponse> getImportJobs(
-            @Parameter(description = "Event ID", required = true)
-            @PathVariable Long eventId,
-
-            @Parameter(description = "Page number (0-indexed, default: 0)")
-            @RequestParam(defaultValue = "0") Integer page,
-
-            @Parameter(description = "Page size (default: 20)")
-            @RequestParam(defaultValue = "20") Integer size,
-
-            @AuthenticationPrincipal User currentUser
-    );
-
-    @Deprecated
-    @GetMapping("/{eventId}/participants/imports/{importId}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
-    @Operation(
-            summary = "[DEPRECATED] Get import job details",
-            description = """
-                    ⚠️ **DEPRECATED** — Tied to the sync import flow. \
-                    Use `GET /{eventId}/participants/imports/latest/errors` to retrieve errors from the most recent batch import.""",
-            deprecated = true
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Import job details retrieved successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ImportJobResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden"),
-            @ApiResponse(responseCode = "404", description = "Import job or event not found")
-    })
-    ResponseEntity<ImportJobResponse> getImportJobDetails(
-            @Parameter(description = "Event ID", required = true)
-            @PathVariable Long eventId,
-
-            @Parameter(description = "Import job ID", required = true)
-            @PathVariable String importId,
-
-            @AuthenticationPrincipal User currentUser
-    );
-
-    @Deprecated
-    @GetMapping("/{eventId}/participants/imports/{importId}/errors")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
-    @Operation(
-            summary = "[DEPRECATED] Get import errors by importId",
-            description = """
-                    ⚠️ **DEPRECATED** — Requires manually tracking an importId from the sync import flow. \
-                    Use `GET /{eventId}/participants/imports/latest/errors` instead — it automatically resolves \
-                    the most recent batch import importId and returns the same paginated error list.""",
-            deprecated = true
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Import errors retrieved successfully",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ImportErrorListResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid pagination key",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden"),
-            @ApiResponse(responseCode = "404", description = "Import job or event not found")
-    })
-    ResponseEntity<ImportErrorListResponse> getImportErrors(
-            @Parameter(description = "Event ID", required = true)
-            @PathVariable Long eventId,
-
-            @Parameter(description = "Import job ID", required = true)
-            @PathVariable String importId,
-
-            @Parameter(description = "Maximum number of errors to return (default: 50, max: 100)")
-            @RequestParam(defaultValue = "50") Integer limit,
-
-            @Parameter(description = "DynamoDB pagination token from previous response (base64 encoded)")
-            @RequestParam(required = false) String lastEvaluatedKey,
 
             @AuthenticationPrincipal User currentUser
     );

@@ -3,17 +3,12 @@ package com.timekeeper.bibexpo.service;
 import com.timekeeper.bibexpo.model.dto.request.CreateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.response.DeleteParticipantsResponse;
-import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
-import com.timekeeper.bibexpo.model.dto.response.ImportJobListResponse;
-import com.timekeeper.bibexpo.model.dto.response.ImportJobResponse;
-import com.timekeeper.bibexpo.model.dto.response.ImportParticipantsResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -27,19 +22,6 @@ public interface ParticipantService {
      * @return Created participant details
      */
     ParticipantResponse createParticipant(Long eventId, CreateParticipantRequest request, User currentUser);
-
-    /**
-     * Import participants from CSV file
-     * - Parses CSV dynamically to detect goodies columns
-     * - Updates Event entity with goodies metadata
-     * - Validates and bulk imports participants to DynamoDB
-     * - Returns detailed import results with errors
-     * @param eventId The event ID
-     * @param file The CSV file
-     * @param currentUser The authenticated user
-     * @return Import results with success/failure statistics
-     */
-    ImportParticipantsResponse importParticipantsFromCsv(Long eventId, MultipartFile file, User currentUser);
 
     /**
      * Get all participants for an event with pagination
@@ -84,36 +66,6 @@ public interface ParticipantService {
      * @return Total number of participants
      */
     Long getParticipantCount(Long eventId, User currentUser);
-
-    /**
-     * Get paginated list of import jobs for an event
-     * @param eventId The event ID
-     * @param page Page number (0-indexed)
-     * @param size Page size
-     * @param currentUser The authenticated user
-     * @return Paginated import job list
-     */
-    ImportJobListResponse getImportJobsByEvent(Long eventId, Integer page, Integer size, User currentUser);
-
-    /**
-     * Get import job details
-     * @param eventId The event ID
-     * @param importId The import job ID
-     * @param currentUser The authenticated user
-     * @return Import job details
-     */
-    ImportJobResponse getImportJobDetails(Long eventId, String importId, User currentUser);
-
-    /**
-     * Get paginated errors for an import job using token-based pagination
-     * @param eventId The event ID
-     * @param importId The import job ID
-     * @param limit Maximum number of errors to return (default: 50, max: 100)
-     * @param lastEvaluatedKey DynamoDB pagination token from previous response (base64 encoded)
-     * @param currentUser The authenticated user
-     * @return Paginated error list with token for next page
-     */
-    ImportErrorListResponse getImportErrors(Long eventId, String importId, Integer limit, String lastEvaluatedKey, User currentUser);
 
     /**
      * Delete a single participant by bib number

@@ -16,7 +16,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -42,21 +41,6 @@ public class ParticipantController implements ParticipantControllerApi {
         log.info("Created participant with BIB {} for event {}", response.getBibNumber(), eventId);
 
         return ResponseEntity.status(201).body(response);
-    }
-
-    @Override
-    public ResponseEntity<ImportParticipantsResponse> importParticipants(
-            Long eventId,
-            MultipartFile file,
-            User currentUser) {
-        log.info("Importing participants for event {} by user {}", eventId, currentUser.getUsername());
-
-        ImportParticipantsResponse response = participantService.importParticipantsFromCsv(eventId, file, currentUser);
-
-        log.info("Import completed for event {}. Success: {}, Failed: {}",
-                eventId, response.getSuccessCount(), response.getFailureCount());
-
-        return ResponseEntity.ok(response);
     }
 
     @Override
@@ -112,56 +96,6 @@ public class ParticipantController implements ParticipantControllerApi {
         Long count = participantService.getParticipantCount(eventId, currentUser);
 
         return ResponseEntity.ok(Map.of("count", count));
-    }
-
-    @Override
-    public ResponseEntity<ImportJobListResponse> getImportJobs(
-            Long eventId,
-            Integer page,
-            Integer size,
-            User currentUser) {
-        log.info("Fetching import jobs for event {} (page: {}, size: {}) by user {}",
-                eventId, page, size, currentUser.getUsername());
-
-        ImportJobListResponse response = participantService.getImportJobsByEvent(
-                eventId, page, size, currentUser);
-
-        log.info("Fetched {} import jobs for event {}", response.getTotalCount(), eventId);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
-    public ResponseEntity<ImportJobResponse> getImportJobDetails(
-            Long eventId,
-            String importId,
-            User currentUser) {
-        log.info("Fetching import job details for import {} and event {} by user {}",
-                importId, eventId, currentUser.getUsername());
-
-        ImportJobResponse response = participantService.getImportJobDetails(
-                eventId, importId, currentUser);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
-    public ResponseEntity<ImportErrorListResponse> getImportErrors(
-            Long eventId,
-            String importId,
-            Integer limit,
-            String lastEvaluatedKey,
-            User currentUser) {
-        log.info("Fetching import errors for import {} (limit: {}) by user {}",
-                importId, limit, currentUser.getUsername());
-
-        ImportErrorListResponse response = participantService.getImportErrors(
-                eventId, importId, limit, lastEvaluatedKey, currentUser);
-
-        log.info("Fetched {} errors for import {}, hasMore: {}",
-                response.getCount(), importId, response.getHasMore());
-
-        return ResponseEntity.ok(response);
     }
 
     @Override
