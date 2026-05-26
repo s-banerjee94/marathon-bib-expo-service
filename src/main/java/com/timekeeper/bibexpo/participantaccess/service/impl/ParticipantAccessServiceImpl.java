@@ -136,6 +136,7 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
         return ParticipantVerificationResponse.builder()
                 .eventName(event.getEventName())
                 .eventVanue(event.getVenueName())
+                .eventTimezone(event.getTimezone())
                 .eventStartDate(event.getEventStartDate())
                 .eventEndDate(event.getEventEndDate())
                 .bibNumber(p.getBibNumber())
@@ -151,6 +152,10 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
                 .country(p.getCountry())
                 .emergencyContactName(p.getEmergencyContactName())
                 .emergencyContactPhone(p.getEmergencyContactPhone())
+                .bibCollectedAt(p.getBibCollectedAt())
+                .bibCollectedByName(p.getBibCollectedByName())
+                .bibCollectedByPhone(p.getBibCollectedByPhone())
+                .goodiesDistribution(p.getGoodiesDistribution())
                 .qrCodeDataUri(qrCodeDataUri)
                 .build();
     }

@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.Map;
 
 @Data
 @Builder
@@ -16,6 +17,9 @@ public class ParticipantVerificationResponse {
 
     @Schema(description = "Event venue", example = "Azad Maidan, Mumbai")
     private String eventVanue;
+
+    @Schema(description = "Event timezone", example = "Asia/Kolkata")
+    private String eventTimezone;
 
     @Schema(description = "Event start date and time (UTC)", example = "2025-01-19T03:00:00Z")
     private Instant eventStartDate;
@@ -61,6 +65,19 @@ public class ParticipantVerificationResponse {
 
     @Schema(description = "Emergency contact phone number", example = "9876543210")
     private String emergencyContactPhone;
+
+    @Schema(description = "Timestamp when bib was collected", example = "2026-01-10T10:30:00Z")
+    private String bibCollectedAt;
+
+    @Schema(description = "Name of the person who collected the bib", example = "John Doe")
+    private String bibCollectedByName;
+
+    @Schema(description = "Phone of the person who collected the bib", example = "9876543210")
+    private String bibCollectedByPhone;
+
+    @Schema(description = "Goodies distribution status as key-value pairs",
+            example = "{\"T-Shirt\": \"2026-01-10T10:30:00Z\", \"Cap\": \"2026-01-10T11:00:00Z\"}")
+    private Map<String, String> goodiesDistribution;
 
     @Schema(description = "Compact QR code as a PNG data URI; render upscaled with image-rendering: pixelated",
             example = "data:image/png;base64,iVBORw0KGgoAAAANS...")

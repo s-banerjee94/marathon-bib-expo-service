@@ -12,7 +12,7 @@ import java.util.Arrays;
 @Configuration
 public class CorsConfig {
 
-    @Value("${cors.allowed-origins:http://localhost:[*],https://localhost:[*],http://192.168.*.*:[*],https://192.168.*.*:[*],http://10.*.*.*:[*],https://10.*.*.*:[*],http://172.*.*.*:[*],https://172.*.*.*:[*]}")
+    @Value("${cors.allowed-origins:*,https://*.devtunnels.ms,http://localhost:[*],https://localhost:[*],http://192.168.*.*:[*],https://192.168.*.*:[*],http://10.*.*.*:[*],https://10.*.*.*:[*],http://172.*.*.*:[*],https://172.*.*.*:[*]}")
     private String[] allowedOrigins;
 
     @Value("${cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS}")
