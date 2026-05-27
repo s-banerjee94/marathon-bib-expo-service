@@ -63,7 +63,10 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
         for (Page<ParticipantDDB> page : participantRepository.findPagesByEventId(eventId, 100)) {
             for (ParticipantDDB participant : page.items()) {
                 total++;
-                if (participant.getVerifyShortCode() != null && !participant.getVerifyShortCode().isBlank()) {
+                String existingCode = participant.getVerifyShortCode();
+                // A stored code can outlive its short URL row, which TTL removes after the event ends; regenerate when the row is gone.
+                if (existingCode != null && !existingCode.isBlank()
+                        && shortUrlRepository.findByCode(existingCode) != null) {
                     skipped++;
                     continue;
                 }
