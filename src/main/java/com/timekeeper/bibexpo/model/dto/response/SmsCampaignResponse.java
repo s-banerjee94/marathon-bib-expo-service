@@ -31,6 +31,9 @@ public class SmsCampaignResponse {
     @Schema(description = "Event ID", example = "10")
     private Long eventId;
 
+    @Schema(description = "Organization ID that owns the parent event", example = "1")
+    private Long organizationId;
+
     @Schema(description = "Event name", example = "Mumbai Marathon 2026")
     private String eventName;
 
@@ -91,6 +94,8 @@ public class SmsCampaignResponse {
                 .id(campaign.getId())
                 .name(campaign.getName())
                 .eventId(campaign.getEvent() != null ? campaign.getEvent().getId() : null)
+                .organizationId(campaign.getEvent() != null && campaign.getEvent().getOrganization() != null
+                        ? campaign.getEvent().getOrganization().getId() : null)
                 .eventName(campaign.getEvent() != null ? campaign.getEvent().getEventName() : null)
                 .smsTemplateId(campaign.getSmsTemplate() != null ? campaign.getSmsTemplate().getId() : null)
                 .smsTemplateName(campaign.getSmsTemplate() != null ? campaign.getSmsTemplate().getName() : null)

@@ -34,6 +34,9 @@ public class SmsTemplateResponse {
     @Schema(description = "Event ID associated with this template", example = "1")
     private Long eventId;
 
+    @Schema(description = "Organization ID that owns the parent event", example = "1")
+    private Long organizationId;
+
     @Schema(description = "Event name for context", example = "Mumbai Marathon 2024")
     private String eventName;
 
@@ -60,6 +63,8 @@ public class SmsTemplateResponse {
                 .template(smsTemplate.getTemplate())
                 .note(smsTemplate.getNote())
                 .eventId(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getId() : null)
+                .organizationId(smsTemplate.getEvent() != null && smsTemplate.getEvent().getOrganization() != null
+                        ? smsTemplate.getEvent().getOrganization().getId() : null)
                 .eventName(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getEventName() : null)
                 .createdAt(smsTemplate.getCreatedAt())
                 .updatedAt(smsTemplate.getUpdatedAt())

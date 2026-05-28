@@ -5,15 +5,19 @@ import com.timekeeper.bibexpo.exception.AccountDisabledException;
 import com.timekeeper.bibexpo.exception.CsrfValidationException;
 import com.timekeeper.bibexpo.exception.InvalidCredentialsException;
 import com.timekeeper.bibexpo.exception.JwtAuthenticationException;
+import com.timekeeper.bibexpo.model.dto.audit.AuditEvent;
 import com.timekeeper.bibexpo.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.model.dto.response.LoginResponse;
 import com.timekeeper.bibexpo.model.dto.response.RefreshResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.AuthService;
 import com.timekeeper.bibexpo.service.CsrfTokenService;
 import com.timekeeper.bibexpo.service.JwtService;
 import com.timekeeper.bibexpo.service.SessionService;
+import com.timekeeper.bibexpo.service.audit.AuditPublisher;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,6 +31,8 @@ import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -38,6 +44,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtConfig jwtConfig;
     private final SessionService sessionService;
     private final CsrfTokenService csrfTokenService;
+    private final AuditPublisher auditPublisher;
 
     @Override
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
@@ -64,6 +71,9 @@ public class AuthServiceImpl implements AuthService {
             writeCsrfCookie(httpResponse, csrfToken);
 
             log.info("Login successful for user: {}", request.getUsername());
+
+            publishLoginAudit(user);
+
             return LoginResponse.builder()
                     .accessToken(accessToken)
                     .expiresIn(jwtService.getAccessTokenExpirationMs())
@@ -216,6 +226,22 @@ public class AuthServiceImpl implements AuthService {
             b.domain(jwtConfig.getCookieDomain());
         }
         response.addHeader("Set-Cookie", b.build().toString());
+    }
+
+    private void publishLoginAudit(User user) {
+        String label = (user.getFullName() != null && !user.getFullName().isBlank())
+                ? user.getFullName() : user.getUsername();
+        auditPublisher.publish(AuditEvent.builder()
+                .organizationId(user.getOrganization() != null ? user.getOrganization().getId() : 0L)
+                .actorUserId(user.getId())
+                .actorName(user.getUsername())
+                .action(AuditAction.LOGIN)
+                .entityType(AuditEntityType.USER)
+                .entityId(user.getId().toString())
+                .entityLabel(label)
+                .description(label + " logged in")
+                .occurredAt(Instant.now())
+                .build());
     }
 
     private String buildDeviceInfo(HttpServletRequest request) {

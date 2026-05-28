@@ -1,5 +1,7 @@
 package com.timekeeper.bibexpo.service.impl;
 
+import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.RaceAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.RaceDeletionNotAllowedException;
@@ -10,6 +12,8 @@ import com.timekeeper.bibexpo.model.dto.response.RaceResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.RaceService;
@@ -30,6 +34,7 @@ public class RaceServiceImpl implements RaceService {
     private final EventRepository eventRepository;
     private final com.timekeeper.bibexpo.service.validator.EventAccessValidator eventAccessValidator;
 
+    @Auditable(entityType = AuditEntityType.RACE, action = AuditAction.CREATE)
     @Override
     @Transactional
     public RaceResponse createRace(Long eventId, CreateRaceRequest request, User currentUser) {
@@ -60,6 +65,7 @@ public class RaceServiceImpl implements RaceService {
         return RaceResponse.fromEntity(savedRace);
     }
 
+    @Auditable(entityType = AuditEntityType.RACE, action = AuditAction.UPDATE)
     @Override
     @Transactional
     public RaceResponse updateRace(Long eventId, Long raceId, UpdateRaceRequest request, User currentUser) {
@@ -142,6 +148,7 @@ public class RaceServiceImpl implements RaceService {
         return raceResponses;
     }
 
+    @Auditable(entityType = AuditEntityType.RACE, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteRace(Long eventId, Long raceId, User currentUser) {
@@ -164,6 +171,9 @@ public class RaceServiceImpl implements RaceService {
             throw new RaceDeletionNotAllowedException(
                     "Race cannot be deleted because it has categories. Please delete all categories first.");
         }
+
+        AuditContextHolder.setEntityLabel(race.getRaceName());
+        AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         raceRepository.delete(race);
         log.info("Successfully deleted race with ID: {} by user: {}",

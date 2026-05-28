@@ -104,6 +104,15 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public GroupedOpenApi auditLogGroup() {
+        return GroupedOpenApi.builder()
+                .group("8-audit-logs")
+                .displayName("Audit Logs")
+                .pathsToMatch("/api/audit-logs/**")
+                .build();
+    }
+
+    @Bean
     public GroupedOpenApi notificationsGroup() {
         return GroupedOpenApi.builder()
                 .group("8-notifications")

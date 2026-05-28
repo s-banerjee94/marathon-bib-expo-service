@@ -2,10 +2,14 @@ package com.timekeeper.bibexpo.participantaccess.service.impl;
 
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.InvalidQrCodeException;
+import com.timekeeper.bibexpo.model.dto.audit.AuditEvent;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.service.audit.AuditPublisher;
 import com.timekeeper.bibexpo.participantaccess.model.dto.response.ParticipantVerificationResponse;
 import com.timekeeper.bibexpo.participantaccess.model.dto.response.ShortUrlGenerationResponse;
 import com.timekeeper.bibexpo.participantaccess.model.dynamodb.ShortUrlDDB;
@@ -42,6 +46,7 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     private final QrTokenCodec qrTokenCodec;
     private final QrImageGenerator qrImageGenerator;
     private final SseEmitterRegistry sseEmitterRegistry;
+    private final AuditPublisher auditPublisher;
 
     private static final int MAX_CODE_ATTEMPTS = 5;
     private static final int SHORT_URL_TTL_DAYS_AFTER_EVENT_END = 3;
@@ -78,10 +83,32 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
 
         log.info("Short URL generation for event {}: total={}, generated={}, skipped={}", eventId, total, generated, skipped);
 
+        publishGenerationAudit(event, currentUser);
+
         sseEmitterRegistry.send(currentUser.getId(), SSE_EVENT_COMPLETED, ShortUrlGenerationResponse.builder()
                 .total(total)
                 .generated(generated)
                 .skipped(skipped)
+                .build());
+    }
+
+    /**
+     * Published via a direct call rather than {@code @Auditable}: this method is {@code @Async}
+     * and returns void, so the aspect would fire on dispatch (before the work succeeds) with no result.
+     */
+    private void publishGenerationAudit(Event event, User actor) {
+        Long actorOrgId = actor.getOrganization() != null ? actor.getOrganization().getId() : 0L;
+        Long orgId = event.getOrganization() != null ? event.getOrganization().getId() : actorOrgId;
+        auditPublisher.publish(AuditEvent.builder()
+                .organizationId(orgId)
+                .actorUserId(actor.getId())
+                .actorName(actor.getUsername())
+                .action(AuditAction.GENERATE)
+                .entityType(AuditEntityType.VERIFICATION_LINK)
+                .entityId(String.valueOf(event.getId()))
+                .entityLabel(event.getEventName())
+                .description("Verification links generated for \"" + event.getEventName() + "\"")
+                .occurredAt(Instant.now())
                 .build());
     }
 

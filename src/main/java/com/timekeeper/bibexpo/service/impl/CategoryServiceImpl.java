@@ -1,6 +1,10 @@
 package com.timekeeper.bibexpo.service.impl;
 
+import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.*;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.response.CategoryResponse;
@@ -41,6 +45,7 @@ public class CategoryServiceImpl implements CategoryService {
         this.participantService = participantService;
     }
 
+    @Auditable(entityType = AuditEntityType.CATEGORY, action = AuditAction.CREATE)
     @Override
     @Transactional
     public CategoryResponse createCategory(Long eventId, Long raceId, CreateCategoryRequest request, User currentUser) {
@@ -67,6 +72,7 @@ public class CategoryServiceImpl implements CategoryService {
         return CategoryResponse.fromEntity(savedCategory);
     }
 
+    @Auditable(entityType = AuditEntityType.CATEGORY, action = AuditAction.UPDATE)
     @Override
     @Transactional
     public CategoryResponse updateCategory(Long eventId, Long raceId, Long categoryId,
@@ -144,13 +150,14 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryResponses;
     }
 
+    @Auditable(entityType = AuditEntityType.CATEGORY, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteCategory(Long eventId, Long raceId, Long categoryId, User currentUser) {
         log.info("Deleting category with ID: {} for race ID: {} in event ID: {} by user: {}",
                 categoryId, raceId, eventId, currentUser.getUsername());
 
-        validateRaceAndEvent(eventId, raceId, currentUser);
+        Race race = validateRaceAndEvent(eventId, raceId, currentUser);
 
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(CategoryNotFoundException::new);
@@ -165,6 +172,11 @@ public class CategoryServiceImpl implements CategoryService {
             throw new CategoryInUseException(
                     "Cannot delete this category. It has " + participantCount + " participant(s) assigned. Reassign or remove them first.");
         }
+
+        Long orgId = race.getEvent() != null && race.getEvent().getOrganization() != null
+                ? race.getEvent().getOrganization().getId() : null;
+        AuditContextHolder.setEntityLabel(category.getCategoryName());
+        AuditContextHolder.setOrganizationId(orgId);
 
         categoryRepository.delete(category);
         log.info("Successfully deleted category with ID: {} by user: {}",

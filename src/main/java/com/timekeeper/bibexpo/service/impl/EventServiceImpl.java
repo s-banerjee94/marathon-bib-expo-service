@@ -1,5 +1,7 @@
 package com.timekeeper.bibexpo.service.impl;
 
+import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.*;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
@@ -10,6 +12,8 @@ import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.service.EventService;
@@ -43,6 +47,7 @@ public class EventServiceImpl implements EventService {
     private final OrganizationRepository organizationRepository;
     private final EventAccessValidator eventAccessValidator;
 
+    @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.CREATE)
     @Override
     @Transactional
     public EventResponse createEvent(CreateEventRequest request, User currentUser) {
@@ -100,6 +105,7 @@ public class EventServiceImpl implements EventService {
         return EventResponse.fromEntity(savedEvent);
     }
 
+    @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.UPDATE)
     @Override
     @Transactional
     public EventResponse updateEvent(Long id, UpdateEventRequest request, User currentUser) {
@@ -253,6 +259,7 @@ public class EventServiceImpl implements EventService {
         return EventResponse.fromEntity(event);
     }
 
+    @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.STATUS_CHANGE)
     @Override
     @Transactional
     public EventResponse toggleEventEnabled(Long id, User currentUser) {
@@ -270,6 +277,7 @@ public class EventServiceImpl implements EventService {
         return EventResponse.fromEntity(updatedEvent);
     }
 
+    @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.STATUS_CHANGE)
     @Override
     @Transactional
     public EventResponse changeEventStatus(Long id, EventStatus status, User currentUser) {
@@ -304,6 +312,7 @@ public class EventServiceImpl implements EventService {
         return event;
     }
 
+    @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteEvent(Long id, User currentUser) {
@@ -321,6 +330,9 @@ public class EventServiceImpl implements EventService {
         //     throw new EventDeletionNotAllowedException(
         //             "Event cannot be deleted because it has registered participants");
         // }
+
+        AuditContextHolder.setEntityLabel(event.getEventName());
+        AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         eventRepository.delete(event);
         log.info("Successfully deleted event with ID: {} by user: {}", id, currentUser.getUsername());

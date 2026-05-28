@@ -170,4 +170,52 @@ awslocal dynamodb update-time-to-live \
     --time-to-live-specification "Enabled=true, AttributeName=expirationTime"
 
 echo "DynamoDB table marathon-short-urls created successfully with TTL enabled!"
+
+echo "Creating DynamoDB table: marathon-audit-log"
+awslocal dynamodb create-table \
+    --table-name marathon-audit-log \
+    --attribute-definitions \
+        AttributeName=organizationId,AttributeType=N \
+        AttributeName=eventKey,AttributeType=S \
+        AttributeName=actionKey,AttributeType=S \
+        AttributeName=entityTypeKey,AttributeType=S \
+        AttributeName=actorKey,AttributeType=S \
+    --key-schema \
+        AttributeName=organizationId,KeyType=HASH \
+        AttributeName=eventKey,KeyType=RANGE \
+    --local-secondary-indexes \
+        "[
+            {
+                \"IndexName\": \"LSI-ActionTimeIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"organizationId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"actionKey\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            },
+            {
+                \"IndexName\": \"LSI-EntityTypeTimeIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"organizationId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"entityTypeKey\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            },
+            {
+                \"IndexName\": \"LSI-ActorTimeIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"organizationId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"actorKey\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            }
+        ]" \
+    --billing-mode PAY_PER_REQUEST
+
+echo "Enabling TTL on marathon-audit-log table (expirationTime attribute — 15 day retention)"
+awslocal dynamodb update-time-to-live \
+    --table-name marathon-audit-log \
+    --time-to-live-specification "Enabled=true, AttributeName=expirationTime"
+
+echo "DynamoDB table marathon-audit-log created successfully with TTL enabled!"
 echo "LocalStack initialization complete!"

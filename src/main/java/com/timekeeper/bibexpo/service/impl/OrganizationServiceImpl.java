@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.service.impl;
 
+import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
@@ -9,6 +10,8 @@ import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.OrganizationService;
@@ -116,6 +119,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         };
     }
 
+    @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.CREATE)
     @Override
     @Transactional
     public OrganizationResponse createOrganization(CreateOrganizationRequest request) {
@@ -167,6 +171,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         return OrganizationResponse.fromEntity(savedOrganization);
     }
 
+    @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.UPDATE)
     @Override
     @Transactional
     public OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, User currentUser) {
@@ -188,6 +193,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         return OrganizationResponse.fromEntity(updatedOrganization);
     }
 
+    @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.STATUS_CHANGE)
     @Override
     @Transactional
     public OrganizationResponse toggleOrganizationStatus(Long id, Boolean enabled) {

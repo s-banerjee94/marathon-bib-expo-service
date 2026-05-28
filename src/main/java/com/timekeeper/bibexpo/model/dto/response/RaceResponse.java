@@ -28,6 +28,9 @@ public class RaceResponse {
     @Schema(description = "Event ID this race belongs to", example = "1")
     private Long eventId;
 
+    @Schema(description = "Organization ID that owns the parent event", example = "1")
+    private Long organizationId;
+
     @Schema(description = "Number of categories in this race", example = "3")
     private Integer categoryCount;
 
@@ -49,6 +52,8 @@ public class RaceResponse {
                 .raceName(race.getRaceName())
                 .raceDescription(race.getRaceDescription())
                 .eventId(race.getEvent() != null ? race.getEvent().getId() : null)
+                .organizationId(race.getEvent() != null && race.getEvent().getOrganization() != null
+                        ? race.getEvent().getOrganization().getId() : null)
                 .categoryCount(race.getCategories() != null ? race.getCategories().size() : 0)
                 .createdAt(race.getCreatedAt())
                 .updatedAt(race.getUpdatedAt())

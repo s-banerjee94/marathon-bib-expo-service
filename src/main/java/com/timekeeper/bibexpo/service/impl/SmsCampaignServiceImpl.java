@@ -1,6 +1,10 @@
 package com.timekeeper.bibexpo.service.impl;
 
+import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.*;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.dto.request.CreateSmsCampaignRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsCampaignRequest;
 import com.timekeeper.bibexpo.model.dto.response.SmsCampaignResponse;
@@ -40,6 +44,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
 
+    @Auditable(entityType = AuditEntityType.SMS_CAMPAIGN, action = AuditAction.CREATE)
     @Override
     @Transactional
     public SmsCampaignResponse createCampaign(Long eventId, CreateSmsCampaignRequest request, User currentUser) {
@@ -73,6 +78,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         return SmsCampaignResponse.fromEntity(saved);
     }
 
+    @Auditable(entityType = AuditEntityType.SMS_CAMPAIGN, action = AuditAction.UPDATE)
     @Override
     @Transactional
     public SmsCampaignResponse updateCampaign(Long eventId, Long campaignId, UpdateSmsCampaignRequest request, User currentUser) {
@@ -130,6 +136,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         return SmsCampaignResponse.fromEntity(findCampaignOrThrow(campaignId, eventId));
     }
 
+    @Auditable(entityType = AuditEntityType.SMS_CAMPAIGN, action = AuditAction.STATUS_CHANGE)
     @Override
     @Transactional
     public SmsCampaignResponse disarmCampaign(Long eventId, Long campaignId, User currentUser) {
@@ -162,6 +169,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         return SmsCampaignResponse.fromEntity(updated);
     }
 
+    @Auditable(entityType = AuditEntityType.SMS_CAMPAIGN, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteCampaign(Long eventId, Long campaignId, User currentUser) {
@@ -174,6 +182,11 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         if (campaign.getStatus() != SmsCampaignStatus.DRAFT) {
             throw new InvalidSmsCampaignException("Only draft campaigns can be deleted.");
         }
+
+        Long orgId = campaign.getEvent() != null && campaign.getEvent().getOrganization() != null
+                ? campaign.getEvent().getOrganization().getId() : null;
+        AuditContextHolder.setEntityLabel(campaign.getName());
+        AuditContextHolder.setOrganizationId(orgId);
 
         smsCampaignRepository.delete(campaign);
         log.info("Successfully deleted SMS campaign ID: {} by user: {}", campaignId, currentUser.getUsername());

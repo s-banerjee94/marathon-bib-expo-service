@@ -31,6 +31,9 @@ public class CategoryResponse {
     @Schema(description = "Event ID (for context)", example = "1")
     private Long eventId;
 
+    @Schema(description = "Organization ID that owns the parent event", example = "1")
+    private Long organizationId;
+
     @Schema(description = "Creation timestamp", example = "2026-01-15T10:30:00Z")
     private Instant createdAt;
 
@@ -51,6 +54,9 @@ public class CategoryResponse {
                 .raceId(category.getRace() != null ? category.getRace().getId() : null)
                 .eventId(category.getRace() != null && category.getRace().getEvent() != null ?
                         category.getRace().getEvent().getId() : null)
+                .organizationId(category.getRace() != null && category.getRace().getEvent() != null
+                        && category.getRace().getEvent().getOrganization() != null
+                        ? category.getRace().getEvent().getOrganization().getId() : null)
                 .createdAt(category.getCreatedAt())
                 .updatedAt(category.getUpdatedAt())
                 .createdBy(category.getCreatedBy())

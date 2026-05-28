@@ -1,10 +1,14 @@
 package com.timekeeper.bibexpo.service.impl;
 
+import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.InvalidUserDataException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.exception.UserAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.UserNotFoundException;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
@@ -49,6 +53,7 @@ public class UserServiceImpl implements UserService {
     private final OrganizationRepository organizationRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Auditable(entityType = AuditEntityType.USER, action = AuditAction.CREATE)
     @Override
     @Transactional
     public UserResponse createUser(CreateUserRequest request, String currentUsername) {
@@ -330,6 +335,7 @@ public class UserServiceImpl implements UserService {
         return PRIVILEGED_ROLES.contains(role);
     }
 
+    @Auditable(entityType = AuditEntityType.USER, action = AuditAction.UPDATE)
     @Override
     @Transactional
     public UserResponse updateUser(Long userId, UpdateUserRequest request, String currentUsername) {
@@ -533,6 +539,7 @@ public class UserServiceImpl implements UserService {
         throw new UnauthorizedAccessException("You can only update your own profile");
     }
 
+    @Auditable(entityType = AuditEntityType.USER, action = AuditAction.STATUS_CHANGE)
     @Override
     @Transactional
     public UserResponse toggleUserEnabled(Long userId, String currentUsername) {
@@ -724,6 +731,7 @@ public class UserServiceImpl implements UserService {
         return UserResponse.fromEntity(currentUser);
     }
 
+    @Auditable(entityType = AuditEntityType.USER, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteUser(Long userId, String currentUsername) {
@@ -739,6 +747,11 @@ public class UserServiceImpl implements UserService {
 
         int notificationsDeleted = notificationRepository.deleteAllByUserId(targetUser.getId());
         log.debug("Deleted {} notifications for user ID: {}", notificationsDeleted, userId);
+
+        String label = (targetUser.getFullName() != null && !targetUser.getFullName().isBlank())
+                ? targetUser.getFullName() : targetUser.getUsername();
+        AuditContextHolder.setEntityLabel(label);
+        AuditContextHolder.setOrganizationId(targetUser.getOrganization() != null ? targetUser.getOrganization().getId() : null);
 
         userRepository.delete(targetUser);
 

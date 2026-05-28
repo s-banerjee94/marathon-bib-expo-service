@@ -1,6 +1,10 @@
 package com.timekeeper.bibexpo.service.impl;
 
+import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.*;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.response.SmsTemplateResponse;
@@ -38,6 +42,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
 
+    @Auditable(entityType = AuditEntityType.SMS_TEMPLATE, action = AuditAction.CREATE)
     @Override
     @Transactional
     public SmsTemplateResponse createSmsTemplate(Long eventId, CreateSmsTemplateRequest request, User currentUser) {
@@ -71,6 +76,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         return SmsTemplateResponse.fromEntity(savedTemplate);
     }
 
+    @Auditable(entityType = AuditEntityType.SMS_TEMPLATE, action = AuditAction.UPDATE)
     @Override
     @Transactional
     public SmsTemplateResponse updateSmsTemplate(Long eventId, Long templateId, UpdateSmsTemplateRequest request, User currentUser) {
@@ -178,19 +184,23 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         return SmsTemplateResponse.fromEntity(smsTemplate);
     }
 
+    @Auditable(entityType = AuditEntityType.SMS_TEMPLATE, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteSmsTemplate(Long eventId, Long templateId, User currentUser) {
         log.info("Deleting SMS template ID: {} for event ID: {} by user: {}",
                 templateId, eventId, currentUser.getUsername());
 
-        validateEventAccess(eventId, currentUser);
+        Event event = validateEventAccess(eventId, currentUser);
 
         SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
 
         if (smsCampaignRepository.existsBySmsTemplateId(smsTemplate.getId())) {
             throw new InvalidSmsTemplateException("This template is used by one or more campaigns and cannot be deleted.");
         }
+
+        AuditContextHolder.setEntityLabel(smsTemplate.getName());
+        AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         smsTemplateRepository.delete(smsTemplate);
         log.info("Successfully deleted SMS template ID: {} by user: {}", templateId, currentUser.getUsername());
