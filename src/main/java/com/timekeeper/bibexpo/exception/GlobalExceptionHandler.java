@@ -29,6 +29,22 @@ public class GlobalExceptionHandler {
     public static final String NOT_FOUND = "Not Found";
     public static final String CONFLICT = "Conflict";
 
+    @ExceptionHandler(UserLimitReductionException.class)
+    public ResponseEntity<ErrorResponse> handleUserLimitReduction(
+            UserLimitReductionException ex, WebRequest request) {
+        log.warn("User limit reduction conflict: {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error(CONFLICT)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
     @ExceptionHandler(ImportAlreadyRunningException.class)
     public ResponseEntity<ErrorResponse> handleImportAlreadyRunning(
             ImportAlreadyRunningException ex, WebRequest request) {

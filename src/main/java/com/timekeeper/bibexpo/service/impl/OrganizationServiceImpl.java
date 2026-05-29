@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.UserLimitReductionException;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
@@ -201,6 +202,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         validateEmailUniqueness(request.getEmail(), organization.getEmail());
         validatePhoneNumberUniqueness(request.getPhoneNumber(), organization.getPhoneNumber());
         validateTaxIdUniqueness(request.getTaxId(), organization.getTaxId());
+        validateUserLimits(organization, request);
         applyOrganizationUpdates(organization, request);
 
         Organization updatedOrganization = organizationRepository.save(organization);
@@ -294,6 +296,32 @@ public class OrganizationServiceImpl implements OrganizationService {
                     "An organization with this phone number already exists."
             );
         }
+    }
+
+    private void validateUserLimits(Organization organization, UpdateOrganizationRequest request) {
+        if (isReduction(request.getMaxOrganizerUsers(), organization.getMaxOrganizerUsers())) {
+            long activeOrganizerUsers = userRepository.countByOrganizationIdAndRoleAndEnabledTrue(
+                    organization.getId(), UserRole.ORGANIZER_USER);
+            if (request.getMaxOrganizerUsers() < activeOrganizerUsers) {
+                throw new UserLimitReductionException(String.format(
+                        "You cannot reduce the user limit below the current number of active users (%d).",
+                        activeOrganizerUsers));
+            }
+        }
+
+        if (isReduction(request.getMaxDistributors(), organization.getMaxDistributors())) {
+            long activeDistributors = userRepository.countByOrganizationIdAndRoleAndEnabledTrue(
+                    organization.getId(), UserRole.DISTRIBUTOR);
+            if (request.getMaxDistributors() < activeDistributors) {
+                throw new UserLimitReductionException(String.format(
+                        "You cannot reduce the distributor limit below the current number of active distributors (%d).",
+                        activeDistributors));
+            }
+        }
+    }
+
+    private boolean isReduction(Integer newLimit, Integer currentLimit) {
+        return newLimit != null && currentLimit != null && newLimit < currentLimit;
     }
 
     private void applyOrganizationUpdates(Organization organization, UpdateOrganizationRequest request) {

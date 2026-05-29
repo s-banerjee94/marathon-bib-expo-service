@@ -49,6 +49,16 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
      */
     long countByOrganizationIdAndRole(Long organizationId, UserRole role);
 
+    /**
+     * Count active (enabled) users of a given role within an organization.
+     * Used to enforce organization user and distributor limits on update.
+     *
+     * @param organizationId the organization ID
+     * @param role the user role to count
+     * @return count of enabled users with the specified role in the organization
+     */
+    long countByOrganizationIdAndRoleAndEnabledTrue(Long organizationId, UserRole role);
+
     @Query("SELECT u.role, COUNT(u) FROM User u WHERE u.organization.id = :orgId GROUP BY u.role")
     List<Object[]> countGroupByRoleForOrg(@Param("orgId") Long orgId);
 
