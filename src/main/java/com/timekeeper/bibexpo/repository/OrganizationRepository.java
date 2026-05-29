@@ -31,6 +31,10 @@ public interface OrganizationRepository extends JpaRepository<Organization, Long
 
     boolean existsByTaxIdAndDeletedFalse(String taxId);
 
+    boolean existsByOrganizerNameAndDeletedFalse(String organizerName);
+
+    boolean existsByPhoneNumberAndDeletedFalse(String phoneNumber);
+
     List<Organization> findByDeletedFalse();
 
     List<Organization> findByEnabledTrueAndDeletedFalse();

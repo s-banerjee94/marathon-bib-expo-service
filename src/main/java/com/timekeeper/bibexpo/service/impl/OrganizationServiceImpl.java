@@ -132,6 +132,20 @@ public class OrganizationServiceImpl implements OrganizationService {
             );
         }
 
+        // Check if organization with name already exists
+        if (organizationRepository.existsByOrganizerNameAndDeletedFalse(request.getOrganizerName())) {
+            throw new OrganizationAlreadyExistsException(
+                    "An organization with this name already exists."
+            );
+        }
+
+        // Check if organization with phone number already exists (if provided)
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank() && organizationRepository.existsByPhoneNumberAndDeletedFalse(request.getPhoneNumber())) {
+            throw new OrganizationAlreadyExistsException(
+                    "An organization with this phone number already exists."
+            );
+        }
+
         // Check if organization with taxId already exists (if taxId is provided)
         if (request.getTaxId() != null && !request.getTaxId().isBlank() && organizationRepository.existsByTaxIdAndDeletedFalse(request.getTaxId())) {
                 throw new OrganizationAlreadyExistsException(
@@ -183,7 +197,9 @@ public class OrganizationServiceImpl implements OrganizationService {
                 ));
 
         validateUpdateAuthorization(currentUser, id);
+        validateOrganizerNameUniqueness(request.getOrganizerName(), organization.getOrganizerName());
         validateEmailUniqueness(request.getEmail(), organization.getEmail());
+        validatePhoneNumberUniqueness(request.getPhoneNumber(), organization.getPhoneNumber());
         validateTaxIdUniqueness(request.getTaxId(), organization.getTaxId());
         applyOrganizationUpdates(organization, request);
 
@@ -262,6 +278,22 @@ public class OrganizationServiceImpl implements OrganizationService {
                 );
             }
 
+    }
+
+    private void validateOrganizerNameUniqueness(String newName, String currentName) {
+        if (newName != null && !newName.isBlank() && !newName.equals(currentName) && organizationRepository.existsByOrganizerNameAndDeletedFalse(newName)) {
+            throw new OrganizationAlreadyExistsException(
+                    "An organization with this name already exists."
+            );
+        }
+    }
+
+    private void validatePhoneNumberUniqueness(String newPhone, String currentPhone) {
+        if (newPhone != null && !newPhone.isBlank() && !newPhone.equals(currentPhone) && organizationRepository.existsByPhoneNumberAndDeletedFalse(newPhone)) {
+            throw new OrganizationAlreadyExistsException(
+                    "An organization with this phone number already exists."
+            );
+        }
     }
 
     private void applyOrganizationUpdates(Organization organization, UpdateOrganizationRequest request) {

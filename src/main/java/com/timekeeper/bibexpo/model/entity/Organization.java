@@ -22,13 +22,14 @@ import java.util.List;
 @Table(name = "organizations",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_org_email", columnNames = "email"),
-                @UniqueConstraint(name = "uk_org_tax_id", columnNames = "taxId")
+                @UniqueConstraint(name = "uk_org_tax_id", columnNames = "taxId"),
+                @UniqueConstraint(name = "uk_org_organizer_name", columnNames = "organizerName"),
+                @UniqueConstraint(name = "uk_org_phone_number", columnNames = "phoneNumber")
         },
         indexes = {
                 @Index(name = "idx_org_email", columnList = "email"),
                 @Index(name = "idx_org_deleted", columnList = "deleted"),
-                @Index(name = "idx_org_enabled", columnList = "enabled"),
-                @Index(name = "idx_org_organizer_name", columnList = "organizerName")
+                @Index(name = "idx_org_enabled", columnList = "enabled")
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data
