@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.model.dto.response;
 
 import com.timekeeper.bibexpo.model.entity.Organization;
+import com.timekeeper.bibexpo.model.entity.OrganizationLimit;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -56,11 +57,8 @@ public class OrganizationResponse {
     @Schema(description = "Business registration number", example = "U74999DL2020PTC123456")
     private String registrationNumber;
 
-    @Schema(description = "Maximum number of organizer users (0 = unlimited)", example = "5")
-    private Integer maxOrganizerUsers;
-
-    @Schema(description = "Maximum number of distributors (0 = unlimited)", example = "30")
-    private Integer maxDistributors;
+    @Schema(description = "Per-role user quota (maximum allowed and current usage)")
+    private UserQuotaDto userQuota;
 
     @Schema(description = "Subscription tier", example = "BASIC")
     private String subscriptionTier;
@@ -96,10 +94,16 @@ public class OrganizationResponse {
     private String lastModifiedBy;
 
     /**
-     * Factory method to create OrganizationResponse from Organization entity
+     * Factory method to create OrganizationResponse from an Organization and its
+     * limits. The limit may be null (e.g. before reconciliation), in which case
+     * the cap and usage fields are left unset.
+     *
+     * @param organization the organization entity
+     * @param limit the organization's limits/usage, or null if not yet present
+     * @return the assembled response
      */
-    public static OrganizationResponse fromEntity(Organization organization) {
-        return OrganizationResponse.builder()
+    public static OrganizationResponse fromEntity(Organization organization, OrganizationLimit limit) {
+        OrganizationResponseBuilder builder = OrganizationResponse.builder()
                 .id(organization.getId())
                 .organizerName(organization.getOrganizerName())
                 .email(organization.getEmail())
@@ -113,8 +117,6 @@ public class OrganizationResponse {
                 .country(organization.getCountry())
                 .taxId(organization.getTaxId())
                 .registrationNumber(organization.getRegistrationNumber())
-                .maxOrganizerUsers(organization.getMaxOrganizerUsers())
-                .maxDistributors(organization.getMaxDistributors())
                 .subscriptionTier(organization.getSubscriptionTier())
                 .subscriptionStatus(organization.getSubscriptionStatus())
                 .subscriptionStartDate(organization.getSubscriptionStartDate())
@@ -125,7 +127,12 @@ public class OrganizationResponse {
                 .createdAt(organization.getCreatedAt())
                 .updatedAt(organization.getUpdatedAt())
                 .createdBy(organization.getCreatedBy())
-                .lastModifiedBy(organization.getLastModifiedBy())
-                .build();
+                .lastModifiedBy(organization.getLastModifiedBy());
+
+        if (limit != null) {
+            builder.userQuota(UserQuotaDto.fromEntity(limit));
+        }
+
+        return builder.build();
     }
 }

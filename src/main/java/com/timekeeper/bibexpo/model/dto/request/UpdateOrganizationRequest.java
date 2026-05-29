@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.model.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -64,13 +64,9 @@ public class UpdateOrganizationRequest {
     @Schema(description = "Business registration number", example = "U74999DL2020PTC123456")
     private String registrationNumber;
 
-    @Min(value = 0, message = "Max organizer users must be 0 or greater (0 = unlimited)")
-    @Schema(description = "Maximum number of organizer users (0 = unlimited)", example = "10")
-    private Integer maxOrganizerUsers;
-
-    @Min(value = 0, message = "Max distributors must be 0 or greater (0 = unlimited)")
-    @Schema(description = "Maximum number of distributors (0 = unlimited)", example = "50")
-    private Integer maxDistributors;
+    @Valid
+    @Schema(description = "Per-role user quota caps. Optional; only the roles you include are changed.")
+    private UserQuotaRequest userQuota;
 
     @Size(max = 50, message = "Subscription tier must not exceed 50 characters")
     @Schema(description = "Subscription tier", example = "PREMIUM", allowableValues = {"FREE", "BASIC", "PREMIUM", "ENTERPRISE"})

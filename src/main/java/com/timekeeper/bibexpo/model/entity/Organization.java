@@ -76,15 +76,6 @@ public class Organization implements Serializable {
     @Convert(converter = EmptyStringToNullConverter.class)
     private String registrationNumber;
 
-    // Limits & Quotas (moved from User entity)
-    @Column(name = "max_organizer_users")
-    @Builder.Default
-    private Integer maxOrganizerUsers = 5;  // Default: 5, set to 0 for unlimited
-
-    @Column(name = "max_distributors")
-    @Builder.Default
-    private Integer maxDistributors = 30;  // Default: 30, set to 0 for unlimited
-
     // Settings & Configuration
     @Column(columnDefinition = "JSON")
     private String settings;  // Store as JSON string

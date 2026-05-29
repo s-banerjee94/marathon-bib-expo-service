@@ -7,12 +7,15 @@ import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.exception.UserLimitReductionException;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.model.dto.request.UserQuotaRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.model.entity.Organization;
+import com.timekeeper.bibexpo.model.entity.OrganizationLimit;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.OrganizationService;
@@ -27,6 +30,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +41,7 @@ import java.util.List;
 public class OrganizationServiceImpl implements OrganizationService {
 
     private final OrganizationRepository organizationRepository;
+    private final OrganizationLimitRepository organizationLimitRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -56,8 +64,16 @@ public class OrganizationServiceImpl implements OrganizationService {
         // Fetch organizations with pagination
         Page<Organization> organizationsPage = organizationRepository.findAll(spec, pageable);
 
+        // Batch-load limits for this page in one query to avoid N+1
+        List<Long> orgIds = organizationsPage.getContent().stream()
+                .map(Organization::getId)
+                .toList();
+        Map<Long, OrganizationLimit> limitsByOrgId = organizationLimitRepository.findAllById(orgIds).stream()
+                .collect(Collectors.toMap(OrganizationLimit::getOrganizationId, Function.identity()));
+
         // Convert to response DTOs
-        Page<OrganizationResponse> responsePage = organizationsPage.map(OrganizationResponse::fromEntity);
+        Page<OrganizationResponse> responsePage = organizationsPage.map(
+                org -> OrganizationResponse.fromEntity(org, limitsByOrgId.get(org.getId())));
 
         log.info("Successfully fetched {} organizations (page {} of {})",
                 responsePage.getNumberOfElements(),
@@ -168,10 +184,6 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .country(request.getCountry())
                 .taxId(request.getTaxId())
                 .registrationNumber(request.getRegistrationNumber())
-                .maxOrganizerUsers(request.getMaxOrganizerUsers() != null ?
-                        request.getMaxOrganizerUsers() : 5)
-                .maxDistributors(request.getMaxDistributors() != null ?
-                        request.getMaxDistributors() : 30)
                 .subscriptionTier(emptyToNull(request.getSubscriptionTier()))
                 .billingEmail(emptyToNull(request.getBillingEmail()))
                 .subscriptionStatus("ACTIVE")
@@ -181,9 +193,16 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         // Save the organization
         Organization savedOrganization = organizationRepository.save(organization);
+
+        // Create the organization's limits row: entity defaults apply, request caps override
+        OrganizationLimit limit = OrganizationLimit.builder()
+                .organization(savedOrganization)
+                .build();
+        applyQuotaCaps(limit, request.getUserQuota());
+        OrganizationLimit savedLimit = organizationLimitRepository.save(limit);
         log.info("Successfully created organization with ID: {}", savedOrganization.getId());
 
-        return OrganizationResponse.fromEntity(savedOrganization);
+        return OrganizationResponse.fromEntity(savedOrganization, savedLimit);
     }
 
     @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.UPDATE)
@@ -197,18 +216,22 @@ public class OrganizationServiceImpl implements OrganizationService {
                         "The organization you requested does not exist."
                 ));
 
+        OrganizationLimit limit = getOrCreateLimit(organization);
+
         validateUpdateAuthorization(currentUser, id);
         validateOrganizerNameUniqueness(request.getOrganizerName(), organization.getOrganizerName());
         validateEmailUniqueness(request.getEmail(), organization.getEmail());
         validatePhoneNumberUniqueness(request.getPhoneNumber(), organization.getPhoneNumber());
         validateTaxIdUniqueness(request.getTaxId(), organization.getTaxId());
-        validateUserLimits(organization, request);
+        validateUserLimits(limit, request);
         applyOrganizationUpdates(organization, request);
+        applyQuotaCaps(limit, request.getUserQuota());
 
         Organization updatedOrganization = organizationRepository.save(organization);
+        OrganizationLimit updatedLimit = organizationLimitRepository.save(limit);
         log.info("Successfully updated organization with ID: {}", updatedOrganization.getId());
 
-        return OrganizationResponse.fromEntity(updatedOrganization);
+        return OrganizationResponse.fromEntity(updatedOrganization, updatedLimit);
     }
 
     @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.STATUS_CHANGE)
@@ -252,7 +275,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         log.info("Successfully {} organization with ID: {}",
                 Boolean.TRUE.equals(enabled) ? "enabled" : "disabled", updatedOrganization.getId());
 
-        return OrganizationResponse.fromEntity(updatedOrganization);
+        return toResponse(updatedOrganization);
     }
 
     private void validateUpdateAuthorization(User currentUser, Long organizationId) {
@@ -298,30 +321,28 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
     }
 
-    private void validateUserLimits(Organization organization, UpdateOrganizationRequest request) {
-        if (isReduction(request.getMaxOrganizerUsers(), organization.getMaxOrganizerUsers())) {
-            long activeOrganizerUsers = userRepository.countByOrganizationIdAndRoleAndEnabledTrue(
-                    organization.getId(), UserRole.ORGANIZER_USER);
-            if (request.getMaxOrganizerUsers() < activeOrganizerUsers) {
-                throw new UserLimitReductionException(String.format(
-                        "You cannot reduce the user limit below the current number of active users (%d).",
-                        activeOrganizerUsers));
-            }
+    private void validateUserLimits(OrganizationLimit limit, UpdateOrganizationRequest request) {
+        UserQuotaRequest quota = request.getUserQuota();
+        if (quota == null) {
+            return;
         }
-
-        if (isReduction(request.getMaxDistributors(), organization.getMaxDistributors())) {
-            long activeDistributors = userRepository.countByOrganizationIdAndRoleAndEnabledTrue(
-                    organization.getId(), UserRole.DISTRIBUTOR);
-            if (request.getMaxDistributors() < activeDistributors) {
-                throw new UserLimitReductionException(String.format(
-                        "You cannot reduce the distributor limit below the current number of active distributors (%d).",
-                        activeDistributors));
-            }
-        }
+        rejectIfBelowUsage(requestedMax(quota.getAdmins()), limit.getUsedAdmins(),
+                "You cannot reduce the administrator limit below the current number of administrators (%d).");
+        rejectIfBelowUsage(requestedMax(quota.getOrganizerUsers()), limit.getUsedOrganizerUsers(),
+                "You cannot reduce the user limit below the current number of users (%d).");
+        rejectIfBelowUsage(requestedMax(quota.getDistributors()), limit.getUsedDistributors(),
+                "You cannot reduce the distributor limit below the current number of distributors (%d).");
     }
 
-    private boolean isReduction(Integer newLimit, Integer currentLimit) {
-        return newLimit != null && currentLimit != null && newLimit < currentLimit;
+    /**
+     * Rejects a cap change that would drop below the slots already in use.
+     * A null new limit leaves the cap unchanged.
+     */
+    private void rejectIfBelowUsage(Integer newLimit, Integer used, String messageTemplate) {
+        int inUse = used != null ? used : 0;
+        if (newLimit != null && newLimit < inUse) {
+            throw new UserLimitReductionException(String.format(messageTemplate, inUse));
+        }
     }
 
     private void applyOrganizationUpdates(Organization organization, UpdateOrganizationRequest request) {
@@ -378,12 +399,6 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (request.getRegistrationNumber() != null) {
             organization.setRegistrationNumber(emptyToNull(request.getRegistrationNumber()));
         }
-        if (request.getMaxOrganizerUsers() != null) {
-            organization.setMaxOrganizerUsers(request.getMaxOrganizerUsers());
-        }
-        if (request.getMaxDistributors() != null) {
-            organization.setMaxDistributors(request.getMaxDistributors());
-        }
     }
 
     private void updateSubscriptionInfo(Organization organization, UpdateOrganizationRequest request) {
@@ -418,7 +433,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         log.info("Successfully retrieved organization with ID: {} for user: {}",
                 id, currentUser.getUsername());
 
-        return OrganizationResponse.fromEntity(organization);
+        return toResponse(organization);
     }
 
     @Override
@@ -439,6 +454,47 @@ public class OrganizationServiceImpl implements OrganizationService {
         log.info("Successfully retrieved organization with ID: {} for user: {}",
                 organizationId, currentUser.getUsername());
 
-        return OrganizationResponse.fromEntity(organization);
+        return toResponse(organization);
+    }
+
+    /**
+     * Builds a response for a single organization, loading its limits row.
+     */
+    private OrganizationResponse toResponse(Organization organization) {
+        OrganizationLimit limit = organizationLimitRepository.findById(organization.getId()).orElse(null);
+        return OrganizationResponse.fromEntity(organization, limit);
+    }
+
+    /**
+     * Loads the organization's limits row, or builds a fresh one bound to the
+     * organization (with default caps) when none exists yet.
+     */
+    private OrganizationLimit getOrCreateLimit(Organization organization) {
+        return organizationLimitRepository.findById(organization.getId())
+                .orElseGet(() -> OrganizationLimit.builder().organization(organization).build());
+    }
+
+    /**
+     * Applies the request's caps to the limits row. A null quota, role, or cap
+     * leaves the corresponding cap untouched, so on create the entity defaults
+     * survive and on update the existing caps survive.
+     */
+    private void applyQuotaCaps(OrganizationLimit limit, UserQuotaRequest quota) {
+        if (quota == null) {
+            return;
+        }
+        applyCap(quota.getAdmins(), limit::setMaxAdmins);
+        applyCap(quota.getOrganizerUsers(), limit::setMaxOrganizerUsers);
+        applyCap(quota.getDistributors(), limit::setMaxDistributors);
+    }
+
+    private void applyCap(UserQuotaRequest.RoleQuotaRequest role, Consumer<Integer> setter) {
+        if (role != null && role.getMax() != null) {
+            setter.accept(role.getMax());
+        }
+    }
+
+    private Integer requestedMax(UserQuotaRequest.RoleQuotaRequest role) {
+        return role != null ? role.getMax() : null;
     }
 }

@@ -17,6 +17,7 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserArchive;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.NotificationRepository;
+import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
@@ -51,6 +52,7 @@ public class UserServiceImpl implements UserService {
     private final UserArchiveRepository userArchiveRepository;
     private final NotificationRepository notificationRepository;
     private final OrganizationRepository organizationRepository;
+    private final OrganizationLimitRepository organizationLimitRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.CREATE)
@@ -68,6 +70,7 @@ public class UserServiceImpl implements UserService {
 
         Organization organization = fetchAndValidateOrganization(request, role);
         User user = buildUserEntity(request, organization, role);
+        reserveUserSlot(organization, role);
         User savedUser = userRepository.save(user);
 
         log.info("Successfully created user with ID: {} and role: {}", savedUser.getId(), savedUser.getRole());
@@ -164,7 +167,6 @@ public class UserServiceImpl implements UserService {
             throw new InvalidUserDataException("This organization is currently disabled.");
         }
 
-        validateOrganizationLimits(organization, role);
         return organization;
     }
 
@@ -246,53 +248,65 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * Validates that creating a new user won't exceed the organization's user limits.
+     * Atomically reserves a usage slot for the new user's role on its organization.
+     * The guarded UPDATE increments the matching counter only while it stays within
+     * the cap, so concurrent creates cannot overshoot the limit.
      *
-     * @param organization The organization to check limits for
-     * @param requestedRole The role being assigned to the new user
+     * @param organization the organization to reserve against (null for system roles)
+     * @param requestedRole the role being assigned to the new user
      */
-    private void validateOrganizationLimits(Organization organization, UserRole requestedRole) {
+    private void reserveUserSlot(Organization organization, UserRole requestedRole) {
         if (organization == null) {
-            // System-level roles don't have organization limits
+            // System-level roles are not organization-scoped
             return;
         }
 
-        if (requestedRole == UserRole.DISTRIBUTOR) {
-            // Check distributor limit
-            int maxDistributors = organization.getMaxDistributors();
-            if (maxDistributors > 0) { // 0 means unlimited
-                long currentDistributorCount = userRepository.countByOrganizationIdAndRole(
-                        organization.getId(), UserRole.DISTRIBUTOR);
+        Long orgId = organization.getId();
+        boolean reserved;
+        String limitMessage;
 
-                if (currentDistributorCount >= maxDistributors) {
-                    log.error("Organization {} has reached maximum distributor limit: {} (current: {})",
-                            organization.getId(), maxDistributors, currentDistributorCount);
-                    throw new InvalidUserDataException("Your organization has reached the maximum number of distributors.");
-                }
-                log.debug("Distributor limit check passed for organization {}: {}/{}",
-                        organization.getId(), currentDistributorCount + 1, maxDistributors);
+        switch (requestedRole) {
+            case ORGANIZER_ADMIN -> {
+                reserved = organizationLimitRepository.tryIncrementAdmins(orgId) > 0;
+                limitMessage = "Your organization has reached the maximum number of administrators.";
             }
-        } else if (requestedRole == UserRole.ORGANIZER_ADMIN ||
-                requestedRole == UserRole.ORGANIZER_USER) {
-            // Check organizer user limit (combined ORG_ADMIN + ORG_USER)
-            int maxOrganizerUsers = organization.getMaxOrganizerUsers();
-            if (maxOrganizerUsers > 0) { // 0 means unlimited
-                long currentOrgAdminCount = userRepository.countByOrganizationIdAndRole(
-                        organization.getId(), UserRole.ORGANIZER_ADMIN);
-                long currentOrgUserCount = userRepository.countByOrganizationIdAndRole(
-                        organization.getId(), UserRole.ORGANIZER_USER);
-                long totalOrganizerUsers = currentOrgAdminCount + currentOrgUserCount;
+            case ORGANIZER_USER -> {
+                reserved = organizationLimitRepository.tryIncrementOrganizerUsers(orgId) > 0;
+                limitMessage = "Your organization has reached the maximum number of organizer users.";
+            }
+            case DISTRIBUTOR -> {
+                reserved = organizationLimitRepository.tryIncrementDistributors(orgId) > 0;
+                limitMessage = "Your organization has reached the maximum number of distributors.";
+            }
+            default -> {
+                return;
+            }
+        }
 
-                if (totalOrganizerUsers >= maxOrganizerUsers) {
-                    log.error("Organization {} has reached maximum organizer user limit: {} " +
-                                    "(current ORG_ADMIN: {}, ORG_USER: {}, total: {})",
-                            organization.getId(), maxOrganizerUsers,
-                            currentOrgAdminCount, currentOrgUserCount, totalOrganizerUsers);
-                    throw new InvalidUserDataException("Your organization has reached the maximum number of organizer users.");
-                }
-                log.debug("Organizer user limit check passed for organization {}: {}/{}",
-                        organization.getId(), totalOrganizerUsers + 1, maxOrganizerUsers);
-            }
+        if (!reserved) {
+            log.error("Organization {} has reached its {} limit", orgId, requestedRole);
+            throw new InvalidUserDataException(limitMessage);
+        }
+    }
+
+    /**
+     * Releases the usage slot held by a user's role when the user is removed.
+     * The decrement is floored at zero so it can never drive a counter negative.
+     *
+     * @param organization the organization to release against (null for system roles)
+     * @param role the role of the user being removed
+     */
+    private void releaseUserSlot(Organization organization, UserRole role) {
+        if (organization == null) {
+            return;
+        }
+
+        Long orgId = organization.getId();
+        switch (role) {
+            case ORGANIZER_ADMIN -> organizationLimitRepository.decrementAdmins(orgId);
+            case ORGANIZER_USER -> organizationLimitRepository.decrementOrganizerUsers(orgId);
+            case DISTRIBUTOR -> organizationLimitRepository.decrementDistributors(orgId);
+            default -> { /* system roles are not organization-scoped */ }
         }
     }
 
@@ -748,12 +762,16 @@ public class UserServiceImpl implements UserService {
         int notificationsDeleted = notificationRepository.deleteAllByUserId(targetUser.getId());
         log.debug("Deleted {} notifications for user ID: {}", notificationsDeleted, userId);
 
+        Organization organization = targetUser.getOrganization();
+        UserRole role = targetUser.getRole();
+
         String label = (targetUser.getFullName() != null && !targetUser.getFullName().isBlank())
                 ? targetUser.getFullName() : targetUser.getUsername();
         AuditContextHolder.setEntityLabel(label);
-        AuditContextHolder.setOrganizationId(targetUser.getOrganization() != null ? targetUser.getOrganization().getId() : null);
+        AuditContextHolder.setOrganizationId(organization != null ? organization.getId() : null);
 
         userRepository.delete(targetUser);
+        releaseUserSlot(organization, role);
 
         log.info("Successfully archived user ID: {} (username: {})", userId, targetUser.getUsername());
     }

@@ -45,7 +45,7 @@ public interface UserControllerApi {
                     ORGANIZER_ADMIN can create: ORGANIZER_USER, DISTRIBUTOR (own organization only). \
                     ORGANIZER_USER can create: DISTRIBUTOR (own organization only). \
                     Cannot create ROOT (system-initialized only). \
-                    Organization user limits (maxOrganizerUsers, maxDistributors) are enforced."""
+                    Organization user limits (administrators, organizer users, distributors) are enforced."""
     )
     @ApiResponses(value = {
             @ApiResponse(

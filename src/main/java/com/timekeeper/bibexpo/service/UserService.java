@@ -19,7 +19,7 @@ public interface UserService {
      * - ADMIN can create: ORG_ADMIN, ORG_USER, DISTRIBUTOR (any organization, but NOT ADMIN)
      * - ORG_ADMIN can create: ORG_USER, DISTRIBUTOR (own organization only)
      *
-     * Organization limits (maxOrganizerUsers, maxDistributors) are enforced.
+     * Organization limits (administrators, organizer users, distributors) are enforced.
      *
      * @param request the user creation request
      * @param currentUsername the username of the user creating this user

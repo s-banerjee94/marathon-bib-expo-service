@@ -98,7 +98,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Organization already exists",
+                    description = "An organization with the same email, name, phone number, or tax ID already exists",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -149,7 +149,8 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Organization with the same email or tax ID already exists",
+                    description = "An organization with the same email, name, phone number, or tax ID already exists, "
+                            + "or a user limit was reduced below the number of users currently in use",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
