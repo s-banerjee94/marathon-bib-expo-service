@@ -88,6 +88,11 @@ public class ParticipantServiceImpl implements ParticipantService {
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
 
+        EventStatus eventStatus = event.getStatus();
+        if (eventStatus == EventStatus.COMPLETED || eventStatus == EventStatus.CANCELLED) {
+            throw new EventDisabledException("New participants cannot be added to a completed or cancelled event.");
+        }
+
         ParticipantDDB existingParticipant = participantTable.getItem(
                 Key.builder()
                         .partitionValue(eventId.toString())

@@ -3,9 +3,11 @@ package com.timekeeper.bibexpo.service.impl;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.exception.EventDisabledException;
 import com.timekeeper.bibexpo.exception.CsvImportException;
 import com.timekeeper.bibexpo.exception.ImportAlreadyRunningException;
 import com.timekeeper.bibexpo.exception.ImportNotRunningException;
+import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportError;
@@ -66,6 +68,11 @@ public class BatchImportServiceImpl implements BatchImportService {
                 .orElseThrow(() -> new EventNotFoundException());
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+
+        EventStatus eventStatus = event.getStatus();
+        if (eventStatus == EventStatus.PUBLISHED || eventStatus == EventStatus.COMPLETED || eventStatus == EventStatus.CANCELLED) {
+            throw new EventDisabledException("Importing participants is not allowed once the event is published, completed, or cancelled.");
+        }
 
         if (importJobRepository.existsByEventIdAndStatus(eventId, ImportJob.ImportStatus.IN_PROGRESS)) {
             throw new ImportAlreadyRunningException("An import is already running for this event.");
