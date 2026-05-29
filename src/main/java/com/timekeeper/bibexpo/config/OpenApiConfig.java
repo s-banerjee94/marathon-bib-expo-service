@@ -104,6 +104,15 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public GroupedOpenApi dashboardGroup() {
+        return GroupedOpenApi.builder()
+                .group("8-dashboard")
+                .displayName("Dashboard")
+                .pathsToMatch("/api/dashboard/**")
+                .build();
+    }
+
+    @Bean
     public GroupedOpenApi auditLogGroup() {
         return GroupedOpenApi.builder()
                 .group("8-audit-logs")

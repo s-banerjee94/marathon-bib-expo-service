@@ -33,9 +33,12 @@ public interface AppStatisticsControllerApi {
     // User Statistics
     // -------------------------------------------------------------------------
 
+    @Deprecated
     @Operation(
             summary = "Get user statistics",
+            deprecated = true,
             description = """
+                    Deprecated — use GET /api/dashboard/organization instead. \
                     Returns role-scoped user statistics. \
                     ROOT and ADMIN receive global user counts across the entire system. \
                     ORGANIZER_ADMIN and ORGANIZER_USER receive counts scoped to their own organization. \
@@ -58,9 +61,12 @@ public interface AppStatisticsControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser
     );
 
+    @Deprecated
     @Operation(
             summary = "Force-refresh user statistics",
+            deprecated = true,
             description = """
+                    Deprecated — use POST /api/dashboard/organization/refresh instead. \
                     Forces immediate recomputation of the user statistics snapshot. \
                     ROOT and ADMIN refresh global counts. ORGANIZER_ADMIN refreshes their org's counts."""
     )
@@ -135,9 +141,12 @@ public interface AppStatisticsControllerApi {
     // Event Statistics
     // -------------------------------------------------------------------------
 
+    @Deprecated
     @Operation(
             summary = "Get event statistics",
+            deprecated = true,
             description = """
+                    Deprecated — use GET /api/dashboard/organization instead. \
                     Returns role-scoped event statistics: total events, upcoming events, \
                     and breakdown by status (DRAFT, PUBLISHED, CANCELLED, COMPLETED). \
                     ROOT and ADMIN receive global counts. \
@@ -161,9 +170,12 @@ public interface AppStatisticsControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser
     );
 
+    @Deprecated
     @Operation(
             summary = "Force-refresh event statistics",
+            deprecated = true,
             description = """
+                    Deprecated — use POST /api/dashboard/organization/refresh instead. \
                     Forces immediate recomputation of the event statistics snapshot. \
                     ROOT and ADMIN refresh global event counts. ORGANIZER_ADMIN refreshes their org's event counts."""
     )

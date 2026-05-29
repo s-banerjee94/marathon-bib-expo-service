@@ -38,6 +38,9 @@ public interface OrganizationRepository extends JpaRepository<Organization, Long
     // Queries for deleted organizations
     List<Organization> findByDeletedTrue();
 
+    @Query("SELECT o.id FROM Organization o WHERE o.enabled = true AND o.deleted = false")
+    List<Long> findAllActiveIds();
+
     // --- Statistics count queries ---
     long countByDeletedFalse();
 

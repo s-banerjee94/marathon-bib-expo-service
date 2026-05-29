@@ -49,6 +49,9 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
      */
     long countByOrganizationIdAndRole(Long organizationId, UserRole role);
 
+    @Query("SELECT u.role, COUNT(u) FROM User u WHERE u.organization.id = :orgId GROUP BY u.role")
+    List<Object[]> countGroupByRoleForOrg(@Param("orgId") Long orgId);
+
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.organization WHERE u.username = :username")
     Optional<User> findByUsernameWithOrganization(@Param("username") String username);
 
