@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.controller;
 import com.timekeeper.bibexpo.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
+import com.timekeeper.bibexpo.model.dto.response.ImportFieldResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.BatchImportService;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/events")
@@ -22,12 +25,12 @@ public class BatchImportController implements BatchImportControllerApi {
 
     @Override
     public ResponseEntity<BatchImportResponse> launchBatchImport(
-            Long eventId, MultipartFile file, User currentUser) {
+            Long eventId, MultipartFile file, String mapping, User currentUser) {
 
         log.info("Batch import request - event: {}, file: {}, user: {}",
                 eventId, file.getOriginalFilename(), currentUser.getUsername());
 
-        BatchImportResponse response = batchImportService.launchImport(eventId, file, currentUser);
+        BatchImportResponse response = batchImportService.launchImport(eventId, file, mapping, currentUser);
 
         log.info("Batch import job {} launched for event {}", response.getJobExecutionId(), eventId);
 
@@ -61,5 +64,10 @@ public class BatchImportController implements BatchImportControllerApi {
         log.info("Latest errors request - event: {}, limit: {}, user: {}", eventId, limit, currentUser.getUsername());
 
         return ResponseEntity.ok(batchImportService.getLatestBatchImportErrors(eventId, limit, lastEvaluatedKey));
+    }
+
+    @Override
+    public ResponseEntity<List<ImportFieldResponse>> getImportFields(Long eventId, User currentUser) {
+        return ResponseEntity.ok(batchImportService.getImportFields());
     }
 }

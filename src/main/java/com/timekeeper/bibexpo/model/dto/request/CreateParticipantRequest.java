@@ -20,8 +20,7 @@ import java.util.Map;
 @Schema(description = "Request to create a new participant")
 public class CreateParticipantRequest {
 
-    @NotBlank(message = "Chip number is required")
-    @Schema(description = "Chip number", example = "0784525", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Chip number", example = "0784525")
     private String chipNumber;
 
     @NotBlank(message = "BIB number is required")
@@ -77,6 +76,10 @@ public class CreateParticipantRequest {
 
     @Schema(description = "Goodies map (key-value pairs)", example = "{\"T-Shirt Size\": \"L\", \"Cap Size\": \"M\"}")
     private Map<String, String> goodies;
+
+    @Schema(description = "Additional free-form columns as key-value pairs",
+            example = "{\"pre-existing disease\": \"stroke\"}")
+    private Map<String, String> additionalFields;
 
     @Schema(description = "Emergency contact name", example = "Jane Doe")
     private String emergencyContactName;

@@ -29,7 +29,7 @@ import java.time.Instant;
  */
 @Tag(
         name = "Audit Logs",
-        description = "<p>Recent activity feed — audit trail of CREATE / UPDATE / DELETE / STATUS_CHANGE / LOGIN / GENERATE actions across the system. " +
+        description = "<p>Recent activity feed — audit trail of CREATE / UPDATE / DELETE / STATUS_CHANGE / LOGIN / GENERATE / IMPORT actions across the system. " +
                 "Backed by DynamoDB with a <strong>15-day TTL</strong> (older entries auto-delete). " +
                 "Every read is a single direct DynamoDB <code>Query</code> — no scans, no in-app filtering.</p>"
 )
@@ -74,6 +74,7 @@ public interface AuditLogControllerApi {
                         <tr><td><code>STATUS_CHANGE</code></td><td>An entity's status / enabled flag flipped</td><td>enable-or-disable on org / event / user, plus disarm on sms-campaign (ACTIVE → DRAFT)</td></tr>
                         <tr><td><code>LOGIN</code></td><td>A user successfully authenticated</td><td><code>POST /api/auth/login</code> after credentials accepted</td></tr>
                         <tr><td><code>GENERATE</code></td><td>A short-lived artifact was generated</td><td>Participant-access verification short-URLs (QR / SMS) issued in bulk</td></tr>
+                        <tr><td><code>IMPORT</code></td><td>A bulk CSV participant import was launched</td><td><code>POST /api/events/{eventId}/participants/batch-import</code> after the mapping is accepted and the job starts</td></tr>
                       </tbody>
                     </table>
 
@@ -89,9 +90,10 @@ public interface AuditLogControllerApi {
                         <tr><td><code>SMS_TEMPLATE</code></td><td>A reusable SMS message template</td><td>CREATE, UPDATE, DELETE</td></tr>
                         <tr><td><code>SMS_CAMPAIGN</code></td><td>A scheduled or trigger-based SMS send</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE</td></tr>
                         <tr><td><code>VERIFICATION_LINK</code></td><td>Short URLs (QR / SMS) generated for participant self-verification</td><td>GENERATE</td></tr>
+                        <tr><td><code>PARTICIPANT</code></td><td>Participant records of an event (currently via bulk CSV import)</td><td>IMPORT</td></tr>
                       </tbody>
                     </table>
-                    <p><em>Note:</em> Participant create / update / delete actions, distribution events (bib collected, goodies given), and CSV bulk imports are <strong>not</strong> recorded in this audit log. Distribution has its own dedicated log; participant edits and imports are tracked at the entity level only.</p>
+                    <p><em>Note:</em> Individual participant create / update / delete actions and distribution events (bib collected, goodies given) are <strong>not</strong> recorded in this audit log — distribution has its own dedicated log. Bulk CSV imports <strong>are</strong> recorded as <code>entityType=PARTICIPANT</code>, <code>action=IMPORT</code>, with the <code>entityId</code> set to the event id and the <code>entityLabel</code> set to the event name.</p>
 
                     <h3>Date range (optional, additive)</h3>
                     <ul>

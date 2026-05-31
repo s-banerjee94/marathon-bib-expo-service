@@ -76,6 +76,10 @@ public class ParticipantResponse {
             example = "{\"T-Shirt\": \"Distributed\", \"Cap\": \"Pending\"}")
     private Map<String, String> goodiesDistribution;
 
+    @Schema(description = "Additional free-form columns retained from import as key-value pairs",
+            example = "{\"pre-existing disease\": \"stroke\"}")
+    private Map<String, String> additionalFields;
+
     @Schema(description = "Emergency contact name", example = "Jane Doe")
     private String emergencyContactName;
 

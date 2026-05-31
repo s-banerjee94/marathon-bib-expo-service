@@ -112,6 +112,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
                 .categoryId(category.getId().toString())
                 .categoryName(category.getCategoryName())
                 .goodies(row.getGoodies() != null ? new HashMap<>(row.getGoodies()) : new HashMap<>())
+                .additionalFields(row.getAdditionalFields() != null ? new HashMap<>(row.getAdditionalFields()) : new HashMap<>())
                 .createdAt(timestamp)
                 .createdBy(username)
                 .updatedAt(timestamp)

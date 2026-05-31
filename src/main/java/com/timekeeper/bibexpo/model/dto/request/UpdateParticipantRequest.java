@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -74,4 +76,11 @@ public class UpdateParticipantRequest {
 
     @Schema(description = "Timestamp when bib was collected (ISO format)", example = "2026-01-14T10:30:00")
     private String bibCollectedAt;
+
+    @Schema(description = """
+            Additional free-form columns to merge. Include only the keys you want to change: a non-empty value \
+            adds or overwrites that key, a null or empty value removes it, and any key you omit is left unchanged. \
+            Omit this object entirely to leave all extra columns untouched.""",
+            example = "{\"tShirtSize\": \"M\", \"oldColumn\": null}")
+    private Map<String, String> additionalFields;
 }

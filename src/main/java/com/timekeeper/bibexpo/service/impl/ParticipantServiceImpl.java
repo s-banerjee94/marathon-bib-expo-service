@@ -114,8 +114,8 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .eventId(eventId.toString())
                 .bibNumber(request.getBibNumber())
                 .chipNumber(request.getChipNumber())
-                .fullName(request.getFullName())
-                .email(request.getEmail())
+                .fullName(normalizeName(request.getFullName()))
+                .email(normalizeEmail(request.getEmail()))
                 .phoneNumber(request.getPhoneNumber())
                 .dateOfBirth(request.getDateOfBirth())
                 .age(request.getAge())
@@ -128,6 +128,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .categoryName(category.getCategoryName())
                 .bibCollectedAt(request.getBibCollectedAt())
                 .goodies(request.getGoodies() != null ? new HashMap<>(request.getGoodies()) : new HashMap<>())
+                .additionalFields(request.getAdditionalFields() != null ? new HashMap<>(request.getAdditionalFields()) : new HashMap<>())
                 .emergencyContactName(request.getEmergencyContactName())
                 .emergencyContactPhone(request.getEmergencyContactPhone())
                 .notes(request.getNotes())
@@ -281,8 +282,8 @@ public class ParticipantServiceImpl implements ParticipantService {
         }
 
         updateIfNotNull(request.getChipNumber(), participant::setChipNumber);
-        updateIfNotNull(request.getFullName(), participant::setFullName);
-        updateIfNotNull(request.getEmail(), participant::setEmail);
+        updateIfNotNull(normalizeName(request.getFullName()), participant::setFullName);
+        updateIfNotNull(normalizeEmail(request.getEmail()), participant::setEmail);
         updateIfNotNull(request.getPhoneNumber(), participant::setPhoneNumber);
         updateIfNotNull(request.getDateOfBirth(), participant::setDateOfBirth);
         updateIfNotNull(request.getAge(), participant::setAge);
@@ -293,6 +294,10 @@ public class ParticipantServiceImpl implements ParticipantService {
         updateIfNotNull(request.getEmergencyContactPhone(), participant::setEmergencyContactPhone);
         updateIfNotNull(request.getNotes(), participant::setNotes);
         updateIfNotNull(request.getBibCollectedAt(), participant::setBibCollectedAt);
+
+        if (request.getAdditionalFields() != null) {
+            mergeAdditionalFields(participant, request.getAdditionalFields());
+        }
 
         String timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         participant.setUpdatedAt(timestamp);
@@ -376,6 +381,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .bibCollectedByPhone(participant.getBibCollectedByPhone())
                 .bibDistributedBy(participant.getBibDistributedBy())
                 .goodiesDistribution(participant.getGoodiesDistribution())
+                .additionalFields(participant.getAdditionalFields())
                 .emergencyContactName(participant.getEmergencyContactName())
                 .emergencyContactPhone(participant.getEmergencyContactPhone())
                 .notes(participant.getNotes())
@@ -619,6 +625,20 @@ public class ParticipantServiceImpl implements ParticipantService {
         }
     }
 
+    private void mergeAdditionalFields(ParticipantDDB participant, Map<String, String> updates) {
+        Map<String, String> current = participant.getAdditionalFields() != null
+                ? participant.getAdditionalFields()
+                : new HashMap<>();
+        updates.forEach((key, value) -> {
+            if (value == null || value.isBlank()) {
+                current.remove(key);
+            } else {
+                current.put(key, value);
+            }
+        });
+        participant.setAdditionalFields(current);
+    }
+
     @Override
     public ParticipantListResponse searchParticipants(
             Long eventId,
@@ -745,8 +765,8 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .s(eventId.toString()).build());
 
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            String upperSearchTerm = searchTerm.trim().toUpperCase();
-            String lowerSearchTerm = searchTerm.trim().toLowerCase();
+            String upperSearchTerm = normalizeName(searchTerm);
+            String lowerSearchTerm = normalizeEmail(searchTerm);
             String exactSearchTerm = searchTerm.trim();
 
             List<String> searchConditions = new ArrayList<>();
@@ -955,11 +975,18 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     private String normalizeSearchValue(SearchType searchType, String searchValue) {
         return switch (searchType) {
-            case NAME -> searchValue.toUpperCase();
-            case EMAIL -> searchValue.toLowerCase();
-            case PHONE, BIB -> searchValue;
-            case RACE, CATEGORY -> searchValue;
+            case NAME -> normalizeName(searchValue);
+            case EMAIL -> normalizeEmail(searchValue);
+            case PHONE, BIB, RACE, CATEGORY -> searchValue;
         };
+    }
+
+    private static String normalizeName(String value) {
+        return value == null ? null : value.trim().toUpperCase();
+    }
+
+    private static String normalizeEmail(String value) {
+        return value == null ? null : value.trim().toLowerCase();
     }
 
     @Override

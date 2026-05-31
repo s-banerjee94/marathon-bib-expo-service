@@ -48,4 +48,7 @@ public class CsvRow {
 
     @Builder.Default
     private Map<String, String> goodies = new HashMap<>();
+
+    @Builder.Default
+    private Map<String, String> additionalFields = new HashMap<>();
 }

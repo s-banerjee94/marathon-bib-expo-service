@@ -34,8 +34,16 @@ public interface ParticipantControllerApi {
             summary = "Create a new participant",
             description = """
                     Create a single participant for an event. \
-                    Required fields: chipNumber, bibNumber, fullName, raceId, raceName, categoryId, categoryName, gender. \
-                    Conditionally required: Either phoneNumber or email must be provided. Either dateOfBirth or age must be provided."""
+
+                    **Required:** bibNumber, fullName, raceId, raceName, categoryId, categoryName, gender. \
+
+                    **Conditionally required:** at least one of phoneNumber / email, and at least one of dateOfBirth / age. \
+
+                    **Optional:** chipNumber, country, city, bibCollectedAt, goodies, additionalFields, emergencyContactName, emergencyContactPhone, notes. \
+
+                    **additionalFields:** free-form key-value columns, matching the dynamic columns retained from a CSV import. \
+
+                    **Normalization:** fullName is stored and returned in UPPERCASE; email in lowercase."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Participant created successfully",
@@ -440,22 +448,31 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Update participant details",
             description = """
-                    Update participant information with partial (PATCH) semantics. Only non-null fields in the request are updated. \
+                    Update participant information with partial (PATCH) semantics. Only fields present in the request are applied. \
 
                     **What Can Be Updated:** \
-                    - Personal details: fullName, dateOfBirth, age, gender, phoneNumber, email \
+                    - Identity & contact: chipNumber, fullName, email, phoneNumber \
+                    - Demographics: dateOfBirth, age, gender \
                     - Location: country, city \
-                    - Race & Category: Can be changed with validation against event's races and categories \
-                    - BIB Collection: bibCollectedAt timestamp to mark when participant collected their bib \
+                    - Race & Category: validated against the event's races and categories \
+                    - BIB Collection: bibCollectedAt \
                     - Emergency Contact: emergencyContactName, emergencyContactPhone \
-                    - Notes: general notes about the participant \
+                    - Notes \
+                    - additionalFields: free-form columns, merged (see below) \
+                    - BIB Number: via the separate `newBibNumber` field; because bibNumber is the DynamoDB sort key the record is deleted and recreated under the new number \
 
-                    **What Cannot Be Updated:** \
-                    - BIB Number: To change BIB number, delete this participant and create a new one \
-                    - Chip Number: Cannot be modified once created \
-                    - Goodies: These are set during import and managed separately \
+                    **What Cannot Be Updated here:** \
+                    - Goodies allocation: fixed at creation/import. Only the handout status changes, through the distribution endpoints. \
 
-                    **Behavior:** Null fields in the request are ignored and won't overwrite existing values."""
+                    **additionalFields - partial merge (how to build the request):** \
+                    - Send only the keys you want to change inside the additionalFields object. \
+                    - Add or update a key: include it with a non-empty value, e.g. {"tShirtSize": "M"}. \
+                    - Remove a key: include it with a null (or empty) value, e.g. {"oldColumn": null}. \
+                    - Keys you do not include are left unchanged; omit additionalFields entirely to leave all extra columns untouched. \
+
+                    **Normalization:** When updated, fullName is stored in UPPERCASE and email in lowercase. \
+
+                    **Behavior:** A null or omitted top-level field is ignored and won't overwrite existing values; this applies to additionalFields as a whole, while a null value for an individual key inside it removes that key."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Participant updated successfully. Returns the complete updated record.",

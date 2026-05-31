@@ -7,11 +7,19 @@ import com.timekeeper.bibexpo.exception.EventDisabledException;
 import com.timekeeper.bibexpo.exception.CsvImportException;
 import com.timekeeper.bibexpo.exception.ImportAlreadyRunningException;
 import com.timekeeper.bibexpo.exception.ImportNotRunningException;
+import com.timekeeper.bibexpo.exception.InvalidCsvFormatException;
+import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.aspect.AuditContextHolder;
+import com.timekeeper.bibexpo.model.dto.request.ImportMappingRequest;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.ParticipantImportField;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportError;
 import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
+import com.timekeeper.bibexpo.model.dto.response.ImportFieldResponse;
 import com.timekeeper.bibexpo.model.dynamodb.ImportErrorDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.ImportJob;
@@ -40,10 +48,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -63,7 +75,8 @@ public class BatchImportServiceImpl implements BatchImportService {
     private final ImportJobRepository importJobRepository;
 
     @Override
-    public BatchImportResponse launchImport(Long eventId, MultipartFile file, User currentUser) {
+    @Auditable(entityType = AuditEntityType.PARTICIPANT, action = AuditAction.IMPORT)
+    public BatchImportResponse launchImport(Long eventId, MultipartFile file, String mappingJson, User currentUser) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException());
 
@@ -78,10 +91,15 @@ public class BatchImportServiceImpl implements BatchImportService {
             throw new ImportAlreadyRunningException("An import is already running for this event.");
         }
 
+        ImportMappingRequest mapping = parseAndValidateMapping(mappingJson);
+
         Path tempFile;
+        Path mappingFile;
         try {
             tempFile = Files.createTempFile("csv-import-", ".csv");
             file.transferTo(tempFile);
+            mappingFile = Files.createTempFile("csv-mapping-", ".json");
+            Files.writeString(mappingFile, objectMapper.writeValueAsString(mapping));
         } catch (IOException e) {
             throw new CsvImportException("Failed to save the uploaded file. Please try again.", e);
         }
@@ -104,6 +122,7 @@ public class BatchImportServiceImpl implements BatchImportService {
                 .addString("eventId", eventId.toString())
                 .addString("eventName", event.getEventName())
                 .addString("filePath", tempFile.toString())
+                .addString("mappingPath", mappingFile.toString())
                 .addString("fileName", originalFileName)
                 .addString("uploadedByUserId", currentUser.getId().toString())
                 .addLong("run", System.currentTimeMillis())
@@ -114,12 +133,90 @@ public class BatchImportServiceImpl implements BatchImportService {
             pendingJob.setJobExecutionId(execution.getId());
             importJobRepository.save(pendingJob);
             log.info("Launched batch import job {} for event {}", execution.getId(), eventId);
+            AuditContextHolder.setEntityLabel(event.getEventName());
+            if (event.getOrganization() != null) {
+                AuditContextHolder.setOrganizationId(event.getOrganization().getId());
+            }
             return new BatchImportResponse(execution.getId(), execution.getStatus().toString());
         } catch (Exception e) {
             pendingJob.setStatus(ImportJob.ImportStatus.FAILED);
             pendingJob.setErrorSummary("{\"reason\":\"Failed to launch the import job\"}");
             importJobRepository.save(pendingJob);
             throw new CsvImportException("Failed to start the import. Please try again.", e);
+        }
+    }
+
+    private ImportMappingRequest parseAndValidateMapping(String mappingJson) {
+        if (mappingJson == null || mappingJson.isBlank()) {
+            throw new InvalidCsvFormatException("Please provide the column mapping for the import.");
+        }
+
+        ImportMappingRequest mapping;
+        try {
+            mapping = objectMapper.readValue(mappingJson, ImportMappingRequest.class);
+        } catch (Exception e) {
+            throw new InvalidCsvFormatException("The column mapping could not be read. Please try again.");
+        }
+
+        List<ImportMappingRequest.ColumnMapping> mappings = mapping.getMappings();
+        if (mappings == null || mappings.isEmpty()) {
+            throw new InvalidCsvFormatException("Please map at least one column before importing.");
+        }
+
+        Set<String> seenTargets = new HashSet<>();
+        Set<Integer> usedIndexes = new HashSet<>();
+        for (ImportMappingRequest.ColumnMapping m : mappings) {
+            if (m.getCsvColumnIndex() == null || m.getCsvColumnIndex() < 0) {
+                throw new InvalidCsvFormatException("A mapped column is missing its position.");
+            }
+            if (!ParticipantImportField.isKnown(m.getTargetField())) {
+                throw new InvalidCsvFormatException("One of the selected fields is not recognized.");
+            }
+            if (!seenTargets.add(m.getTargetField())) {
+                throw new InvalidCsvFormatException("The same field has been mapped to more than one column.");
+            }
+            if (!usedIndexes.add(m.getCsvColumnIndex())) {
+                throw new InvalidCsvFormatException("A column has been mapped more than once.");
+            }
+        }
+
+        List<String> missingRequired = new ArrayList<>();
+        for (ParticipantImportField field : ParticipantImportField.requiredFields()) {
+            if (!seenTargets.contains(field.getKey())) {
+                missingRequired.add(field.getLabel());
+            }
+        }
+        if (!missingRequired.isEmpty()) {
+            String noun = missingRequired.size() == 1 ? "column" : "columns";
+            throw new InvalidCsvFormatException(
+                    "Please map the " + joinReadable(missingRequired) + " " + noun + " before importing.");
+        }
+
+        validateExtraColumns(mapping.getGoodies(), usedIndexes);
+        validateExtraColumns(mapping.getOther(), usedIndexes);
+
+        return mapping;
+    }
+
+    private String joinReadable(List<String> items) {
+        if (items.size() == 1) return items.get(0);
+        if (items.size() == 2) return items.get(0) + " and " + items.get(1);
+        return String.join(", ", items.subList(0, items.size() - 1))
+                + ", and " + items.get(items.size() - 1);
+    }
+
+    private void validateExtraColumns(List<ImportMappingRequest.ExtraColumn> columns, Set<Integer> usedIndexes) {
+        if (columns == null) return;
+        for (ImportMappingRequest.ExtraColumn c : columns) {
+            if (c.getCsvColumnIndex() == null || c.getCsvColumnIndex() < 0) {
+                throw new InvalidCsvFormatException("A retained column is missing its position.");
+            }
+            if (c.getCsvColumn() == null || c.getCsvColumn().isBlank()) {
+                throw new InvalidCsvFormatException("A retained column is missing its name.");
+            }
+            if (!usedIndexes.add(c.getCsvColumnIndex())) {
+                throw new InvalidCsvFormatException("A column has been mapped more than once.");
+            }
         }
     }
 
@@ -219,6 +316,17 @@ public class BatchImportServiceImpl implements BatchImportService {
                         .count(0)
                         .hasMore(false)
                         .build());
+    }
+
+    @Override
+    public List<ImportFieldResponse> getImportFields() {
+        return Arrays.stream(ParticipantImportField.values())
+                .map(f -> ImportFieldResponse.builder()
+                        .key(f.getKey())
+                        .label(f.getLabel())
+                        .required(f.isRequired())
+                        .build())
+                .toList();
     }
 
     private String encodeLastKey(Map<String, AttributeValue> lastKey) {

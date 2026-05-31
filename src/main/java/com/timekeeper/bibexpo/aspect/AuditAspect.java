@@ -164,6 +164,7 @@ public class AuditAspect {
             case STATUS_CHANGE -> "status changed";
             case LOGIN         -> "logged in";
             case GENERATE      -> "generated";
+            case IMPORT        -> "imported";
         };
         return (label != null && !label.isBlank())
                 ? entityName + " \"" + label + "\" " + verb

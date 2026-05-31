@@ -215,12 +215,16 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     }
 
     private void deleteTempFile(JobExecution jobExecution) {
-        String filePath = jobExecution.getJobParameters().getString("filePath");
-        if (filePath == null) return;
+        deleteIfPresent(jobExecution.getJobParameters().getString("filePath"));
+        deleteIfPresent(jobExecution.getJobParameters().getString("mappingPath"));
+    }
+
+    private void deleteIfPresent(String path) {
+        if (path == null) return;
         try {
-            Files.deleteIfExists(Paths.get(filePath));
+            Files.deleteIfExists(Paths.get(path));
         } catch (IOException e) {
-            log.warn("Failed to delete temp CSV file: {}", filePath, e);
+            log.warn("Failed to delete temp file: {}", path, e);
         }
     }
 }

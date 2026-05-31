@@ -8,5 +8,6 @@ public enum AuditEntityType {
     CATEGORY,
     SMS_TEMPLATE,
     SMS_CAMPAIGN,
-    VERIFICATION_LINK
+    VERIFICATION_LINK,
+    PARTICIPANT
 }

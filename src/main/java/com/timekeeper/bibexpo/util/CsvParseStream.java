@@ -11,29 +11,44 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Streaming view over a parsed CSV. The header is consumed eagerly when the stream is opened
- * so {@link #getGoodiesColumns()} is available immediately, but data rows are pulled lazily
- * via {@link #nextRow()}. Closing this stream also closes the underlying parser and reader.
+ * Streaming view over a parsed CSV driven by a frontend-supplied column mapping. Columns are read
+ * by their zero-based physical position, so duplicate, blank, or renamed headers are irrelevant.
+ * Known fields are populated by target-field key; goodies and additional columns are collected into
+ * their own maps keyed by the original header. Data rows are pulled lazily via {@link #nextRow()}.
+ * Closing this stream also closes the underlying parser and reader.
  */
 public class CsvParseStream implements Closeable {
 
+    private static final String GOODIE_NOT_MENTIONED = "Not mentioned";
+
     private final CSVParser parser;
     private final Iterator<CSVRecord> iterator;
-    private final Map<String, String> headerCaseMapping;
+    private final boolean hasHeader;
+    private final Map<Integer, String> fieldByIndex;
+    private final Map<Integer, String> goodiesByIndex;
+    private final Map<Integer, String> otherByIndex;
     private final List<String> goodiesColumns;
-    private int rowNumber = 1;
+
+    private boolean headerSkipped;
+    private int lineNumber;
 
     public CsvParseStream(CSVParser parser,
-                          Map<String, String> headerCaseMapping,
+                          boolean hasHeader,
+                          Map<Integer, String> fieldByIndex,
+                          Map<Integer, String> goodiesByIndex,
+                          Map<Integer, String> otherByIndex,
                           List<String> goodiesColumns) {
         this.parser = parser;
         this.iterator = parser.iterator();
-        this.headerCaseMapping = headerCaseMapping;
+        this.hasHeader = hasHeader;
+        this.fieldByIndex = fieldByIndex;
+        this.goodiesByIndex = goodiesByIndex;
+        this.otherByIndex = otherByIndex;
         this.goodiesColumns = goodiesColumns;
     }
 
     /**
-     * @return the goodies (extra) column names detected from the header, in original order
+     * @return the goodies column headers from the mapping, in declared order
      */
     public List<String> getGoodiesColumns() {
         return goodiesColumns;
@@ -43,36 +58,61 @@ public class CsvParseStream implements Closeable {
      * @return the next CSV row, or {@code null} if the stream is exhausted
      */
     public CsvRow nextRow() {
-        if (!iterator.hasNext()) {
-            return null;
+        while (iterator.hasNext()) {
+            CSVRecord record = iterator.next();
+            lineNumber++;
+            if (hasHeader && !headerSkipped) {
+                headerSkipped = true;
+                continue;
+            }
+            return buildRow(record);
         }
-        CSVRecord record = iterator.next();
-        rowNumber++;
+        return null;
+    }
 
-        CsvRow csvRow = CsvRow.builder()
-                .rowNumber(rowNumber)
-                .chipNumber(getField(record, headerCaseMapping.get("chip no")))
-                .bibNumber(getField(record, headerCaseMapping.get("bib no")))
-                .fullName(getField(record, headerCaseMapping.get("name")))
-                .dateOfBirth(getField(record, headerCaseMapping.get("dob(dd-mm-yyy)")))
-                .age(parseInteger(getField(record, headerCaseMapping.get("age"))))
-                .gender(normalizeString(getField(record, headerCaseMapping.get("gender"))))
-                .raceName(getField(record, headerCaseMapping.get("race")))
-                .categoryName(getField(record, headerCaseMapping.get("category")))
-                .phone(getField(record, headerCaseMapping.get("phone")))
-                .email(normalizeEmail(getField(record, headerCaseMapping.get("email-id"))))
-                .country(getField(record, headerCaseMapping.get("country")))
-                .city(getField(record, headerCaseMapping.get("city")))
-                .build();
+    private CsvRow buildRow(CSVRecord record) {
+        CsvRow row = new CsvRow();
+        row.setRowNumber(lineNumber);
+
+        for (Map.Entry<Integer, String> entry : fieldByIndex.entrySet()) {
+            applyField(row, entry.getValue(), getField(record, entry.getKey()));
+        }
 
         Map<String, String> goodies = new HashMap<>();
-        for (String goodieColumn : goodiesColumns) {
-            String value = getField(record, goodieColumn);
-            goodies.put(goodieColumn, (value != null && !value.isEmpty()) ? value : "Not mentioned");
+        for (Map.Entry<Integer, String> entry : goodiesByIndex.entrySet()) {
+            String value = getField(record, entry.getKey());
+            goodies.put(entry.getValue(), value != null ? value : GOODIE_NOT_MENTIONED);
         }
-        csvRow.setGoodies(goodies);
+        row.setGoodies(goodies);
 
-        return csvRow;
+        Map<String, String> additionalFields = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : otherByIndex.entrySet()) {
+            String value = getField(record, entry.getKey());
+            if (value != null) {
+                additionalFields.put(entry.getValue(), value);
+            }
+        }
+        row.setAdditionalFields(additionalFields);
+
+        return row;
+    }
+
+    private void applyField(CsvRow row, String targetField, String value) {
+        switch (targetField) {
+            case "chipNumber" -> row.setChipNumber(value);
+            case "bibNumber" -> row.setBibNumber(value);
+            case "fullName" -> row.setFullName(normalizeString(value));
+            case "dateOfBirth" -> row.setDateOfBirth(value);
+            case "age" -> row.setAge(parseInteger(value));
+            case "gender" -> row.setGender(normalizeString(value));
+            case "raceName" -> row.setRaceName(value);
+            case "categoryName" -> row.setCategoryName(value);
+            case "phoneNumber" -> row.setPhone(value);
+            case "email" -> row.setEmail(normalizeEmail(value));
+            case "country" -> row.setCountry(value);
+            case "city" -> row.setCity(value);
+            default -> { /* unknown target fields are rejected before the job starts */ }
+        }
     }
 
     @Override
@@ -80,14 +120,10 @@ public class CsvParseStream implements Closeable {
         parser.close();
     }
 
-    private String getField(CSVRecord record, String columnName) {
-        if (columnName == null) return null;
-        try {
-            String value = record.get(columnName);
-            return value != null && !value.trim().isEmpty() ? value.trim() : null;
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+    private String getField(CSVRecord record, Integer index) {
+        if (index == null || index < 0 || index >= record.size()) return null;
+        String value = record.get(index);
+        return value != null && !value.trim().isEmpty() ? value.trim() : null;
     }
 
     private Integer parseInteger(String value) {

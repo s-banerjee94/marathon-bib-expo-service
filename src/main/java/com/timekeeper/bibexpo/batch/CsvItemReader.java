@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.batch;
 
+import com.timekeeper.bibexpo.model.dto.request.ImportMappingRequest;
 import com.timekeeper.bibexpo.util.CsvParseStream;
 import com.timekeeper.bibexpo.util.CsvParserUtil;
 import com.timekeeper.bibexpo.util.CsvRow;
@@ -13,7 +14,9 @@ import org.springframework.batch.item.ItemStreamException;
 import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,9 +34,13 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
     private static final String DUPLICATES_KEY = "duplicateBibErrors";
 
     private final CsvParserUtil csvParserUtil;
+    private final ObjectMapper objectMapper;
 
     @Value("#{jobParameters['filePath']}")
     private String filePath;
+
+    @Value("#{jobParameters['mappingPath']}")
+    private String mappingPath;
 
     private StepExecution stepExecution;
     private InputStream inputStream;
@@ -52,8 +59,9 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
     public void open(ExecutionContext executionContext) throws ItemStreamException {
         log.info("CsvItemReader: opening CSV file at {}", filePath);
         try {
+            ImportMappingRequest mapping = objectMapper.readValue(new File(mappingPath), ImportMappingRequest.class);
             inputStream = new FileInputStream(filePath);
-            stream = csvParserUtil.openStream(inputStream);
+            stream = csvParserUtil.openStream(inputStream, mapping);
             seenBibs = new HashSet<>();
             duplicates = new StringJoiner(",");
             currentIndex = 0;

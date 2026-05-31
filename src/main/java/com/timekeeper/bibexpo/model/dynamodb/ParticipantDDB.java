@@ -65,6 +65,9 @@ public class ParticipantDDB {
     @Builder.Default
     private Map<String, String> goodiesDistribution = new HashMap<>();
 
+    @Builder.Default
+    private Map<String, String> additionalFields = new HashMap<>();
+
     private String emergencyContactName;
     private String emergencyContactPhone;
     private String notes;

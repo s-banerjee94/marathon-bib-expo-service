@@ -3,16 +3,24 @@ package com.timekeeper.bibexpo.service;
 import com.timekeeper.bibexpo.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
+import com.timekeeper.bibexpo.model.dto.response.ImportFieldResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 public interface BatchImportService {
 
     /**
-     * Save file to temp disk, delete existing participants, then launch async Spring Batch job.
+     * Validate the column mapping, save the file and mapping to temp disk, then launch the async
+     * Spring Batch job. Existing participants are deleted by the job before new rows are written.
+     * @param eventId     event to import into
+     * @param file        uploaded CSV file
+     * @param mappingJson frontend-supplied column mapping as JSON (see {@code ImportMappingRequest})
+     * @param currentUser user launching the import
      * @return 202-style response with jobExecutionId and initial STARTED status
      */
-    BatchImportResponse launchImport(Long eventId, MultipartFile file, User currentUser);
+    BatchImportResponse launchImport(Long eventId, MultipartFile file, String mappingJson, User currentUser);
 
     /**
      * Query Spring Batch metadata for job execution status and step counters.
@@ -46,4 +54,11 @@ public interface BatchImportService {
      * @return paginated list of validation errors with a pagination token for the next page
      */
     ImportErrorListResponse getLatestBatchImportErrors(Long eventId, int limit, String lastEvaluatedKey);
+
+    /**
+     * Returns the canonical catalog of participant fields a CSV column can be mapped to.
+     * Used by the frontend to populate target-field choices and by the backend to validate mappings.
+     * @return the list of mappable fields with key, label, and required flag
+     */
+    List<ImportFieldResponse> getImportFields();
 }
