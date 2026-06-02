@@ -108,9 +108,9 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
                 .country(row.getCountry())
                 .city(row.getCity())
                 .raceId(race.getId().toString())
-                .raceName(race.getRaceName())
                 .categoryId(category.getId().toString())
-                .categoryName(category.getCategoryName())
+                .raceCategoryKey(ParticipantDDB.compositeKey(
+                        race.getId().toString(), category.getId().toString()))
                 .goodies(row.getGoodies() != null ? new HashMap<>(row.getGoodies()) : new HashMap<>())
                 .additionalFields(row.getAdditionalFields() != null ? new HashMap<>(row.getAdditionalFields()) : new HashMap<>())
                 .createdAt(timestamp)

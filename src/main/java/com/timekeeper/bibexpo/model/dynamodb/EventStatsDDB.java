@@ -24,9 +24,5 @@ public class EventStatsDDB {
 
     private Long count;
 
-    private String raceName;
-
-    private String categoryName;
-
     private String updatedAt;
 }

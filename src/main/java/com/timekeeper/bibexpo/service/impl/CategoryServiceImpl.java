@@ -15,6 +15,7 @@ import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.CategoryService;
 import com.timekeeper.bibexpo.service.ParticipantService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.util.NameNormalizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -54,13 +55,14 @@ public class CategoryServiceImpl implements CategoryService {
 
         Race race = validateRaceAndEvent(eventId, raceId, currentUser);
 
-        if (categoryRepository.existsByCategoryNameAndRaceId(request.getCategoryName(), raceId)) {
+        String categoryName = NameNormalizer.toStoredName(request.getCategoryName());
+        if (categoryRepository.existsByCategoryNameAndRaceId(categoryName, raceId)) {
             throw new CategoryAlreadyExistsException(
                     "A category with this name already exists for this race.");
         }
 
         Category category = Category.builder()
-                .categoryName(request.getCategoryName())
+                .categoryName(categoryName)
                 .description(request.getDescription())
                 .race(race)
                 .build();
@@ -89,13 +91,14 @@ public class CategoryServiceImpl implements CategoryService {
             throw new CategoryNotFoundException();
         }
 
-        if (request.getCategoryName() != null && !request.getCategoryName().isBlank() &&
-                !request.getCategoryName().equals(category.getCategoryName())) {
-            if (categoryRepository.existsByCategoryNameAndRaceId(request.getCategoryName(), raceId)) {
+        String newCategoryName = NameNormalizer.toStoredName(request.getCategoryName());
+        if (newCategoryName != null && !newCategoryName.isBlank() &&
+                !newCategoryName.equals(category.getCategoryName())) {
+            if (categoryRepository.existsByCategoryNameAndRaceId(newCategoryName, raceId)) {
                 throw new CategoryAlreadyExistsException(
                         "A category with this name already exists for this race.");
             }
-            category.setCategoryName(request.getCategoryName());
+            category.setCategoryName(newCategoryName);
         }
 
         if (request.getDescription() != null) {
@@ -103,6 +106,7 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         Category updatedCategory = categoryRepository.save(category);
+
         log.info("Successfully updated category with ID: {} by user: {}",
                 updatedCategory.getId(), currentUser.getUsername());
 

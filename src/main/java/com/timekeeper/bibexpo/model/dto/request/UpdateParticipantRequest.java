@@ -17,7 +17,7 @@ import java.util.Map;
 public class UpdateParticipantRequest {
 
     @Size(max = 50, message = "Chip number cannot exceed 50 characters")
-    @Schema(description = "Participant chip number", example = "0749147")
+    @Schema(description = "Participant chip number (must be unique within the event when set to a non-blank value)", example = "0749147")
     private String chipNumber;
 
     @Size(min = 2, max = 200, message = "Full name must be between 2 and 200 characters")

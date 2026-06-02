@@ -17,6 +17,7 @@ import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.RaceService;
+import com.timekeeper.bibexpo.util.NameNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,13 +47,14 @@ public class RaceServiceImpl implements RaceService {
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
-        if (raceRepository.existsByRaceNameAndEventIdAndDeletedFalse(request.getRaceName(), eventId)) {
+        String raceName = NameNormalizer.toStoredName(request.getRaceName());
+        if (raceRepository.existsByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)) {
             throw new RaceAlreadyExistsException(
-                    "Race with name '" + request.getRaceName() + "' already exists for this event");
+                    "Race with name '" + raceName + "' already exists for this event");
         }
 
         Race race = Race.builder()
-                .raceName(request.getRaceName())
+                .raceName(raceName)
                 .raceDescription(request.getRaceDescription())
                 .event(event)
                 .deleted(false)
@@ -84,18 +86,20 @@ public class RaceServiceImpl implements RaceService {
             throw new RaceNotFoundException();
         }
 
-        if (request.getRaceName() != null && !request.getRaceName().isBlank() &&
-                !request.getRaceName().equals(race.getRaceName())) {
-            if (raceRepository.existsByRaceNameAndEventIdAndDeletedFalse(request.getRaceName(), eventId)) {
+        String newRaceName = NameNormalizer.toStoredName(request.getRaceName());
+        if (newRaceName != null && !newRaceName.isBlank() &&
+                !newRaceName.equals(race.getRaceName())) {
+            if (raceRepository.existsByRaceNameAndEventIdAndDeletedFalse(newRaceName, eventId)) {
                 throw new RaceAlreadyExistsException(
-                        "Race with name '" + request.getRaceName() + "' already exists for this event");
+                        "Race with name '" + newRaceName + "' already exists for this event");
             }
-            race.setRaceName(request.getRaceName());
+            race.setRaceName(newRaceName);
         }
 
         updateIfNotNull(request.getRaceDescription(), race::setRaceDescription);
 
         Race updatedRace = raceRepository.save(race);
+
         log.info("Successfully updated race with ID: {} by user: {}",
                 updatedRace.getId(), currentUser.getUsername());
 

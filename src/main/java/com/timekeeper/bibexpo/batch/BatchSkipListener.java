@@ -105,6 +105,25 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
             }
         }
 
+        String duplicateChipErrors = stepExecution.getExecutionContext().getString("duplicateChipErrors", "");
+        if (!duplicateChipErrors.isBlank()) {
+            for (String entry : duplicateChipErrors.split(",")) {
+                String[] parts = entry.split(":", 2);
+                if (parts.length == 2) {
+                    Integer rowNumber = parseRowNumber(parts[0]);
+                    String chipNumber = parts[1];
+                    collectedErrors.add(ImportErrorDDB.create(
+                            jobExecutionId.toString(),
+                            rowNumber,
+                            "DUPLICATE_CHIP",
+                            "chipNumber",
+                            "Duplicate CHIP number '" + chipNumber + "' at row " + rowNumber,
+                            ERROR_TTL_DAYS
+                    ));
+                }
+            }
+        }
+
         if (!collectedErrors.isEmpty()) {
             log.info("Writing {} errors to DynamoDB for job {}", collectedErrors.size(), jobExecutionId);
             importErrorDDBRepository.saveAll(collectedErrors);

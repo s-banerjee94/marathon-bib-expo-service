@@ -2,11 +2,13 @@ package com.timekeeper.bibexpo.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -18,6 +20,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 @RestControllerAdvice
 @Slf4j
@@ -28,6 +31,7 @@ public class GlobalExceptionHandler {
     public static final String FORBIDDEN = "Forbidden";
     public static final String NOT_FOUND = "Not Found";
     public static final String CONFLICT = "Conflict";
+    public static final String METHOD_NOT_ALLOWED = "Method Not Allowed";
 
     @ExceptionHandler(UserLimitReductionException.class)
     public ResponseEntity<ErrorResponse> handleUserLimitReduction(
@@ -297,6 +301,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
+    @ExceptionHandler(ChipNumberAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleChipNumberAlreadyExists(
+            ChipNumberAlreadyExistsException ex, WebRequest request) {
+        log.warn("Chip number conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, CONFLICT, ex.getMessage(), request));
+    }
+
     @ExceptionHandler(CategoryInUseException.class)
     public ResponseEntity<ErrorResponse> handleCategoryInUse(
             CategoryInUseException ex, WebRequest request) {
@@ -552,70 +564,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
-    @ExceptionHandler(BibAlreadyCollectedException.class)
-    public ResponseEntity<ErrorResponse> handleBibAlreadyCollected(
-            BibAlreadyCollectedException ex, WebRequest request) {
-        log.error("Bib already collected: {}", ex.getMessage());
-
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(Instant.now())
-                .status(HttpStatus.CONFLICT.value())
-                .error(CONFLICT)
-                .message(ex.getMessage())
-                .path(request.getDescription(false).replace("uri=", ""))
-                .build();
-
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
-    }
-
-    @ExceptionHandler(BibNotCollectedException.class)
-    public ResponseEntity<ErrorResponse> handleBibNotCollected(
-            BibNotCollectedException ex, WebRequest request) {
-        log.error("Bib not collected: {}", ex.getMessage());
-
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(Instant.now())
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error(BAD_REQUEST)
-                .message(ex.getMessage())
-                .path(request.getDescription(false).replace("uri=", ""))
-                .build();
-
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-    }
-
-    @ExceptionHandler(GoodiesItemNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleGoodiesItemNotFound(
-            GoodiesItemNotFoundException ex, WebRequest request) {
-        log.error("Goodies item not found: {}", ex.getMessage());
-
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(Instant.now())
-                .status(HttpStatus.NOT_FOUND.value())
-                .error(NOT_FOUND)
-                .message(ex.getMessage())
-                .path(request.getDescription(false).replace("uri=", ""))
-                .build();
-
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
-    }
-
-    @ExceptionHandler(GoodiesAlreadyDistributedException.class)
-    public ResponseEntity<ErrorResponse> handleGoodiesAlreadyDistributed(
-            GoodiesAlreadyDistributedException ex, WebRequest request) {
-        log.error("Goodies already distributed: {}", ex.getMessage());
-
-        ErrorResponse error = ErrorResponse.builder()
-                .timestamp(Instant.now())
-                .status(HttpStatus.CONFLICT.value())
-                .error(CONFLICT)
-                .message(ex.getMessage())
-                .path(request.getDescription(false).replace("uri=", ""))
-                .build();
-
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
-    }
-
     @ExceptionHandler(InvalidSmsTemplateException.class)
     public ResponseEntity<ErrorResponse> handleInvalidSmsTemplate(
             InvalidSmsTemplateException ex, WebRequest request) {
@@ -845,6 +793,20 @@ public class GlobalExceptionHandler {
                 .path(request.getDescription(false).replace("uri=", ""))
                 .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, WebRequest request) {
+        log.warn("Method not supported: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.of(HttpStatus.METHOD_NOT_ALLOWED, METHOD_NOT_ALLOWED,
+                "The " + ex.getMethod() + " method is not supported for this endpoint.", request);
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+        Set<HttpMethod> supported = ex.getSupportedHttpMethods();
+        if (supported != null && !supported.isEmpty()) {
+            builder.allow(supported.toArray(new HttpMethod[0]));
+        }
+        return builder.body(error);
     }
 
     @ExceptionHandler(Exception.class)

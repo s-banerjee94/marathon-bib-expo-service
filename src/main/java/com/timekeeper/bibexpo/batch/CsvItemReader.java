@@ -32,6 +32,7 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
 
     private static final String CURRENT_INDEX_KEY = "csv.reader.current.index";
     private static final String DUPLICATES_KEY = "duplicateBibErrors";
+    private static final String CHIP_DUPLICATES_KEY = "duplicateChipErrors";
 
     private final CsvParserUtil csvParserUtil;
     private final ObjectMapper objectMapper;
@@ -47,6 +48,8 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
     private CsvParseStream stream;
     private Set<String> seenBibs;
     private StringJoiner duplicates;
+    private Set<String> seenChips;
+    private StringJoiner chipDuplicates;
     private int currentIndex;
     private int skipToIndex;
 
@@ -64,6 +67,8 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
             stream = csvParserUtil.openStream(inputStream, mapping);
             seenBibs = new HashSet<>();
             duplicates = new StringJoiner(",");
+            seenChips = new HashSet<>();
+            chipDuplicates = new StringJoiner(",");
             currentIndex = 0;
 
             stepExecution.getJobExecution().getExecutionContext()
@@ -92,6 +97,13 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
                         row.getBibNumber(), row.getRowNumber());
                 continue;
             }
+            String chipNumber = row.getChipNumber();
+            if (chipNumber != null && !chipNumber.isBlank() && !seenChips.add(chipNumber)) {
+                chipDuplicates.add(row.getRowNumber() + ":" + chipNumber);
+                log.warn("Duplicate CHIP {} at row {}, excluding from import",
+                        chipNumber, row.getRowNumber());
+                continue;
+            }
             if (currentIndex < skipToIndex) {
                 currentIndex++;
                 continue;
@@ -107,6 +119,9 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
         executionContext.putInt(CURRENT_INDEX_KEY, currentIndex);
         if (duplicates != null) {
             stepExecution.getExecutionContext().putString(DUPLICATES_KEY, duplicates.toString());
+        }
+        if (chipDuplicates != null) {
+            stepExecution.getExecutionContext().putString(CHIP_DUPLICATES_KEY, chipDuplicates.toString());
         }
     }
 
@@ -129,5 +144,6 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
             inputStream = null;
         }
         seenBibs = null;
+        seenChips = null;
     }
 }

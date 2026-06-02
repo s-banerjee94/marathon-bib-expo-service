@@ -54,15 +54,15 @@ public class ParticipantDistributionResponse {
             example = "{\"T-Shirt\": \"{\\\"collectedAt\\\":\\\"2024-01-15T10:30:00\\\",\\\"distributedBy\\\":\\\"123__|__john_doe\\\"}\"}")
     private Map<String, String> goodiesDistribution;
 
-    public static ParticipantDistributionResponse from(ParticipantDDB p) {
+    public static ParticipantDistributionResponse from(ParticipantDDB p, String raceName, String categoryName) {
         return ParticipantDistributionResponse.builder()
                 .eventId(p.getEventId())
                 .bibNumber(p.getBibNumber())
                 .fullName(p.getFullName())
                 .email(p.getEmail())
                 .phoneNumber(p.getPhoneNumber())
-                .raceName(p.getRaceName())
-                .categoryName(p.getCategoryName())
+                .raceName(raceName)
+                .categoryName(categoryName)
                 .bibCollectedAt(p.getBibCollectedAt())
                 .bibCollectedByName(p.getBibCollectedByName())
                 .bibCollectedByPhone(p.getBibCollectedByPhone())

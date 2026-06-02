@@ -104,23 +104,10 @@ public class EventStatsDDBRepository {
             exprValues.put(":d", AttributeValue.fromN(String.valueOf(delta.delta())));
             exprValues.put(":u", AttributeValue.fromS(updatedAt));
 
-            StringBuilder expr = new StringBuilder("ADD #c :d SET #u = :u");
-
-            if (delta.raceName() != null) {
-                exprNames.put("#rn", "raceName");
-                exprValues.put(":rn", AttributeValue.fromS(delta.raceName()));
-                expr.append(", #rn = if_not_exists(#rn, :rn)");
-            }
-            if (delta.categoryName() != null) {
-                exprNames.put("#cn", "categoryName");
-                exprValues.put(":cn", AttributeValue.fromS(delta.categoryName()));
-                expr.append(", #cn = if_not_exists(#cn, :cn)");
-            }
-
             UpdateItemRequest request = UpdateItemRequest.builder()
                     .tableName(TABLE_NAME)
                     .key(key)
-                    .updateExpression(expr.toString())
+                    .updateExpression("ADD #c :d SET #u = :u")
                     .expressionAttributeNames(exprNames)
                     .expressionAttributeValues(exprValues)
                     .build();
@@ -198,5 +185,5 @@ public class EventStatsDDBRepository {
         return processed;
     }
 
-    public record CounterDelta(long delta, String raceName, String categoryName) {}
+    public record CounterDelta(long delta) {}
 }

@@ -20,7 +20,7 @@ import java.util.Map;
 @Schema(description = "Request to create a new participant")
 public class CreateParticipantRequest {
 
-    @Schema(description = "Chip number", example = "0784525")
+    @Schema(description = "Chip number (optional; must be unique within the event when provided)", example = "0784525")
     private String chipNumber;
 
     @NotBlank(message = "BIB number is required")
@@ -35,17 +35,9 @@ public class CreateParticipantRequest {
     @Schema(description = "Race ID", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     private Long raceId;
 
-    @NotBlank(message = "Race name is required")
-    @Schema(description = "Race name", example = "Full Marathon", requiredMode = Schema.RequiredMode.REQUIRED)
-    private String raceName;
-
     @NotNull(message = "Category ID is required")
     @Schema(description = "Category ID", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     private Long categoryId;
-
-    @NotBlank(message = "Category name is required")
-    @Schema(description = "Category name", example = "Open", requiredMode = Schema.RequiredMode.REQUIRED)
-    private String categoryName;
 
     @NotBlank(message = "Gender is required")
     @Pattern(regexp = "^[MFO]$", message = "Gender must be M, F, or O")

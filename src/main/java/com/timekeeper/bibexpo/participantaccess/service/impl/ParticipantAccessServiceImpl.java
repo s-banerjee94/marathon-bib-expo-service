@@ -22,6 +22,8 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.SseEmitterRegistry;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +49,7 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     private final QrImageGenerator qrImageGenerator;
     private final SseEmitterRegistry sseEmitterRegistry;
     private final AuditPublisher auditPublisher;
+    private final RaceCategoryNameResolver nameResolver;
 
     private static final int MAX_CODE_ATTEMPTS = 5;
     private static final int SHORT_URL_TTL_DAYS_AFTER_EVENT_END = 3;
@@ -159,10 +162,13 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     }
 
     private ParticipantDistributionResponse toDistributionResponse(ParticipantDDB p) {
-        return ParticipantDistributionResponse.from(p);
+        EventNames names = nameResolver.forEvent(Long.parseLong(p.getEventId()));
+        return ParticipantDistributionResponse.from(p,
+                names.raceName(p.getRaceId()), names.categoryName(p.getCategoryId()));
     }
 
     private ParticipantVerificationResponse toVerificationResponse(Event event, ParticipantDDB p, String qrCodeDataUri) {
+        EventNames names = nameResolver.forEvent(event.getId());
         return ParticipantVerificationResponse.builder()
                 .eventName(event.getEventName())
                 .eventVanue(event.getVenueName())
@@ -174,8 +180,8 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
                 .fullName(p.getFullName())
                 .email(p.getEmail())
                 .phoneNumber(p.getPhoneNumber())
-                .raceName(p.getRaceName())
-                .categoryName(p.getCategoryName())
+                .raceName(names.raceName(p.getRaceId()))
+                .categoryName(names.categoryName(p.getCategoryId()))
                 .age(p.getAge())
                 .gender(p.getGender())
                 .city(p.getCity())

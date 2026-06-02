@@ -8,6 +8,8 @@ import com.timekeeper.bibexpo.model.enums.SmsCampaignTriggerType;
 import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.service.SmsGatewayService;
 import com.timekeeper.bibexpo.service.SmsSendService;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.util.SmsTemplateContext;
 import com.timekeeper.bibexpo.util.SmsTemplateParser;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ public class SmsSendServiceImpl implements SmsSendService {
 
     private final SmsCampaignRepository smsCampaignRepository;
     private final SmsGatewayService smsGatewayService;
+    private final RaceCategoryNameResolver nameResolver;
 
     @Override
     public void sendBibCollectedSms(Event event, ParticipantDDB participant) {
@@ -41,7 +44,9 @@ public class SmsSendServiceImpl implements SmsSendService {
         }
 
         try {
-            SmsTemplateContext context = new SmsTemplateContext(participant, event);
+            EventNames names = nameResolver.forEvent(eventId);
+            SmsTemplateContext context = new SmsTemplateContext(participant, event,
+                    names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()));
             String renderedMessage = SmsTemplateParser.parse(campaign.getSmsTemplate().getTemplate(), context);
             smsGatewayService.send(phone, renderedMessage, campaign.getSmsTemplate().getSmsTemplateId());
             log.info("Bib-collected SMS sent to bib {} in event {}", participant.getBibNumber(), eventId);

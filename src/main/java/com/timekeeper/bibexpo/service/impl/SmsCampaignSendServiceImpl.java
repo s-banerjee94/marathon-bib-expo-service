@@ -11,6 +11,8 @@ import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.SmsCampaignSendService;
 import com.timekeeper.bibexpo.service.SmsGatewayService;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.util.SmsTemplateContext;
 import com.timekeeper.bibexpo.util.SmsTemplateParser;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
     private final ParticipantDDBRepository participantDDBRepository;
     private final SmsGatewayService smsGatewayService;
     private final SmsSchedulerProperties schedulerProperties;
+    private final RaceCategoryNameResolver nameResolver;
 
     @Override
     @Async("smsCampaignTaskExecutor")
@@ -50,6 +53,7 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
 
         log.info("Starting async SMS send for campaign ID: {} event ID: {}", campaignId, event.getId());
 
+        EventNames names = nameResolver.forEvent(event.getId());
         int sentCount = campaign.getSentCount();
         int consecutiveFailures = 0;
 
@@ -72,7 +76,8 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
                 try {
                     Thread.sleep(schedulerProperties.getSendDelayMs());
 
-                    SmsTemplateContext context = new SmsTemplateContext(participant, event);
+                    SmsTemplateContext context = new SmsTemplateContext(participant, event,
+                            names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()));
                     String message = SmsTemplateParser.parse(templateText, context);
                     smsGatewayService.send(phone, message, dltTemplateId);
 

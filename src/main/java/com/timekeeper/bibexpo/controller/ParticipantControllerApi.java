@@ -35,13 +35,15 @@ public interface ParticipantControllerApi {
             description = """
                     Create a single participant for an event. \
 
-                    **Required:** bibNumber, fullName, raceId, raceName, categoryId, categoryName, gender. \
+                    **Required:** bibNumber, fullName, raceId, categoryId, gender. \
 
                     **Conditionally required:** at least one of phoneNumber / email, and at least one of dateOfBirth / age. \
 
                     **Optional:** chipNumber, country, city, bibCollectedAt, goodies, additionalFields, emergencyContactName, emergencyContactPhone, notes. \
 
                     **additionalFields:** free-form key-value columns, matching the dynamic columns retained from a CSV import. \
+
+                    **Uniqueness:** bibNumber must be unique within the event; chipNumber, when provided, must also be unique within the event (blank or omitted chip numbers are exempt). \
 
                     **Normalization:** fullName is stored and returned in UPPERCASE; email in lowercase."""
     )
@@ -56,6 +58,9 @@ public interface ParticipantControllerApi {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event, race, or category not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Chip number already assigned to another participant in this event",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -207,8 +212,8 @@ public interface ParticipantControllerApi {
                     - `EMAIL`: Search by email address (begins_with, case-insensitive). Example: 'john' matches 'john@example.com', 'johnny@example.com' \
                     - `PHONE`: Search by phone number (begins_with, exact prefix match). Example: '+91' matches '+91-9876543210' \
                     - `BIB`: Exact match lookup by bib number (most efficient). Example: 'BIB001' returns exactly one participant or none \
-                    - `RACE`: Search by race name (begins_with). Returns ALL participants registered for races matching the name. Supports pagination. \
-                    - `CATEGORY`: Search by category name (begins_with). Returns ALL participants in categories matching the name. Supports pagination. \
+                    - `RACE`: searchValue is a raceId. Returns ALL participants in that race (begins_with on the raceId# composite key). Example: '14'. Supports pagination. \
+                    - `CATEGORY`: searchValue is the composite 'raceId#categoryId' (exact match). Returns participants in that one race+category. Example: '14#30' (URL-encode # as %23). Supports pagination. \
 
                     **Pagination:** Results are paginated using DynamoDB lastEvaluatedKey (base64 encoded). \
                     RACE and CATEGORY searches may return large result sets and benefit from pagination."""
@@ -235,8 +240,10 @@ public interface ParticipantControllerApi {
                     schema = @Schema(implementation = SearchType.class))
             @RequestParam SearchType searchType,
 
-            @Parameter(description = "Value to search for (uses begins_with for LSI queries)", required = true,
-                    example = "JOHN")
+            @Parameter(description = "Value to search for. NAME/EMAIL/PHONE use begins_with on the LSI. "
+                    + "RACE expects a raceId and returns every participant in that race. "
+                    + "CATEGORY expects the composite \"raceId#categoryId\" and matches that exact category.",
+                    required = true, example = "JOHN")
             @RequestParam String searchValue,
 
             @Parameter(description = "Maximum number of results (default: 50, max: 100)", example = "50")
@@ -470,6 +477,8 @@ public interface ParticipantControllerApi {
                     - Remove a key: include it with a null (or empty) value, e.g. {"oldColumn": null}. \
                     - Keys you do not include are left unchanged; omit additionalFields entirely to leave all extra columns untouched. \
 
+                    **Uniqueness:** chipNumber, when changed to a non-blank value, must be unique within the event; updating it to a chip number already held by another participant is rejected. \
+
                     **Normalization:** When updated, fullName is stored in UPPERCASE and email in lowercase. \
 
                     **Behavior:** A null or omitted top-level field is ignored and won't overwrite existing values; this applies to additionalFields as a whole, while a null value for an individual key inside it removes that key."""
@@ -485,6 +494,9 @@ public interface ParticipantControllerApi {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event, participant, race, or category not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Chip number already assigned to another participant in this event",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })

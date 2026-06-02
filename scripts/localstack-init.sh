@@ -8,16 +8,24 @@ awslocal dynamodb create-table \
     --attribute-definitions \
         AttributeName=eventId,AttributeType=S \
         AttributeName=bibNumber,AttributeType=S \
+        AttributeName=chipNumber,AttributeType=S \
         AttributeName=fullName,AttributeType=S \
         AttributeName=email,AttributeType=S \
         AttributeName=phoneNumber,AttributeType=S \
-        AttributeName=raceName,AttributeType=S \
-        AttributeName=categoryName,AttributeType=S \
+        AttributeName=raceCategoryKey,AttributeType=S \
     --key-schema \
         AttributeName=eventId,KeyType=HASH \
         AttributeName=bibNumber,KeyType=RANGE \
     --local-secondary-indexes \
         "[
+            {
+                \"IndexName\": \"LSI-ChipNumberIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"eventId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"chipNumber\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            },
             {
                 \"IndexName\": \"LSI-FullNameIndex\",
                 \"KeySchema\": [
@@ -43,18 +51,10 @@ awslocal dynamodb create-table \
                 \"Projection\": {\"ProjectionType\": \"ALL\"}
             },
             {
-                \"IndexName\": \"LSI-RaceNameIndex\",
+                \"IndexName\": \"LSI-RaceCategoryIndex\",
                 \"KeySchema\": [
                     {\"AttributeName\": \"eventId\", \"KeyType\": \"HASH\"},
-                    {\"AttributeName\": \"raceName\", \"KeyType\": \"RANGE\"}
-                ],
-                \"Projection\": {\"ProjectionType\": \"ALL\"}
-            },
-            {
-                \"IndexName\": \"LSI-CategoryNameIndex\",
-                \"KeySchema\": [
-                    {\"AttributeName\": \"eventId\", \"KeyType\": \"HASH\"},
-                    {\"AttributeName\": \"categoryName\", \"KeyType\": \"RANGE\"}
+                    {\"AttributeName\": \"raceCategoryKey\", \"KeyType\": \"RANGE\"}
                 ],
                 \"Projection\": {\"ProjectionType\": \"ALL\"}
             }

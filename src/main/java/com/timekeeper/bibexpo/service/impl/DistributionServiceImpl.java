@@ -20,6 +20,8 @@ import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.SmsSendService;
 import com.timekeeper.bibexpo.service.util.DistributionConstants;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.DistributionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +50,7 @@ public class DistributionServiceImpl implements DistributionService {
     private final DistributionValidator validator;
     private final SmsSendService smsSendService;
     private final EventStatsService eventStatsService;
+    private final RaceCategoryNameResolver nameResolver;
 
     @Override
     public BibDistributionResponse collectBib(Long eventId, String bibNumber, CollectBibRequest request, User currentUser) {
@@ -275,6 +278,7 @@ public class DistributionServiceImpl implements DistributionService {
                     .build();
         }
 
+        EventNames names = nameResolver.forEvent(eventId);
         List<ParticipantDistributionResponse> participants = page.items().stream()
                 .map(participant -> ParticipantDistributionResponse.builder()
                         .eventId(participant.getEventId())
@@ -282,8 +286,8 @@ public class DistributionServiceImpl implements DistributionService {
                         .fullName(participant.getFullName())
                         .email(participant.getEmail())
                         .phoneNumber(participant.getPhoneNumber())
-                        .raceName(participant.getRaceName())
-                        .categoryName(participant.getCategoryName())
+                        .raceName(names.raceName(participant.getRaceId()))
+                        .categoryName(names.categoryName(participant.getCategoryId()))
                         .bibCollectedAt(null)
                         .bibCollectedByName(null)
                         .bibCollectedByPhone(null)
@@ -388,7 +392,9 @@ public class DistributionServiceImpl implements DistributionService {
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
-        return ParticipantDistributionResponse.from(participant);
+        EventNames names = nameResolver.forEvent(eventId);
+        return ParticipantDistributionResponse.from(participant,
+                names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()));
 	}
 
     @Override
@@ -406,10 +412,11 @@ public class DistributionServiceImpl implements DistributionService {
             return buildEmptyPendingGoodiesResponse();
         }
 
+        EventNames names = nameResolver.forEvent(eventId);
         List<PendingGoodiesListResponse.ParticipantPendingGoodies> participants = page.items().stream()
                 .filter(participant -> participant.getBibCollectedAt() != null)
                 .filter(this::hasPendingGoodies)
-                .map(this::mapToParticipantPendingGoodies)
+                .map(participant -> mapToParticipantPendingGoodies(participant, names))
                 .toList();
 
         String newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
@@ -573,9 +580,7 @@ public class DistributionServiceImpl implements DistributionService {
                 .eventId(p.getEventId())
                 .bibNumber(p.getBibNumber())
                 .raceId(p.getRaceId())
-                .raceName(p.getRaceName())
                 .categoryId(p.getCategoryId())
-                .categoryName(p.getCategoryName())
                 .gender(p.getGender())
                 .bibCollectedAt(p.getBibCollectedAt())
                 .goodiesDistribution(goodiesCopy)
@@ -641,7 +646,8 @@ public class DistributionServiceImpl implements DistributionService {
         return goodies.size() > distribution.size();
     }
 
-    private PendingGoodiesListResponse.ParticipantPendingGoodies mapToParticipantPendingGoodies(ParticipantDDB participant) {
+    private PendingGoodiesListResponse.ParticipantPendingGoodies mapToParticipantPendingGoodies(
+            ParticipantDDB participant, EventNames names) {
         List<String> pendingItems = calculatePendingItems(participant.getGoodies(), participant.getGoodiesDistribution());
 
         return PendingGoodiesListResponse.ParticipantPendingGoodies.builder()
@@ -650,8 +656,8 @@ public class DistributionServiceImpl implements DistributionService {
                 .fullName(participant.getFullName())
                 .email(participant.getEmail())
                 .phoneNumber(participant.getPhoneNumber())
-                .raceName(participant.getRaceName())
-                .categoryName(participant.getCategoryName())
+                .raceName(names.raceName(participant.getRaceId()))
+                .categoryName(names.categoryName(participant.getCategoryId()))
                 .bibCollectedAt(participant.getBibCollectedAt())
                 .goodies(participant.getGoodies())
                 .goodiesDistribution(participant.getGoodiesDistribution())

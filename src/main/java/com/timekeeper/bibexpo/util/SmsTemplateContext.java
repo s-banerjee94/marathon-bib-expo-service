@@ -28,11 +28,11 @@ public class SmsTemplateContext {
     private final String eventEndDate;
     private final String eventCity;
 
-    public SmsTemplateContext(ParticipantDDB participant, Event event) {
+    public SmsTemplateContext(ParticipantDDB participant, Event event, String raceName, String categoryName) {
         this.fullName = participant.getFullName();
         this.bibNumber = participant.getBibNumber();
-        this.raceName = participant.getRaceName();
-        this.categoryName = participant.getCategoryName();
+        this.raceName = raceName;
+        this.categoryName = categoryName;
         this.bibCollectedAt = participant.getBibCollectedAt();
         this.bibCollectedByName = participant.getBibCollectedByName();
         this.bibCollectedByPhone = participant.getBibCollectedByPhone();

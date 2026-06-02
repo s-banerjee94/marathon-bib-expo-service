@@ -15,16 +15,24 @@ import com.timekeeper.bibexpo.model.dto.response.PendingBibListResponse;
 import com.timekeeper.bibexpo.model.dto.response.PendingGoodiesListResponse;
 import com.timekeeper.bibexpo.model.dto.response.UndoDistributionResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.exception.BibAlreadyCollectedException;
+import com.timekeeper.bibexpo.exception.BibNotCollectedException;
+import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.exception.GoodiesAlreadyDistributedException;
+import com.timekeeper.bibexpo.exception.GoodiesItemNotFoundException;
 import com.timekeeper.bibexpo.service.DistributionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 import java.util.List;
 
@@ -215,5 +223,36 @@ public class DistributionController implements DistributionControllerApi {
                 eventId, response.getSuccessCount(), response.getFailed().size());
 
         return ResponseEntity.ok(response);
+    }
+
+    // Distribution-only exceptions are handled here rather than in the global advice, since they can
+    // only be thrown from this controller's flows. Cross-cutting ones stay in GlobalExceptionHandler.
+
+    @ExceptionHandler(BibAlreadyCollectedException.class)
+    public ResponseEntity<ErrorResponse> handleBibAlreadyCollected(BibAlreadyCollectedException ex, WebRequest request) {
+        log.warn("Bib already collected: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(BibNotCollectedException.class)
+    public ResponseEntity<ErrorResponse> handleBibNotCollected(BibNotCollectedException ex, WebRequest request) {
+        log.warn("Bib not collected: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(GoodiesItemNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleGoodiesItemNotFound(GoodiesItemNotFoundException ex, WebRequest request) {
+        log.warn("Goodies item not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(GoodiesAlreadyDistributedException.class)
+    public ResponseEntity<ErrorResponse> handleGoodiesAlreadyDistributed(GoodiesAlreadyDistributedException ex, WebRequest request) {
+        log.warn("Goodies already distributed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
 }

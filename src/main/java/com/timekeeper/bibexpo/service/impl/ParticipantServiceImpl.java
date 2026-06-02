@@ -3,12 +3,10 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.exception.*;
 import com.timekeeper.bibexpo.model.dto.request.CreateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateParticipantRequest;
-import com.timekeeper.bibexpo.model.dto.response.CategoryResponse;
 import com.timekeeper.bibexpo.model.dto.response.DeleteParticipantsResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
-import com.timekeeper.bibexpo.model.dto.response.RaceResponse;
 import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.*;
@@ -22,6 +20,8 @@ import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.ParticipantService;
 import com.timekeeper.bibexpo.service.RaceService;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +63,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     private final DynamoDBPaginationCodec paginationCodec;
     private final EventStatsDDBRepository eventStatsRepo;
     private final EventStatsService eventStatsService;
+    private final RaceCategoryNameResolver nameResolver;
 
     private DynamoDbTable<ParticipantDDB> participantTable;
 
@@ -79,6 +80,8 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @Override
     public ParticipantResponse createParticipant(Long eventId, CreateParticipantRequest request, User currentUser) {
+        trimStringFields(request);
+
         log.info("Creating participant with BIB {} for event ID: {} by user: {}",
                 request.getBibNumber(), eventId, currentUser.getUsername());
 
@@ -104,9 +107,11 @@ public class ParticipantServiceImpl implements ParticipantService {
             throw new IllegalArgumentException("A participant with this BIB number already exists.");
         }
 
-        RaceResponse race = raceService.getRaceById(eventId, request.getRaceId(), currentUser);
-        CategoryResponse category = categoryService.getCategoryById(eventId, request.getRaceId(),
-                request.getCategoryId(), currentUser);
+        assertChipNumberAvailable(eventId, request.getChipNumber(), request.getBibNumber());
+
+        // Validate the race/category exist for this event; names are resolved at read time.
+        raceService.getRaceById(eventId, request.getRaceId(), currentUser);
+        categoryService.getCategoryById(eventId, request.getRaceId(), request.getCategoryId(), currentUser);
 
         String timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
 
@@ -123,9 +128,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .country(request.getCountry())
                 .city(request.getCity())
                 .raceId(request.getRaceId().toString())
-                .raceName(race.getRaceName())
                 .categoryId(request.getCategoryId().toString())
-                .categoryName(category.getCategoryName())
+                .raceCategoryKey(ParticipantDDB.compositeKey(
+                        request.getRaceId().toString(), request.getCategoryId().toString()))
                 .bibCollectedAt(request.getBibCollectedAt())
                 .goodies(request.getGoodies() != null ? new HashMap<>(request.getGoodies()) : new HashMap<>())
                 .additionalFields(request.getAdditionalFields() != null ? new HashMap<>(request.getAdditionalFields()) : new HashMap<>())
@@ -143,7 +148,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         log.info("Successfully created participant with BIB {} for event ID: {}", request.getBibNumber(), eventId);
 
-        return mapParticipantToResponse(participant);
+        return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
 
     @Override
@@ -177,29 +182,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         Page<ParticipantDDB> page = participantTable.query(requestBuilder.build()).stream().findFirst().orElse(null);
 
-        if (page == null) {
-            return ParticipantListResponse.builder()
-                    .participants(Collections.emptyList())
-                    .count(0)
-                    .hasMore(false)
-                    .build();
-        }
-
-        List<ParticipantResponse> participants = page.items().stream()
-                .map(this::mapParticipantToResponse)
-                .toList();
-
-        String newLastEvaluatedKey = null;
-        if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
-            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
-        }
-
-        return ParticipantListResponse.builder()
-                .participants(participants)
-                .lastEvaluatedKey(newLastEvaluatedKey)
-                .count(participants.size())
-                .hasMore(newLastEvaluatedKey != null)
-                .build();
+        return toListResponse(page, eventId);
     }
 
     @Override
@@ -227,12 +210,13 @@ public class ParticipantServiceImpl implements ParticipantService {
                 bibNumber, participant.getGoodies() != null ? participant.getGoodies().size() : 0,
                 participant.getGoodies());
 
-        return mapParticipantToResponse(participant);
+        return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
 
     @Override
     public ParticipantResponse updateParticipant(Long eventId, String bibNumber,
                                                   UpdateParticipantRequest request, User currentUser) {
+        trimStringFields(request);
 
         log.info("Updating participant BIB {} for event ID: {} by user: {}",
                 bibNumber, eventId, currentUser.getUsername());
@@ -281,6 +265,10 @@ public class ParticipantServiceImpl implements ParticipantService {
             updateRaceAndCategory(participant, request, eventId, currentUser);
         }
 
+        if (request.getChipNumber() != null && !request.getChipNumber().isBlank()
+                && !request.getChipNumber().equals(participant.getChipNumber())) {
+            assertChipNumberAvailable(eventId, request.getChipNumber(), bibNumber);
+        }
         updateIfNotNull(request.getChipNumber(), participant::setChipNumber);
         updateIfNotNull(normalizeName(request.getFullName()), participant::setFullName);
         updateIfNotNull(normalizeEmail(request.getEmail()), participant::setEmail);
@@ -325,7 +313,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         eventStatsService.onParticipantUpdated(beforeSnapshot, participant);
 
-        return mapParticipantToResponse(participant);
+        return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
 
     @Override
@@ -358,7 +346,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         return partitions;
     }
 
-    private ParticipantResponse mapParticipantToResponse(ParticipantDDB participant) {
+    private ParticipantResponse mapParticipantToResponse(ParticipantDDB participant, EventNames names) {
         return ParticipantResponse.builder()
                 .eventId(participant.getEventId())
                 .bibNumber(participant.getBibNumber())
@@ -372,9 +360,9 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .country(participant.getCountry())
                 .city(participant.getCity())
                 .raceId(participant.getRaceId())
-                .raceName(participant.getRaceName())
+                .raceName(names.raceName(participant.getRaceId()))
                 .categoryId(participant.getCategoryId())
-                .categoryName(participant.getCategoryName())
+                .categoryName(names.categoryName(participant.getCategoryId()))
                 .goodies(participant.getGoodies())
                 .bibCollectedAt(participant.getBibCollectedAt())
                 .bibCollectedByName(participant.getBibCollectedByName())
@@ -391,6 +379,35 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .updatedBy(participant.getUpdatedBy())
                 .build();
     }
+
+    /** Maps a query/scan page to a paginated response, enriching each row with current names. */
+    private ParticipantListResponse toListResponse(Page<ParticipantDDB> page, Long eventId) {
+        if (page == null) {
+            return emptyListResponse();
+        }
+        EventNames names = nameResolver.forEvent(eventId);
+        List<ParticipantResponse> participants = page.items().stream()
+                .map(participant -> mapParticipantToResponse(participant, names))
+                .toList();
+        String lastKey = (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty())
+                ? paginationCodec.encode(page.lastEvaluatedKey())
+                : null;
+        return ParticipantListResponse.builder()
+                .participants(participants)
+                .lastEvaluatedKey(lastKey)
+                .count(participants.size())
+                .hasMore(lastKey != null)
+                .build();
+    }
+
+    private ParticipantListResponse emptyListResponse() {
+        return ParticipantListResponse.builder()
+                .participants(Collections.emptyList())
+                .count(0)
+                .hasMore(false)
+                .build();
+    }
+
     private int executeBatchDelete(List<ParticipantDDB> participants) {
         if (participants.isEmpty()) {
             return 0;
@@ -608,15 +625,14 @@ public class ParticipantServiceImpl implements ParticipantService {
         String newRaceId = request.getRaceId() != null ? request.getRaceId() : participant.getRaceId();
         String newCategoryId = request.getCategoryId() != null ? request.getCategoryId() : participant.getCategoryId();
 
-        RaceResponse race = raceService.getRaceById(eventId, Long.parseLong(newRaceId), currentUser);
-
-        CategoryResponse category = categoryService.getCategoryById(eventId, Long.parseLong(newRaceId),
+        // Validate the new race/category exist for this event; names are resolved at read time.
+        raceService.getRaceById(eventId, Long.parseLong(newRaceId), currentUser);
+        categoryService.getCategoryById(eventId, Long.parseLong(newRaceId),
                 Long.parseLong(newCategoryId), currentUser);
 
         participant.setRaceId(newRaceId);
-        participant.setRaceName(race.getRaceName());
         participant.setCategoryId(newCategoryId);
-        participant.setCategoryName(category.getCategoryName());
+        participant.setRaceCategoryKey(ParticipantDDB.compositeKey(newRaceId, newCategoryId));
     }
 
     private <T> void updateIfNotNull(T value, Consumer<T> setter) {
@@ -687,32 +703,12 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .findFirst()
                 .orElse(null);
 
-        if (page == null) {
-            return ParticipantListResponse.builder()
-                    .participants(Collections.emptyList())
-                    .count(0)
-                    .hasMore(false)
-                    .build();
-        }
-
-        List<ParticipantResponse> participants = page.items().stream()
-                .map(this::mapParticipantToResponse)
-                .toList();
-
-        String newLastEvaluatedKey = null;
-        if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
-            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
-        }
+        ParticipantListResponse response = toListResponse(page, eventId);
 
         log.info("Search completed for event ID: {}. Found {} participants, hasMore: {}",
-                eventId, participants.size(), newLastEvaluatedKey != null);
+                eventId, response.getCount(), response.getHasMore());
 
-        return ParticipantListResponse.builder()
-                .participants(participants)
-                .lastEvaluatedKey(newLastEvaluatedKey)
-                .count(participants.size())
-                .hasMore(newLastEvaluatedKey != null)
-                .build();
+        return response;
     }
 
     private void validateSearchRequest(String searchTerm, Integer minAge, Integer maxAge, Integer limit) {
@@ -881,16 +877,9 @@ public class ParticipantServiceImpl implements ParticipantService {
         }
 
         String indexName = getIndexNameForSearchType(searchType);
-        String normalizedSearchValue = normalizeSearchValue(searchType, searchValue.trim());
-
         DynamoDbIndex<ParticipantDDB> index = participantTable.index(indexName);
 
-        QueryConditional queryConditional = QueryConditional.sortBeginsWith(
-                Key.builder()
-                        .partitionValue(eventId.toString())
-                        .sortValue(normalizedSearchValue)
-                        .build()
-        );
+        QueryConditional queryConditional = buildLookupConditional(eventId, searchType, searchValue.trim());
 
         QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
                 .queryConditional(queryConditional)
@@ -911,32 +900,12 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .findFirst()
                 .orElse(null);
 
-        if (page == null) {
-            return ParticipantListResponse.builder()
-                    .participants(Collections.emptyList())
-                    .count(0)
-                    .hasMore(false)
-                    .build();
-        }
-
-        List<ParticipantResponse> participants = page.items().stream()
-                .map(this::mapParticipantToResponse)
-                .toList();
-
-        String newLastEvaluatedKey = null;
-        if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
-            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
-        }
+        ParticipantListResponse response = toListResponse(page, eventId);
 
         log.info("Lookup completed for event ID: {} using index {}. Found {} participants, hasMore: {}",
-                eventId, indexName, participants.size(), newLastEvaluatedKey != null);
+                eventId, indexName, response.getCount(), response.getHasMore());
 
-        return ParticipantListResponse.builder()
-                .participants(participants)
-                .lastEvaluatedKey(newLastEvaluatedKey)
-                .count(participants.size())
-                .hasMore(newLastEvaluatedKey != null)
-                .build();
+        return response;
     }
 
     private ParticipantListResponse lookupByBibNumber(Long eventId, String bibNumber) {
@@ -948,15 +917,11 @@ public class ParticipantServiceImpl implements ParticipantService {
         );
 
         if (participant == null) {
-            return ParticipantListResponse.builder()
-                    .participants(Collections.emptyList())
-                    .count(0)
-                    .hasMore(false)
-                    .build();
+            return emptyListResponse();
         }
 
         return ParticipantListResponse.builder()
-                .participants(List.of(mapParticipantToResponse(participant)))
+                .participants(List.of(mapParticipantToResponse(participant, nameResolver.forEvent(eventId))))
                 .count(1)
                 .hasMore(false)
                 .build();
@@ -967,18 +932,94 @@ public class ParticipantServiceImpl implements ParticipantService {
             case NAME -> "LSI-FullNameIndex";
             case EMAIL -> "LSI-EmailIndex";
             case PHONE -> "LSI-PhoneNumberIndex";
-            case RACE -> "LSI-RaceNameIndex";
-            case CATEGORY -> "LSI-CategoryNameIndex";
+            case RACE, CATEGORY -> "LSI-RaceCategoryIndex";
             case BIB -> throw new IllegalArgumentException("BIB search does not use an index");
         };
     }
 
-    private String normalizeSearchValue(SearchType searchType, String searchValue) {
+    /**
+     * RACE matches every participant in a race via begins_with on the "raceId#" prefix of the
+     * composite key. CATEGORY targets one race+category and expects the full "raceId#categoryId"
+     * composite as the search value, matched exactly.
+     */
+    private QueryConditional buildLookupConditional(Long eventId, SearchType searchType, String searchValue) {
+        String partition = eventId.toString();
         return switch (searchType) {
-            case NAME -> normalizeName(searchValue);
-            case EMAIL -> normalizeEmail(searchValue);
-            case PHONE, BIB, RACE, CATEGORY -> searchValue;
+            case NAME -> QueryConditional.sortBeginsWith(
+                    Key.builder().partitionValue(partition).sortValue(normalizeName(searchValue)).build());
+            case EMAIL -> QueryConditional.sortBeginsWith(
+                    Key.builder().partitionValue(partition).sortValue(normalizeEmail(searchValue)).build());
+            case PHONE -> QueryConditional.sortBeginsWith(
+                    Key.builder().partitionValue(partition).sortValue(searchValue).build());
+            case RACE -> QueryConditional.sortBeginsWith(
+                    Key.builder().partitionValue(partition)
+                            .sortValue(searchValue + ParticipantDDB.KEY_DELIMITER).build());
+            case CATEGORY -> QueryConditional.keyEqualTo(
+                    Key.builder().partitionValue(partition).sortValue(searchValue).build());
+            case BIB -> throw new IllegalArgumentException("BIB search does not use an index");
         };
+    }
+
+    /**
+     * Enforces per-event chip-number uniqueness via LSI-ChipNumberIndex. A null/blank chip is exempt
+     * (multiple participants may have no chip). Throws if the chip is already held by a different bib.
+     */
+    private void assertChipNumberAvailable(Long eventId, String chipNumber, String ownerBibNumber) {
+        if (chipNumber == null || chipNumber.isBlank()) {
+            return;
+        }
+        QueryConditional condition = QueryConditional.keyEqualTo(
+                Key.builder().partitionValue(eventId.toString()).sortValue(chipNumber).build());
+        boolean takenByAnother = participantTable.index("LSI-ChipNumberIndex")
+                .query(QueryEnhancedRequest.builder().queryConditional(condition).build())
+                .stream()
+                .flatMap(page -> page.items().stream())
+                .anyMatch(existing -> !existing.getBibNumber().equals(ownerBibNumber));
+        if (takenByAnother) {
+            throw new ChipNumberAlreadyExistsException("This chip number is already assigned to another participant.");
+        }
+    }
+
+    private static void trimStringFields(CreateParticipantRequest r) {
+        r.setChipNumber(trimToNull(r.getChipNumber()));
+        r.setBibNumber(trimToNull(r.getBibNumber()));
+        r.setFullName(trimToNull(r.getFullName()));
+        r.setGender(trimToNull(r.getGender()));
+        r.setPhoneNumber(trimToNull(r.getPhoneNumber()));
+        r.setEmail(trimToNull(r.getEmail()));
+        r.setDateOfBirth(trimToNull(r.getDateOfBirth()));
+        r.setCountry(trimToNull(r.getCountry()));
+        r.setCity(trimToNull(r.getCity()));
+        r.setBibCollectedAt(trimToNull(r.getBibCollectedAt()));
+        r.setEmergencyContactName(trimToNull(r.getEmergencyContactName()));
+        r.setEmergencyContactPhone(trimToNull(r.getEmergencyContactPhone()));
+        r.setNotes(trimToNull(r.getNotes()));
+    }
+
+    private static void trimStringFields(UpdateParticipantRequest r) {
+        r.setChipNumber(trimToNull(r.getChipNumber()));
+        r.setFullName(trimToNull(r.getFullName()));
+        r.setGender(trimToNull(r.getGender()));
+        r.setPhoneNumber(trimToNull(r.getPhoneNumber()));
+        r.setEmail(trimToNull(r.getEmail()));
+        r.setDateOfBirth(trimToNull(r.getDateOfBirth()));
+        r.setCountry(trimToNull(r.getCountry()));
+        r.setCity(trimToNull(r.getCity()));
+        r.setRaceId(trimToNull(r.getRaceId()));
+        r.setCategoryId(trimToNull(r.getCategoryId()));
+        r.setNewBibNumber(trimToNull(r.getNewBibNumber()));
+        r.setBibCollectedAt(trimToNull(r.getBibCollectedAt()));
+        r.setEmergencyContactName(trimToNull(r.getEmergencyContactName()));
+        r.setEmergencyContactPhone(trimToNull(r.getEmergencyContactPhone()));
+        r.setNotes(trimToNull(r.getNotes()));
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private static String normalizeName(String value) {
@@ -1014,6 +1055,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 : fields;
 
         Set<String> goodiesKeys = collectGoodiesKeys(allParticipants);
+        EventNames names = nameResolver.forEvent(eventId);
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              OutputStreamWriter writer = new OutputStreamWriter(baos, StandardCharsets.UTF_8);
@@ -1023,7 +1065,7 @@ public class ParticipantServiceImpl implements ParticipantService {
             csvPrinter.printRecord(headers);
 
             for (ParticipantDDB participant : allParticipants) {
-                List<String> row = buildCsvRow(participant, exportFields, goodiesKeys);
+                List<String> row = buildCsvRow(participant, exportFields, goodiesKeys, names);
                 csvPrinter.printRecord(row);
             }
 
@@ -1083,7 +1125,8 @@ public class ParticipantServiceImpl implements ParticipantService {
         };
     }
 
-    private List<String> buildCsvRow(ParticipantDDB participant, List<ExportField> fields, Set<String> goodiesKeys) {
+    private List<String> buildCsvRow(ParticipantDDB participant, List<ExportField> fields,
+                                     Set<String> goodiesKeys, EventNames names) {
         List<String> row = new ArrayList<>();
 
         for (ExportField field : fields) {
@@ -1095,14 +1138,14 @@ public class ParticipantServiceImpl implements ParticipantService {
                     row.add(value);
                 }
             } else {
-                row.add(getFieldValue(participant, field));
+                row.add(getFieldValue(participant, field, names));
             }
         }
 
         return row;
     }
 
-    private String getFieldValue(ParticipantDDB participant, ExportField field) {
+    private String getFieldValue(ParticipantDDB participant, ExportField field, EventNames names) {
         return switch (field) {
             case BIB_NUMBER -> nullSafe(participant.getBibNumber());
             case CHIP_NUMBER -> nullSafe(participant.getChipNumber());
@@ -1114,8 +1157,8 @@ public class ParticipantServiceImpl implements ParticipantService {
             case GENDER -> nullSafe(participant.getGender());
             case COUNTRY -> nullSafe(participant.getCountry());
             case CITY -> nullSafe(participant.getCity());
-            case RACE_NAME -> nullSafe(participant.getRaceName());
-            case CATEGORY_NAME -> nullSafe(participant.getCategoryName());
+            case RACE_NAME -> nullSafe(names.raceName(participant.getRaceId()));
+            case CATEGORY_NAME -> nullSafe(names.categoryName(participant.getCategoryId()));
             case BIB_COLLECTED_AT -> nullSafe(participant.getBibCollectedAt());
             case EMERGENCY_CONTACT_NAME -> nullSafe(participant.getEmergencyContactName());
             case EMERGENCY_CONTACT_PHONE -> nullSafe(participant.getEmergencyContactPhone());
@@ -1145,10 +1188,10 @@ public class ParticipantServiceImpl implements ParticipantService {
             return emptyStatistics(eventId);
         }
 
-        return buildStatisticsFromRows(eventId, rows);
+        return buildStatisticsFromRows(eventId, rows, nameResolver.forEvent(eventId));
     }
 
-    private ParticipantStatisticsResponse buildStatisticsFromRows(Long eventId, List<EventStatsDDB> rows) {
+    private ParticipantStatisticsResponse buildStatisticsFromRows(Long eventId, List<EventStatsDDB> rows, EventNames names) {
         int total = 0;
         int bibCollected = 0;
         int male = 0;
@@ -1168,7 +1211,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 case EventStatsServiceImpl.GENDER_M -> male = (int) count;
                 case EventStatsServiceImpl.GENDER_F -> female = (int) count;
                 case EventStatsServiceImpl.GENDER_O -> other = (int) count;
-                default -> applyDimensionRow(key, count, row, raceMap, categoryMap);
+                default -> applyDimensionRow(key, count, raceMap, categoryMap, names);
             }
         }
 
@@ -1191,20 +1234,22 @@ public class ParticipantServiceImpl implements ParticipantService {
     }
 
     private void applyDimensionRow(
-            String key, long count, EventStatsDDB row,
+            String key, long count,
             Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap,
-            Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap) {
+            Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap,
+            EventNames names) {
 
         if (key.startsWith(EventStatsServiceImpl.PREFIX_RACE)) {
-            applyRaceRow(key, count, row, raceMap);
+            applyRaceRow(key, count, raceMap, names);
         } else if (key.startsWith(EventStatsServiceImpl.PREFIX_CATEGORY)) {
-            applyCategoryRow(key, count, row, categoryMap);
+            applyCategoryRow(key, count, categoryMap, names);
         }
     }
 
     private void applyRaceRow(
-            String key, long count, EventStatsDDB row,
-            Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap) {
+            String key, long count,
+            Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap,
+            EventNames names) {
 
         boolean collected = key.endsWith(EventStatsServiceImpl.SUFFIX_COLLECTED);
         String raceId = collected
@@ -1215,14 +1260,11 @@ public class ParticipantServiceImpl implements ParticipantService {
         ParticipantStatisticsResponse.RaceStatistics rs = raceMap.computeIfAbsent(raceId,
                 k -> ParticipantStatisticsResponse.RaceStatistics.builder()
                         .raceId(k)
-                        .raceName(row.getRaceName())
+                        .raceName(names.raceName(k))
                         .count(0)
                         .bibCollectedCount(0)
                         .build());
 
-        if (rs.getRaceName() == null && row.getRaceName() != null) {
-            rs.setRaceName(row.getRaceName());
-        }
         if (collected) {
             rs.setBibCollectedCount((int) count);
         } else {
@@ -1231,23 +1273,20 @@ public class ParticipantServiceImpl implements ParticipantService {
     }
 
     private void applyCategoryRow(
-            String key, long count, EventStatsDDB row,
-            Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap) {
+            String key, long count,
+            Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap,
+            EventNames names) {
 
         if (key.endsWith(EventStatsServiceImpl.SUFFIX_COLLECTED)) return;
 
         String categoryId = key.substring(EventStatsServiceImpl.PREFIX_CATEGORY.length());
-        ParticipantStatisticsResponse.CategoryStatistics cs = categoryMap.computeIfAbsent(categoryId,
+        categoryMap.computeIfAbsent(categoryId,
                 k -> ParticipantStatisticsResponse.CategoryStatistics.builder()
                         .categoryId(k)
-                        .categoryName(row.getCategoryName())
+                        .categoryName(names.categoryName(k))
                         .count(0)
-                        .build());
-
-        if (cs.getCategoryName() == null && row.getCategoryName() != null) {
-            cs.setCategoryName(row.getCategoryName());
-        }
-        cs.setCount((int) count);
+                        .build())
+                .setCount((int) count);
     }
 
     private ParticipantDDB snapshotForStats(ParticipantDDB p) {
@@ -1255,9 +1294,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .eventId(p.getEventId())
                 .bibNumber(p.getBibNumber())
                 .raceId(p.getRaceId())
-                .raceName(p.getRaceName())
                 .categoryId(p.getCategoryId())
-                .categoryName(p.getCategoryName())
                 .gender(p.getGender())
                 .bibCollectedAt(p.getBibCollectedAt())
                 .build();

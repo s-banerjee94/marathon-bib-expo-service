@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.repository.CategoryRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
+import com.timekeeper.bibexpo.util.NameNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -21,11 +22,12 @@ public class BatchReferenceDataService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Race findOrCreateRace(String raceName, Long eventId, Event event) {
-        return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)
+        String normalizedName = NameNormalizer.toStoredName(raceName);
+        return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(normalizedName, eventId)
                 .orElseGet(() -> {
-                    log.info("Creating race '{}' for event {}", raceName, eventId);
+                    log.info("Creating race '{}' for event {}", normalizedName, eventId);
                     return raceRepository.save(Race.builder()
-                            .raceName(raceName)
+                            .raceName(normalizedName)
                             .raceDescription("Auto-created from CSV import")
                             .event(event)
                             .deleted(false)
@@ -35,11 +37,12 @@ public class BatchReferenceDataService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Category findOrCreateCategory(String categoryName, Race race) {
-        return categoryRepository.findByCategoryNameAndRaceId(categoryName, race.getId())
+        String normalizedName = NameNormalizer.toStoredName(categoryName);
+        return categoryRepository.findByCategoryNameAndRaceId(normalizedName, race.getId())
                 .orElseGet(() -> {
-                    log.info("Creating category '{}' for race {}", categoryName, race.getId());
+                    log.info("Creating category '{}' for race {}", normalizedName, race.getId());
                     return categoryRepository.save(Category.builder()
-                            .categoryName(categoryName)
+                            .categoryName(normalizedName)
                             .description("Auto-created from CSV import")
                             .race(race)
                             .build());

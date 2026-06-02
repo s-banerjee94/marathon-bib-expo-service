@@ -26,6 +26,9 @@ public class ParticipantDDB {
     @Getter(onMethod_ = @DynamoDbSortKey)
     private String bibNumber;
 
+    // Nullable, but unique-per-event when present: backs LSI-ChipNumberIndex for the create/update
+    // uniqueness lookup. A null chip is simply absent from the index, so blanks are never deduped.
+    @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-ChipNumberIndex"))
     private String chipNumber;
 
     @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-FullNameIndex"))
@@ -44,13 +47,13 @@ public class ParticipantDDB {
 
     private String raceId;
 
-    @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-RaceNameIndex"))
-    private String raceName;
-
     private String categoryId;
 
-    @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-CategoryNameIndex"))
-    private String categoryName;
+    // Composite "raceId#categoryId" backing LSI-RaceCategoryIndex: begins_with(raceId#) lists a whole
+    // race, exact match targets a single race+category. Kept in sync via compositeKey() on every write.
+    @Getter(onMethod_ = @DynamoDbSecondarySortKey(indexNames = "LSI-RaceCategoryIndex"))
+    private String raceCategoryKey;
+
     private String bibCollectedAt;
     private String bibCollectedByName;
     private String bibCollectedByPhone;
@@ -76,4 +79,13 @@ public class ParticipantDDB {
     private String createdBy;
     private String updatedAt;
     private String updatedBy;
+
+    public static final String KEY_DELIMITER = "#";
+
+    public static String compositeKey(String raceId, String categoryId) {
+        if (raceId == null || categoryId == null) {
+            return null;
+        }
+        return raceId + KEY_DELIMITER + categoryId;
+    }
 }
