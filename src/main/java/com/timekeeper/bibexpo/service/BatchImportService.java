@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportFieldResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.ImportMode;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -13,14 +14,20 @@ public interface BatchImportService {
 
     /**
      * Validate the column mapping, save the file and mapping to temp disk, then launch the async
-     * Spring Batch job. Existing participants are deleted by the job before new rows are written.
+     * Spring Batch job.
+     *
+     * <p>In {@link ImportMode#IMPORT} mode the job wipes existing participants before loading and is
+     * permitted only while the event is in draft. In {@link ImportMode#ADD_ON} mode the job appends
+     * without wiping and is permitted while the event is draft or published.
+     *
      * @param eventId     event to import into
      * @param file        uploaded CSV file
      * @param mappingJson frontend-supplied column mapping as JSON (see {@code ImportMappingRequest})
+     * @param mode        whether this run is a full import or an add-on
      * @param currentUser user launching the import
      * @return 202-style response with jobExecutionId and initial STARTED status
      */
-    BatchImportResponse launchImport(Long eventId, MultipartFile file, String mappingJson, User currentUser);
+    BatchImportResponse launchImport(Long eventId, MultipartFile file, String mappingJson, ImportMode mode, User currentUser);
 
     /**
      * Query Spring Batch metadata for job execution status and step counters.

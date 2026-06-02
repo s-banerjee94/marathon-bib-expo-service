@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.controller;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
-import com.timekeeper.bibexpo.model.dto.response.EventSummaryResponse;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -123,18 +122,6 @@ public class EventController implements EventControllerApi {
                 id, status, currentUser.getUsername());
 
         EventResponse response = eventService.changeEventStatus(id, status, currentUser);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
-    public ResponseEntity<EventSummaryResponse> getEventSummary(
-            @PathVariable Long id,
-            @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get event summary for event ID: {} by user: {}",
-                id, currentUser.getUsername());
-
-        EventSummaryResponse response = eventService.getEventSummary(id, currentUser);
 
         return ResponseEntity.ok(response);
     }

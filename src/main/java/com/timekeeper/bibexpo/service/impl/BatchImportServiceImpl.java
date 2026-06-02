@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.service.impl;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.EventDisabledException;
+import com.timekeeper.bibexpo.exception.ImportNotAllowedException;
 import com.timekeeper.bibexpo.exception.CsvImportException;
 import com.timekeeper.bibexpo.exception.ImportAlreadyRunningException;
 import com.timekeeper.bibexpo.exception.ImportNotRunningException;
@@ -14,6 +14,7 @@ import com.timekeeper.bibexpo.model.dto.request.ImportMappingRequest;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.ParticipantImportField;
+import com.timekeeper.bibexpo.model.enums.ImportMode;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
@@ -76,16 +77,14 @@ public class BatchImportServiceImpl implements BatchImportService {
 
     @Override
     @Auditable(entityType = AuditEntityType.PARTICIPANT, action = AuditAction.IMPORT)
-    public BatchImportResponse launchImport(Long eventId, MultipartFile file, String mappingJson, User currentUser) {
+    public BatchImportResponse launchImport(Long eventId, MultipartFile file, String mappingJson, ImportMode mode, User currentUser) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException());
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
-        EventStatus eventStatus = event.getStatus();
-        if (eventStatus == EventStatus.PUBLISHED || eventStatus == EventStatus.COMPLETED || eventStatus == EventStatus.CANCELLED) {
-            throw new EventDisabledException("Importing participants is not allowed once the event is published, completed, or cancelled.");
-        }
+        ImportMode effectiveMode = mode != null ? mode : ImportMode.IMPORT;
+        validateModeAllowed(effectiveMode, event.getStatus());
 
         if (importJobRepository.existsByEventIdAndStatus(eventId, ImportJob.ImportStatus.IN_PROGRESS)) {
             throw new ImportAlreadyRunningException("An import is already running for this event.");
@@ -114,6 +113,7 @@ public class BatchImportServiceImpl implements BatchImportService {
                 .successCount(0)
                 .failureCount(0)
                 .status(ImportJob.ImportStatus.IN_PROGRESS)
+                .mode(effectiveMode)
                 .importedBy(currentUser.getId())
                 .build();
         importJobRepository.save(pendingJob);
@@ -125,6 +125,7 @@ public class BatchImportServiceImpl implements BatchImportService {
                 .addString("mappingPath", mappingFile.toString())
                 .addString("fileName", originalFileName)
                 .addString("uploadedByUserId", currentUser.getId().toString())
+                .addString("mode", effectiveMode.name())
                 .addLong("run", System.currentTimeMillis())
                 .toJobParameters();
 
@@ -143,6 +144,18 @@ public class BatchImportServiceImpl implements BatchImportService {
             pendingJob.setErrorSummary("{\"reason\":\"Failed to launch the import job\"}");
             importJobRepository.save(pendingJob);
             throw new CsvImportException("Failed to start the import. Please try again.", e);
+        }
+    }
+
+    private void validateModeAllowed(ImportMode mode, EventStatus status) {
+        if (mode == ImportMode.ADD_ON) {
+            if (status == EventStatus.COMPLETED || status == EventStatus.CANCELLED) {
+                throw new ImportNotAllowedException(
+                        "You cannot add participants once the event is completed or cancelled.");
+            }
+        } else if (status != EventStatus.DRAFT) {
+            throw new ImportNotAllowedException(
+                    "A full import is only allowed while the event is in draft.");
         }
     }
 

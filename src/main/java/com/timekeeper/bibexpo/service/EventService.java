@@ -1,9 +1,12 @@
 package com.timekeeper.bibexpo.service;
 
+import com.timekeeper.bibexpo.exception.EventDeletionNotAllowedException;
+import com.timekeeper.bibexpo.exception.EventDisabledException;
+import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
-import com.timekeeper.bibexpo.model.dto.response.EventSummaryResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
 import org.springframework.data.domain.Page;
@@ -124,15 +127,4 @@ public interface EventService {
      * @throws UnauthorizedAccessException if the user is not authorized to delete the event
      */
     void deleteEvent(Long id, User currentUser);
-
-    /**
-     * Get event summary with races and categories
-     * Authorization:
-     * - ROOT and ADMIN can view any event summary
-     * - ORGANIZER_ADMIN and ORGANIZER_USER can only view summaries for events in their organization
-     * @param id The event ID
-     * @param currentUser The authenticated user
-     * @return The event summary response with races and categories
-     */
-    EventSummaryResponse getEventSummary(Long id, User currentUser);
 }

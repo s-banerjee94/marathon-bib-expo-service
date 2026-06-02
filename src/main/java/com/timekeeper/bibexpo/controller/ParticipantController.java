@@ -4,6 +4,9 @@ import com.timekeeper.bibexpo.model.dto.request.BulkDeleteParticipantsRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.response.*;
+import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.exception.ParticipantDeletionNotAllowedException;
+import com.timekeeper.bibexpo.exception.ParticipantModificationNotAllowedException;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
@@ -12,10 +15,13 @@ import com.timekeeper.bibexpo.service.ParticipantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 import java.util.List;
 import java.util.Map;
@@ -244,5 +250,21 @@ public class ParticipantController implements ParticipantControllerApi {
                 eventId, response.getTotalParticipants(), response.getBibCollectedCount());
 
         return ResponseEntity.ok(response);
+    }
+
+    @ExceptionHandler(ParticipantDeletionNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleParticipantDeletionNotAllowed(
+            ParticipantDeletionNotAllowedException ex, WebRequest request) {
+        log.info("Participant deletion not allowed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(ParticipantModificationNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleParticipantModificationNotAllowed(
+            ParticipantModificationNotAllowedException ex, WebRequest request) {
+        log.info("Participant modification not allowed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
 }

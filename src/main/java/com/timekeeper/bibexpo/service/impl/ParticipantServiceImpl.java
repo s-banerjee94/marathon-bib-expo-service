@@ -90,11 +90,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
-
-        EventStatus eventStatus = event.getStatus();
-        if (eventStatus == EventStatus.COMPLETED || eventStatus == EventStatus.CANCELLED) {
-            throw new EventDisabledException("New participants cannot be added to a completed or cancelled event.");
-        }
+        requireEventNotFinal(event);
 
         ParticipantDDB existingParticipant = participantTable.getItem(
                 Key.builder()
@@ -225,6 +221,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(EventNotFoundException::new);
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        requireEventNotFinal(event);
 
         ParticipantDDB participant = participantTable.getItem(
                 Key.builder()
@@ -480,6 +477,21 @@ public class ParticipantServiceImpl implements ParticipantService {
         return totalDeletedCount;
     }
 
+    private void requireDraftForDelete(Event event) {
+        if (event.getStatus() != EventStatus.DRAFT) {
+            throw new ParticipantDeletionNotAllowedException(
+                    "You can only delete participants while the event is in draft.");
+        }
+    }
+
+    private void requireEventNotFinal(Event event) {
+        EventStatus status = event.getStatus();
+        if (status == EventStatus.COMPLETED || status == EventStatus.CANCELLED) {
+            throw new ParticipantModificationNotAllowedException(
+                    "You cannot add or edit participants once the event is completed or cancelled.");
+        }
+    }
+
     @Override
     public DeleteParticipantsResponse deleteParticipant(Long eventId, String bibNumber, User currentUser) {
         log.info("Deleting participant with bib {} for event ID: {} by user: {}", bibNumber, eventId, currentUser.getUsername());
@@ -488,6 +500,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(EventNotFoundException::new);
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        requireDraftForDelete(event);
 
         ParticipantDDB participant = participantTable.getItem(
                 Key.builder()
@@ -529,6 +542,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
+        requireDraftForDelete(event);
 
         int deletedCount = deleteAllParticipantsForEvent(eventId);
         eventStatsRepo.deleteAllByEventId(eventId.toString());
@@ -553,6 +567,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .orElseThrow(EventNotFoundException::new);
 
         validator.validateUserAuthorizationForEvent(currentUser, event);
+        requireDraftForDelete(event);
 
         // TODO: why only 25 max delete option
         if (bibNumbers.size() > 25) {

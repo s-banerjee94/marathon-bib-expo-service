@@ -127,10 +127,7 @@ public class AuthServiceImpl implements AuthService {
 
         String activeSid = sessionService.getActiveSid(username);
         if (activeSid == null || !activeSid.equals(oldSid)) {
-            // Reuse detected — kill the whole chain
-            sessionService.endSession(user);
-            clearAuthCookies(httpResponse);
-            log.warn("Refresh token reuse detected for user {} — session chain revoked", username);
+            log.warn("Invalid refresh token for user {} — request dropped", username);
             throw new JwtAuthenticationException("Your session has been signed out. Please log in again.");
         }
 

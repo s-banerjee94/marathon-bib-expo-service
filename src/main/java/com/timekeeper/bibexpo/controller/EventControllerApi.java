@@ -4,7 +4,6 @@ import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
-import com.timekeeper.bibexpo.model.dto.response.EventSummaryResponse;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -207,8 +206,9 @@ public interface EventControllerApi {
             summary = "Update an existing event",
             description = """
                     Update an existing marathon event. Only provided fields will be updated (partial update). \
-                    Supports updating event status (DRAFT, PUBLISHED, CANCELLED, COMPLETED). \
+                    Event status is not changed here; use the PATCH /{id}/status endpoint. \
                     Timezone cannot be changed once the event is PUBLISHED or COMPLETED. \
+                    Once PUBLISHED the start date is locked and the end date can only be extended (never moved earlier); when COMPLETED, dates cannot be changed. \
                     Permanent deletion is handled by a separate DELETE endpoint. \
                     ROOT and ADMIN can update events for any organization. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only update events for their own organization."""
@@ -304,11 +304,11 @@ public interface EventControllerApi {
     @Operation(
             summary = "Change event status",
             description = """
-                    Change event status to DRAFT, PUBLISHED, CANCELLED, or COMPLETED. \
-                    Accessible by ROOT, ADMIN, ORGANIZER_ADMIN, and ORGANIZER_USER. \
-                    DISTRIBUTOR role cannot change event status. \
-                    ROOT and ADMIN can change status for any event. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only change status for events in their organization."""
+                    Change event status. Allowed moves: DRAFT to PUBLISHED or CANCELLED; \
+                    PUBLISHED to DRAFT (only before distribution and before the start date), COMPLETED, or CANCELLED. \
+                    Once distribution has started or the start date has passed, the event can no longer return to DRAFT. \
+                    A COMPLETED or CANCELLED event is final and can only be reopened to PUBLISHED by ROOT or ADMIN. \
+                    DISTRIBUTOR cannot change event status; ORGANIZER_ADMIN and ORGANIZER_USER are limited to events in their own organization."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -321,7 +321,7 @@ public interface EventControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid status value",
+                    description = "Invalid status value, or the requested status change is not allowed",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -329,7 +329,7 @@ public interface EventControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - insufficient permissions or trying to change status for event in another organization",
+                    description = "Access forbidden - insufficient permissions, another organization's event, or reopening a finished event without administrator rights",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -348,45 +348,6 @@ public interface EventControllerApi {
             @PathVariable Long id,
             @Parameter(description = "New event status (DRAFT, PUBLISHED, CANCELLED, COMPLETED)", required = true)
             @RequestParam EventStatus status,
-            @AuthenticationPrincipal User currentUser);
-
-    @GetMapping("/{id}/summary")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(
-            summary = "Get event summary with races and categories",
-            description = """
-                    Retrieve comprehensive event summary including all races and their categories. \
-                    ROOT and ADMIN can view any event summary. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only view summaries for events in their organization."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Event summary retrieved successfully",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = EventSummaryResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Access forbidden - trying to view event from another organization",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Event not found",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<EventSummaryResponse> getEventSummary(
-            @PathVariable Long id,
             @AuthenticationPrincipal User currentUser);
 
     @DeleteMapping("/{id}")

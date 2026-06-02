@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportFieldResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.ImportMode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -39,11 +40,18 @@ public interface BatchImportControllerApi {
                     Accepts the CSV file plus a JSON column mapping (see ImportMappingRequest) in the same \
                     multipart request. Columns are matched by zero-based physical position, so the file header \
                     is not validated server-side. The mapping is validated up front (unknown fields, missing \
-                    required fields, or duplicate mappings return 400). Existing participants for the event are \
-                    deleted when the job starts, then a Spring Batch job runs asynchronously. Returns 202 \
-                    immediately with a jobExecutionId. Poll GET .../batch-import/{jobExecutionId}/status to \
-                    track progress. Returns 409 if a batch import is already running for the same event. \
-                    A successful launch is recorded in the audit log (entity PARTICIPANT, action IMPORT)."""
+                    required fields, or duplicate mappings return 400). \
+
+                    The `mode` parameter selects the run type: \
+                    - IMPORT (default): a full load. Existing participants are wiped when the job starts, then the \
+                    file is loaded. Allowed only while the event is in DRAFT. \
+                    - ADD_ON: appends walk-ins without wiping. Allowed while the event is DRAFT or PUBLISHED; \
+                    blocked once COMPLETED or CANCELLED. \
+
+                    A Spring Batch job runs asynchronously and returns 202 immediately with a jobExecutionId. \
+                    Poll GET .../batch-import/{jobExecutionId}/status to track progress. Returns 409 if a batch \
+                    import is already running for the same event. A successful launch is recorded in the audit \
+                    log (entity PARTICIPANT, action IMPORT)."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "202", description = "Import job accepted and started",
@@ -67,6 +75,9 @@ public interface BatchImportControllerApi {
             @Parameter(description = "CSV file", required = true) @RequestParam("file") MultipartFile file,
             @Parameter(description = "Column mapping JSON (ImportMappingRequest)", required = true)
             @RequestPart("mapping") String mapping,
+            @Parameter(description = "Run mode: IMPORT (full load, draft only, wipes existing) or ADD_ON "
+                    + "(append walk-ins, draft or published). Defaults to IMPORT.")
+            @RequestParam(value = "mode", required = false, defaultValue = "IMPORT") ImportMode mode,
             @AuthenticationPrincipal User currentUser
     );
 

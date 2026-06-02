@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.model.entity;
 
+import com.timekeeper.bibexpo.model.enums.ImportMode;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -53,6 +54,11 @@ public class ImportJob {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private ImportStatus status;
+
+    // Nullable so DDL-update adds the column cleanly to existing rows; a null mode is treated as IMPORT.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mode", length = 20)
+    private ImportMode mode;
 
     @Column(name = "imported_by", nullable = false)
     private Long importedBy;

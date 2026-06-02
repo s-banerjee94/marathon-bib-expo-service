@@ -8,6 +8,7 @@ import com.timekeeper.bibexpo.model.entity.EventLatestImport;
 import com.timekeeper.bibexpo.model.entity.ImportJob;
 import com.timekeeper.bibexpo.model.entity.Notification;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.ImportMode;
 import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.ImportJobRepository;
@@ -46,6 +47,12 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     public void beforeJob(JobExecution jobExecution) {
         String eventIdParam = jobExecution.getJobParameters().getString("eventId");
         if (eventIdParam == null) return;
+
+        // ADD_ON appends to the existing roster; only a full IMPORT wipes first.
+        if (ImportMode.ADD_ON.name().equals(jobExecution.getJobParameters().getString("mode"))) {
+            log.info("ADD_ON run for event {} — keeping existing participants (no wipe)", eventIdParam);
+            return;
+        }
 
         try {
             int deleted = participantDDBRepository.deleteAllByEventId(eventIdParam);
@@ -171,6 +178,9 @@ public class BatchJobNotificationListener implements JobExecutionListener {
                 ? ImportJob.ImportStatus.COMPLETED
                 : ImportJob.ImportStatus.FAILED;
 
+        String modeParam = jobExecution.getJobParameters().getString("mode");
+        ImportMode mode = ImportMode.ADD_ON.name().equals(modeParam) ? ImportMode.ADD_ON : ImportMode.IMPORT;
+
         // Replace the IN_PROGRESS placeholder inserted at launch time. The PK changes from UUID to
         // jobExecutionId so delete-then-insert keeps downstream consumers (EventLatestImport, DDB) consistent.
         importJobRepository.findByEventIdAndStatus(eventId, ImportJob.ImportStatus.IN_PROGRESS)
@@ -185,6 +195,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
                 .successCount(writeCount)
                 .failureCount(skipCount)
                 .status(status)
+                .mode(mode)
                 .errorSummary(errorSummaryJson)
                 .goodiesDetected(goodiesDetected)
                 .importedBy(userId)

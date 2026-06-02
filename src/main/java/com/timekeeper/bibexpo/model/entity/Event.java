@@ -88,6 +88,10 @@ public class Event implements Serializable {
     @Builder.Default
     private EventStatus status = EventStatus.DRAFT;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean distributionStarted = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organization_id", nullable = false, foreignKey = @ForeignKey(name = "fk_event_organization"))
     private Organization organization;

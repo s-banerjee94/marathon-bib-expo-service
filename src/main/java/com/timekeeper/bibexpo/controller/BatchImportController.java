@@ -4,13 +4,19 @@ import com.timekeeper.bibexpo.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportFieldResponse;
+import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.exception.ImportNotAllowedException;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.ImportMode;
 import com.timekeeper.bibexpo.service.BatchImportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -25,14 +31,15 @@ public class BatchImportController implements BatchImportControllerApi {
 
     @Override
     public ResponseEntity<BatchImportResponse> launchBatchImport(
-            Long eventId, MultipartFile file, String mapping, User currentUser) {
+            Long eventId, MultipartFile file, String mapping, ImportMode mode, User currentUser) {
 
-        log.info("Batch import request - event: {}, file: {}, user: {}",
-                eventId, file.getOriginalFilename(), currentUser.getUsername());
+        log.info("Batch import request - event: {}, file: {}, mode: {}, user: {}",
+                eventId, file.getOriginalFilename(), mode, currentUser.getUsername());
 
-        BatchImportResponse response = batchImportService.launchImport(eventId, file, mapping, currentUser);
+        BatchImportResponse response = batchImportService.launchImport(eventId, file, mapping, mode, currentUser);
 
-        log.info("Batch import job {} launched for event {}", response.getJobExecutionId(), eventId);
+        log.info("Batch import job {} launched for event {} (mode {})",
+                response.getJobExecutionId(), eventId, mode);
 
         return ResponseEntity.accepted().body(response);
     }
@@ -69,5 +76,13 @@ public class BatchImportController implements BatchImportControllerApi {
     @Override
     public ResponseEntity<List<ImportFieldResponse>> getImportFields(Long eventId, User currentUser) {
         return ResponseEntity.ok(batchImportService.getImportFields());
+    }
+
+    @ExceptionHandler(ImportNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleImportNotAllowed(
+            ImportNotAllowedException ex, WebRequest request) {
+        log.info("Import not allowed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
 }

@@ -34,6 +34,7 @@ public interface ParticipantControllerApi {
             summary = "Create a new participant",
             description = """
                     Create a single participant for an event. \
+                    Adding is allowed while the event is in draft or published; it is blocked once the event is completed or cancelled. \
 
                     **Required:** bibNumber, fullName, raceId, categoryId, gender. \
 
@@ -51,7 +52,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "201", description = "Participant created successfully",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ParticipantResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request data or participant with BIB number already exists",
+            @ApiResponse(responseCode = "400", description = "Invalid request data, participant with BIB number already exists, or the event is completed or cancelled",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
@@ -364,6 +365,7 @@ public interface ParticipantControllerApi {
             description = """
                     ⚠️ WARNING: This will permanently delete ALL participants for the specified event. \
                     This action cannot be undone. Use with caution. \
+                    Allowed only while the event is in DRAFT; deletion is blocked once the event is published, completed, or cancelled. \
 
                     Attempts to delete all participants and returns counts of successful and failed deletions."""
     )
@@ -371,6 +373,9 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "200", description = "Deletion operation completed. Response includes deleted and failed counts.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = DeleteParticipantsResponse.class))),
+            @ApiResponse(responseCode = "400", description = "The event is not in draft - participants can only be deleted while the event is in draft",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
@@ -393,6 +398,7 @@ public interface ParticipantControllerApi {
                     **Constraints:** \
                     - Minimum 1 bib number required (empty list will be rejected) \
                     - Maximum 25 participants per request (more will be rejected) \
+                    - Allowed only while the event is in DRAFT; deletion is blocked once the event is published, completed, or cancelled \
 
                     Returns counts of successfully deleted participants and any failures that occurred during the operation."""
     )
@@ -400,7 +406,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "200", description = "Bulk delete operation completed. Response includes deleted and failed counts.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = DeleteParticipantsResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request - empty list, more than 25 items, or invalid bib numbers",
+            @ApiResponse(responseCode = "400", description = "Invalid request - empty list, more than 25 items, invalid bib numbers, or the event is not in draft",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
@@ -456,6 +462,7 @@ public interface ParticipantControllerApi {
             summary = "Update participant details",
             description = """
                     Update participant information with partial (PATCH) semantics. Only fields present in the request are applied. \
+                    Editing is allowed while the event is in draft or published; it is blocked once the event is completed or cancelled. \
 
                     **What Can Be Updated:** \
                     - Identity & contact: chipNumber, fullName, email, phoneNumber \
@@ -487,7 +494,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "200", description = "Participant updated successfully. Returns the complete updated record.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ParticipantResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request data - invalid race/category ID, invalid field values, or field validation errors",
+            @ApiResponse(responseCode = "400", description = "Invalid request data - invalid race/category ID, invalid field values, field validation errors, or the event is completed or cancelled",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access denied - user not authorized for this event",
@@ -522,12 +529,16 @@ public interface ParticipantControllerApi {
             summary = "Delete a participant by bib number",
             description = """
                     Permanently delete a single participant from an event using their bib number. \
-                    This action cannot be undone. The participant record will be completely removed from DynamoDB."""
+                    This action cannot be undone. The participant record will be completely removed from DynamoDB. \
+                    Allowed only while the event is in DRAFT; deletion is blocked once the event is published, completed, or cancelled."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Participant deleted successfully. Response includes deletion count and status.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = DeleteParticipantsResponse.class))),
+            @ApiResponse(responseCode = "400", description = "The event is not in draft - participants can only be deleted while the event is in draft",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),

@@ -6,7 +6,6 @@ import com.timekeeper.bibexpo.exception.*;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
-import com.timekeeper.bibexpo.model.dto.response.EventSummaryResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.Organization;
@@ -18,6 +17,7 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.service.validator.EventStatusTransitionValidator;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +46,7 @@ public class EventServiceImpl implements EventService {
     private final EventRepository eventRepository;
     private final OrganizationRepository organizationRepository;
     private final EventAccessValidator eventAccessValidator;
+    private final EventStatusTransitionValidator statusTransitionValidator;
 
     @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.CREATE)
     @Override
@@ -93,7 +94,7 @@ public class EventServiceImpl implements EventService {
                 .country(request.getCountry())
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
-                .status(request.getStatus() != null ? request.getStatus() : EventStatus.DRAFT)
+                .status(EventStatus.DRAFT)
                 .organization(organization)
                 .eventGoodies(request.getEventGoodies())
                 .build();
@@ -134,7 +135,6 @@ public class EventServiceImpl implements EventService {
         updateIfNotNull(request.getLatitude(), event::setLatitude);
         updateIfNotNull(request.getLongitude(), event::setLongitude);
         updateIfNotNull(request.getEventGoodies(), event::setEventGoodies);
-        updateIfNotNull(request.getStatus(), event::setStatus);
 
         Event updatedEvent = eventRepository.save(event);
         log.info("Successfully updated event with ID: {} by user: {}", updatedEvent.getId(), currentUser.getUsername());
@@ -167,13 +167,28 @@ public class EventServiceImpl implements EventService {
     }
 
     private void applyEventDateUpdates(Event event, UpdateEventRequest request) {
-        boolean datesLocked = event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED;
         ZoneId effectiveZone = ZoneId.of(request.getTimezone() != null ? request.getTimezone() : event.getTimezone());
+        boolean published = event.getStatus() == EventStatus.PUBLISHED;
+        boolean finalised = event.getStatus() == EventStatus.COMPLETED;
 
-        applyDateUpdate(datesLocked, effectiveZone, request.getEventStartDate(),
-                request.getEventStartTime(), "start", event::setEventStartDate);
-        applyDateUpdate(datesLocked, effectiveZone, request.getEventEndDate(),
-                request.getEventEndTime(), "end", event::setEventEndDate);
+        Instant newStart = resolveDateUpdate(effectiveZone, request.getEventStartDate(), request.getEventStartTime(), "start");
+        if (newStart != null) {
+            if (published || finalised) {
+                throw new InvalidUserDataException("You cannot change the start date once the event is published.");
+            }
+            event.setEventStartDate(newStart);
+        }
+
+        Instant newEnd = resolveDateUpdate(effectiveZone, request.getEventEndDate(), request.getEventEndTime(), "end");
+        if (newEnd != null) {
+            if (finalised) {
+                throw new InvalidUserDataException("You cannot change the end date after the event is completed.");
+            }
+            if (published && newEnd.isBefore(event.getEventEndDate())) {
+                throw new InvalidUserDataException("You can only extend the end date, not move it earlier.");
+            }
+            event.setEventEndDate(newEnd);
+        }
 
         if (event.getEventEndDate() != null && event.getEventStartDate() != null
                 && !event.getEventEndDate().isAfter(event.getEventStartDate())) {
@@ -181,19 +196,15 @@ public class EventServiceImpl implements EventService {
         }
     }
 
-    private void applyDateUpdate(boolean datesLocked, ZoneId effectiveZone, String date,
-                                 String time, String fieldLabel, Consumer<Instant> setter) {
+    private Instant resolveDateUpdate(ZoneId effectiveZone, String date, String time, String fieldLabel) {
         if (date == null && time == null) {
-            return;
+            return null;
         }
         if (date == null || time == null) {
             throw new InvalidUserDataException(
                     "Both event " + fieldLabel + " date and time must be provided together.");
         }
-        if (datesLocked) {
-            throw new InvalidUserDataException("Event dates cannot be changed after the event is published.");
-        }
-        setter.accept(parseToInstant(date, time, effectiveZone));
+        return parseToInstant(date, time, effectiveZone);
     }
 
     @Override
@@ -289,6 +300,8 @@ public class EventServiceImpl implements EventService {
             throw new InvalidUserDataException("Event status is required.");
         }
 
+        statusTransitionValidator.validateTransition(event, status, currentUser);
+
         event.setStatus(status);
 
         Event updatedEvent = eventRepository.save(event);
@@ -336,23 +349,6 @@ public class EventServiceImpl implements EventService {
 
         eventRepository.delete(event);
         log.info("Successfully deleted event with ID: {} by user: {}", id, currentUser.getUsername());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public EventSummaryResponse getEventSummary(Long id, User currentUser) {
-        log.info("Fetching event summary for event ID: {} by user: {}", id, currentUser.getUsername());
-
-        Event event = findAndValidateEvent(id, currentUser);
-
-        event.getRaces().forEach(race -> race.getCategories().forEach(category -> {}));
-
-        EventSummaryResponse summary = EventSummaryResponse.fromEntity(event);
-
-        log.info("Successfully fetched event summary for event ID: {} with {} races and {} categories by user: {}",
-                id, summary.getTotalRaces(), summary.getTotalCategories(), currentUser.getUsername());
-
-        return summary;
     }
 
     private Specification<Event> buildEventSpecification(

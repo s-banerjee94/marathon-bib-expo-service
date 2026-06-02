@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.model.dto.request;
 
-import com.timekeeper.bibexpo.model.entity.EventStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -84,9 +83,6 @@ public class CreateEventRequest {
     @DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
     @Schema(description = "Venue longitude", example = "72.8777")
     private Double longitude;
-
-    @Schema(description = "Event status", example = "DRAFT", allowableValues = {"DRAFT", "PUBLISHED", "CANCELLED", "COMPLETED"}, defaultValue = "DRAFT")
-    private EventStatus status;
 
     @NotNull(message = "Organization ID is required")
     @Schema(description = "Organization ID that owns this event", example = "1")

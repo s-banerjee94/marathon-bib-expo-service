@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.service.validator;
 
+import com.timekeeper.bibexpo.exception.EventDisabledException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,19 @@ import org.springframework.stereotype.Component;
 public class DistributionValidator {
 
     private final EventAccessValidator eventAccessValidator;
+
+    /**
+     * Distribution actions (bib collection, undo, and goodies hand-out) may proceed
+     * only while the event is published. This status gate applies to every role,
+     * platform admins included.
+     *
+     * @throws EventDisabledException if the event is not in the published state
+     */
+    public void validateDistributionAllowed(Event event) {
+        if (event.getStatus() != EventStatus.PUBLISHED) {
+            throw new EventDisabledException("Bib distribution is only allowed while the event is published.");
+        }
+    }
 
     public void validateUserAuthorizationForEvent(User currentUser, Event event) {
         eventAccessValidator.validateEventAvailability(currentUser, event);
