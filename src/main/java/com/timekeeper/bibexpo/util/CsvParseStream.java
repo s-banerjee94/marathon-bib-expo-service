@@ -101,14 +101,14 @@ public class CsvParseStream implements Closeable {
         switch (targetField) {
             case "chipNumber" -> row.setChipNumber(value);
             case "bibNumber" -> row.setBibNumber(value);
-            case "fullName" -> row.setFullName(normalizeString(value));
+            case "fullName" -> row.setFullName(TextUtils.toUpperOrNull(value));
             case "dateOfBirth" -> row.setDateOfBirth(value);
             case "age" -> row.setAge(parseInteger(value));
-            case "gender" -> row.setGender(normalizeString(value));
+            case "gender" -> row.setGender(TextUtils.toUpperOrNull(value));
             case "raceName" -> row.setRaceName(value);
             case "categoryName" -> row.setCategoryName(value);
             case "phoneNumber" -> row.setPhone(value);
-            case "email" -> row.setEmail(normalizeEmail(value));
+            case "email" -> row.setEmail(TextUtils.toLowerOrNull(value));
             case "country" -> row.setCountry(value);
             case "city" -> row.setCity(value);
             default -> { /* unknown target fields are rejected before the job starts */ }
@@ -133,15 +133,5 @@ public class CsvParseStream implements Closeable {
         } catch (NumberFormatException e) {
             return null;
         }
-    }
-
-    private String normalizeEmail(String email) {
-        if (email == null || email.trim().isEmpty()) return null;
-        return email.trim().toLowerCase();
-    }
-
-    private String normalizeString(String value) {
-        if (value == null || value.trim().isEmpty()) return null;
-        return value.trim().toUpperCase();
     }
 }

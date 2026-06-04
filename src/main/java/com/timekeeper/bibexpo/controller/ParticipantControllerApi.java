@@ -52,7 +52,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "201", description = "Participant created successfully",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ParticipantResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request data, participant with BIB number already exists, or the event is completed or cancelled",
+            @ApiResponse(responseCode = "400", description = "Invalid request data, or the event is completed or cancelled",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
@@ -61,7 +61,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "404", description = "Event, race, or category not found",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Chip number already assigned to another participant in this event",
+            @ApiResponse(responseCode = "409", description = "BIB number or chip number already assigned to another participant in this event",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -127,75 +127,6 @@ public interface ParticipantControllerApi {
     ResponseEntity<Map<String, Long>> getParticipantCount(
             @Parameter(description = "Event ID", required = true)
             @PathVariable Long eventId,
-
-            @AuthenticationPrincipal User currentUser
-    );
-
-    @GetMapping("/{eventId}/participants/search")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(
-            summary = "Search and filter participants",
-            description = """
-                    Flexible search for participants using a search term and/or optional filters. \
-
-                    **Search Logic:** If searchTerm is provided, it matches ANY of: fullName, email, phoneNumber, or chipNumber \
-                    (case-insensitive, partial match). If no searchTerm is provided, filters alone are applied. \
-
-                    **Filter Logic:** All specified filters (race, category, gender, age range, city, country) must match (AND logic). \
-
-                    **Pagination:** Results are paginated using DynamoDB-style pagination with lastEvaluatedKey (base64 encoded). \
-
-                    **Performance Note:** ⚠️ Uses DynamoDB Scan operation which may be slower for large datasets. \
-                    For cost-efficient lookups by specific fields, use the /lookup endpoint instead."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Search completed successfully. Returns matching participants with pagination info.",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ParticipantListResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid search parameters - search term too short (<2 chars), invalid age range (min > max), limit > 100, or invalid pagination key",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    ResponseEntity<ParticipantListResponse> searchParticipants(
-            @Parameter(description = "Event ID", required = true, example = "1")
-            @PathVariable Long eventId,
-
-            @Parameter(description = "Search term (min 2 chars) - searches across name, email, phone, chip number",
-                    example = "SANJAY")
-            @RequestParam(required = false) String searchTerm,
-
-            @Parameter(description = "Filter by race ID", example = "5")
-            @RequestParam(required = false) String raceId,
-
-            @Parameter(description = "Filter by category ID", example = "12")
-            @RequestParam(required = false) String categoryId,
-
-            @Parameter(description = "Filter by gender (M/F/O)", example = "M")
-            @RequestParam(required = false) String gender,
-
-            @Parameter(description = "Filter by minimum age", example = "18")
-            @RequestParam(required = false) Integer minAge,
-
-            @Parameter(description = "Filter by maximum age", example = "60")
-            @RequestParam(required = false) Integer maxAge,
-
-            @Parameter(description = "Filter by city (partial match)", example = "Mumbai")
-            @RequestParam(required = false) String city,
-
-            @Parameter(description = "Filter by country (partial match)", example = "India")
-            @RequestParam(required = false) String country,
-
-            @Parameter(description = "Maximum number of results (default: 50, max: 100)", example = "50")
-            @RequestParam(defaultValue = "50") Integer limit,
-
-            @Parameter(description = "DynamoDB pagination key from previous response (base64 encoded)")
-            @RequestParam(required = false) String lastEvaluatedKey,
 
             @AuthenticationPrincipal User currentUser
     );
@@ -503,7 +434,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "404", description = "Event, participant, race, or category not found",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Chip number already assigned to another participant in this event",
+            @ApiResponse(responseCode = "409", description = "BIB number or chip number already assigned to another participant in this event",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })

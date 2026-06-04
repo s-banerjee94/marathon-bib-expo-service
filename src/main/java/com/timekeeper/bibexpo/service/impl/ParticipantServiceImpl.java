@@ -12,17 +12,16 @@ import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.*;
 import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
-import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.service.CategoryService;
-import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.ParticipantService;
 import com.timekeeper.bibexpo.service.RaceService;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.service.validator.ParticipantAccessGuard;
+import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,11 +54,9 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     public static final String FAILED_TO_DECODE_PAGINATION_KEY = "Failed to decode pagination key";
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
-    private final EventService eventService;
-    private final EventRepository eventRepository;
     private final RaceService raceService;
     private final CategoryService categoryService;
-    private final EventAccessValidator validator;
+    private final ParticipantAccessGuard accessGuard;
     private final DynamoDBPaginationCodec paginationCodec;
     private final EventStatsDDBRepository eventStatsRepo;
     private final EventStatsService eventStatsService;
@@ -85,12 +82,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Creating participant with BIB {} for event ID: {} by user: {}",
                 request.getBibNumber(), eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
-        requireEventNotFinal(event);
+        accessGuard.forWrite(eventId, currentUser);
 
         ParticipantDDB existingParticipant = participantTable.getItem(
                 Key.builder()
@@ -100,7 +92,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         );
 
         if (existingParticipant != null) {
-            throw new IllegalArgumentException("A participant with this BIB number already exists.");
+            throw new BibNumberAlreadyExistsException("A participant with this BIB number already exists.");
         }
 
         assertChipNumberAvailable(eventId, request.getChipNumber(), request.getBibNumber());
@@ -115,8 +107,8 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .eventId(eventId.toString())
                 .bibNumber(request.getBibNumber())
                 .chipNumber(request.getChipNumber())
-                .fullName(normalizeName(request.getFullName()))
-                .email(normalizeEmail(request.getEmail()))
+                .fullName(TextUtils.toUpperOrNull(request.getFullName()))
+                .email(TextUtils.toLowerOrNull(request.getEmail()))
                 .phoneNumber(request.getPhoneNumber())
                 .dateOfBirth(request.getDateOfBirth())
                 .age(request.getAge())
@@ -152,11 +144,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Fetching participants for event ID: {} with limit: {} by user: {}",
                 eventId, limit, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
+        accessGuard.forRead(eventId, currentUser);
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId.toString()).build()
@@ -186,10 +174,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Fetching participant with bib {} for event ID: {} by user: {}",
                 bibNumber, eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
+        accessGuard.forRead(eventId, currentUser);
 
         ParticipantDDB participant = participantTable.getItem(
                 Key.builder()
@@ -217,11 +202,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Updating participant BIB {} for event ID: {} by user: {}",
                 bibNumber, eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        requireEventNotFinal(event);
+        accessGuard.forWrite(eventId, currentUser);
 
         ParticipantDDB participant = participantTable.getItem(
                 Key.builder()
@@ -251,7 +232,7 @@ public class ParticipantServiceImpl implements ParticipantService {
             );
 
             if (existingWithNewBib != null) {
-                throw new IllegalArgumentException("A participant with this BIB number already exists.");
+                throw new BibNumberAlreadyExistsException("A participant with this BIB number already exists.");
             }
 
             log.warn("BIB number change requested: {} -> {} for event {}",
@@ -267,8 +248,8 @@ public class ParticipantServiceImpl implements ParticipantService {
             assertChipNumberAvailable(eventId, request.getChipNumber(), bibNumber);
         }
         updateIfNotNull(request.getChipNumber(), participant::setChipNumber);
-        updateIfNotNull(normalizeName(request.getFullName()), participant::setFullName);
-        updateIfNotNull(normalizeEmail(request.getEmail()), participant::setEmail);
+        updateIfNotNull(TextUtils.toUpperOrNull(request.getFullName()), participant::setFullName);
+        updateIfNotNull(TextUtils.toLowerOrNull(request.getEmail()), participant::setEmail);
         updateIfNotNull(request.getPhoneNumber(), participant::setPhoneNumber);
         updateIfNotNull(request.getDateOfBirth(), participant::setDateOfBirth);
         updateIfNotNull(request.getAge(), participant::setAge);
@@ -317,11 +298,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     public Long getParticipantCount(Long eventId, User currentUser) {
         log.info("Counting participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
+        accessGuard.forRead(eventId, currentUser);
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId.toString()).build()
@@ -477,30 +454,11 @@ public class ParticipantServiceImpl implements ParticipantService {
         return totalDeletedCount;
     }
 
-    private void requireDraftForDelete(Event event) {
-        if (event.getStatus() != EventStatus.DRAFT) {
-            throw new ParticipantDeletionNotAllowedException(
-                    "You can only delete participants while the event is in draft.");
-        }
-    }
-
-    private void requireEventNotFinal(Event event) {
-        EventStatus status = event.getStatus();
-        if (status == EventStatus.COMPLETED || status == EventStatus.CANCELLED) {
-            throw new ParticipantModificationNotAllowedException(
-                    "You cannot add or edit participants once the event is completed or cancelled.");
-        }
-    }
-
     @Override
     public DeleteParticipantsResponse deleteParticipant(Long eventId, String bibNumber, User currentUser) {
         log.info("Deleting participant with bib {} for event ID: {} by user: {}", bibNumber, eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        requireDraftForDelete(event);
+        Event event = accessGuard.forDelete(eventId, currentUser);
 
         ParticipantDDB participant = participantTable.getItem(
                 Key.builder()
@@ -537,12 +495,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     public DeleteParticipantsResponse deleteAllParticipants(Long eventId, User currentUser) {
         log.info("Deleting all participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
-        requireDraftForDelete(event);
+        Event event = accessGuard.forDelete(eventId, currentUser);
 
         int deletedCount = deleteAllParticipantsForEvent(eventId);
         eventStatsRepo.deleteAllByEventId(eventId.toString());
@@ -563,13 +516,8 @@ public class ParticipantServiceImpl implements ParticipantService {
     public DeleteParticipantsResponse deleteBulkParticipants(Long eventId, List<String> bibNumbers, User currentUser) {
         log.info("Deleting {} participants for event ID: {} by user: {}", bibNumbers.size(), eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
+        Event event = accessGuard.forDelete(eventId, currentUser);
 
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        requireDraftForDelete(event);
-
-        // TODO: why only 25 max delete option
         if (bibNumbers.size() > 25) {
             throw new InvalidUserDataException("Cannot delete more than 25 participants at once");
         }
@@ -671,199 +619,6 @@ public class ParticipantServiceImpl implements ParticipantService {
     }
 
     @Override
-    public ParticipantListResponse searchParticipants(
-            Long eventId,
-            String searchTerm,
-            String raceId,
-            String categoryId,
-            String gender,
-            Integer minAge,
-            Integer maxAge,
-            String city,
-            String country,
-            Integer limit,
-            String lastEvaluatedKey,
-            User currentUser) {
-
-        log.info("Searching participants for event ID: {} with searchTerm: '{}', filters: [raceId={}, categoryId={}, gender={}, minAge={}, maxAge={}, city={}, country={}] by user: {}",
-                eventId, searchTerm, raceId, categoryId, gender, minAge, maxAge, city, country, currentUser.getUsername());
-
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
-
-        validateSearchRequest(searchTerm, minAge, maxAge, limit);
-
-        Expression filterExpression = buildSearchFilterExpression(
-                eventId, searchTerm, raceId, categoryId, gender, minAge, maxAge, city, country);
-
-        ScanEnhancedRequest.Builder scanBuilder = ScanEnhancedRequest.builder()
-                .filterExpression(filterExpression)
-                .limit(limit != null ? Math.min(limit, 100) : 50);
-
-        if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
-            try {
-                Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
-                scanBuilder.exclusiveStartKey(exclusiveStartKey);
-            } catch (Exception e) {
-                log.error(FAILED_TO_DECODE_PAGINATION_KEY, e);
-                throw new InvalidUserDataException("Invalid page token. Please start from the first page.");
-            }
-        }
-
-        Page<ParticipantDDB> page = participantTable.scan(scanBuilder.build())
-                .stream()
-                .findFirst()
-                .orElse(null);
-
-        ParticipantListResponse response = toListResponse(page, eventId);
-
-        log.info("Search completed for event ID: {}. Found {} participants, hasMore: {}",
-                eventId, response.getCount(), response.getHasMore());
-
-        return response;
-    }
-
-    private void validateSearchRequest(String searchTerm, Integer minAge, Integer maxAge, Integer limit) {
-        if (searchTerm != null) {
-            String trimmedSearchTerm = searchTerm.trim();
-            if (trimmedSearchTerm.length() == 1) {
-                throw new InvalidUserDataException("Search term must be at least 2 characters");
-            }
-
-            if (searchTerm.length() > 200) {
-                throw new InvalidUserDataException("Search term cannot exceed 200 characters");
-            }
-        }
-
-        if (minAge != null && (minAge < 0 || minAge > 150)) {
-            throw new InvalidUserDataException("Minimum age must be between 0 and 150");
-        }
-
-        if (maxAge != null && (maxAge < 0 || maxAge > 150)) {
-            throw new InvalidUserDataException("Maximum age must be between 0 and 150");
-        }
-
-        if (minAge != null && maxAge != null && minAge > maxAge) {
-            throw new InvalidUserDataException("Minimum age cannot be greater than maximum age");
-        }
-
-        if (limit != null && limit > 100) {
-            throw new InvalidUserDataException("Limit cannot exceed 100");
-        }
-    }
-
-    private Expression buildSearchFilterExpression(
-            Long eventId,
-            String searchTerm,
-            String raceId,
-            String categoryId,
-            String gender,
-            Integer minAge,
-            Integer maxAge,
-            String city,
-            String country) {
-
-        List<String> conditions = new ArrayList<>();
-        Map<String, AttributeValue> expressionValues = new HashMap<>();
-        Map<String, String> expressionNames = new HashMap<>();
-
-        conditions.add("#eventId = :eventId");
-        expressionNames.put("#eventId", "eventId");
-        expressionValues.put(":eventId", AttributeValue.builder()
-                .s(eventId.toString()).build());
-
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            String upperSearchTerm = normalizeName(searchTerm);
-            String lowerSearchTerm = normalizeEmail(searchTerm);
-            String exactSearchTerm = searchTerm.trim();
-
-            List<String> searchConditions = new ArrayList<>();
-
-            searchConditions.add("contains(#fullName, :searchTermUpper)");
-            expressionNames.put("#fullName", "fullName");
-            expressionValues.put(":searchTermUpper",
-                    AttributeValue.builder().s(upperSearchTerm).build());
-
-            searchConditions.add("contains(#email, :searchTermLower)");
-            expressionNames.put("#email", "email");
-            expressionValues.put(":searchTermLower",
-                    AttributeValue.builder().s(lowerSearchTerm).build());
-
-            searchConditions.add("contains(#phoneNumber, :searchTermExact)");
-            expressionNames.put("#phoneNumber", "phoneNumber");
-            expressionValues.put(":searchTermExact",
-                    AttributeValue.builder().s(exactSearchTerm).build());
-
-            searchConditions.add("contains(#chipNumber, :searchTermExact)");
-            expressionNames.put("#chipNumber", "chipNumber");
-
-
-
-            conditions.add("(" + String.join(" OR ", searchConditions) + ")");
-        }
-
-        if (raceId != null && !raceId.trim().isEmpty()) {
-            conditions.add("#raceId = :raceId");
-            expressionNames.put("#raceId", "raceId");
-            expressionValues.put(":raceId",
-                    AttributeValue.builder().s(raceId).build());
-        }
-
-        if (categoryId != null && !categoryId.trim().isEmpty()) {
-            conditions.add("#categoryId = :categoryId");
-            expressionNames.put("#categoryId", "categoryId");
-            expressionValues.put(":categoryId",
-                    AttributeValue.builder().s(categoryId).build());
-        }
-
-        if (gender != null && !gender.trim().isEmpty()) {
-            conditions.add("#gender = :gender");
-            expressionNames.put("#gender", "gender");
-            expressionValues.put(":gender",
-                    AttributeValue.builder().s(gender.toUpperCase()).build());
-        }
-
-        if (minAge != null) {
-            conditions.add("#age >= :minAge");
-            expressionNames.put("#age", "age");
-            expressionValues.put(":minAge",
-                    AttributeValue.builder().n(minAge.toString()).build());
-        }
-
-        if (maxAge != null) {
-            conditions.add("#age <= :maxAge");
-            expressionNames.putIfAbsent("#age", "age");
-            expressionValues.put(":maxAge",
-                    AttributeValue.builder().n(maxAge.toString()).build());
-        }
-
-        if (city != null && !city.trim().isEmpty()) {
-            conditions.add("contains(#city, :city)");
-            expressionNames.put("#city", "city");
-            expressionValues.put(":city",
-                    AttributeValue.builder().s(city.trim().toUpperCase()).build());
-        }
-
-        if (country != null && !country.trim().isEmpty()) {
-            conditions.add("contains(#country, :country)");
-            expressionNames.put("#country", "country");
-            expressionValues.put(":country",
-                    AttributeValue.builder().s(country.trim().toUpperCase()).build());
-        }
-
-        String filterExpression = String.join(" AND ", conditions);
-
-        return Expression.builder()
-                .expression(filterExpression)
-                .expressionValues(expressionValues)
-                .expressionNames(expressionNames)
-                .build();
-    }
-
-    @Override
     public ParticipantListResponse lookupParticipants(
             Long eventId,
             SearchType searchType,
@@ -875,11 +630,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         log.info("Lookup participants for event ID: {} with searchType: {}, searchValue: '{}' by user: {}",
                 eventId, searchType, searchValue, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
+        accessGuard.forRead(eventId, currentUser);
 
         if (searchValue == null || searchValue.trim().isEmpty()) {
             throw new InvalidUserDataException("Search value is required");
@@ -961,9 +712,9 @@ public class ParticipantServiceImpl implements ParticipantService {
         String partition = eventId.toString();
         return switch (searchType) {
             case NAME -> QueryConditional.sortBeginsWith(
-                    Key.builder().partitionValue(partition).sortValue(normalizeName(searchValue)).build());
+                    Key.builder().partitionValue(partition).sortValue(TextUtils.toUpperOrNull(searchValue)).build());
             case EMAIL -> QueryConditional.sortBeginsWith(
-                    Key.builder().partitionValue(partition).sortValue(normalizeEmail(searchValue)).build());
+                    Key.builder().partitionValue(partition).sortValue(TextUtils.toLowerOrNull(searchValue)).build());
             case PHONE -> QueryConditional.sortBeginsWith(
                     Key.builder().partitionValue(partition).sortValue(searchValue).build());
             case RACE -> QueryConditional.sortBeginsWith(
@@ -996,64 +747,44 @@ public class ParticipantServiceImpl implements ParticipantService {
     }
 
     private static void trimStringFields(CreateParticipantRequest r) {
-        r.setChipNumber(trimToNull(r.getChipNumber()));
-        r.setBibNumber(trimToNull(r.getBibNumber()));
-        r.setFullName(trimToNull(r.getFullName()));
-        r.setGender(trimToNull(r.getGender()));
-        r.setPhoneNumber(trimToNull(r.getPhoneNumber()));
-        r.setEmail(trimToNull(r.getEmail()));
-        r.setDateOfBirth(trimToNull(r.getDateOfBirth()));
-        r.setCountry(trimToNull(r.getCountry()));
-        r.setCity(trimToNull(r.getCity()));
-        r.setBibCollectedAt(trimToNull(r.getBibCollectedAt()));
-        r.setEmergencyContactName(trimToNull(r.getEmergencyContactName()));
-        r.setEmergencyContactPhone(trimToNull(r.getEmergencyContactPhone()));
-        r.setNotes(trimToNull(r.getNotes()));
+        r.setChipNumber(TextUtils.trimToNull(r.getChipNumber()));
+        r.setBibNumber(TextUtils.trimToNull(r.getBibNumber()));
+        r.setFullName(TextUtils.trimToNull(r.getFullName()));
+        r.setGender(TextUtils.trimToNull(r.getGender()));
+        r.setPhoneNumber(TextUtils.trimToNull(r.getPhoneNumber()));
+        r.setEmail(TextUtils.trimToNull(r.getEmail()));
+        r.setDateOfBirth(TextUtils.trimToNull(r.getDateOfBirth()));
+        r.setCountry(TextUtils.trimToNull(r.getCountry()));
+        r.setCity(TextUtils.trimToNull(r.getCity()));
+        r.setBibCollectedAt(TextUtils.trimToNull(r.getBibCollectedAt()));
+        r.setEmergencyContactName(TextUtils.trimToNull(r.getEmergencyContactName()));
+        r.setEmergencyContactPhone(TextUtils.trimToNull(r.getEmergencyContactPhone()));
+        r.setNotes(TextUtils.trimToNull(r.getNotes()));
     }
 
     private static void trimStringFields(UpdateParticipantRequest r) {
-        r.setChipNumber(trimToNull(r.getChipNumber()));
-        r.setFullName(trimToNull(r.getFullName()));
-        r.setGender(trimToNull(r.getGender()));
-        r.setPhoneNumber(trimToNull(r.getPhoneNumber()));
-        r.setEmail(trimToNull(r.getEmail()));
-        r.setDateOfBirth(trimToNull(r.getDateOfBirth()));
-        r.setCountry(trimToNull(r.getCountry()));
-        r.setCity(trimToNull(r.getCity()));
-        r.setRaceId(trimToNull(r.getRaceId()));
-        r.setCategoryId(trimToNull(r.getCategoryId()));
-        r.setNewBibNumber(trimToNull(r.getNewBibNumber()));
-        r.setBibCollectedAt(trimToNull(r.getBibCollectedAt()));
-        r.setEmergencyContactName(trimToNull(r.getEmergencyContactName()));
-        r.setEmergencyContactPhone(trimToNull(r.getEmergencyContactPhone()));
-        r.setNotes(trimToNull(r.getNotes()));
-    }
-
-    private static String trimToNull(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    private static String normalizeName(String value) {
-        return value == null ? null : value.trim().toUpperCase();
-    }
-
-    private static String normalizeEmail(String value) {
-        return value == null ? null : value.trim().toLowerCase();
+        r.setChipNumber(TextUtils.trimToNull(r.getChipNumber()));
+        r.setFullName(TextUtils.trimToNull(r.getFullName()));
+        r.setGender(TextUtils.trimToNull(r.getGender()));
+        r.setPhoneNumber(TextUtils.trimToNull(r.getPhoneNumber()));
+        r.setEmail(TextUtils.trimToNull(r.getEmail()));
+        r.setDateOfBirth(TextUtils.trimToNull(r.getDateOfBirth()));
+        r.setCountry(TextUtils.trimToNull(r.getCountry()));
+        r.setCity(TextUtils.trimToNull(r.getCity()));
+        r.setRaceId(TextUtils.trimToNull(r.getRaceId()));
+        r.setCategoryId(TextUtils.trimToNull(r.getCategoryId()));
+        r.setNewBibNumber(TextUtils.trimToNull(r.getNewBibNumber()));
+        r.setBibCollectedAt(TextUtils.trimToNull(r.getBibCollectedAt()));
+        r.setEmergencyContactName(TextUtils.trimToNull(r.getEmergencyContactName()));
+        r.setEmergencyContactPhone(TextUtils.trimToNull(r.getEmergencyContactPhone()));
+        r.setNotes(TextUtils.trimToNull(r.getNotes()));
     }
 
     @Override
     public byte[] exportParticipantsToCsv(Long eventId, List<ExportField> fields, User currentUser) {
         log.info("Exporting participants to CSV for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException());
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
+        accessGuard.forRead(eventId, currentUser);
 
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId.toString()).build()
@@ -1162,39 +893,31 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     private String getFieldValue(ParticipantDDB participant, ExportField field, EventNames names) {
         return switch (field) {
-            case BIB_NUMBER -> nullSafe(participant.getBibNumber());
-            case CHIP_NUMBER -> nullSafe(participant.getChipNumber());
-            case FULL_NAME -> nullSafe(participant.getFullName());
-            case EMAIL -> nullSafe(participant.getEmail());
-            case PHONE_NUMBER -> nullSafe(participant.getPhoneNumber());
-            case DATE_OF_BIRTH -> nullSafe(participant.getDateOfBirth());
+            case BIB_NUMBER -> TextUtils.nullSafe(participant.getBibNumber());
+            case CHIP_NUMBER -> TextUtils.nullSafe(participant.getChipNumber());
+            case FULL_NAME -> TextUtils.nullSafe(participant.getFullName());
+            case EMAIL -> TextUtils.nullSafe(participant.getEmail());
+            case PHONE_NUMBER -> TextUtils.nullSafe(participant.getPhoneNumber());
+            case DATE_OF_BIRTH -> TextUtils.nullSafe(participant.getDateOfBirth());
             case AGE -> participant.getAge() != null ? participant.getAge().toString() : "";
-            case GENDER -> nullSafe(participant.getGender());
-            case COUNTRY -> nullSafe(participant.getCountry());
-            case CITY -> nullSafe(participant.getCity());
-            case RACE_NAME -> nullSafe(names.raceName(participant.getRaceId()));
-            case CATEGORY_NAME -> nullSafe(names.categoryName(participant.getCategoryId()));
-            case BIB_COLLECTED_AT -> nullSafe(participant.getBibCollectedAt());
-            case EMERGENCY_CONTACT_NAME -> nullSafe(participant.getEmergencyContactName());
-            case EMERGENCY_CONTACT_PHONE -> nullSafe(participant.getEmergencyContactPhone());
-            case NOTES -> nullSafe(participant.getNotes());
+            case GENDER -> TextUtils.nullSafe(participant.getGender());
+            case COUNTRY -> TextUtils.nullSafe(participant.getCountry());
+            case CITY -> TextUtils.nullSafe(participant.getCity());
+            case RACE_NAME -> TextUtils.nullSafe(names.raceName(participant.getRaceId()));
+            case CATEGORY_NAME -> TextUtils.nullSafe(names.categoryName(participant.getCategoryId()));
+            case BIB_COLLECTED_AT -> TextUtils.nullSafe(participant.getBibCollectedAt());
+            case EMERGENCY_CONTACT_NAME -> TextUtils.nullSafe(participant.getEmergencyContactName());
+            case EMERGENCY_CONTACT_PHONE -> TextUtils.nullSafe(participant.getEmergencyContactPhone());
+            case NOTES -> TextUtils.nullSafe(participant.getNotes());
             case GOODIES -> "";
         };
-    }
-
-    private String nullSafe(String value) {
-        return value != null ? value : "";
     }
 
     @Override
     public ParticipantStatisticsResponse getParticipantStatistics(Long eventId, User currentUser) {
         log.info("Getting participant statistics for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException());
-
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
+        accessGuard.forRead(eventId, currentUser);
 
         List<EventStatsDDB> rows = eventStatsRepo.queryAll(eventId.toString());
         if (rows.isEmpty()) {

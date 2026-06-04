@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.model.dto.request.BulkDeleteParticipantsRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.response.*;
+import com.timekeeper.bibexpo.exception.BibNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.exception.ParticipantDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.ParticipantModificationNotAllowedException;
@@ -135,34 +136,6 @@ public class ParticipantController implements ParticipantControllerApi {
     }
 
     @Override
-    public ResponseEntity<ParticipantListResponse> searchParticipants(
-            Long eventId,
-            String searchTerm,
-            String raceId,
-            String categoryId,
-            String gender,
-            Integer minAge,
-            Integer maxAge,
-            String city,
-            String country,
-            Integer limit,
-            String lastEvaluatedKey,
-            User currentUser) {
-
-        log.info("Search participants request - Event: {}, searchTerm: '{}', filters: [race={}, category={}, gender={}, age={}-{}, city={}, country={}], limit: {}, user: {}",
-                eventId, searchTerm, raceId, categoryId, gender, minAge, maxAge, city, country, limit, currentUser.getUsername());
-
-        ParticipantListResponse response = participantService.searchParticipants(
-                eventId, searchTerm, raceId, categoryId, gender, minAge, maxAge, city, country,
-                limit, lastEvaluatedKey, currentUser);
-
-        log.info("Search completed for event {}. Found {} participants, hasMore: {}",
-                eventId, response.getCount(), response.getHasMore());
-
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
     public ResponseEntity<DeleteParticipantsResponse> deleteParticipant(
             Long eventId,
             String bibNumber,
@@ -266,5 +239,13 @@ public class ParticipantController implements ParticipantControllerApi {
         log.info("Participant modification not allowed: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(BibNumberAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleBibNumberAlreadyExists(
+            BibNumberAlreadyExistsException ex, WebRequest request) {
+        log.info("BIB number conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
 }

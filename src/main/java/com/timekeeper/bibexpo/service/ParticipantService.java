@@ -94,39 +94,6 @@ public interface ParticipantService {
     DeleteParticipantsResponse deleteBulkParticipants(Long eventId, java.util.List<String> bibNumbers, User currentUser);
 
     /**
-     * Search and filter participants for an event
-     * Search term performs OR match across: fullName, email, phoneNumber, chipNumber (case-insensitive, partial match)
-     * Filters perform AND match: raceId, categoryId, gender, minAge, maxAge, city, country (exact/range match)
-     * @param eventId The event ID
-     * @param searchTerm Optional search term (min 2 chars)
-     * @param raceId Optional race ID filter
-     * @param categoryId Optional category ID filter
-     * @param gender Optional gender filter (M/F/O)
-     * @param minAge Optional minimum age filter
-     * @param maxAge Optional maximum age filter
-     * @param city Optional city filter (partial match)
-     * @param country Optional country filter (partial match)
-     * @param limit Maximum results (default: 50, max: 100)
-     * @param lastEvaluatedKey Pagination token
-     * @param currentUser The authenticated user
-     * @return Paginated search results
-     */
-    ParticipantListResponse searchParticipants(
-            Long eventId,
-            String searchTerm,
-            String raceId,
-            String categoryId,
-            String gender,
-            Integer minAge,
-            Integer maxAge,
-            String city,
-            String country,
-            Integer limit,
-            String lastEvaluatedKey,
-            User currentUser
-    );
-
-    /**
      * Lookup participants using DynamoDB LSI (cost-efficient Query operation)
      * Uses Local Secondary Indexes for efficient lookups by specific field types.
      * Supports begins_with matching for all search types.

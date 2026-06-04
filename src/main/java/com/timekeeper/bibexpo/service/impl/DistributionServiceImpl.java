@@ -23,6 +23,7 @@ import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.DistributionValidator;
+import com.timekeeper.bibexpo.util.TextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -66,9 +67,10 @@ public class DistributionServiceImpl implements DistributionService {
         }
 
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
-        String collectorName = (request != null && request.getCollectorName() != null)
-                ? request.getCollectorName()
-                : participant.getFullName();
+        String collectorName = TextUtils.toUpperOrNull(
+                (request != null && request.getCollectorName() != null)
+                        ? request.getCollectorName()
+                        : participant.getFullName());
         String collectorPhone = (request != null && request.getCollectorPhone() != null)
                 ? request.getCollectorPhone()
                 : participant.getPhoneNumber();
@@ -526,10 +528,15 @@ public class DistributionServiceImpl implements DistributionService {
         int effectiveLimit = limit != null ? Math.min(limit, 100) : 50;
         String indexName = getLogIndexName(searchType);
 
+        // Collector names are stored upper-cased, so the search term must match that casing.
+        String normalizedSearchValue = searchType == LogSearchType.COLLECTOR
+                ? searchValue.trim().toUpperCase()
+                : searchValue.trim();
+
         QueryConditional queryConditional = QueryConditional.sortBeginsWith(
                 Key.builder()
                         .partitionValue(String.valueOf(eventId))
-                        .sortValue(searchValue.trim())
+                        .sortValue(normalizedSearchValue)
                         .build()
         );
 
