@@ -1,10 +1,13 @@
 package com.timekeeper.bibexpo.controller;
 
 
+import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
+import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.OrganizationService;
 import jakarta.validation.Valid;
@@ -104,6 +107,30 @@ public class OrganizationController implements OrganizationControllerApi {
 
         OrganizationResponse response = organizationService.getCurrentUserOrganization(currentUser);
 
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<PresignUploadResponse> createLogoUploadUrl(
+            Long id, PresignUploadRequest request, User currentUser) {
+        log.info("Request logo upload URL for organization ID: {} by user: {}", id, currentUser.getUsername());
+        PresignUploadResponse response = organizationService.createLogoUploadUrl(
+                id, request.getContentType(), currentUser);
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<OrganizationResponse> attachLogo(
+            Long id, AttachUploadRequest request, User currentUser) {
+        log.info("Request to attach logo for organization ID: {} by user: {}", id, currentUser.getUsername());
+        OrganizationResponse response = organizationService.attachLogo(id, request.getObjectKey(), currentUser);
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<OrganizationResponse> removeLogo(Long id, User currentUser) {
+        log.info("Request to remove logo for organization ID: {} by user: {}", id, currentUser.getUsername());
+        OrganizationResponse response = organizationService.removeLogo(id, currentUser);
         return ResponseEntity.ok(response);
     }
 }

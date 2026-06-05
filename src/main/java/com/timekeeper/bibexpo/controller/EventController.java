@@ -1,9 +1,12 @@
 package com.timekeeper.bibexpo.controller;
 
+import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
+import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.EventService;
@@ -136,5 +139,29 @@ public class EventController implements EventControllerApi {
         eventService.deleteEvent(id, currentUser);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<PresignUploadResponse> createLogoUploadUrl(
+            Long id, PresignUploadRequest request, User currentUser) {
+        log.info("Request logo upload URL for event ID: {} by user: {}", id, currentUser.getUsername());
+        PresignUploadResponse response = eventService.createLogoUploadUrl(
+                id, request.getContentType(), currentUser);
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<EventResponse> attachLogo(
+            Long id, AttachUploadRequest request, User currentUser) {
+        log.info("Request to attach logo for event ID: {} by user: {}", id, currentUser.getUsername());
+        EventResponse response = eventService.attachLogo(id, request.getObjectKey(), currentUser);
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<EventResponse> removeLogo(Long id, User currentUser) {
+        log.info("Request to remove logo for event ID: {} by user: {}", id, currentUser.getUsername());
+        EventResponse response = eventService.removeLogo(id, currentUser);
+        return ResponseEntity.ok(response);
     }
 }

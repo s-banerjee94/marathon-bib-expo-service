@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.exception.*;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.Organization;
@@ -13,9 +14,11 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.service.EventService;
+import com.timekeeper.bibexpo.service.StorageService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventStatusTransitionValidator;
 import jakarta.persistence.criteria.Predicate;
@@ -47,6 +50,26 @@ public class EventServiceImpl implements EventService {
     private final OrganizationRepository organizationRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventStatusTransitionValidator statusTransitionValidator;
+    private final StorageService storageService;
+
+    /**
+     * Map an event to a response, presigning a short-lived URL for its logo so the
+     * stored object key is never exposed directly. All read paths go through here.
+     */
+    private EventResponse toResponse(Event event) {
+        EventResponse response = EventResponse.fromEntity(event);
+        response.setLogoUrl(storageService.createDownloadUrl(event.getLogoObjectKey()));
+        return response;
+    }
+
+    /** Best-effort object deletion: orphaned objects are tolerable, a failed cleanup must not roll back the entity change. */
+    private void deleteQuietly(String objectKey) {
+        try {
+            storageService.delete(objectKey);
+        } catch (Exception e) {
+            log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
+        }
+    }
 
     @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.CREATE)
     @Override
@@ -81,7 +104,6 @@ public class EventServiceImpl implements EventService {
         Event event = Event.builder()
                 .eventName(request.getEventName())
                 .eventDescription(request.getEventDescription())
-                .logoUrl(request.getLogoUrl())
                 .timezone(request.getTimezone())
                 .eventStartDate(startInstant)
                 .eventEndDate(endInstant)
@@ -103,7 +125,7 @@ public class EventServiceImpl implements EventService {
         log.info("Successfully created event with ID: {} by user: {}",
                 savedEvent.getId(), currentUser.getUsername());
 
-        return EventResponse.fromEntity(savedEvent);
+        return toResponse(savedEvent);
     }
 
     @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.UPDATE)
@@ -120,7 +142,6 @@ public class EventServiceImpl implements EventService {
         applyEventNameUpdate(event, request);
 
         updateIfNotNull(request.getEventDescription(), event::setEventDescription);
-        updateIfNotNull(request.getLogoUrl(), event::setLogoUrl);
 
         applyTimezoneUpdate(event, request);
         applyEventDateUpdates(event, request);
@@ -139,7 +160,7 @@ public class EventServiceImpl implements EventService {
         Event updatedEvent = eventRepository.save(event);
         log.info("Successfully updated event with ID: {} by user: {}", updatedEvent.getId(), currentUser.getUsername());
 
-        return EventResponse.fromEntity(updatedEvent);
+        return toResponse(updatedEvent);
     }
 
     private void applyEventNameUpdate(Event event, UpdateEventRequest request) {
@@ -219,7 +240,7 @@ public class EventServiceImpl implements EventService {
 
         Page<Event> eventsPage = eventRepository.findAll(spec, pageable);
 
-        Page<EventResponse> responsePage = eventsPage.map(EventResponse::fromEntity);
+        Page<EventResponse> responsePage = eventsPage.map(this::toResponse);
 
         log.info("Successfully fetched {} events (page {} of {})",
                 responsePage.getNumberOfElements(),
@@ -247,7 +268,7 @@ public class EventServiceImpl implements EventService {
 
         Page<Event> eventsPage = eventRepository.findAll(spec, pageable);
 
-        Page<EventResponse> responsePage = eventsPage.map(EventResponse::fromEntity);
+        Page<EventResponse> responsePage = eventsPage.map(this::toResponse);
 
         log.info("Successfully fetched {} organization events (page {} of {})",
                 responsePage.getNumberOfElements(),
@@ -267,7 +288,7 @@ public class EventServiceImpl implements EventService {
         log.info("Successfully fetched event with ID: {} for user: {}",
                 event.getId(), currentUser.getUsername());
 
-        return EventResponse.fromEntity(event);
+        return toResponse(event);
     }
 
     @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.STATUS_CHANGE)
@@ -285,7 +306,7 @@ public class EventServiceImpl implements EventService {
         log.info("Successfully toggled enabled status for event with ID: {} to {} by user: {}",
                 updatedEvent.getId(), updatedEvent.getEnabled(), currentUser.getUsername());
 
-        return EventResponse.fromEntity(updatedEvent);
+        return toResponse(updatedEvent);
     }
 
     @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.STATUS_CHANGE)
@@ -308,7 +329,7 @@ public class EventServiceImpl implements EventService {
         log.info("Successfully changed status for event with ID: {} to {} by user: {}",
                 updatedEvent.getId(), status, currentUser.getUsername());
 
-        return EventResponse.fromEntity(updatedEvent);
+        return toResponse(updatedEvent);
     }
 
     @Override
@@ -347,7 +368,9 @@ public class EventServiceImpl implements EventService {
         AuditContextHolder.setEntityLabel(event.getEventName());
         AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 
+        String logoKey = event.getLogoObjectKey();
         eventRepository.delete(event);
+        deleteQuietly(logoKey);
         log.info("Successfully deleted event with ID: {} by user: {}", id, currentUser.getUsername());
     }
 
@@ -446,5 +469,49 @@ public class EventServiceImpl implements EventService {
         } catch (DateTimeParseException e) {
             throw new InvalidUserDataException("Invalid date or time format. Use yyyy-MM-dd and HH:mm.");
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PresignUploadResponse createLogoUploadUrl(Long id, String contentType, User currentUser) {
+        Event event = findAndValidateEvent(id, currentUser);
+        return storageService.createUploadUrl(UploadCategory.EVENT_LOGO, event.getId(), contentType);
+    }
+
+    @Override
+    @Transactional
+    public EventResponse attachLogo(Long id, String objectKey, User currentUser) {
+        log.info("Attaching logo for event ID: {} by user: {}", id, currentUser.getUsername());
+        Event event = findAndValidateEvent(id, currentUser);
+
+        if (UploadCategory.EVENT_LOGO.ownsKey(event.getId(), objectKey)) {
+            throw new InvalidFileException("This upload does not belong to this event.");
+        }
+        if (!storageService.objectExists(objectKey)) {
+            throw new InvalidFileException("The uploaded file could not be found.");
+        }
+
+        String previousKey = event.getLogoObjectKey();
+        event.setLogoObjectKey(objectKey);
+        Event saved = eventRepository.saveAndFlush(event);
+        if (previousKey != null && !previousKey.equals(objectKey)) {
+            deleteQuietly(previousKey);
+        }
+        log.info("Successfully attached logo for event ID: {}", id);
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public EventResponse removeLogo(Long id, User currentUser) {
+        log.info("Removing logo for event ID: {} by user: {}", id, currentUser.getUsername());
+        Event event = findAndValidateEvent(id, currentUser);
+
+        String previousKey = event.getLogoObjectKey();
+        event.setLogoObjectKey(null);
+        Event saved = eventRepository.saveAndFlush(event);
+        deleteQuietly(previousKey);
+        log.info("Successfully removed logo for event ID: {}", id);
+        return toResponse(saved);
     }
 }

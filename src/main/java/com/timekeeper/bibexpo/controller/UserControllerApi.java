@@ -1,9 +1,12 @@
 package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
+import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -377,6 +381,100 @@ public interface UserControllerApi {
     @DeleteMapping("/{userId}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     ResponseEntity<Void> deleteUser(
+            @Parameter(description = "User ID", required = true)
+            @PathVariable Long userId,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
+            summary = "Get a presigned URL to upload a profile picture",
+            description = """
+                    Returns a short-lived presigned S3 PUT URL. The client uploads the file bytes \
+                    directly to that URL with the given Content-Type, then calls \
+                    PUT /api/users/{userId}/profile-picture with the returned objectKey to attach it. \
+                    Requires permission to update the target user."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Presigned upload URL created",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = PresignUploadResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Unsupported file type",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Insufficient permissions",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/{userId}/profile-picture/upload-url")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    ResponseEntity<PresignUploadResponse> createProfilePictureUploadUrl(
+            @Parameter(description = "User ID", required = true)
+            @PathVariable Long userId,
+
+            @Parameter(description = "Upload request", required = true)
+            @Valid @RequestBody PresignUploadRequest request,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
+            summary = "Attach an uploaded profile picture",
+            description = """
+                    Confirms a completed upload and sets it as the user's profile picture. \
+                    The object key must belong to this user and the object must exist in S3. \
+                    Any previous picture is deleted. Requires permission to update the target user."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Profile picture attached",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Object key invalid or file missing",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Insufficient permissions",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PutMapping("/{userId}/profile-picture")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    ResponseEntity<UserResponse> attachProfilePicture(
+            @Parameter(description = "User ID", required = true)
+            @PathVariable Long userId,
+
+            @Parameter(description = "Attach request", required = true)
+            @Valid @RequestBody AttachUploadRequest request,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
+            summary = "Remove the profile picture",
+            description = "Deletes the user's profile picture from storage. Requires permission to update the target user."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Profile picture removed",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Insufficient permissions",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @DeleteMapping("/{userId}/profile-picture")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    ResponseEntity<UserResponse> removeProfilePicture(
             @Parameter(description = "User ID", required = true)
             @PathVariable Long userId,
 

@@ -1,10 +1,13 @@
 package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
+import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -393,6 +397,84 @@ public interface EventControllerApi {
             )
     })
     ResponseEntity<Void> deleteEvent(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser);
+
+    @PostMapping("/{id}/logo/upload-url")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Get a presigned URL to upload an event logo",
+            description = """
+                    Returns a short-lived presigned S3 PUT URL. The client uploads the file bytes \
+                    directly to that URL with the given Content-Type, then calls \
+                    PUT /api/events/{id}/logo with the returned objectKey to attach it. \
+                    Same authorization as updating the event."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Presigned upload URL created",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = PresignUploadResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Unsupported file type",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<PresignUploadResponse> createLogoUploadUrl(
+            @PathVariable Long id,
+            @Valid @RequestBody PresignUploadRequest request,
+            @AuthenticationPrincipal User currentUser);
+
+    @PutMapping("/{id}/logo")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Attach an uploaded event logo",
+            description = """
+                    Confirms a completed upload and sets it as the event's logo. The object key \
+                    must belong to this event and the object must exist in S3. Any previous logo \
+                    is deleted. Same authorization as updating the event."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Logo attached",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = EventResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Object key invalid or file missing",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<EventResponse> attachLogo(
+            @PathVariable Long id,
+            @Valid @RequestBody AttachUploadRequest request,
+            @AuthenticationPrincipal User currentUser);
+
+    @DeleteMapping("/{id}/logo")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    @Operation(
+            summary = "Remove the event logo",
+            description = "Deletes the event's logo from storage. Same authorization as updating the event."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Logo removed",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = EventResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<EventResponse> removeLogo(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser);
 }

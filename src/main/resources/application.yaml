@@ -68,7 +68,7 @@ server:
 
 # CORS Configuration
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:*,https://*.inc1.devtunnels.ms,http://localhost:[*],https://localhost:[*],http://192.168.*.*:[*],https://192.168.*.*:[*],http://10.*.*.*:[*],https://10.*.*.*:[*],http://172.*.*.*:[*],https://172.*.*.*:[*]}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:*}                          # local: matches any origin pattern (localhost + LAN IP over WiFi); works with allow-credentials via setAllowedOriginPatterns
   allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,OPTIONS}
   allowed-headers: ${CORS_ALLOWED_HEADERS:*}
   exposed-headers: ${CORS_EXPOSED_HEADERS:Authorization,Content-Type}
@@ -89,7 +89,7 @@ jwt:
   cookie-domain: ${JWT_COOKIE_DOMAIN:}                                # e.g. .yourdomain.com (empty for localhost)
   refresh-cookie-name: ${JWT_REFRESH_COOKIE_NAME:refreshToken}
   csrf-cookie-name: ${JWT_CSRF_COOKIE_NAME:csrfToken}
-  cookie-secure: ${JWT_COOKIE_SECURE:true}                            # set true in production (HTTPS)
+  cookie-secure: ${JWT_COOKIE_SECURE:false}                           # local default false (plain HTTP/LAN IP); MUST set JWT_COOKIE_SECURE=true in production (HTTPS)
 
 logging:
   level:
@@ -139,3 +139,8 @@ aws:
   dynamodb:
     endpoint: ${AWS_DYNAMODB_ENDPOINT:http://192.168.0.111:4566}
     table-name: ${AWS_DYNAMODB_TABLE_NAME:marathon-participants}
+  s3:
+    bucket: ${AWS_S3_BUCKET:marathon-bib-expo-media}
+    endpoint: ${AWS_S3_ENDPOINT:http://192.168.0.111:4566}                 # LocalStack locally; leave empty in prod to target real AWS S3
+    upload-url-expiry-seconds: ${AWS_S3_UPLOAD_URL_EXPIRY_SECONDS:600}     # presigned PUT validity (10 min)
+    download-url-expiry-seconds: ${AWS_S3_DOWNLOAD_URL_EXPIRY_SECONDS:3600} # presigned GET validity (1 hour)

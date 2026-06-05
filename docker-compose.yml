@@ -56,17 +56,24 @@ services:
       - prometheus
 
   localstack:
-    image: localstack/localstack:latest
+    # PERSISTENCE=1 below is a LocalStack Pro-only feature; this Community image ignores it,
+    # so DynamoDB/S3 state is wiped on every container (re)start. For free persistence across
+    # restarts, switch to localstack-persist: uncomment the "persist" image + volume lines
+    # below and comment out their "ephemeral" counterparts. (init-aws.sh stays as-is; on later
+    # starts its create-table/create-bucket calls just log harmless "already exists" errors.)
+    image: localstack/localstack:latest          # ephemeral (Community)
+    # image: gresau/localstack-persist:4         # persist: free state persistence (match LocalStack major version)
     container_name: marathon-localstack
     restart: unless-stopped
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=dynamodb
+      - SERVICES=dynamodb,s3
       - DEBUG=${DEBUG:-0}
       - PERSISTENCE=1
     volumes:
-      - localstack-data:/var/lib/localstack
+      - localstack-data:/var/lib/localstack      # ephemeral (Community)
+      # - localstack-data:/persisted-data        # persist: localstack-persist writes restorable state here
       - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh
     networks:
       - marathon-network

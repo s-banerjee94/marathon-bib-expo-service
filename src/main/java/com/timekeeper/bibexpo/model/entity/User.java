@@ -59,6 +59,10 @@ public class User implements UserDetails {
     @Column(nullable = true, unique = true)
     private String phoneNumber;
 
+    // S3 object key of the profile picture; presigned to a URL at read time
+    @Convert(converter = EmptyStringToNullConverter.class)
+    private String profilePictureKey;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role;

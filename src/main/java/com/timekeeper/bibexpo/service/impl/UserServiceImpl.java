@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.aspect.AuditContextHolder;
+import com.timekeeper.bibexpo.exception.InvalidFileException;
 import com.timekeeper.bibexpo.exception.InvalidUserDataException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
@@ -9,9 +10,12 @@ import com.timekeeper.bibexpo.exception.UserAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.UserNotFoundException;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
+import com.timekeeper.bibexpo.service.StorageService;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserArchive;
@@ -54,6 +58,17 @@ public class UserServiceImpl implements UserService {
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
     private final PasswordEncoder passwordEncoder;
+    private final StorageService storageService;
+
+    /**
+     * Map a user to a response, presigning a short-lived URL for its profile picture.
+     * All read paths go through here so the stored object key is never exposed directly.
+     */
+    private UserResponse toResponse(User user) {
+        UserResponse response = UserResponse.fromEntity(user);
+        response.setProfilePictureUrl(storageService.createDownloadUrl(user.getProfilePictureKey()));
+        return response;
+    }
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.CREATE)
     @Override
@@ -74,7 +89,7 @@ public class UserServiceImpl implements UserService {
         User savedUser = userRepository.save(user);
 
         log.info("Successfully created user with ID: {} and role: {}", savedUser.getId(), savedUser.getRole());
-        return UserResponse.fromEntity(savedUser);
+        return toResponse(savedUser);
     }
 
     /**
@@ -386,7 +401,7 @@ public class UserServiceImpl implements UserService {
         User updatedUser = userRepository.save(targetUser);
         log.info("Successfully updated user with ID: {}", updatedUser.getId());
 
-        return UserResponse.fromEntity(updatedUser);
+        return toResponse(updatedUser);
     }
 
     /**
@@ -571,7 +586,7 @@ public class UserServiceImpl implements UserService {
         User updatedUser = userRepository.save(targetUser);
         log.info("Successfully toggled enabled status for user ID: {} to: {}", userId, newEnabledStatus);
 
-        return UserResponse.fromEntity(updatedUser);
+        return toResponse(updatedUser);
     }
 
     /**
@@ -653,7 +668,7 @@ public class UserServiceImpl implements UserService {
         validateGetUserAuthorization(currentUser, targetUser);
 
         log.info("Successfully retrieved user with ID: {}", userId);
-        return UserResponse.fromEntity(targetUser);
+        return toResponse(targetUser);
     }
 
     /**
@@ -700,7 +715,7 @@ public class UserServiceImpl implements UserService {
         }
 
         Specification<User> spec = buildUserSpecification(role, scopedOrgId, enabled, search);
-        Page<UserResponse> responsePage = userRepository.findAll(spec, pageable).map(UserResponse::fromEntity);
+        Page<UserResponse> responsePage = userRepository.findAll(spec, pageable).map(this::toResponse);
 
         log.info("Successfully retrieved {} users (page {} of {})",
                 responsePage.getNumberOfElements(), responsePage.getNumber() + 1, responsePage.getTotalPages());
@@ -742,7 +757,7 @@ public class UserServiceImpl implements UserService {
         User currentUser = fetchCurrentUser(currentUsername);
 
         log.info("Successfully retrieved current user profile for: {}", currentUsername);
-        return UserResponse.fromEntity(currentUser);
+        return toResponse(currentUser);
     }
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.DELETE)
@@ -770,8 +785,10 @@ public class UserServiceImpl implements UserService {
         AuditContextHolder.setEntityLabel(label);
         AuditContextHolder.setOrganizationId(organization != null ? organization.getId() : null);
 
+        String pictureKey = targetUser.getProfilePictureKey();
         userRepository.delete(targetUser);
         releaseUserSlot(organization, role);
+        deleteQuietly(pictureKey);
 
         log.info("Successfully archived user ID: {} (username: {})", userId, targetUser.getUsername());
     }
@@ -848,6 +865,65 @@ public class UserServiceImpl implements UserService {
                 .archivedAt(Instant.now())
                 .archivedBy(archivedBy)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PresignUploadResponse createProfilePictureUploadUrl(Long userId, String contentType, String currentUsername) {
+        User currentUser = fetchCurrentUser(currentUsername);
+        User targetUser = fetchTargetUser(userId);
+        validateUpdateUserAuthorization(currentUser, targetUser);
+        return storageService.createUploadUrl(UploadCategory.PROFILE_PICTURE, targetUser.getId(), contentType);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse attachProfilePicture(Long userId, String objectKey, String currentUsername) {
+        log.info("Attaching profile picture for user ID: {} by: {}", userId, currentUsername);
+        User currentUser = fetchCurrentUser(currentUsername);
+        User targetUser = fetchTargetUser(userId);
+        validateUpdateUserAuthorization(currentUser, targetUser);
+
+        if (UploadCategory.PROFILE_PICTURE.ownsKey(targetUser.getId(), objectKey)) {
+            throw new InvalidFileException("This upload does not belong to this profile.");
+        }
+        if (!storageService.objectExists(objectKey)) {
+            throw new InvalidFileException("The uploaded file could not be found.");
+        }
+
+        String previousKey = targetUser.getProfilePictureKey();
+        targetUser.setProfilePictureKey(objectKey);
+        User saved = userRepository.saveAndFlush(targetUser);
+        if (previousKey != null && !previousKey.equals(objectKey)) {
+            deleteQuietly(previousKey);
+        }
+        log.info("Successfully attached profile picture for user ID: {}", userId);
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse removeProfilePicture(Long userId, String currentUsername) {
+        log.info("Removing profile picture for user ID: {} by: {}", userId, currentUsername);
+        User currentUser = fetchCurrentUser(currentUsername);
+        User targetUser = fetchTargetUser(userId);
+        validateUpdateUserAuthorization(currentUser, targetUser);
+
+        String previousKey = targetUser.getProfilePictureKey();
+        targetUser.setProfilePictureKey(null);
+        User saved = userRepository.saveAndFlush(targetUser);
+        deleteQuietly(previousKey);
+        log.info("Successfully removed profile picture for user ID: {}", userId);
+        return toResponse(saved);
+    }
+
+    /** Best-effort object deletion: orphaned objects are tolerable, a failed cleanup must not roll back the entity change. */
+    private void deleteQuietly(String objectKey) {
+        try {
+            storageService.delete(objectKey);
+        } catch (Exception e) {
+            log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
+        }
     }
 
 }

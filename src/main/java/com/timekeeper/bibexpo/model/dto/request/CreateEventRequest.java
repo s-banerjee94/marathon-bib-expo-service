@@ -22,9 +22,6 @@ public class CreateEventRequest {
     @Schema(description = "Event description", example = "Annual marathon event in Mumbai with multiple race categories")
     private String eventDescription;
 
-    @Schema(description = "Event logo URL", example = "https://example.com/logos/mumbai-marathon.png")
-    private String logoUrl;
-
     @NotBlank(message = "Timezone is required")
     @Schema(description = "IANA timezone ID for the event location", example = "Asia/Kolkata")
     private String timezone;

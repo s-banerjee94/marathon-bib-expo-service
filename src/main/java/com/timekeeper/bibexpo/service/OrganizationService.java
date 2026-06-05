@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.service;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -65,4 +66,41 @@ public interface OrganizationService {
      * @throws UnauthorizedAccessException if user has no organization
      */
     OrganizationResponse getCurrentUserOrganization(User currentUser);
+
+    /**
+     * Create a presigned S3 upload URL for an organization's logo. ROOT and ADMIN may
+     * upload for any organization; ORGANIZER_ADMIN only for their own.
+     * @param id The organization ID
+     * @param contentType MIME type of the file (validated against allowed image types)
+     * @param currentUser The authenticated user
+     * @return the presigned upload URL plus the object key to attach afterwards
+     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the content type is not allowed
+     */
+    PresignUploadResponse createLogoUploadUrl(Long id, String contentType, User currentUser);
+
+    /**
+     * Attach a previously uploaded object as the organization's logo. Verifies the key
+     * belongs to the organization and that the object exists, then replaces any previous
+     * logo (the old object is deleted).
+     * @param id The organization ID
+     * @param objectKey The object key returned by the presign step
+     * @param currentUser The authenticated user
+     * @return the updated organization response (with a fresh presigned logo URL)
+     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the key is invalid or the object is missing
+     */
+    OrganizationResponse attachLogo(Long id, String objectKey, User currentUser);
+
+    /**
+     * Remove the organization's logo, deleting the object from S3.
+     * @param id The organization ID
+     * @param currentUser The authenticated user
+     * @return the updated organization response
+     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     */
+    OrganizationResponse removeLogo(Long id, User currentUser);
 }

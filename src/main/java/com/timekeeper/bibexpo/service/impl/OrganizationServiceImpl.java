@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.exception.InvalidFileException;
 import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
@@ -9,16 +10,19 @@ import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UserQuotaRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.OrganizationLimit;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.OrganizationService;
+import com.timekeeper.bibexpo.service.StorageService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +47,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
     private final UserRepository userRepository;
+    private final StorageService storageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -73,7 +78,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         // Convert to response DTOs
         Page<OrganizationResponse> responsePage = organizationsPage.map(
-                org -> OrganizationResponse.fromEntity(org, limitsByOrgId.get(org.getId())));
+                org -> buildResponse(org, limitsByOrgId.get(org.getId())));
 
         log.info("Successfully fetched {} organizations (page {} of {})",
                 responsePage.getNumberOfElements(),
@@ -202,7 +207,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         OrganizationLimit savedLimit = organizationLimitRepository.save(limit);
         log.info("Successfully created organization with ID: {}", savedOrganization.getId());
 
-        return OrganizationResponse.fromEntity(savedOrganization, savedLimit);
+        return buildResponse(savedOrganization, savedLimit);
     }
 
     @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.UPDATE)
@@ -231,7 +236,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         OrganizationLimit updatedLimit = organizationLimitRepository.save(limit);
         log.info("Successfully updated organization with ID: {}", updatedOrganization.getId());
 
-        return OrganizationResponse.fromEntity(updatedOrganization, updatedLimit);
+        return buildResponse(updatedOrganization, updatedLimit);
     }
 
     @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.STATUS_CHANGE)
@@ -462,7 +467,17 @@ public class OrganizationServiceImpl implements OrganizationService {
      */
     private OrganizationResponse toResponse(Organization organization) {
         OrganizationLimit limit = organizationLimitRepository.findById(organization.getId()).orElse(null);
-        return OrganizationResponse.fromEntity(organization, limit);
+        return buildResponse(organization, limit);
+    }
+
+    /**
+     * Single place that maps an organization to a response and presigns a short-lived
+     * URL for its logo, so the stored object key is never exposed directly.
+     */
+    private OrganizationResponse buildResponse(Organization organization, OrganizationLimit limit) {
+        OrganizationResponse response = OrganizationResponse.fromEntity(organization, limit);
+        response.setLogoUrl(storageService.createDownloadUrl(organization.getLogoKey()));
+        return response;
     }
 
     /**
@@ -496,5 +511,67 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     private Integer requestedMax(UserQuotaRequest.RoleQuotaRequest role) {
         return role != null ? role.getMax() : null;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PresignUploadResponse createLogoUploadUrl(Long id, String contentType, User currentUser) {
+        Organization organization = getActiveOrganizationOrThrow(id);
+        validateUpdateAuthorization(currentUser, id);
+        return storageService.createUploadUrl(UploadCategory.ORGANIZATION_LOGO, organization.getId(), contentType);
+    }
+
+    @Override
+    @Transactional
+    public OrganizationResponse attachLogo(Long id, String objectKey, User currentUser) {
+        log.info("Attaching logo for organization ID: {} by user: {}", id, currentUser.getUsername());
+        Organization organization = getActiveOrganizationOrThrow(id);
+        validateUpdateAuthorization(currentUser, id);
+
+        if (UploadCategory.ORGANIZATION_LOGO.ownsKey(organization.getId(), objectKey)) {
+            throw new InvalidFileException("This upload does not belong to this organization.");
+        }
+        if (!storageService.objectExists(objectKey)) {
+            throw new InvalidFileException("The uploaded file could not be found.");
+        }
+
+        String previousKey = organization.getLogoKey();
+        organization.setLogoKey(objectKey);
+        Organization saved = organizationRepository.saveAndFlush(organization);
+        if (previousKey != null && !previousKey.equals(objectKey)) {
+            deleteQuietly(previousKey);
+        }
+        log.info("Successfully attached logo for organization ID: {}", id);
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public OrganizationResponse removeLogo(Long id, User currentUser) {
+        log.info("Removing logo for organization ID: {} by user: {}", id, currentUser.getUsername());
+        Organization organization = getActiveOrganizationOrThrow(id);
+        validateUpdateAuthorization(currentUser, id);
+
+        String previousKey = organization.getLogoKey();
+        organization.setLogoKey(null);
+        Organization saved = organizationRepository.saveAndFlush(organization);
+        deleteQuietly(previousKey);
+        log.info("Successfully removed logo for organization ID: {}", id);
+        return toResponse(saved);
+    }
+
+    private Organization getActiveOrganizationOrThrow(Long id) {
+        return organizationRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new OrganizationNotFoundException(
+                        "The organization you requested does not exist."));
+    }
+
+    /** Best-effort object deletion: orphaned objects are tolerable, a failed cleanup must not roll back the entity change. */
+    private void deleteQuietly(String objectKey) {
+        try {
+            storageService.delete(objectKey);
+        } catch (Exception e) {
+            log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
+        }
     }
 }

@@ -7,6 +7,7 @@ import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
 import org.springframework.data.domain.Page;
@@ -127,4 +128,42 @@ public interface EventService {
      * @throws UnauthorizedAccessException if the user is not authorized to delete the event
      */
     void deleteEvent(Long id, User currentUser);
+
+    /**
+     * Create a presigned S3 upload URL for an event's logo. Authorization mirrors
+     * {@link #updateEvent}: ROOT/ADMIN for any event, ORGANIZER_ADMIN/ORGANIZER_USER
+     * for events in their own organization.
+     * @param id The event ID
+     * @param contentType MIME type of the file (validated against allowed image types)
+     * @param currentUser The authenticated user
+     * @return the presigned upload URL plus the object key to attach afterwards
+     * @throws EventNotFoundException if the event does not exist
+     * @throws UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the content type is not allowed
+     */
+    PresignUploadResponse createLogoUploadUrl(Long id, String contentType, User currentUser);
+
+    /**
+     * Attach a previously uploaded object as the event's logo. Verifies the key belongs
+     * to the event and that the object exists, then replaces any previous logo (the old
+     * object is deleted).
+     * @param id The event ID
+     * @param objectKey The object key returned by the presign step
+     * @param currentUser The authenticated user
+     * @return the updated event response (with a fresh presigned logo URL)
+     * @throws EventNotFoundException if the event does not exist
+     * @throws UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the key is invalid or the object is missing
+     */
+    EventResponse attachLogo(Long id, String objectKey, User currentUser);
+
+    /**
+     * Remove the event's logo, deleting the object from S3.
+     * @param id The event ID
+     * @param currentUser The authenticated user
+     * @return the updated event response
+     * @throws EventNotFoundException if the event does not exist
+     * @throws UnauthorizedAccessException if the caller lacks permission
+     */
+    EventResponse removeLogo(Long id, User currentUser);
 }

@@ -57,6 +57,10 @@ public class OrganizationResponse {
     @Schema(description = "Business registration number", example = "U74999DL2020PTC123456")
     private String registrationNumber;
 
+    @Schema(description = "Short-lived presigned URL for the organization logo, null if none set",
+            example = "https://bucket.s3.ap-south-1.amazonaws.com/organizations/1/logo/uuid.png?X-Amz-...")
+    private String logoUrl;
+
     @Schema(description = "Per-role user quota (maximum allowed and current usage)")
     private UserQuotaDto userQuota;
 

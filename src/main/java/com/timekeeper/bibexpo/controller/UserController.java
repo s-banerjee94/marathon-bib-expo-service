@@ -1,8 +1,11 @@
 package com.timekeeper.bibexpo.controller;
 
+import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
+import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
+import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
@@ -74,5 +77,30 @@ public class UserController implements UserControllerApi {
         log.info("Request to archive user ID: {} by: {}", userId, currentUser.getUsername());
         userService.deleteUser(userId, currentUser.getUsername());
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<PresignUploadResponse> createProfilePictureUploadUrl(
+            Long userId, PresignUploadRequest request, User currentUser) {
+        log.info("Request profile-picture upload URL for user ID: {} by: {}", userId, currentUser.getUsername());
+        PresignUploadResponse response = userService.createProfilePictureUploadUrl(
+                userId, request.getContentType(), currentUser.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> attachProfilePicture(
+            Long userId, AttachUploadRequest request, User currentUser) {
+        log.info("Request to attach profile picture for user ID: {} by: {}", userId, currentUser.getUsername());
+        UserResponse response = userService.attachProfilePicture(
+                userId, request.getObjectKey(), currentUser.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> removeProfilePicture(Long userId, User currentUser) {
+        log.info("Request to remove profile picture for user ID: {} by: {}", userId, currentUser.getUsername());
+        UserResponse response = userService.removeProfilePicture(userId, currentUser.getUsername());
+        return ResponseEntity.ok(response);
     }
 }

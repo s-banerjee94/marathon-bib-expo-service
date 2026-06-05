@@ -218,4 +218,23 @@ awslocal dynamodb update-time-to-live \
     --time-to-live-specification "Enabled=true, AttributeName=expirationTime"
 
 echo "DynamoDB table marathon-audit-log created successfully with TTL enabled!"
+
+# Bucket name matches the application.yaml default (aws.s3.bucket / AWS_S3_BUCKET).
+echo "Creating S3 bucket: marathon-bib-expo-media"
+awslocal s3api create-bucket --bucket marathon-bib-expo-media
+
+echo "Applying CORS to marathon-bib-expo-media (browser PUT/GET via presigned URLs)"
+awslocal s3api put-bucket-cors --bucket marathon-bib-expo-media --cors-configuration '{
+    "CORSRules": [
+        {
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
+            "AllowedOrigins": ["*"],
+            "ExposeHeaders": ["ETag"],
+            "MaxAgeSeconds": 3600
+        }
+    ]
+}'
+
+echo "S3 bucket marathon-bib-expo-media created successfully with CORS enabled!"
 echo "LocalStack initialization complete!"

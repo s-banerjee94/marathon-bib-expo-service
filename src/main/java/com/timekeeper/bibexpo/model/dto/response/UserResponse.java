@@ -39,6 +39,10 @@ public class UserResponse {
     @Schema(description = "User role", example = "ADMIN")
     private UserRole role;
 
+    @Schema(description = "Short-lived presigned URL for the profile picture, null if none set",
+            example = "https://bucket.s3.ap-south-1.amazonaws.com/users/1/profile/uuid.png?X-Amz-...")
+    private String profilePictureUrl;
+
     @Schema(description = "Organization ID (null for system-level roles)", example = "1")
     private Long organizationId;
 

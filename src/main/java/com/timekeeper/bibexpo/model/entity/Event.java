@@ -46,8 +46,9 @@ public class Event implements Serializable {
     @Column(columnDefinition = "TEXT")
     private String eventDescription;
 
+    // S3 object key of the event logo; presigned to a URL at read time
     @Convert(converter = EmptyStringToNullConverter.class)
-    private String logoUrl;
+    private String logoObjectKey;
 
     @Column(length = 50)
     private String timezone;

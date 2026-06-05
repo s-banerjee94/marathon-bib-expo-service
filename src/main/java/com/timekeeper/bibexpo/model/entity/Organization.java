@@ -76,6 +76,10 @@ public class Organization implements Serializable {
     @Convert(converter = EmptyStringToNullConverter.class)
     private String registrationNumber;
 
+    // S3 object key of the organization logo; presigned to a URL at read time
+    @Convert(converter = EmptyStringToNullConverter.class)
+    private String logoKey;
+
     // Settings & Configuration
     @Column(columnDefinition = "JSON")
     private String settings;  // Store as JSON string

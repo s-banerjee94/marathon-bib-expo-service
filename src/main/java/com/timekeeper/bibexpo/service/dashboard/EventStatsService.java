@@ -3,9 +3,11 @@ package com.timekeeper.bibexpo.service.dashboard;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.CityCountDto;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventListItemDto;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventsDashboardDto;
+import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.enums.DashboardRange;
 import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 public class EventStatsService {
 
     private final EventRepository eventRepository;
+    private final StorageService storageService;
 
     @Transactional(readOnly = true)
     public EventsDashboardDto buildEventsBlock(OrgDashboardQuery query) {
@@ -41,11 +44,11 @@ public class EventStatsService {
 
         List<EventListItemDto> active = eventRepository
                 .findTop4ByOrganizationIdAndStatusOrderByEventStartDateAsc(orgId, EventStatus.PUBLISHED)
-                .stream().map(EventListItemDto::fromEntity).toList();
+                .stream().map(this::toListItem).toList();
 
         List<EventListItemDto> recent = eventRepository
                 .findTop10ByOrganizationIdOrderByCreatedAtDesc(orgId)
-                .stream().map(EventListItemDto::fromEntity).toList();
+                .stream().map(this::toListItem).toList();
 
         return EventsDashboardDto.builder()
                 .total(total)
@@ -56,6 +59,13 @@ public class EventStatsService {
                 .active(active)
                 .recent(recent)
                 .build();
+    }
+
+    /** Maps an event to a dashboard list item, presigning a short-lived URL for its logo. */
+    private EventListItemDto toListItem(Event event) {
+        EventListItemDto dto = EventListItemDto.fromEntity(event);
+        dto.setLogoUrl(storageService.createDownloadUrl(event.getLogoObjectKey()));
+        return dto;
     }
 
     private Map<String, Long> buildByStatus(Long orgId, Instant from, Instant to) {

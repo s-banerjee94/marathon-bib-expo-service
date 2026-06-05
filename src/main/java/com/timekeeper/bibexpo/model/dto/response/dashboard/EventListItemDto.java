@@ -40,7 +40,7 @@ public class EventListItemDto {
     @Schema(description = "Current event status", example = "PUBLISHED")
     private EventStatus status;
 
-    @Schema(description = "Event logo URL", example = "https://cdn.example.com/logo.png")
+    @Schema(description = "Short-lived presigned URL for the event logo, null if none set", example = "https://bucket.s3.ap-south-1.amazonaws.com/events/17/logo/uuid.png?X-Amz-...")
     private String logoUrl;
 
     public static EventListItemDto fromEntity(Event event) {
@@ -64,7 +64,6 @@ public class EventListItemDto {
                 .timezone(event.getTimezone())
                 .city(event.getCity())
                 .status(event.getStatus())
-                .logoUrl(event.getLogoUrl())
                 .build();
     }
 }

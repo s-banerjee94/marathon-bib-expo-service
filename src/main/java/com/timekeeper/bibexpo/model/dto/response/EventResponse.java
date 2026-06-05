@@ -29,7 +29,8 @@ public class EventResponse {
     @Schema(description = "Event description", example = "Annual marathon event in Mumbai with multiple race categories")
     private String eventDescription;
 
-    @Schema(description = "Event logo URL", example = "https://example.com/logos/mumbai-marathon.png")
+    @Schema(description = "Short-lived presigned URL for the event logo, null if none set",
+            example = "https://bucket.s3.ap-south-1.amazonaws.com/events/1/logo/uuid.png?X-Amz-...")
     private String logoUrl;
 
     @Schema(description = "IANA timezone ID for the event location", example = "Asia/Kolkata")
@@ -122,7 +123,6 @@ public class EventResponse {
                 .id(event.getId())
                 .eventName(event.getEventName())
                 .eventDescription(event.getEventDescription())
-                .logoUrl(event.getLogoUrl())
                 .timezone(event.getTimezone())
                 .eventStartDate(startDate)
                 .eventStartTime(startTime)
