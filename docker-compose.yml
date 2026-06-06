@@ -68,13 +68,15 @@ services:
     ports:
       - "4566:4566"
     environment:
-      - SERVICES=dynamodb,s3
+      - SERVICES=dynamodb,s3,lambda,scheduler
       - DEBUG=${DEBUG:-0}
       - PERSISTENCE=1
+      - LAMBDA_DOCKER_NETWORK=marathon-network   # spawned Lambda containers join this network to reach mysql + localstack
     volumes:
       - localstack-data:/var/lib/localstack      # ephemeral (Community)
       # - localstack-data:/persisted-data        # persist: localstack-persist writes restorable state here
       - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh
+      - /var/run/docker.sock:/var/run/docker.sock  # REQUIRED: LocalStack runs each Lambda in a spawned Docker container
     networks:
       - marathon-network
     healthcheck:
@@ -91,4 +93,5 @@ volumes:
 
 networks:
   marathon-network:
+    name: marathon-network          # pin the literal name (no project prefix) so LAMBDA_DOCKER_NETWORK matches
     driver: bridge

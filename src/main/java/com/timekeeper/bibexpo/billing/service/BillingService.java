@@ -1,0 +1,43 @@
+package com.timekeeper.bibexpo.billing.service;
+
+import com.timekeeper.bibexpo.billing.model.dto.response.BillGenerationResponse;
+import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
+import com.timekeeper.bibexpo.model.entity.User;
+
+import java.util.List;
+
+/**
+ * Read and on-demand-trigger side of event billing. Bills are computed and written
+ * solely by the external billing Lambda; this service never calculates a charge or
+ * renders a PDF. It only lists the bills the Lambda has produced and asks the Lambda
+ * to produce one now.
+ */
+public interface BillingService {
+
+    /**
+     * List every bill generated for an event, newest first, each carrying a freshly
+     * presigned short-lived URL to its PDF.
+     *
+     * @param eventId     the event whose bills to list
+     * @param currentUser the authenticated caller (must own the event's organization)
+     * @return the event's bills, newest first (empty if none)
+     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException     if the event does not exist or is outside the caller's organization
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller has no organization
+     */
+    List<BillResponse> listBills(Long eventId, User currentUser);
+
+    /**
+     * Request an on-demand bill for a terminal (completed/cancelled) event by invoking
+     * the billing Lambda directly. The Lambda applies the same dedup-by-count rule as the
+     * automatic timer, so a redundant request returns the existing bill rather than a
+     * duplicate.
+     *
+     * @param eventId     the event to bill
+     * @param currentUser the authenticated caller (must own the event's organization)
+     * @return the Lambda's outcome plus the event's refreshed bill list
+     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException     if the event does not exist or is outside the caller's organization
+     * @throws com.timekeeper.bibexpo.billing.exception.BillNotAllowedException    if the event is not yet completed or cancelled
+     * @throws com.timekeeper.bibexpo.billing.exception.BillGenerationException    if the Lambda invocation fails
+     */
+    BillGenerationResponse generateBill(Long eventId, User currentUser);
+}

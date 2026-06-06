@@ -49,6 +49,7 @@ public class OpenApiConfig {
                 .group("2-organizations")
                 .displayName("Organization Management")
                 .pathsToMatch("/api/organizations/**")
+                .pathsToExclude("/api/organizations/{organizationId}/billing/**")
                 .build();
     }
 
@@ -62,7 +63,8 @@ public class OpenApiConfig {
                         "/api/events/{eventId}/distribution/**",
                         "/api/events/{eventId}/participants/**",
                         "/api/events/{eventId}/sms-templates/**",
-                        "/api/events/{eventId}/sms-campaigns/**"
+                        "/api/events/{eventId}/sms-campaigns/**",
+                        "/api/events/{eventId}/billing/**"
                 )
                 .build();
     }
@@ -82,6 +84,19 @@ public class OpenApiConfig {
                 .group("5-distribution")
                 .displayName("Bib & Goodies Distribution")
                 .pathsToMatch("/api/events/{eventId}/distribution/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi billingGroup() {
+        return GroupedOpenApi.builder()
+                .group("6-billing")
+                .displayName("Event Billing")
+                .pathsToMatch(
+                        "/api/events/{eventId}/billing/**",
+                        "/api/organizations/{organizationId}/billing/**",
+                        "/api/billing/**"
+                )
                 .build();
     }
 

@@ -15,6 +15,7 @@ import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
+import com.timekeeper.bibexpo.model.event.EventStatusChangedEvent;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.service.EventService;
@@ -24,6 +25,7 @@ import com.timekeeper.bibexpo.service.validator.EventStatusTransitionValidator;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -51,6 +53,7 @@ public class EventServiceImpl implements EventService {
     private final EventAccessValidator eventAccessValidator;
     private final EventStatusTransitionValidator statusTransitionValidator;
     private final StorageService storageService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Map an event to a response, presigning a short-lived URL for its logo so the
@@ -328,6 +331,8 @@ public class EventServiceImpl implements EventService {
         Event updatedEvent = eventRepository.save(event);
         log.info("Successfully changed status for event with ID: {} to {} by user: {}",
                 updatedEvent.getId(), status, currentUser.getUsername());
+
+        eventPublisher.publishEvent(new EventStatusChangedEvent(updatedEvent.getId(), updatedEvent.getStatus()));
 
         return toResponse(updatedEvent);
     }

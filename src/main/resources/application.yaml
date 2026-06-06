@@ -144,3 +144,15 @@ aws:
     endpoint: ${AWS_S3_ENDPOINT:http://192.168.0.111:4566}                 # LocalStack locally; leave empty in prod to target real AWS S3
     upload-url-expiry-seconds: ${AWS_S3_UPLOAD_URL_EXPIRY_SECONDS:600}     # presigned PUT validity (10 min)
     download-url-expiry-seconds: ${AWS_S3_DOWNLOAD_URL_EXPIRY_SECONDS:3600} # presigned GET validity (1 hour)
+
+# Event-lifecycle billing — Spring only fires/reads; all computation + PDF live in the billing Lambda
+billing:
+  scheduling:
+    enabled: ${BILLING_SCHEDULING_ENABLED:false}                          # off locally (LocalStack stores but never fires schedules); set true on real AWS
+  scheduler:
+    endpoint: ${AWS_SCHEDULER_ENDPOINT:http://192.168.0.111:4566}         # LocalStack locally; leave empty in prod to target real AWS EventBridge Scheduler
+    role-arn: ${BILLING_SCHEDULER_ROLE_ARN:arn:aws:iam::000000000000:role/test-scheduler-role}  # role EventBridge assumes to invoke the Lambda
+    delay-hours: ${BILLING_DELAY_HOURS:5}                                 # auto-bill fires this long after an event turns terminal
+  lambda:
+    arn: ${BILLING_LAMBDA_ARN:arn:aws:lambda:us-east-1:000000000000:function:marathon-billing}  # billing Lambda (EventBridge target + manual-invoke target)
+    endpoint: ${AWS_LAMBDA_ENDPOINT:http://192.168.0.111:4566}            # LocalStack locally; leave empty in prod to target real AWS Lambda

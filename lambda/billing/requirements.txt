@@ -1,0 +1,3 @@
+# boto3 is provided by the Lambda runtime — bundle only these.
+pymysql==1.1.1
+reportlab==4.2.5
