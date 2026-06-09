@@ -50,6 +50,14 @@ public class BillingQuotaServiceImpl implements BillingQuotaService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isFinalized(Long eventId) {
+        return repository.findById(eventId)
+                .map(EventBillingState::isFinalLocked)
+                .orElse(false);
+    }
+
     private boolean isOrganizer(UserRole role) {
         return role == UserRole.ORGANIZER_ADMIN;
     }

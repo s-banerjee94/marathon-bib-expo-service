@@ -37,4 +37,14 @@ public interface BillingQuotaService {
      * @param role    the requesting user's role
      */
     void refund(Long eventId, UserRole role);
+
+    /**
+     * Whether a final bill already exists for the event. A finalize request is gated only by
+     * this lock — never by the manual-request quota — so the one closing final stays reachable
+     * even after the draft quota is spent.
+     *
+     * @param eventId the event to check
+     * @return {@code true} if the event is finalized and cannot be billed again
+     */
+    boolean isFinalized(Long eventId);
 }

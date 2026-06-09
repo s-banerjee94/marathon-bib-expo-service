@@ -85,21 +85,26 @@ public class BillingServiceImpl implements BillingService {
         // Only platform admins may issue a final; organizer admins always get a draft.
         InvoiceStatus effectiveMode = isPlatformAdmin(currentUser.getRole()) ? mode : InvoiceStatus.DRAFT;
 
-        QuotaClaimResult claim = billingQuotaService.claim(eventId, currentUser.getRole());
-        switch (claim) {
-            case FINALIZED -> throw new BillNotAllowedException(
-                    "This event has already been finalized and cannot be billed again.");
-            case QUOTA_EXHAUSTED -> throw new BillNotAllowedException(
-                    "You have used all available bill requests for this event.");
-            default -> { /* CLAIMED — proceed */ }
-        }
-
         String status;
         String message;
         if (effectiveMode == InvoiceStatus.FINAL) {
-            status = finalizeBill(eventId, currentUser);
+            // A final is the one closing action, gated only by the final lock — never by the
+            // manual-request quota — so it stays reachable even after the draft quota is spent.
+            if (billingQuotaService.isFinalized(eventId)) {
+                throw new BillNotAllowedException(
+                        "This event has already been finalized and cannot be billed again.");
+            }
+            status = finalizeBill(eventId);
             message = "Final bill generated successfully.";
         } else {
+            QuotaClaimResult claim = billingQuotaService.claim(eventId, currentUser.getRole());
+            switch (claim) {
+                case FINALIZED -> throw new BillNotAllowedException(
+                        "This event has already been finalized and cannot be billed again.");
+                case QUOTA_EXHAUSTED -> throw new BillNotAllowedException(
+                        "You have used all available bill requests for this event.");
+                default -> { /* CLAIMED — proceed */ }
+            }
             try {
                 status = invokeBillingLambda(eventId, InvoiceStatus.DRAFT);
                 message = switch (status) {
@@ -133,14 +138,14 @@ public class BillingServiceImpl implements BillingService {
     /**
      * Mark the event's draft FINAL and commit <em>before</em> invoking the Lambda — the mark is the
      * lock (edit endpoints reject a non-draft) and the Lambda only finalizes a bill the DB already
-     * shows as FINAL. Synchronous: if the Lambda does not complete the final, undo the mark and
-     * refund the caller's slot.
+     * shows as FINAL. Synchronous: if the Lambda does not complete the final, undo the mark so the
+     * bill stays an editable draft. A final never spends a manual-request slot, so there is nothing
+     * to refund on failure.
      */
-    private String finalizeBill(Long eventId, User currentUser) {
+    private String finalizeBill(Long eventId) {
         Invoice draft = invoiceRepository.findFirstByEventIdAndStatus(eventId, InvoiceStatus.DRAFT)
                 .orElse(null);
         if (draft == null) {
-            billingQuotaService.refund(eventId, currentUser.getRole());
             throw new BillNotAllowedException("Generate a draft bill before finalizing it.");
         }
 
@@ -153,18 +158,15 @@ public class BillingServiceImpl implements BillingService {
             status = invokeBillingLambda(eventId, InvoiceStatus.FINAL);
         } catch (BillGenerationException e) {
             revertToDraft(draft);
-            billingQuotaService.refund(eventId, currentUser.getRole());
             throw e;
         }
         if ("DISCOUNT_BELOW_ZERO".equals(status)) {
             revertToDraft(draft);
-            billingQuotaService.refund(eventId, currentUser.getRole());
             throw new BillNotAllowedException(
                     "The discounts on this bill are larger than its charges, so it cannot be finalized.");
         }
         if (!"CREATED_FINAL".equals(status)) {
             revertToDraft(draft);
-            billingQuotaService.refund(eventId, currentUser.getRole());
             throw new BillGenerationException("Bill generation failed. Please try again.");
         }
         // The bill is now a FINAL receivable — recompute the stats snapshot (async, best-effort).

@@ -36,7 +36,7 @@ public class EventBillingState {
     @Builder.Default
     private int orgAdminAttempts = 0;
 
-    /** Manual bill requests spent by ROOT/ADMIN (draft or final). */
+    /** Manual draft requests spent by ROOT/ADMIN; a final is gated only by the final lock, not this quota. */
     @Column(name = "admin_attempts", nullable = false)
     @Builder.Default
     private int adminAttempts = 0;
