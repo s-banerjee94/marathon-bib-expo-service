@@ -38,9 +38,21 @@ public class BillStatsResponse {
             example = "2026-06-08T10:00:00Z", nullable = true)
     private Instant refreshedAt;
 
-    @Schema(description = "What last triggered the recompute (FINALIZE, PAYMENT or MANUAL); null if never run",
+    @Schema(description = "What last triggered the recompute (DRAFT, FINALIZE, PAYMENT or MANUAL); null if never run",
             example = "PAYMENT", nullable = true)
     private String computedBy;
+
+    @Schema(description = "Human caption for the period every deltaPct compares against; null for ALL (no prior period)",
+            example = "vs Apr 12 – May 11", nullable = true)
+    private String comparisonLabel;
+
+    @Schema(description = "Headline bill counts keyed total/draft/final/paid/unpaid, each with a deltaPct. "
+            + "This is the only block that counts drafts; total = draft + final.")
+    private Map<String, TrendedCount> counts;
+
+    @Schema(description = "Money cards keyed billed/collected/outstanding/averageBill/billedThisMonth, each an "
+            + "amount with a deltaPct and a sparkline; billedThisMonth carries a count and is range-independent.")
+    private Map<String, TrendedMoney> money;
 
     @Schema(description = "Gross/net/GST billed in the window")
     private BilledStat billed;
@@ -66,11 +78,21 @@ public class BillStatsResponse {
     @Schema(description = "Billed amount and count split by trigger, keyed AUTO and MANUAL")
     private Map<String, MoneyStat> byReason;
 
+    @Schema(description = "Bill counts keyed DRAFT and FINAL (drafts included); DRAFT equals counts.draft.value, "
+            + "FINAL equals counts.final.value")
+    private Map<String, Long> byStatus;
+
+    @Schema(description = "Paid vs unpaid gross amounts (paid equals collected.amount, unpaid equals outstanding.amount)")
+    private PaymentSplit payment;
+
     @Schema(description = "Receivables aging of the outstanding bills (0-30 / 31-60 / 61-90 / 90+)")
     private List<AgingBucket> aging;
 
     @Schema(description = "Billed-vs-collected over the last 12 months (range-independent)")
     private BillStatsTrend trend;
+
+    @Schema(description = "Highest-billed events in the window, descending (top 5)")
+    private List<TopEventBilling> topEvents;
 
     @Schema(description = "Highest-billed organizations in the window, descending")
     private List<TopOrganizationBilling> topOrganizations;

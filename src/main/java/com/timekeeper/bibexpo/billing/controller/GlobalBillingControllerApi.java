@@ -113,23 +113,38 @@ public interface GlobalBillingControllerApi {
             description = """
                     Auditor-grade billing statistics for the platform overview, served from a snapshot that is \
                     computed **entirely in a dedicated Lambda** (never in Spring) and recomputed asynchronously \
-                    whenever a bill is finalized, marked paid/unpaid, or the snapshot is manually refreshed.
+                    whenever a new draft bill is created, a bill is finalized, a bill is marked paid, or the \
+                    snapshot is manually refreshed.
 
-                    **Only issued (FINAL) bills count** — drafts are never included. Within a `range`, the FINAL \
-                    bills finalized in the window form a cohort that reconciles: \
-                    `billed = collected + outstanding` (both amount and count).
+                    **Amounts count only issued (FINAL) bills** — drafts are never summed. Within a `range`, \
+                    the FINAL bills finalized in the window form a cohort that reconciles: \
+                    `billed = collected + outstanding` (both amount and count). The only places drafts are \
+                    counted are `counts` and `byStatus`, and those are **counts, never amounts**.
+
+                    Every headline/money metric carries a `deltaPct` vs the **immediately-preceding equal-length \
+                    period** (`MONTH` → prior 30 days, `YEAR` → prior calendar year, `ALL` → no prior period, so \
+                    `null`); `comparisonLabel` captions that period.
 
                     **Response (`BillStatsResponse`)** — the slice for the requested `range`:
+                    - `counts` — headline bill counts keyed `total/draft/final/paid/unpaid`, each \
+                      `{ value, deltaPct }`; **includes drafts** (`total = draft + final`).
+                    - `money` — cards keyed `billed/collected/outstanding/averageBill/billedThisMonth`, each \
+                      `{ amount, deltaPct, spark[] }` (a ~6-point cumulative sparkline, oldest first). \
+                      `billedThisMonth` carries a `count` and is **current-calendar-month, range-independent**.
+                    - `comparisonLabel` — caption for the delta period (e.g. `"vs Apr 12 – May 11"`); `null` for `ALL`.
                     - `billed` — `{ amount (gross), net (taxable value), tax (GST), count }`.
                     - `collected` — `{ amount, count }` of the cohort that is PAID.
                     - `outstanding` — `{ amount, count }` of the cohort still UNPAID (open receivable).
                     - `collectionRate` — `collected.amount / billed.amount * 100`.
                     - `averageBill`, `dso` (days sales outstanding — average age in days of unpaid bills).
                     - `gst` — `{ collected, outstanding, total }` GST liability split.
-                    - `byReason` — billed `{ amount, count }` keyed `AUTO` and `MANUAL`.
+                    - `byReason` — billed `{ amount, count }` keyed `AUTO` and `MANUAL` (the UI labels it "Type").
+                    - `byStatus` — bill counts keyed `DRAFT` and `FINAL` (drafts included).
+                    - `payment` — `{ paid, unpaid }` gross amounts (= `collected.amount` / `outstanding.amount`).
                     - `aging` — outstanding split into `0-30 / 31-60 / 61-90 / 90+` day bands by finalize date.
                     - `trend` — billed-vs-collected over the last 12 months (`bucketLabels`, `billed`, \
                       `collected`, `count` index-aligned, oldest first); **range-independent**.
+                    - `topEvents` — top 5 highest-billed events in the window, descending.
                     - `topOrganizations` — highest-billed organizations in the window, with billed/collected/outstanding.
                     - `currency`, `range`, `refreshedAt`, `computedBy`.
 

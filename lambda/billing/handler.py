@@ -48,10 +48,19 @@ Config (environment variables):
   MEDIA_BUCKET         (default marathon-bib-expo-media)  - S3 bucket for invoice PDFs;
                                             must match the Spring S3 bucket so it can presign
   ISSUER_NAME, ISSUER_ADDRESS, ISSUER_GSTIN           - the platform's billing identity (PDF)
+  STATS_LAMBDA_ARN     - the bill-stats Lambda, invoked async when a brand-new draft is created so
+                         the snapshot's draft/total counts stay fresh (the execution role needs
+                         lambda:InvokeFunction on it). Unset -> the recompute is skipped (logged).
+
+Bill-stats: a new draft changes the platform's draft/total bill counts, which the stats snapshot
+includes, so creating one fires the bill-stats Lambda (reason DRAFT) — covering both the manual and
+AUTO draft paths, which Spring cannot trigger for the timer. Finalize and payment recomputes are
+fired by Spring; a draft *refresh* changes no count and is FINAL-only-irrelevant, so it skips it.
 
 Packaging: boto3 ships in the Lambda runtime; pymysql and reportlab must be bundled
 (requirements.txt) as a layer or in the deployment zip.
 """
+import json
 import logging
 import os
 import uuid
@@ -78,6 +87,7 @@ HUNDRED = Decimal("100")
 dynamodb = boto3.resource("dynamodb")
 scheduler = boto3.client("scheduler")
 s3 = boto3.client("s3")
+lambda_client = boto3.client("lambda")
 
 
 class DiscountBelowZero(Exception):
@@ -101,6 +111,9 @@ MEDIA_BUCKET = _env("MEDIA_BUCKET", "marathon-bib-expo-media")
 ISSUER_NAME = _env("ISSUER_NAME", "Acme Timing Pvt Ltd")
 ISSUER_ADDRESS = _env("ISSUER_ADDRESS", "221B Placeholder Road, Mumbai, MH 400001")
 ISSUER_GSTIN = _env("ISSUER_GSTIN", "27AAAAA0000A1Z5")
+# ARN of the dedicated bill-stats Lambda, invoked async when a brand-new draft is created so the
+# snapshot's draft/total counts stay fresh. Unset -> the recompute is skipped (logged).
+STATS_LAMBDA_ARN = _env("STATS_LAMBDA_ARN")
 
 
 # ---- data access -----------------------------------------------------------
@@ -391,14 +404,17 @@ def _insert_notifications(conn, ev):
 # ---- bill builders ---------------------------------------------------------
 
 def _create_or_refresh_draft(conn, ev, count, reason):
-    """Returns (status, bill_id): CREATED_DRAFT, or SKIPPED_DUPLICATE if nothing changed."""
+    """Returns (status, bill_id, created_new): CREATED_DRAFT with created_new True only when a
+    brand-new draft row was inserted (a refresh of an existing draft is created_new False), or
+    SKIPPED_DUPLICATE if nothing changed."""
     event_id = int(ev["id"])
     now = datetime.now(timezone.utc)
     existing = _existing_draft(conn, event_id)
+    created_new = existing is None
     if existing is not None:
         bill_id = existing["bill_id"]
         if _draft_participant_count(conn, bill_id) == count:
-            return "SKIPPED_DUPLICATE", bill_id
+            return "SKIPPED_DUPLICATE", bill_id, False
     else:
         bill_id = str(uuid.uuid4())
         _insert_invoice_header(conn, ev, bill_id=bill_id, status="DRAFT", invoice_number=None,
@@ -408,7 +424,7 @@ def _create_or_refresh_draft(conn, ev, count, reason):
     _set_participant_line(conn, bill_id, count, now)
     subtotal, tax, total = _recompute_totals(conn, bill_id)
     _refresh_header(conn, bill_id, subtotal, tax, total, now)
-    return "CREATED_DRAFT", bill_id
+    return "CREATED_DRAFT", bill_id, created_new
 
 
 def _process_marked_final(conn, ev, count):
@@ -567,6 +583,24 @@ def _render_and_store_pdf(conn, bill_id):
 
 # ---- handler ---------------------------------------------------------------
 
+def _trigger_stats_recompute(reason):
+    """Fire-and-forget the bill-stats Lambda so the snapshot's draft/total counts stay fresh. Best-
+    effort: a missing ARN or a failed invoke only logs — the snapshot self-heals on the next trigger
+    or a manual refresh, and the bill itself is already committed."""
+    if not STATS_LAMBDA_ARN:
+        log.warning("[bill-stats] STATS_LAMBDA_ARN not set — skipping %s recompute", reason)
+        return
+    try:
+        lambda_client.invoke(
+            FunctionName=STATS_LAMBDA_ARN,
+            InvocationType="Event",
+            Payload=json.dumps({"reason": reason}).encode("utf-8"),
+        )
+        log.info("[bill-stats] triggered %s recompute", reason)
+    except Exception as e:  # best-effort
+        log.warning("[bill-stats] could not trigger %s recompute: %s", reason, e)
+
+
 def _delete_own_schedule(event):
     """Self-clean the one-time AUTO schedule. The auto-bill is a single-shot nudge, so the
     schedule is deleted whether the run succeeded or failed — there is no re-firing. A failed
@@ -640,7 +674,7 @@ def _process(event, context):
                         "billId": bill_id, "invoiceNumber": number}
 
             count = _participant_count_fast(event_id)
-            status, bill_id = _create_or_refresh_draft(conn, ev, count, reason)
+            status, bill_id, created_new = _create_or_refresh_draft(conn, ev, count, reason)
             if status == "SKIPPED_DUPLICATE":
                 conn.rollback()
                 log.info("Event %s draft already at count %s — skipping", event_id, count)
@@ -658,6 +692,11 @@ def _process(event, context):
                     conn.rollback()
                     log.warning("Could not queue draft-bill notifications for event %s: %s",
                                 event_id, e)
+            # A brand-new draft changes the platform's draft/total bill counts, which the stats
+            # snapshot includes — recompute it. A refresh leaves counts (and all FINAL-only amounts)
+            # unchanged, so it needs no recompute. Covers both the manual and AUTO draft paths.
+            if created_new:
+                _trigger_stats_recompute("DRAFT")
             log.info("Draft bill %s created/refreshed for event %s", bill_id, event_id)
             return {"status": "CREATED_DRAFT", "eventId": event_id, "billId": bill_id}
         finally:

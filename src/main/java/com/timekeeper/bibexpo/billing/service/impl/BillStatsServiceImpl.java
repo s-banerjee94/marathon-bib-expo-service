@@ -9,6 +9,9 @@ import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsTrend;
 import com.timekeeper.bibexpo.billing.model.dto.response.BilledStat;
 import com.timekeeper.bibexpo.billing.model.dto.response.GstStat;
 import com.timekeeper.bibexpo.billing.model.dto.response.MoneyStat;
+import com.timekeeper.bibexpo.billing.model.dto.response.PaymentSplit;
+import com.timekeeper.bibexpo.billing.model.dto.response.TrendedCount;
+import com.timekeeper.bibexpo.billing.model.dto.response.TrendedMoney;
 import com.timekeeper.bibexpo.billing.model.entity.BillingStatsSnapshot;
 import com.timekeeper.bibexpo.billing.repository.BillingStatsSnapshotRepository;
 import com.timekeeper.bibexpo.billing.service.BillStatsService;
@@ -81,11 +84,21 @@ public class BillStatsServiceImpl implements BillStatsService {
     /** An all-zero slice for a range with no snapshot yet — {@code refreshedAt}/{@code computedBy} stay null. */
     private BillStatsResponse empty(DashboardRange range) {
         MoneyStat zeroMoney = MoneyStat.builder().amount(BigDecimal.ZERO).count(0).build();
+        TrendedCount zeroCount = TrendedCount.builder().value(0).deltaPct(null).build();
+        TrendedMoney zeroCard = TrendedMoney.builder()
+                .amount(BigDecimal.ZERO).deltaPct(null).count(null).spark(List.of()).build();
+        TrendedMoney zeroMonthCard = TrendedMoney.builder()
+                .amount(BigDecimal.ZERO).deltaPct(null).count(0L).spark(List.of()).build();
         return BillStatsResponse.builder()
                 .currency(BillingRates.DEFAULT.currency())
                 .range(range)
                 .refreshedAt(null)
                 .computedBy(null)
+                .comparisonLabel(null)
+                .counts(Map.of("total", zeroCount, "draft", zeroCount, "final", zeroCount,
+                        "paid", zeroCount, "unpaid", zeroCount))
+                .money(Map.of("billed", zeroCard, "collected", zeroCard, "outstanding", zeroCard,
+                        "averageBill", zeroCard, "billedThisMonth", zeroMonthCard))
                 .billed(BilledStat.builder()
                         .amount(BigDecimal.ZERO).net(BigDecimal.ZERO).tax(BigDecimal.ZERO).count(0).build())
                 .collected(zeroMoney)
@@ -96,6 +109,8 @@ public class BillStatsServiceImpl implements BillStatsService {
                 .gst(GstStat.builder()
                         .collected(BigDecimal.ZERO).outstanding(BigDecimal.ZERO).total(BigDecimal.ZERO).build())
                 .byReason(Map.of("AUTO", zeroMoney, "MANUAL", zeroMoney))
+                .byStatus(Map.of("DRAFT", 0L, "FINAL", 0L))
+                .payment(PaymentSplit.builder().paid(BigDecimal.ZERO).unpaid(BigDecimal.ZERO).build())
                 .aging(AGING_BANDS.stream()
                         .map(band -> AgingBucket.builder().bucket(band).amount(BigDecimal.ZERO).count(0).build())
                         .toList())
@@ -106,6 +121,7 @@ public class BillStatsServiceImpl implements BillStatsService {
                         .collected(List.of())
                         .count(List.of())
                         .build())
+                .topEvents(List.of())
                 .topOrganizations(List.of())
                 .build();
     }
