@@ -18,6 +18,7 @@ import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.model.event.EventStatusChangedEvent;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.service.EventBillingGuard;
 import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.StorageService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
@@ -52,6 +53,7 @@ public class EventServiceImpl implements EventService {
     private final OrganizationRepository organizationRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventStatusTransitionValidator statusTransitionValidator;
+    private final EventBillingGuard eventBillingGuard;
     private final StorageService storageService;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -324,7 +326,16 @@ public class EventServiceImpl implements EventService {
             throw new InvalidUserDataException("Event status is required.");
         }
 
+        EventStatus current = event.getStatus();
         statusTransitionValidator.validateTransition(event, status, currentUser);
+
+        // A final bill closes the event permanently — block any move away from a terminal state.
+        if (status != current
+                && (current == EventStatus.COMPLETED || current == EventStatus.CANCELLED)
+                && eventBillingGuard.hasFinalInvoice(id)) {
+            throw new InvalidUserDataException(
+                    "You cannot reopen this event because a final bill has been issued.");
+        }
 
         event.setStatus(status);
 

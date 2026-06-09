@@ -1,0 +1,2 @@
+# boto3 is provided by the Lambda runtime — bundle only this. No reportlab/S3/DynamoDB needed.
+pymysql==1.1.1

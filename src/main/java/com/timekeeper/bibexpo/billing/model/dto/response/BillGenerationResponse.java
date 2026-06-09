@@ -16,8 +16,9 @@ import java.util.List;
 public class BillGenerationResponse {
 
     @Schema(description = "Outcome reported by the billing Lambda",
-            example = "CREATED",
-            allowableValues = {"CREATED", "SKIPPED_DUPLICATE", "SKIPPED_NOT_BILLABLE"})
+            example = "CREATED_DRAFT",
+            allowableValues = {"CREATED_DRAFT", "CREATED_FINAL", "SKIPPED_DUPLICATE",
+                    "SKIPPED_NOT_BILLABLE", "ALREADY_FINAL"})
     private String status;
 
     @Schema(description = "Human-readable explanation of the outcome",

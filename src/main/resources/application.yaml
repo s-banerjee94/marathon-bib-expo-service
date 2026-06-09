@@ -156,3 +156,6 @@ billing:
   lambda:
     arn: ${BILLING_LAMBDA_ARN:arn:aws:lambda:us-east-1:000000000000:function:marathon-billing}  # billing Lambda (EventBridge target + manual-invoke target)
     endpoint: ${AWS_LAMBDA_ENDPOINT:http://192.168.0.111:4566}            # LocalStack locally; leave empty in prod to target real AWS Lambda
+  stats-lambda:
+    arn: ${BILLING_STATS_LAMBDA_ARN:arn:aws:lambda:us-east-1:000000000000:function:marathon-billing-stats}  # dedicated bill-stats Lambda, invoked async on finalize/payment/manual refresh
+    endpoint: ${AWS_LAMBDA_ENDPOINT:http://192.168.0.111:4566}            # shares the bill Lambda's client/endpoint; only the ARN differs

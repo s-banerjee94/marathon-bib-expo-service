@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.billing.repository;
 
 import com.timekeeper.bibexpo.billing.model.entity.Invoice;
+import com.timekeeper.bibexpo.billing.model.entity.InvoiceStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
@@ -12,7 +13,7 @@ import java.util.Optional;
  * Lambda; the Spring app lists them per event/organization and toggles payment
  * status. {@link JpaSpecificationExecutor} backs the filterable global feed.
  */
-public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpecificationExecutor<Invoice> {
+public interface InvoiceRepository extends JpaRepository<Invoice, String>, JpaSpecificationExecutor<Invoice> {
 
     /**
      * All bills for an event, newest first.
@@ -39,9 +40,22 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     Optional<Invoice> findByBillId(String billId);
 
     /**
-     * All bills, oldest first — feeds the summary rollup (totals + trend computed in memory).
+     * The event's bill in a given status (at most one draft / one final exists per event).
+     * Used by finalize to find the draft it must mark FINAL before invoking the Lambda.
      *
-     * @return every invoice ordered by generation time ascending
+     * @param eventId the event id
+     * @param status  the status to match
+     * @return the matching invoice, if present
      */
-    List<Invoice> findAllByOrderByCreatedAtAsc();
+    Optional<Invoice> findFirstByEventIdAndStatus(Long eventId, InvoiceStatus status);
+
+    /**
+     * Whether the event has a bill in the given status — used to enforce "one final per
+     * event" and to block reopening an event that already has a final bill.
+     *
+     * @param eventId the event id
+     * @param status  the status to check for
+     * @return true if at least one matching invoice exists
+     */
+    boolean existsByEventIdAndStatus(Long eventId, InvoiceStatus status);
 }

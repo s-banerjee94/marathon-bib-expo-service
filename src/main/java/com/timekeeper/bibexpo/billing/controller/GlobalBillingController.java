@@ -1,14 +1,16 @@
 package com.timekeeper.bibexpo.billing.controller;
 
+import com.timekeeper.bibexpo.billing.exception.BillNotAllowedException;
 import com.timekeeper.bibexpo.billing.exception.BillNotFoundException;
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.billing.model.dto.request.UpdatePaymentStatusRequest;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
-import com.timekeeper.bibexpo.billing.model.dto.response.BillingSummaryResponse;
+import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsRefreshResponse;
+import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsResponse;
 import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
 import com.timekeeper.bibexpo.model.enums.DashboardRange;
-import com.timekeeper.bibexpo.model.enums.TrendInterval;
+import com.timekeeper.bibexpo.billing.service.BillStatsService;
 import com.timekeeper.bibexpo.billing.service.BillingAdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ import java.time.Instant;
 public class GlobalBillingController implements GlobalBillingControllerApi {
 
     private final BillingAdminService billingAdminService;
+    private final BillStatsService billStatsService;
 
     @Override
     public ResponseEntity<PageableResponse<BillResponse>> listAllBills(
@@ -52,15 +55,18 @@ public class GlobalBillingController implements GlobalBillingControllerApi {
     }
 
     @Override
-    public ResponseEntity<BillingSummaryResponse> getSummary(
-            @RequestParam(defaultValue = "ALL") DashboardRange range,
-            @RequestParam(defaultValue = "MONTH") TrendInterval trendInterval,
-            @RequestParam(defaultValue = "12") int trendBuckets,
-            @RequestParam(defaultValue = "5") int topOrgs) {
-        log.info("GET /api/billing/summary — range: {} trendInterval: {} trendBuckets: {} topOrgs: {}",
-                range, trendInterval, trendBuckets, topOrgs);
+    public ResponseEntity<BillStatsResponse> getStats(
+            @RequestParam(defaultValue = "ALL") DashboardRange range) {
+        log.info("GET /api/billing/stats — range: {}", range);
 
-        return ResponseEntity.ok(billingAdminService.getSummary(range, trendInterval, trendBuckets, topOrgs));
+        return ResponseEntity.ok(billStatsService.getStats(range));
+    }
+
+    @Override
+    public ResponseEntity<BillStatsRefreshResponse> refreshStats() {
+        log.info("POST /api/billing/stats/refresh");
+
+        return ResponseEntity.accepted().body(billStatsService.refresh());
     }
 
     @Override
@@ -79,5 +85,12 @@ public class GlobalBillingController implements GlobalBillingControllerApi {
         log.warn("Bill not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(BillNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleBillNotAllowed(BillNotAllowedException ex, WebRequest request) {
+        log.warn("Bill operation not allowed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
 }

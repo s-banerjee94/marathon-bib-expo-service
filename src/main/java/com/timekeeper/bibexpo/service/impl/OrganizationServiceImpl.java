@@ -350,6 +350,11 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
     }
 
+    // Update is full-state: the request carries the organization's complete desired state, so
+    // optional fields are written unconditionally — a null/blank clears them (the frontend
+    // removing a value sends null, which must reach the DB). Required fields (organizerName,
+    // email) are the exception: they are only overwritten when a non-blank value is supplied,
+    // so they can never be wiped.
     private void applyOrganizationUpdates(Organization organization, UpdateOrganizationRequest request) {
         updateBasicInfo(organization, request);
         updateContactInfo(organization, request);
@@ -359,64 +364,44 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void updateBasicInfo(Organization organization, UpdateOrganizationRequest request) {
-        if (request.getOrganizerName() != null) {
+        if (hasText(request.getOrganizerName())) {
             organization.setOrganizerName(request.getOrganizerName());
         }
     }
 
     private void updateContactInfo(Organization organization, UpdateOrganizationRequest request) {
-        if (request.getEmail() != null) {
+        if (hasText(request.getEmail())) {
             organization.setEmail(request.getEmail());
         }
-        if (request.getPhoneNumber() != null) {
-            organization.setPhoneNumber(emptyToNull(request.getPhoneNumber()));
-        }
-        if (request.getWebsite() != null) {
-            organization.setWebsite(emptyToNull(request.getWebsite()));
-        }
+        organization.setPhoneNumber(emptyToNull(request.getPhoneNumber()));
+        organization.setWebsite(emptyToNull(request.getWebsite()));
     }
 
     private void updateAddressInfo(Organization organization, UpdateOrganizationRequest request) {
-        if (request.getAddressLine1() != null) {
-            organization.setAddressLine1(request.getAddressLine1());
-        }
-        if (request.getAddressLine2() != null) {
-            organization.setAddressLine2(request.getAddressLine2());
-        }
-        if (request.getCity() != null) {
-            organization.setCity(request.getCity());
-        }
-        if (request.getStateProvince() != null) {
-            organization.setStateProvince(request.getStateProvince());
-        }
-        if (request.getPostalCode() != null) {
-            organization.setPostalCode(request.getPostalCode());
-        }
-        if (request.getCountry() != null) {
-            organization.setCountry(request.getCountry());
-        }
+        organization.setAddressLine1(emptyToNull(request.getAddressLine1()));
+        organization.setAddressLine2(emptyToNull(request.getAddressLine2()));
+        organization.setCity(emptyToNull(request.getCity()));
+        organization.setStateProvince(emptyToNull(request.getStateProvince()));
+        organization.setPostalCode(emptyToNull(request.getPostalCode()));
+        organization.setCountry(emptyToNull(request.getCountry()));
     }
 
     private void updateBusinessInfo(Organization organization, UpdateOrganizationRequest request) {
-        if (request.getTaxId() != null) {
-            organization.setTaxId(emptyToNull(request.getTaxId()));
-        }
-        if (request.getRegistrationNumber() != null) {
-            organization.setRegistrationNumber(emptyToNull(request.getRegistrationNumber()));
-        }
+        organization.setTaxId(emptyToNull(request.getTaxId()));
+        organization.setRegistrationNumber(emptyToNull(request.getRegistrationNumber()));
     }
 
     private void updateSubscriptionInfo(Organization organization, UpdateOrganizationRequest request) {
-        if (request.getSubscriptionTier() != null) {
-            organization.setSubscriptionTier(emptyToNull(request.getSubscriptionTier()));
-        }
-        if (request.getBillingEmail() != null) {
-            organization.setBillingEmail(emptyToNull(request.getBillingEmail()));
-        }
+        organization.setSubscriptionTier(emptyToNull(request.getSubscriptionTier()));
+        organization.setBillingEmail(emptyToNull(request.getBillingEmail()));
     }
 
     private String emptyToNull(String value) {
         return (value == null || value.isBlank()) ? null : value;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     @Override

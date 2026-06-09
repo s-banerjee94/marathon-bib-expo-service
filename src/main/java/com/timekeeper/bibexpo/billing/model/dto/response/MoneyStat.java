@@ -12,12 +12,12 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "Billed amount and bill count for one trigger reason")
-public class ReasonAggregate {
+@Schema(description = "A money amount and the number of bills it covers")
+public class MoneyStat {
 
-    @Schema(description = "Sum of totalAmount", example = "3950000.00")
+    @Schema(description = "Sum of bill totals (gross, GST-inclusive)", example = "3110000.00")
     private BigDecimal amount;
 
-    @Schema(description = "Number of bills", example = "256")
+    @Schema(description = "Number of bills", example = "201")
     private long count;
 }

@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.scheduler.model.DeleteScheduleRequest;
 import software.amazon.awssdk.services.scheduler.model.FlexibleTimeWindow;
 import software.amazon.awssdk.services.scheduler.model.FlexibleTimeWindowMode;
 import software.amazon.awssdk.services.scheduler.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.scheduler.model.RetryPolicy;
 import software.amazon.awssdk.services.scheduler.model.SchedulerException;
 import software.amazon.awssdk.services.scheduler.model.Target;
 import software.amazon.awssdk.services.scheduler.model.UpdateScheduleRequest;
@@ -57,6 +58,9 @@ public class BillingScheduleServiceImpl implements BillingScheduleService {
                 .arn(billingProperties.getLambda().getArn())
                 .roleArn(billingProperties.getScheduler().getRoleArn())
                 .input(autoBillPayload(eventId, name))
+                // Single-shot: the auto-bill fires once. The Lambda self-deletes the schedule on
+                // any outcome, so EventBridge must not retry a failed invocation.
+                .retryPolicy(RetryPolicy.builder().maximumRetryAttempts(0).build())
                 .build();
         FlexibleTimeWindow window = FlexibleTimeWindow.builder()
                 .mode(FlexibleTimeWindowMode.OFF)

@@ -18,10 +18,13 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class EventBillingScheduleListener {
 
     private final BillingScheduleService billingScheduleService;
+    private final BillingQuotaService billingQuotaService;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onStatusChanged(EventStatusChangedEvent event) {
         if (isTerminal(event.newStatus())) {
+            // Quota persists across reopen → re-complete: the row is created once and never reset.
+            billingQuotaService.ensureState(event.eventId());
             billingScheduleService.schedule(event.eventId());
         } else {
             billingScheduleService.cancel(event.eventId());

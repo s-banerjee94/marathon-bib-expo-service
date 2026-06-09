@@ -1,12 +1,9 @@
 package com.timekeeper.bibexpo.billing.service;
 
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
-import com.timekeeper.bibexpo.billing.model.dto.response.BillingSummaryResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.OrganizationBillingResponse;
 import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.DashboardRange;
-import com.timekeeper.bibexpo.model.enums.TrendInterval;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -47,23 +44,16 @@ public interface BillingAdminService {
                                     String reason, PaymentStatus paymentStatus, String q, Pageable pageable);
 
     /**
-     * Platform-wide billing aggregates (totals, split by reason, a time trend, and top organizations).
-     *
-     * @param range         rolling window for the totals (ALL, YEAR or MONTH)
-     * @param trendInterval bucket width for the trend (DAY, WEEK or MONTH)
-     * @param trendBuckets  number of trend buckets (clamped to 1..90)
-     * @param topOrgs       number of top organizations to return (clamped to 1..20)
-     * @return the computed summary
-     */
-    BillingSummaryResponse getSummary(DashboardRange range, TrendInterval trendInterval, int trendBuckets, int topOrgs);
-
-    /**
-     * Set a bill's payment state (admin action).
+     * Mark a bill paid (admin action). Payment is one-way: only a FINAL bill can be paid, and once
+     * paid it cannot be reverted to unpaid. The UNPAID-&gt;PAID transition stamps the collection date
+     * and triggers an asynchronous bill-stats recompute; a request that does not change the state is
+     * a no-op.
      *
      * @param billId        the bill's public id
-     * @param paymentStatus the new payment state
-     * @return the updated bill
-     * @throws com.timekeeper.bibexpo.billing.exception.BillNotFoundException if no bill has that id
+     * @param paymentStatus the requested payment state
+     * @return the updated bill (or the unchanged bill for a no-op)
+     * @throws com.timekeeper.bibexpo.billing.exception.BillNotFoundException  if no bill has that id
+     * @throws com.timekeeper.bibexpo.billing.exception.BillNotAllowedException if the bill is a draft, or is already paid and a revert to unpaid is requested
      */
     BillResponse updatePaymentStatus(String billId, PaymentStatus paymentStatus);
 }

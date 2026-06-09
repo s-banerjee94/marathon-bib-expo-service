@@ -20,6 +20,7 @@ public class BillingProperties {
     private final Scheduling scheduling = new Scheduling();
     private final Scheduler scheduler = new Scheduler();
     private final Lambda lambda = new Lambda();
+    private final Lambda statsLambda = new Lambda();
 
     @Data
     public static class Scheduling {
@@ -45,7 +46,11 @@ public class BillingProperties {
 
     @Data
     public static class Lambda {
-        /** ARN (or name) of the billing Lambda — the EventBridge target and the manual-invoke target. */
+        /**
+         * ARN (or name) of a billing Lambda. Two are configured: {@code billing.lambda} is the
+         * bill-generation Lambda (EventBridge target + manual-invoke target); {@code billing.stats-lambda}
+         * is the dedicated bill-stats Lambda fired async on finalize/payment/manual refresh.
+         */
         private String arn;
 
         /** LocalStack endpoint override; empty/blank targets real AWS Lambda. */
