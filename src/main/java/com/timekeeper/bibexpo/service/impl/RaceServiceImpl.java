@@ -18,13 +18,13 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.RaceService;
 import com.timekeeper.bibexpo.util.NameNormalizer;
+import com.timekeeper.bibexpo.util.TextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 @Service
 @RequiredArgsConstructor
@@ -96,7 +96,7 @@ public class RaceServiceImpl implements RaceService {
             race.setRaceName(newRaceName);
         }
 
-        updateIfNotNull(request.getRaceDescription(), race::setRaceDescription);
+        TextUtils.applyIfSent(request.getRaceDescription(), race::setRaceDescription);
 
         Race updatedRace = raceRepository.save(race);
 
@@ -197,11 +197,5 @@ public class RaceServiceImpl implements RaceService {
 
         return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)
                 .orElseThrow(RaceNotFoundException::new);
-    }
-
-    private <T> void updateIfNotNull(T value, Consumer<T> setter) {
-        if (value != null) {
-            setter.accept(value);
-        }
     }
 }

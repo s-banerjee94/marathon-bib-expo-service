@@ -16,6 +16,7 @@ import com.timekeeper.bibexpo.service.CategoryService;
 import com.timekeeper.bibexpo.service.ParticipantService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.util.NameNormalizer;
+import com.timekeeper.bibexpo.util.TextUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -101,9 +102,7 @@ public class CategoryServiceImpl implements CategoryService {
             category.setCategoryName(newCategoryName);
         }
 
-        if (request.getDescription() != null) {
-            category.setDescription(request.getDescription());
-        }
+        TextUtils.applyIfSent(request.getDescription(), category::setDescription);
 
         Category updatedCategory = categoryRepository.save(category);
 

@@ -23,6 +23,7 @@ import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.StorageService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventStatusTransitionValidator;
+import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +43,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 @Service
 @RequiredArgsConstructor
@@ -146,21 +146,21 @@ public class EventServiceImpl implements EventService {
 
         applyEventNameUpdate(event, request);
 
-        updateIfNotNull(request.getEventDescription(), event::setEventDescription);
+        TextUtils.applyIfSent(request.getEventDescription(), event::setEventDescription);
 
         applyTimezoneUpdate(event, request);
         applyEventDateUpdates(event, request);
 
-        updateRequiredStringIfNotBlank(request.getVenueName(), event::setVenueName);
-        updateIfNotNull(request.getAddressLine1(), event::setAddressLine1);
-        updateIfNotNull(request.getAddressLine2(), event::setAddressLine2);
-        updateIfNotNull(request.getCity(), event::setCity);
-        updateIfNotNull(request.getStateProvince(), event::setStateProvince);
-        updateIfNotNull(request.getPostalCode(), event::setPostalCode);
-        updateIfNotNull(request.getCountry(), event::setCountry);
-        updateIfNotNull(request.getLatitude(), event::setLatitude);
-        updateIfNotNull(request.getLongitude(), event::setLongitude);
-        updateIfNotNull(request.getEventGoodies(), event::setEventGoodies);
+        TextUtils.applyRequiredIfSent(request.getVenueName(), event::setVenueName);
+        TextUtils.applyIfSent(request.getAddressLine1(), event::setAddressLine1);
+        TextUtils.applyIfSent(request.getAddressLine2(), event::setAddressLine2);
+        TextUtils.applyIfSent(request.getCity(), event::setCity);
+        TextUtils.applyIfSent(request.getStateProvince(), event::setStateProvince);
+        TextUtils.applyIfSent(request.getPostalCode(), event::setPostalCode);
+        TextUtils.applyIfSent(request.getCountry(), event::setCountry);
+        TextUtils.applyIfSent(request.getLatitude(), event::setLatitude);
+        TextUtils.applyIfSent(request.getLongitude(), event::setLongitude);
+        TextUtils.applyIfSent(request.getEventGoodies(), event::setEventGoodies);
 
         Event updatedEvent = eventRepository.save(event);
         log.info("Successfully updated event with ID: {} by user: {}", updatedEvent.getId(), currentUser.getUsername());
@@ -457,18 +457,6 @@ public class EventServiceImpl implements EventService {
         }
 
         throw new UnauthorizedAccessException("You are not allowed to create events.");
-    }
-
-    private <T> void updateIfNotNull(T value, Consumer<T> setter) {
-        if (value != null) {
-            setter.accept(value);
-        }
-    }
-
-    private void updateRequiredStringIfNotBlank(String value, Consumer<String> setter) {
-        if (value != null && !value.isBlank()) {
-            setter.accept(value);
-        }
     }
 
     private ZoneId validateTimezone(String timezone) {

@@ -25,7 +25,7 @@ public class UpdateOrganizationRequest {
     @Schema(description = "Organization email", example = "contact@indiabookexpo.in")
     private String email;
 
-    @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
+    @Pattern(regexp = "^(\\d{10})?$", message = "must be a 10-digit number")
     @Schema(description = "Organization phone number", example = "9876543210")
     private String phoneNumber;
 

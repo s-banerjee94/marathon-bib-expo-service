@@ -18,6 +18,7 @@ import com.timekeeper.bibexpo.service.SmsTemplateService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.util.SmsTemplateContext;
 import com.timekeeper.bibexpo.util.SmsTemplateParser;
+import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -105,9 +106,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
             smsTemplate.setTemplate(request.getTemplate());
         }
 
-        if (request.getNote() != null) {
-            smsTemplate.setNote(request.getNote());
-        }
+        TextUtils.applyIfSent(request.getNote(), smsTemplate::setNote);
 
         SmsTemplate updatedTemplate = smsTemplateRepository.saveAndFlush(smsTemplate);
         log.info("Successfully updated SMS template ID: {} for event ID: {} by user: {}",

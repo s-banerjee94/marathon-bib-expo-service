@@ -29,7 +29,7 @@ public class UpdateParticipantRequest {
     @Schema(description = "Email address", example = "amit@example.com")
     private String email;
 
-    @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
+    @Pattern(regexp = "^(\\d{10})?$", message = "must be a 10-digit number")
     @Schema(description = "Phone number (10 digits)", example = "9434739700")
     private String phoneNumber;
 
@@ -67,7 +67,7 @@ public class UpdateParticipantRequest {
     private String emergencyContactName;
 
     @Schema(description = "Emergency contact phone", example = "9876543210")
-    @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
+    @Pattern(regexp = "^(\\d{10})?$", message = "must be a 10-digit number")
     private String emergencyContactPhone;
 
     @Size(max = 500, message = "Notes cannot exceed 500 characters")

@@ -26,6 +26,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
@@ -45,7 +46,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.function.Consumer;
 
 @Service
 @RequiredArgsConstructor
@@ -220,7 +220,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         boolean bibNumberChanged = false;
         String newBibNumber = bibNumber;
 
-        if (request.getNewBibNumber() != null && !request.getNewBibNumber().equals(bibNumber)) {
+        if (StringUtils.hasText(request.getNewBibNumber()) && !request.getNewBibNumber().equals(bibNumber)) {
             newBibNumber = request.getNewBibNumber();
             bibNumberChanged = true;
 
@@ -239,7 +239,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                     bibNumber, newBibNumber, eventId);
         }
 
-        if (request.getRaceId() != null || request.getCategoryId() != null) {
+        if (StringUtils.hasText(request.getRaceId()) || StringUtils.hasText(request.getCategoryId())) {
             updateRaceAndCategory(participant, request, eventId, currentUser);
         }
 
@@ -247,19 +247,23 @@ public class ParticipantServiceImpl implements ParticipantService {
                 && !request.getChipNumber().equals(participant.getChipNumber())) {
             assertChipNumberAvailable(eventId, request.getChipNumber(), bibNumber);
         }
-        updateIfNotNull(request.getChipNumber(), participant::setChipNumber);
-        updateIfNotNull(TextUtils.toUpperOrNull(request.getFullName()), participant::setFullName);
-        updateIfNotNull(TextUtils.toLowerOrNull(request.getEmail()), participant::setEmail);
-        updateIfNotNull(request.getPhoneNumber(), participant::setPhoneNumber);
-        updateIfNotNull(request.getDateOfBirth(), participant::setDateOfBirth);
-        updateIfNotNull(request.getAge(), participant::setAge);
-        updateIfNotNull(request.getGender(), participant::setGender);
-        updateIfNotNull(request.getCountry(), participant::setCountry);
-        updateIfNotNull(request.getCity(), participant::setCity);
-        updateIfNotNull(request.getEmergencyContactName(), participant::setEmergencyContactName);
-        updateIfNotNull(request.getEmergencyContactPhone(), participant::setEmergencyContactPhone);
-        updateIfNotNull(request.getNotes(), participant::setNotes);
-        updateIfNotNull(request.getBibCollectedAt(), participant::setBibCollectedAt);
+
+        // Merge-patch: optional fields clear on a blank value; fullName/email keep their
+        // case-normalisation; gender and bibCollectedAt are required/operational, so a blank
+        // value is ignored rather than wiping them.
+        TextUtils.applyIfSent(request.getChipNumber(), participant::setChipNumber);
+        TextUtils.applyRequiredIfSent(request.getFullName(), v -> participant.setFullName(v.toUpperCase()));
+        TextUtils.applyIfSent(request.getEmail(), v -> participant.setEmail(v == null ? null : v.toLowerCase()));
+        TextUtils.applyIfSent(request.getPhoneNumber(), participant::setPhoneNumber);
+        TextUtils.applyIfSent(request.getDateOfBirth(), participant::setDateOfBirth);
+        TextUtils.applyIfSent(request.getAge(), participant::setAge);
+        TextUtils.applyRequiredIfSent(request.getGender(), participant::setGender);
+        TextUtils.applyIfSent(request.getCountry(), participant::setCountry);
+        TextUtils.applyIfSent(request.getCity(), participant::setCity);
+        TextUtils.applyIfSent(request.getEmergencyContactName(), participant::setEmergencyContactName);
+        TextUtils.applyIfSent(request.getEmergencyContactPhone(), participant::setEmergencyContactPhone);
+        TextUtils.applyIfSent(request.getNotes(), participant::setNotes);
+        TextUtils.applyRequiredIfSent(request.getBibCollectedAt(), participant::setBibCollectedAt);
 
         if (request.getAdditionalFields() != null) {
             mergeAdditionalFields(participant, request.getAdditionalFields());
@@ -585,8 +589,8 @@ public class ParticipantServiceImpl implements ParticipantService {
     private void updateRaceAndCategory(ParticipantDDB participant, UpdateParticipantRequest request,
                                        Long eventId, User currentUser) {
 
-        String newRaceId = request.getRaceId() != null ? request.getRaceId() : participant.getRaceId();
-        String newCategoryId = request.getCategoryId() != null ? request.getCategoryId() : participant.getCategoryId();
+        String newRaceId = StringUtils.hasText(request.getRaceId()) ? request.getRaceId() : participant.getRaceId();
+        String newCategoryId = StringUtils.hasText(request.getCategoryId()) ? request.getCategoryId() : participant.getCategoryId();
 
         // Validate the new race/category exist for this event; names are resolved at read time.
         raceService.getRaceById(eventId, Long.parseLong(newRaceId), currentUser);
@@ -596,12 +600,6 @@ public class ParticipantServiceImpl implements ParticipantService {
         participant.setRaceId(newRaceId);
         participant.setCategoryId(newCategoryId);
         participant.setRaceCategoryKey(ParticipantDDB.compositeKey(newRaceId, newCategoryId));
-    }
-
-    private <T> void updateIfNotNull(T value, Consumer<T> setter) {
-        if (value != null) {
-            setter.accept(value);
-        }
     }
 
     private void mergeAdditionalFields(ParticipantDDB participant, Map<String, String> updates) {
@@ -762,22 +760,28 @@ public class ParticipantServiceImpl implements ParticipantService {
         r.setNotes(TextUtils.trimToNull(r.getNotes()));
     }
 
+    // Update is merge-patch: trim whitespace but preserve "" so a cleared field still reaches
+    // the merge logic as a clear signal (trimToNull would erase that signal).
     private static void trimStringFields(UpdateParticipantRequest r) {
-        r.setChipNumber(TextUtils.trimToNull(r.getChipNumber()));
-        r.setFullName(TextUtils.trimToNull(r.getFullName()));
-        r.setGender(TextUtils.trimToNull(r.getGender()));
-        r.setPhoneNumber(TextUtils.trimToNull(r.getPhoneNumber()));
-        r.setEmail(TextUtils.trimToNull(r.getEmail()));
-        r.setDateOfBirth(TextUtils.trimToNull(r.getDateOfBirth()));
-        r.setCountry(TextUtils.trimToNull(r.getCountry()));
-        r.setCity(TextUtils.trimToNull(r.getCity()));
-        r.setRaceId(TextUtils.trimToNull(r.getRaceId()));
-        r.setCategoryId(TextUtils.trimToNull(r.getCategoryId()));
-        r.setNewBibNumber(TextUtils.trimToNull(r.getNewBibNumber()));
-        r.setBibCollectedAt(TextUtils.trimToNull(r.getBibCollectedAt()));
-        r.setEmergencyContactName(TextUtils.trimToNull(r.getEmergencyContactName()));
-        r.setEmergencyContactPhone(TextUtils.trimToNull(r.getEmergencyContactPhone()));
-        r.setNotes(TextUtils.trimToNull(r.getNotes()));
+        r.setChipNumber(trim(r.getChipNumber()));
+        r.setFullName(trim(r.getFullName()));
+        r.setGender(trim(r.getGender()));
+        r.setPhoneNumber(trim(r.getPhoneNumber()));
+        r.setEmail(trim(r.getEmail()));
+        r.setDateOfBirth(trim(r.getDateOfBirth()));
+        r.setCountry(trim(r.getCountry()));
+        r.setCity(trim(r.getCity()));
+        r.setRaceId(trim(r.getRaceId()));
+        r.setCategoryId(trim(r.getCategoryId()));
+        r.setNewBibNumber(trim(r.getNewBibNumber()));
+        r.setBibCollectedAt(trim(r.getBibCollectedAt()));
+        r.setEmergencyContactName(trim(r.getEmergencyContactName()));
+        r.setEmergencyContactPhone(trim(r.getEmergencyContactPhone()));
+        r.setNotes(trim(r.getNotes()));
+    }
+
+    private static String trim(String value) {
+        return value == null ? null : value.trim();
     }
 
     @Override

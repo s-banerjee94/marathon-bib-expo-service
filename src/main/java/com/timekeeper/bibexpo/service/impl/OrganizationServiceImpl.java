@@ -23,6 +23,7 @@ import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.OrganizationService;
 import com.timekeeper.bibexpo.service.StorageService;
+import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class OrganizationServiceImpl implements OrganizationService {
 
+    public static final String THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST = "The organization you requested does not exist.";
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
     private final UserRepository userRepository;
@@ -189,8 +191,8 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .country(request.getCountry())
                 .taxId(request.getTaxId())
                 .registrationNumber(request.getRegistrationNumber())
-                .subscriptionTier(emptyToNull(request.getSubscriptionTier()))
-                .billingEmail(emptyToNull(request.getBillingEmail()))
+                .subscriptionTier(TextUtils.trimToNull(request.getSubscriptionTier()))
+                .billingEmail(TextUtils.trimToNull(request.getBillingEmail()))
                 .subscriptionStatus("ACTIVE")
                 .enabled(true)
                 .deleted(false)
@@ -218,7 +220,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
-                        "The organization you requested does not exist."
+                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
                 ));
 
         OrganizationLimit limit = getOrCreateLimit(organization);
@@ -247,7 +249,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
-                        "The organization you requested does not exist."
+                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
                 ));
 
         // Update organization's enabled status
@@ -373,31 +375,27 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (hasText(request.getEmail())) {
             organization.setEmail(request.getEmail());
         }
-        organization.setPhoneNumber(emptyToNull(request.getPhoneNumber()));
-        organization.setWebsite(emptyToNull(request.getWebsite()));
+        TextUtils.applyIfSent(request.getPhoneNumber(), organization::setPhoneNumber);
+        TextUtils.applyIfSent(request.getWebsite(), organization::setWebsite);
     }
 
     private void updateAddressInfo(Organization organization, UpdateOrganizationRequest request) {
-        organization.setAddressLine1(emptyToNull(request.getAddressLine1()));
-        organization.setAddressLine2(emptyToNull(request.getAddressLine2()));
-        organization.setCity(emptyToNull(request.getCity()));
-        organization.setStateProvince(emptyToNull(request.getStateProvince()));
-        organization.setPostalCode(emptyToNull(request.getPostalCode()));
-        organization.setCountry(emptyToNull(request.getCountry()));
+        TextUtils.applyIfSent(request.getAddressLine1(), organization::setAddressLine1);
+        TextUtils.applyIfSent(request.getAddressLine2(), organization::setAddressLine2);
+        TextUtils.applyIfSent(request.getCity(), organization::setCity);
+        TextUtils.applyIfSent(request.getStateProvince(), organization::setStateProvince);
+        TextUtils.applyIfSent(request.getPostalCode(), organization::setPostalCode);
+        TextUtils.applyIfSent(request.getCountry(), organization::setCountry);
     }
 
     private void updateBusinessInfo(Organization organization, UpdateOrganizationRequest request) {
-        organization.setTaxId(emptyToNull(request.getTaxId()));
-        organization.setRegistrationNumber(emptyToNull(request.getRegistrationNumber()));
+        TextUtils.applyIfSent(request.getTaxId(), organization::setTaxId);
+        TextUtils.applyIfSent(request.getRegistrationNumber(), organization::setRegistrationNumber);
     }
 
     private void updateSubscriptionInfo(Organization organization, UpdateOrganizationRequest request) {
-        organization.setSubscriptionTier(emptyToNull(request.getSubscriptionTier()));
-        organization.setBillingEmail(emptyToNull(request.getBillingEmail()));
-    }
-
-    private String emptyToNull(String value) {
-        return (value == null || value.isBlank()) ? null : value;
+        TextUtils.applyIfSent(request.getSubscriptionTier(), organization::setSubscriptionTier);
+        TextUtils.applyIfSent(request.getBillingEmail(), organization::setBillingEmail);
     }
 
     private boolean hasText(String value) {
@@ -411,7 +409,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
-                        "The organization you requested does not exist."
+                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
                 ));
 
         if ((currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) &&
@@ -439,7 +437,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Organization organization = organizationRepository.findByIdAndDeletedFalse(organizationId)
                 .orElseThrow(() -> new OrganizationNotFoundException(
-                        "The organization you requested does not exist."));
+                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
 
         log.info("Successfully retrieved organization with ID: {} for user: {}",
                 organizationId, currentUser.getUsername());
@@ -548,7 +546,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private Organization getActiveOrganizationOrThrow(Long id) {
         return organizationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
-                        "The organization you requested does not exist."));
+                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
     }
 
     /** Best-effort object deletion: orphaned objects are tolerable, a failed cleanup must not roll back the entity change. */
