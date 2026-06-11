@@ -12,9 +12,9 @@ import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.SmsCampaign;
 import com.timekeeper.bibexpo.model.entity.SmsTemplate;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignStatus;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignTargetFilter;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignTriggerType;
+import com.timekeeper.bibexpo.model.enums.CampaignStatus;
+import com.timekeeper.bibexpo.model.enums.CampaignTargetFilter;
+import com.timekeeper.bibexpo.model.enums.CampaignTriggerType;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.repository.SmsTemplateRepository;
@@ -63,7 +63,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
                 .name(request.getName().trim())
                 .event(event)
                 .smsTemplate(template)
-                .status(SmsCampaignStatus.DRAFT)
+                .status(CampaignStatus.DRAFT)
                 .build();
 
         if (request.getTriggerType() != null) {
@@ -88,7 +88,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
 
         SmsCampaign campaign = findCampaignOrThrow(campaignId, eventId);
 
-        if (campaign.getStatus() != SmsCampaignStatus.DRAFT) {
+        if (campaign.getStatus() != CampaignStatus.DRAFT) {
             throw new InvalidSmsCampaignException("Only draft campaigns can be modified. Disarm the campaign first.");
         }
 
@@ -146,11 +146,11 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
 
         SmsCampaign campaign = findCampaignOrThrow(campaignId, eventId);
 
-        if (campaign.getStatus() != SmsCampaignStatus.ACTIVE) {
+        if (campaign.getStatus() != CampaignStatus.ACTIVE) {
             throw new InvalidSmsCampaignException("Only active campaigns can be disarmed.");
         }
 
-        if (campaign.getTriggerType() == SmsCampaignTriggerType.SCHEDULED && campaign.getScheduledAt() != null) {
+        if (campaign.getTriggerType() == CampaignTriggerType.SCHEDULED && campaign.getScheduledAt() != null) {
             Instant cutoff = campaign.getScheduledAt().minusSeconds(DISARM_CUTOFF_SECONDS);
             if (Instant.now().isAfter(cutoff)) {
                 throw new InvalidSmsCampaignException(
@@ -158,7 +158,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
             }
         }
 
-        campaign.setStatus(SmsCampaignStatus.DRAFT);
+        campaign.setStatus(CampaignStatus.DRAFT);
         campaign.setTriggerType(null);
         campaign.setTargetFilter(null);
         campaign.setScheduledAt(null);
@@ -179,7 +179,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
 
         SmsCampaign campaign = findCampaignOrThrow(campaignId, eventId);
 
-        if (campaign.getStatus() != SmsCampaignStatus.DRAFT) {
+        if (campaign.getStatus() != CampaignStatus.DRAFT) {
             throw new InvalidSmsCampaignException("Only draft campaigns can be deleted.");
         }
 
@@ -192,15 +192,15 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         log.info("Successfully deleted SMS campaign ID: {} by user: {}", campaignId, currentUser.getUsername());
     }
 
-    private void applyArm(SmsCampaign campaign, SmsCampaignTriggerType triggerType,
-                           SmsCampaignTargetFilter targetFilter, String scheduledDate, String scheduledTime,
+    private void applyArm(SmsCampaign campaign, CampaignTriggerType triggerType,
+                           CampaignTargetFilter targetFilter, String scheduledDate, String scheduledTime,
                            Event event) {
         if (targetFilter == null) {
             throw new InvalidSmsCampaignException("Target filter is required when arming a campaign.");
         }
 
         Instant scheduledAt = null;
-        if (triggerType == SmsCampaignTriggerType.SCHEDULED) {
+        if (triggerType == CampaignTriggerType.SCHEDULED) {
             if (scheduledDate == null || scheduledTime == null) {
                 throw new InvalidSmsCampaignException("Scheduled date and time are required for a scheduled campaign.");
             }
@@ -223,21 +223,21 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
             }
         }
 
-        if (triggerType == SmsCampaignTriggerType.AUTO_BIB_COLLECTED) {
+        if (triggerType == CampaignTriggerType.AUTO_BIB_COLLECTED) {
             validateNoDuplicateAutoBibCollected(event.getId());
         }
 
         campaign.setTriggerType(triggerType);
         campaign.setTargetFilter(targetFilter);
         campaign.setScheduledAt(scheduledAt);
-        campaign.setStatus(SmsCampaignStatus.ACTIVE);
+        campaign.setStatus(CampaignStatus.ACTIVE);
     }
 
     private void validateNoDuplicateAutoBibCollected(Long eventId) {
         boolean exists = smsCampaignRepository.existsByEventIdAndTriggerTypeAndStatus(
                 eventId,
-                SmsCampaignTriggerType.AUTO_BIB_COLLECTED,
-                SmsCampaignStatus.ACTIVE
+                CampaignTriggerType.AUTO_BIB_COLLECTED,
+                CampaignStatus.ACTIVE
         );
         if (exists) {
             throw new SmsCampaignAlreadyActiveException(

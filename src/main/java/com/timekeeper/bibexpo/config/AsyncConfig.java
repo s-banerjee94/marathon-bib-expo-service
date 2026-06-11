@@ -24,6 +24,17 @@ public class AsyncConfig {
         return executor;
     }
 
+    @Bean(name = "whatsAppCampaignTaskExecutor")
+    public Executor whatsAppCampaignTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(20);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("whatsapp-campaign-");
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "participantAccessTaskExecutor")
     public Executor participantAccessTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

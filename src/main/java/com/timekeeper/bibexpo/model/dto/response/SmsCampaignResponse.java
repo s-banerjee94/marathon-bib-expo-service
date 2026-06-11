@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.model.dto.response;
 
 import com.timekeeper.bibexpo.model.entity.SmsCampaign;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignStatus;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignTargetFilter;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignTriggerType;
+import com.timekeeper.bibexpo.model.enums.CampaignStatus;
+import com.timekeeper.bibexpo.model.enums.CampaignTargetFilter;
+import com.timekeeper.bibexpo.model.enums.CampaignTriggerType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -44,10 +44,10 @@ public class SmsCampaignResponse {
     private String smsTemplateName;
 
     @Schema(description = "How the campaign is triggered", example = "AUTO_BIB_COLLECTED")
-    private SmsCampaignTriggerType triggerType;
+    private CampaignTriggerType triggerType;
 
     @Schema(description = "Who receives the SMS", example = "ALL")
-    private SmsCampaignTargetFilter targetFilter;
+    private CampaignTargetFilter targetFilter;
 
     @Schema(description = "Scheduled send date in event timezone (SCHEDULED type only)", example = "2026-01-20")
     private String scheduledDate;
@@ -56,7 +56,7 @@ public class SmsCampaignResponse {
     private String scheduledTime;
 
     @Schema(description = "Campaign lifecycle status: DRAFT = saved, not yet armed; ACTIVE = armed and running; SENDING = batch dispatch in progress; SENT = completed; FAILED = dispatch failed after max retries", example = "ACTIVE")
-    private SmsCampaignStatus status;
+    private CampaignStatus status;
 
     @Schema(description = "Number of SMS messages sent", example = "4983")
     private Integer sentCount;

@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.model.entity;
 
-import com.timekeeper.bibexpo.model.enums.SmsCampaignStatus;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignTargetFilter;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignTriggerType;
+import com.timekeeper.bibexpo.model.enums.CampaignStatus;
+import com.timekeeper.bibexpo.model.enums.CampaignTargetFilter;
+import com.timekeeper.bibexpo.model.enums.CampaignTriggerType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -48,11 +48,11 @@ public class SmsCampaign {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "trigger_type", length = 30)
-    private SmsCampaignTriggerType triggerType;
+    private CampaignTriggerType triggerType;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "target_filter", length = 30)
-    private SmsCampaignTargetFilter targetFilter;
+    private CampaignTargetFilter targetFilter;
 
     @Column(name = "scheduled_at")
     private Instant scheduledAt;
@@ -60,7 +60,7 @@ public class SmsCampaign {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private SmsCampaignStatus status = SmsCampaignStatus.DRAFT;
+    private CampaignStatus status = CampaignStatus.DRAFT;
 
     @Column(nullable = false)
     @Builder.Default

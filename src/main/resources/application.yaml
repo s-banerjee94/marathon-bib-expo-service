@@ -131,6 +131,19 @@ sms:
     password: ${SMS_API_PASSWORD:}
     sender: ${SMS_API_SENDER:}
 
+# WhatsApp Configuration (via Twilio) — application-default sender; per-org overrides live in the DB
+whatsapp:
+  token-enc-key: ${WHATSAPP_TOKEN_ENC_KEY:dev-only-token-enc-key-change-in-production}  # AES key source for org auth tokens at rest
+  api:
+    url: ${WHATSAPP_API_URL:https://api.twilio.com}
+    account-sid: ${TWILIO_ACCOUNT_SID:}
+    auth-token: ${TWILIO_AUTH_TOKEN:}
+    from-number: ${TWILIO_WHATSAPP_FROM:+14155238886}                                 # platform WhatsApp sender, e.g. whatsapp:+14155238886
+  scheduler:
+    send-delay-ms: ${WHATSAPP_SCHEDULER_SEND_DELAY_MS:250}
+    max-retry-count: ${WHATSAPP_SCHEDULER_MAX_RETRY_COUNT:2}
+    stuck-threshold-minutes: ${WHATSAPP_SCHEDULER_STUCK_THRESHOLD_MINUTES:10}
+
 # AWS Configuration
 aws:
   region: ${AWS_REGION:us-east-1}

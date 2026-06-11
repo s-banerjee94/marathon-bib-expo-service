@@ -18,6 +18,7 @@ import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.DistributionService;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.SmsSendService;
+import com.timekeeper.bibexpo.whatsapp.service.WhatsAppSendService;
 import com.timekeeper.bibexpo.service.util.DistributionConstants;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
@@ -50,6 +51,7 @@ public class DistributionServiceImpl implements DistributionService {
     private final DynamoDBPaginationCodec paginationCodec;
     private final DistributionValidator validator;
     private final SmsSendService smsSendService;
+    private final WhatsAppSendService whatsAppSendService;
     private final EventStatsService eventStatsService;
     private final RaceCategoryNameResolver nameResolver;
 
@@ -121,6 +123,7 @@ public class DistributionServiceImpl implements DistributionService {
                 bibNumber, eventId, collectorName, collectorPhone, distributedBy);
 
         smsSendService.sendBibCollectedSms(event, participant);
+        whatsAppSendService.sendBibCollectedWhatsApp(event, participant);
 
         return BibDistributionResponse.builder()
                 .success(true)

@@ -63,6 +63,9 @@ public class ParticipantDDB {
     private Map<String, String> smsCampaignSends = new HashMap<>();
 
     @Builder.Default
+    private Map<String, String> whatsAppCampaignSends = new HashMap<>();
+
+    @Builder.Default
     private Map<String, String> goodies = new HashMap<>();
 
     @Builder.Default

@@ -3,8 +3,8 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.SmsCampaign;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignStatus;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignTriggerType;
+import com.timekeeper.bibexpo.model.enums.CampaignStatus;
+import com.timekeeper.bibexpo.model.enums.CampaignTriggerType;
 import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.service.SmsGatewayService;
 import com.timekeeper.bibexpo.service.SmsSendService;
@@ -29,7 +29,7 @@ public class SmsSendServiceImpl implements SmsSendService {
     public void sendBibCollectedSms(Event event, ParticipantDDB participant) {
         Long eventId = event.getId();
         SmsCampaign campaign = smsCampaignRepository
-                .findByEventIdAndTriggerTypeAndStatus(eventId, SmsCampaignTriggerType.AUTO_BIB_COLLECTED, SmsCampaignStatus.ACTIVE)
+                .findByEventIdAndTriggerTypeAndStatus(eventId, CampaignTriggerType.AUTO_BIB_COLLECTED, CampaignStatus.ACTIVE)
                 .orElse(null);
 
         if (campaign == null) {

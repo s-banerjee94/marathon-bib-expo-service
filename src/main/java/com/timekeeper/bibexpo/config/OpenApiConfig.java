@@ -49,7 +49,10 @@ public class OpenApiConfig {
                 .group("2-organizations")
                 .displayName("Organization Management")
                 .pathsToMatch("/api/organizations/**")
-                .pathsToExclude("/api/organizations/{organizationId}/billing/**")
+                .pathsToExclude(
+                        "/api/organizations/{organizationId}/billing/**",
+                        "/api/organizations/{organizationId}/whatsapp-config/**"
+                )
                 .build();
     }
 
@@ -64,7 +67,9 @@ public class OpenApiConfig {
                         "/api/events/{eventId}/participants/**",
                         "/api/events/{eventId}/sms-templates/**",
                         "/api/events/{eventId}/sms-campaigns/**",
-                        "/api/events/{eventId}/billing/**"
+                        "/api/events/{eventId}/billing/**",
+                        "/api/events/{eventId}/whatsapp-templates/**",
+                        "/api/events/{eventId}/whatsapp-campaigns/**"
                 )
                 .build();
     }
@@ -106,6 +111,19 @@ public class OpenApiConfig {
                 .group("6-sms")
                 .displayName("SMS Campaigns & Templates")
                 .pathsToMatch("/api/events/{eventId}/sms-campaigns/**", "/api/events/{eventId}/sms-templates/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi whatsAppGroup() {
+        return GroupedOpenApi.builder()
+                .group("6-whatsapp")
+                .displayName("WhatsApp Campaigns, Templates & Sender Config")
+                .pathsToMatch(
+                        "/api/events/{eventId}/whatsapp-campaigns/**",
+                        "/api/events/{eventId}/whatsapp-templates/**",
+                        "/api/organizations/{organizationId}/whatsapp-config/**"
+                )
                 .build();
     }
 

@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.model.dto.request;
 
-import com.timekeeper.bibexpo.model.enums.SmsCampaignTargetFilter;
-import com.timekeeper.bibexpo.model.enums.SmsCampaignTriggerType;
+import com.timekeeper.bibexpo.model.enums.CampaignTargetFilter;
+import com.timekeeper.bibexpo.model.enums.CampaignTriggerType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -32,10 +32,10 @@ public class CreateSmsCampaignRequest {
     private Long smsTemplateId;
 
     @Schema(description = "Set to arm the campaign immediately. AUTO_BIB_COLLECTED: fires per participant on bib collection. SCHEDULED: fires once at scheduledAt.", example = "SCHEDULED")
-    private SmsCampaignTriggerType triggerType;
+    private CampaignTriggerType triggerType;
 
     @Schema(description = "Required when triggerType is present. ALL: every participant. NOT_COLLECTED: only participants who have not yet collected their bib.", example = "ALL")
-    private SmsCampaignTargetFilter targetFilter;
+    private CampaignTargetFilter targetFilter;
 
     @Schema(description = "Date for scheduled send (SCHEDULED type only), format yyyy-MM-dd.", example = "2026-01-20")
     private String scheduledDate;
