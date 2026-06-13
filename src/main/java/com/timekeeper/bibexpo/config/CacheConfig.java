@@ -1,6 +1,9 @@
 package com.timekeeper.bibexpo.config;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.timekeeper.bibexpo.invitation.config.InviteProperties;
+import com.timekeeper.bibexpo.invitation.model.Invitation;
 import com.timekeeper.bibexpo.service.dashboard.OrgDashboardService;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
@@ -28,5 +31,18 @@ public class CacheConfig {
                         .expireAfterWrite(5, TimeUnit.MINUTES)
                         .build());
         return manager;
+    }
+
+    /**
+     * Dedicated native cache for pending invites. A native Caffeine cache (not the
+     * CacheManager) is used so the store can atomically remove-and-return on accept.
+     * The write-expiry is the invite link lifetime.
+     */
+    @Bean
+    public Cache<String, Invitation> invitationCache(InviteProperties inviteProperties) {
+        return Caffeine.newBuilder()
+                .maximumSize(10_000)
+                .expireAfterWrite(inviteProperties.getTtlMinutes(), TimeUnit.MINUTES)
+                .build();
     }
 }

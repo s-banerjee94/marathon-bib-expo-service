@@ -77,13 +77,41 @@ public class UserServiceImpl implements UserService {
         log.info("Creating user with username: {} by: {}", request.getUsername(), currentUsername);
 
         UserRole role = UserRole.valueOf(request.getRole());
+        assertCanCreateUser(role, request.getOrganizationId(), currentUsername);
+
+        return provisionUser(request, role);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void assertCanCreateUser(UserRole role, Long organizationId, String currentUsername) {
         User currentUser = fetchCurrentUser(currentUsername);
         validateRootCreationAttempt(role, currentUsername);
-        validateCreateUserAuthorization(currentUser, role, request.getOrganizationId());
+        validateCreateUserAuthorization(currentUser, role, organizationId);
+        fetchAndValidateOrganization(organizationId, role);
+    }
+
+    @Auditable(entityType = AuditEntityType.USER, action = AuditAction.CREATE)
+    @Override
+    @Transactional
+    public UserResponse createInvitedUser(CreateUserRequest request) {
+        log.info("Creating invited user with username: {}", request.getUsername());
+
+        // Authorization was enforced when the invite was issued; the role and organization
+        // on the request are the trusted values carried by the invitation, so provision directly.
+        UserRole role = UserRole.valueOf(request.getRole());
+        return provisionUser(request, role);
+    }
+
+    /**
+     * Shared creation tail used by both direct and invite-based creation: validates the
+     * payload, reserves the organization slot, and persists the user.
+     */
+    private UserResponse provisionUser(CreateUserRequest request, UserRole role) {
         validateEmailAndPhoneRequirements(request, role);
         validateUniqueness(request);
 
-        Organization organization = fetchAndValidateOrganization(request, role);
+        Organization organization = fetchAndValidateOrganization(request.getOrganizationId(), role);
         User user = buildUserEntity(request, organization, role);
         reserveUserSlot(organization, role);
         User savedUser = userRepository.save(user);
@@ -157,28 +185,28 @@ public class UserServiceImpl implements UserService {
     /**
      * Fetch and validate organization for organization-scoped roles
      */
-    private Organization fetchAndValidateOrganization(CreateUserRequest request, UserRole role) {
+    private Organization fetchAndValidateOrganization(Long organizationId, UserRole role) {
         if (!isOrganizationRole(role)) {
-            if (isSystemRole(role) && request.getOrganizationId() != null) {
+            if (isSystemRole(role) && organizationId != null) {
                 log.warn("Organization ID provided for system role {}, will be ignored", role);
             }
             return null;
         }
 
-        if (request.getOrganizationId() == null) {
+        if (organizationId == null) {
             log.error("Organization ID is required for role: {}", role);
             throw new InvalidUserDataException("Organization is required.");
         }
 
-        Organization organization = organizationRepository.findById(request.getOrganizationId())
+        Organization organization = organizationRepository.findById(organizationId)
                 .filter(org -> !org.getDeleted())
                 .orElseThrow(() -> {
-                    log.error("Organization not found or deleted with ID: {}", request.getOrganizationId());
+                    log.error("Organization not found or deleted with ID: {}", organizationId);
                     return new OrganizationNotFoundException();
                 });
 
         if (Boolean.FALSE.equals(organization.getEnabled()) || Boolean.TRUE.equals(organization.getDeleted())) {
-            log.error("Cannot create user for disabled organization ID: {}", request.getOrganizationId());
+            log.error("Cannot create user for disabled organization ID: {}", organizationId);
             throw new InvalidUserDataException("This organization is currently disabled.");
         }
 

@@ -32,6 +32,38 @@ public interface UserService {
     UserResponse createUser(CreateUserRequest request, String currentUsername);
 
     /**
+     * Validate that {@code currentUsername} is allowed to create a user with the given role
+     * and organization, applying the same hierarchy, ROOT guard, organization-scoping, and
+     * organization existence/enabled checks as {@link #createUser}. Performs no writes.
+     *
+     * <p>Used to authorize an invite before it is issued, so an invitee can never receive a
+     * link for a role or organization the inviter could not have created directly.
+     *
+     * @param role the role the invited user would be created with
+     * @param organizationId the target organization (required for organization-scoped roles)
+     * @param currentUsername the username of the user issuing the invite
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the role is not creatable by the caller
+     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the organization is required but missing or disabled
+     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
+     */
+    void assertCanCreateUser(UserRole role, Long organizationId, String currentUsername);
+
+    /**
+     * Create a user from an accepted invite. Authorization is intentionally skipped here
+     * because it was already enforced by {@link #assertCanCreateUser} when the invite was
+     * issued; the role and organization on the request are the invitation's trusted values.
+     * All payload validation, uniqueness, organization, and limit checks of {@link #createUser}
+     * still apply.
+     *
+     * @param request the user creation request carrying the invitee's details plus the invitation's role/organization
+     * @return the created user response
+     * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if username, email, or phone already exists
+     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if validation fails or limits exceeded
+     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization no longer exists
+     */
+    UserResponse createInvitedUser(CreateUserRequest request);
+
+    /**
      * Update an existing user's profile.
      * Only basic profile fields can be updated: password, email, fullName, phoneNumber.
      * Administrative fields (role, organization, account status) require separate admin operations.

@@ -103,8 +103,15 @@ app:
   statistics:
     stale-threshold-minutes: ${STATS_STALE_THRESHOLD_MINUTES:15}
   participant-access:
-    base-url: ${PARTICIPANT_ACCESS_BASE_URL:https://localhost:8080}
+    base-url: ${PARTICIPANT_ACCESS_BASE_URL:http://localhost:8080}
     qr-secret: ${PARTICIPANT_ACCESS_QR_SECRET:default-qr-secret-change-in-production}
+  invite:
+    base-url: ${INVITE_BASE_URL:http://192.168.0.107:4200}
+    accept-path: ${INVITE_ACCEPT_PATH:/accept-invite}
+    ttl-minutes: ${INVITE_TTL_MINUTES:5}
+  # AES key that encrypts the root-managed provider secrets (API keys, passwords) at rest.
+  system-messaging:
+    secret-key: ${SYSTEM_MESSAGING_SECRET_KEY:dev-only-system-messaging-key-change-in-production}
 
 # Dashboard backfill — flip enabled to true once to seed org_daily_stats history, then set back to false
 dashboard:

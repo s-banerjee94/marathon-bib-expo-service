@@ -40,6 +40,16 @@ public class OpenApiConfig {
                 .group("1-authentication")
                 .displayName("Authentication & User Management")
                 .pathsToMatch("/api/auth/**", "/api/users/**")
+                .pathsToExclude("/api/users/invitations/**", "/api/auth/invitations/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi inviteUserCreationGroup() {
+        return GroupedOpenApi.builder()
+                .group("1-invite-user-creation")
+                .displayName("Invite User Creation")
+                .pathsToMatch("/api/users/invitations/**", "/api/auth/invitations/**")
                 .build();
     }
 
@@ -160,6 +170,18 @@ public class OpenApiConfig {
                 .group("8-notifications")
                 .displayName("Notifications")
                 .pathsToMatch("/api/notifications/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi systemMessagingGroup() {
+        return GroupedOpenApi.builder()
+                .group("8-system-messaging")
+                .displayName("System Messaging (Root)")
+                .pathsToMatch(
+                        "/api/system/messaging-providers/**",
+                        "/api/system/message-templates/**"
+                )
                 .build();
     }
 

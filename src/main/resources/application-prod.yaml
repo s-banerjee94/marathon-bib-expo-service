@@ -45,6 +45,11 @@ app:
   participant-access:
     base-url:  ${PARTICIPANT_ACCESS_BASE_URL:https://api.example.com}
     qr-secret: ${PARTICIPANT_ACCESS_QR_SECRET}
+  # Invite links open the account-creation form on the frontend, so this is the frontend origin.
+  invite:
+    base-url:    ${INVITE_BASE_URL:https://example.com}
+    accept-path: ${INVITE_ACCEPT_PATH:/accept-invite}
+    ttl-minutes: ${INVITE_TTL_MINUTES:5}
 
 # --- Datasource -------------------------------------------------------------
 # Host/credentials come from env in production. DB_PASSWORD has no default so a
