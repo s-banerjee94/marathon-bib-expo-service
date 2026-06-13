@@ -37,6 +37,9 @@ public class RaceResponse {
     @Schema(description = "Creation timestamp", example = "2026-01-15T10:30:00Z")
     private Instant createdAt;
 
+    @Schema(description = "Reporting time for participants (UTC instant, interpreted in event timezone)", example = "2026-06-15T01:30:00Z")
+    private Instant reportingTime;
+
     @Schema(description = "Last update timestamp", example = "2026-01-15T10:30:00Z")
     private Instant updatedAt;
 
@@ -55,6 +58,7 @@ public class RaceResponse {
                 .organizationId(race.getEvent() != null && race.getEvent().getOrganization() != null
                         ? race.getEvent().getOrganization().getId() : null)
                 .categoryCount(race.getCategories() != null ? race.getCategories().size() : 0)
+                .reportingTime(race.getReportingTime())
                 .createdAt(race.getCreatedAt())
                 .updatedAt(race.getUpdatedAt())
                 .createdBy(race.getCreatedBy())

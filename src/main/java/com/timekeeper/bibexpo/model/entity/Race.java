@@ -45,6 +45,8 @@ public class Race implements Serializable {
     @Convert(converter = EmptyStringToNullConverter.class)
     private String raceDescription;
 
+    private Instant reportingTime;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false, foreignKey = @ForeignKey(name = "fk_race_event"))
     private Event event;

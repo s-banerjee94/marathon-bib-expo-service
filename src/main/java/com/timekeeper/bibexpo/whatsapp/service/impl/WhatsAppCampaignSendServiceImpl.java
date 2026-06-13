@@ -89,7 +89,8 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
                 .sendsMapAccessor(ParticipantDDB::getWhatsAppCampaignSends)
                 .sender(participant -> {
                     SmsTemplateContext context = new SmsTemplateContext(participant, event,
-                            names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()));
+                            names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
+                            names.reportingTime(participant.getRaceId()));
                     List<String> variables = WhatsAppVariableRenderer.render(bodyVariables, context);
                     return gatewayService.sendTemplate(sender, participant.getPhoneNumber(), contentSid, variables);
                 })

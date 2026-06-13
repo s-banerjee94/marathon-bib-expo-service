@@ -56,6 +56,7 @@ public class RaceServiceImpl implements RaceService {
         Race race = Race.builder()
                 .raceName(raceName)
                 .raceDescription(request.getRaceDescription())
+                .reportingTime(request.getReportingTime())
                 .event(event)
                 .deleted(false)
                 .build();
@@ -97,6 +98,7 @@ public class RaceServiceImpl implements RaceService {
         }
 
         TextUtils.applyIfSent(request.getRaceDescription(), race::setRaceDescription);
+        TextUtils.applyIfSent(request.getReportingTime(), race::setReportingTime);
 
         Race updatedRace = raceRepository.save(race);
 

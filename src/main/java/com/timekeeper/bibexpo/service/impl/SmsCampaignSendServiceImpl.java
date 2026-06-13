@@ -63,7 +63,8 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
                 .sendsMapAccessor(ParticipantDDB::getSmsCampaignSends)
                 .sender(participant -> {
                     SmsTemplateContext context = new SmsTemplateContext(participant, event,
-                            names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()));
+                            names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
+                            names.reportingTime(participant.getRaceId()));
                     String message = SmsTemplateParser.parse(templateText, context);
                     smsGatewayService.send(participant.getPhoneNumber(), message, dltTemplateId);
                     return null;

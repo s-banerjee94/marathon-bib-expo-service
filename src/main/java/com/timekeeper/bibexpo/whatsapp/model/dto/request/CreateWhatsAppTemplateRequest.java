@@ -44,6 +44,7 @@ public class CreateWhatsAppTemplateRequest {
                     Participant: #{fullName}, #{bibNumber}, #{raceName}, #{categoryName}, \
                     #{bibCollectedAt}, #{bibCollectedByName}, #{bibCollectedByPhone}. \
                     Event: #{eventName}, #{venueName}, #{eventStartDate}, #{eventEndDate}, #{eventCity}. \
+                    Race: #{reportingTime}. \
                     Any placeholder not in this list will be rejected with a validation error.""",
             example = "[\"#{fullName}\", \"#{bibNumber}\", \"#{eventName}\"]")
     private List<@NotBlank(message = "Template variables must not be blank.")

@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.repository.RaceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,17 +23,24 @@ public class RaceCategoryNameResolver {
 
     public EventNames forEvent(Long eventId) {
         Map<String, String> raceNames = new HashMap<>();
-        raceRepository.findByEventIdAndDeletedFalse(eventId)
-                .forEach(race -> raceNames.put(String.valueOf(race.getId()), race.getRaceName()));
+        Map<String, Instant> raceReportingTimes = new HashMap<>();
+        raceRepository.findByEventIdAndDeletedFalse(eventId).forEach(race -> {
+            String key = String.valueOf(race.getId());
+            raceNames.put(key, race.getRaceName());
+            if (race.getReportingTime() != null) {
+                raceReportingTimes.put(key, race.getReportingTime());
+            }
+        });
 
         Map<String, String> categoryNames = new HashMap<>();
         categoryRepository.findByRaceEventId(eventId)
                 .forEach(category -> categoryNames.put(String.valueOf(category.getId()), category.getCategoryName()));
 
-        return new EventNames(raceNames, categoryNames);
+        return new EventNames(raceNames, categoryNames, raceReportingTimes);
     }
 
-    public record EventNames(Map<String, String> raceNames, Map<String, String> categoryNames) {
+    public record EventNames(Map<String, String> raceNames, Map<String, String> categoryNames,
+                             Map<String, Instant> raceReportingTimes) {
 
         public String raceName(String raceId) {
             return raceId == null ? null : raceNames.get(raceId);
@@ -40,6 +48,10 @@ public class RaceCategoryNameResolver {
 
         public String categoryName(String categoryId) {
             return categoryId == null ? null : categoryNames.get(categoryId);
+        }
+
+        public Instant reportingTime(String raceId) {
+            return raceId == null ? null : raceReportingTimes.get(raceId);
         }
     }
 }

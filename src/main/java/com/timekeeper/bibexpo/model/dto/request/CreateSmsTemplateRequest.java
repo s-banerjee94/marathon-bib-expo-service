@@ -35,6 +35,7 @@ public class CreateSmsTemplateRequest {
                     Participant: #{fullName}, #{bibNumber}, #{raceName}, #{categoryName}, \
                     #{bibCollectedAt}, #{bibCollectedByName}, #{bibCollectedByPhone}. \
                     Event: #{eventName}, #{venueName}, #{eventStartDate}, #{eventEndDate}, #{eventCity}. \
+                    Race: #{reportingTime}. \
                     Any placeholder not in this list will be rejected with a validation error.""",
             example = "Hi #{fullName}, your bib #{bibNumber} for #{eventName} is ready at #{venueName}, #{eventCity} on #{eventStartDate}!")
     private String template;

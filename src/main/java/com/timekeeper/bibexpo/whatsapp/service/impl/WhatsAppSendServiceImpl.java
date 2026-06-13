@@ -61,7 +61,8 @@ public class WhatsAppSendServiceImpl implements WhatsAppSendService {
 
             EventNames names = nameResolver.forEvent(eventId);
             SmsTemplateContext context = new SmsTemplateContext(participant, event,
-                    names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()));
+                    names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
+                    names.reportingTime(participant.getRaceId()));
             List<String> variables = WhatsAppVariableRenderer.render(template.getBodyVariables(), context);
             gatewayService.sendTemplate(sender, phone, template.getContentSid(), variables);
             log.info("Bib-collected WhatsApp sent to bib {} in event {}", participant.getBibNumber(), eventId);

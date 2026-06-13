@@ -46,7 +46,8 @@ public class SmsSendServiceImpl implements SmsSendService {
         try {
             EventNames names = nameResolver.forEvent(eventId);
             SmsTemplateContext context = new SmsTemplateContext(participant, event,
-                    names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()));
+                    names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
+                    names.reportingTime(participant.getRaceId()));
             String renderedMessage = SmsTemplateParser.parse(campaign.getSmsTemplate().getTemplate(), context);
             smsGatewayService.send(phone, renderedMessage, campaign.getSmsTemplate().getSmsTemplateId());
             log.info("Bib-collected SMS sent to bib {} in event {}", participant.getBibNumber(), eventId);
