@@ -31,7 +31,36 @@ public class GlobalExceptionHandler {
     public static final String FORBIDDEN = "Forbidden";
     public static final String NOT_FOUND = "Not Found";
     public static final String CONFLICT = "Conflict";
+    public static final String UNPROCESSABLE = "Unprocessable Entity";
     public static final String METHOD_NOT_ALLOWED = "Method Not Allowed";
+
+    @ExceptionHandler(EventOperationNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleEventOperationNotAllowed(
+            EventOperationNotAllowedException ex, WebRequest request) {
+        log.warn("Event operation not allowed: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(422)
+                .error(UNPROCESSABLE)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(422).body(error);
+    }
+
+    @ExceptionHandler(EventLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleEventLimitExceeded(
+            EventLimitExceededException ex, WebRequest request) {
+        log.warn("Event resource limit exceeded: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error(CONFLICT)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
 
     @ExceptionHandler(UserLimitReductionException.class)
     public ResponseEntity<ErrorResponse> handleUserLimitReduction(

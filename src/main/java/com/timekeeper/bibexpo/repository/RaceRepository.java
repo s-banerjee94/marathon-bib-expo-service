@@ -16,4 +16,6 @@ public interface RaceRepository extends JpaRepository<Race, Long>, JpaSpecificat
     boolean existsByRaceNameAndEventIdAndDeletedFalse(String raceName, Long eventId);
 
     Optional<Race> findByRaceNameAndEventIdAndDeletedFalse(String raceName, Long eventId);
+
+    int countByEventIdAndDeletedFalse(Long eventId);
 }

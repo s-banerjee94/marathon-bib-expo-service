@@ -4,10 +4,14 @@ import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Category;
 import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.ImportMode;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
+import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.util.CsvRow;
 import com.timekeeper.bibexpo.validator.CsvRowValidator;
 import com.timekeeper.bibexpo.validator.ValidationError;
@@ -38,6 +42,8 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final BatchReferenceDataService referenceDataService;
+    private final EventLimitRepository eventLimitRepository;
+    private final EventStatsDDBRepository eventStatsRepo;
 
     @Value("#{jobParameters['eventId']}")
     private String eventIdParam;
@@ -45,15 +51,32 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
     @Value("#{jobParameters['uploadedByUserId']}")
     private String userIdParam;
 
+    @Value("#{jobParameters['mode']}")
+    private String modeParam;
+
     private Long eventId;
     private Event event;
     private String username;
     private final Map<String, Race> raceCache = new HashMap<>();
     private final Map<String, Category> categoryCache = new HashMap<>();
 
+    private boolean isAddOn;
+    private long participantLimit;
+    private long initialParticipantCount;
+    private int processedThisJob;
+
     @Override
     public ParticipantDDB process(CsvRow row) {
         initIfNeeded();
+
+        if (isAddOn && initialParticipantCount + processedThisJob >= participantLimit) {
+            log.warn("Participant limit reached at row {} (limit={}, existing={}, added={})",
+                    row.getRowNumber(), participantLimit, initialParticipantCount, processedThisJob);
+            throw new BatchValidationException(
+                    "Participant limit reached. This row and all following rows have been skipped.",
+                    List.of(new ValidationError("participants", "Participant limit reached for this event.")),
+                    BatchValidationException.TYPE_LIMIT_EXCEEDED);
+        }
 
         List<ValidationError> errors = csvRowValidator.validate(row);
         if (!errors.isEmpty()) {
@@ -62,7 +85,9 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
         }
 
         try {
-            return mapCsvRowToParticipant(row);
+            ParticipantDDB result = mapCsvRowToParticipant(row);
+            processedThisJob++;
+            return result;
         } catch (Exception e) {
             log.warn("Processing error for row {}: {}", row.getRowNumber(), e.getMessage());
             throw new BatchValidationException(
@@ -82,6 +107,16 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
                 username = user != null ? user.getUsername() : "batch-import";
             } else {
                 username = "batch-import";
+            }
+
+            isAddOn = ImportMode.ADD_ON.name().equals(modeParam);
+            if (isAddOn) {
+                EventLimit limits = eventLimitRepository.findByEventId(eventId)
+                        .orElseGet(() -> EventLimit.builder().build());
+                participantLimit = limits.getMaxParticipants();
+                initialParticipantCount = eventStatsRepo.getTotalParticipantCount(eventId.toString());
+                processedThisJob = 0;
+                log.info("ADD_ON import: existingCount={}, limit={}", initialParticipantCount, participantLimit);
             }
         }
     }

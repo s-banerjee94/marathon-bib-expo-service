@@ -9,8 +9,13 @@ import com.timekeeper.bibexpo.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.model.dto.response.SmsTemplateResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.SmsTemplate;
+import com.timekeeper.bibexpo.model.enums.CampaignStatus;
+import com.timekeeper.bibexpo.model.enums.EventOperation;
+import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.repository.SmsTemplateRepository;
@@ -36,12 +41,12 @@ import java.util.List;
 @Slf4j
 public class SmsTemplateServiceImpl implements SmsTemplateService {
 
-    private static final int MAX_TEMPLATES_PER_EVENT = 20;
-
     private final SmsTemplateRepository smsTemplateRepository;
     private final SmsCampaignRepository smsCampaignRepository;
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
+    private final EventLimitRepository eventLimitRepository;
+    private final EventOperationGuard eventOperationGuard;
 
     @Auditable(entityType = AuditEntityType.SMS_TEMPLATE, action = AuditAction.CREATE)
     @Override
@@ -50,9 +55,12 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         log.info("Creating SMS template for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = validateEventAccess(eventId, currentUser);
+        eventOperationGuard.requireAllowed(event, EventOperation.SMS_TEMPLATE_WRITE);
 
-        if (smsTemplateRepository.countByEventId(eventId) >= MAX_TEMPLATES_PER_EVENT) {
-            throw new InvalidSmsTemplateException("An event can have a maximum of 20 SMS templates.");
+        EventLimit limits = eventLimitRepository.findByEventId(eventId)
+                .orElseGet(() -> EventLimit.builder().build());
+        if (smsTemplateRepository.countByEventId(eventId) >= limits.getMaxSmsTemplates()) {
+            throw new EventLimitExceededException("You have reached the maximum number of SMS templates allowed for this event.");
         }
 
         if (smsTemplateRepository.existsBySmsTemplateIdAndEventId(request.getSmsTemplateId(), eventId)) {
@@ -84,9 +92,16 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         log.info("Updating SMS template ID: {} for event ID: {} by user: {}",
                 templateId, eventId, currentUser.getUsername());
 
-        validateEventAccess(eventId, currentUser);
+        Event updateEvent = validateEventAccess(eventId, currentUser);
+        eventOperationGuard.requireAllowed(updateEvent, EventOperation.SMS_TEMPLATE_WRITE);
 
         SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
+
+        if (smsCampaignRepository.existsBySmsTemplateIdAndStatusIn(
+                smsTemplate.getId(), List.of(CampaignStatus.SENDING, CampaignStatus.SENT))) {
+            throw new InvalidSmsTemplateException(
+                    "You cannot edit this template while it is used in a campaign that is running or completed.");
+        }
 
         if (request.getName() != null && !request.getName().isBlank()) {
             smsTemplate.setName(request.getName().toLowerCase().trim());
@@ -191,6 +206,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
                 templateId, eventId, currentUser.getUsername());
 
         Event event = validateEventAccess(eventId, currentUser);
+        eventOperationGuard.requireAllowed(event, EventOperation.SMS_TEMPLATE_WRITE);
 
         SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
 

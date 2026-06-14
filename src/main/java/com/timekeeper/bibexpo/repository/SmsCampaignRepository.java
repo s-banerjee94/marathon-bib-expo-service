@@ -61,4 +61,9 @@ public interface SmsCampaignRepository extends JpaRepository<SmsCampaign, Long>,
      * Check if any campaign references this template — used to block template deletion
      */
     boolean existsBySmsTemplateId(Long smsTemplateId);
+
+    /**
+     * Check if a template is referenced by any campaign in one of the given statuses — used to block template edits
+     */
+    boolean existsBySmsTemplateIdAndStatusIn(Long smsTemplateId, List<CampaignStatus> statuses);
 }

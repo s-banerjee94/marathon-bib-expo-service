@@ -16,6 +16,8 @@ import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.model.event.EventStatusChangedEvent;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.service.EventBillingGuard;
@@ -34,6 +36,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -51,11 +56,13 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepository;
     private final OrganizationRepository organizationRepository;
+    private final EventLimitRepository eventLimitRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventStatusTransitionValidator statusTransitionValidator;
     private final EventBillingGuard eventBillingGuard;
     private final StorageService storageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
     /**
      * Map an event to a response, presigning a short-lived URL for its logo so the
@@ -73,6 +80,16 @@ public class EventServiceImpl implements EventService {
             storageService.delete(objectKey);
         } catch (Exception e) {
             log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
+        }
+    }
+
+    private int countGoodiesItems(String goodiesJson) {
+        if (goodiesJson == null || goodiesJson.isBlank()) return 0;
+        try {
+            JsonNode node = objectMapper.readTree(goodiesJson);
+            return node.size();
+        } catch (Exception e) {
+            return 0;
         }
     }
 
@@ -106,6 +123,13 @@ public class EventServiceImpl implements EventService {
             throw new InvalidUserDataException("Event end date must be after the start date.");
         }
 
+        int goodiesCount = countGoodiesItems(request.getEventGoodies());
+        EventLimit defaultLimits = EventLimit.builder().build();
+        if (goodiesCount > defaultLimits.getMaxGoodies()) {
+            throw new EventLimitExceededException(
+                    "You have exceeded the maximum number of goodies allowed for this event.");
+        }
+
         Event event = Event.builder()
                 .eventName(request.getEventName())
                 .eventDescription(request.getEventDescription())
@@ -127,6 +151,7 @@ public class EventServiceImpl implements EventService {
                 .build();
 
         Event savedEvent = eventRepository.save(event);
+        eventLimitRepository.save(EventLimit.builder().event(savedEvent).build());
         log.info("Successfully created event with ID: {} by user: {}",
                 savedEvent.getId(), currentUser.getUsername());
 
@@ -160,6 +185,15 @@ public class EventServiceImpl implements EventService {
         TextUtils.applyIfSent(request.getCountry(), event::setCountry);
         TextUtils.applyIfSent(request.getLatitude(), event::setLatitude);
         TextUtils.applyIfSent(request.getLongitude(), event::setLongitude);
+        if (request.getEventGoodies() != null) {
+            int goodiesCount = countGoodiesItems(request.getEventGoodies());
+            EventLimit limits = eventLimitRepository.findByEventId(event.getId())
+                    .orElseGet(() -> EventLimit.builder().build());
+            if (goodiesCount > limits.getMaxGoodies()) {
+                throw new EventLimitExceededException(
+                        "You have exceeded the maximum number of goodies allowed for this event.");
+            }
+        }
         TextUtils.applyIfSent(request.getEventGoodies(), event::setEventGoodies);
 
         Event updatedEvent = eventRepository.save(event);

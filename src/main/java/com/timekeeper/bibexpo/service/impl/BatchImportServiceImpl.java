@@ -2,8 +2,9 @@ package com.timekeeper.bibexpo.service.impl;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+import com.timekeeper.bibexpo.batch.CsvPreflightScanner;
+import com.timekeeper.bibexpo.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.ImportNotAllowedException;
 import com.timekeeper.bibexpo.exception.CsvImportException;
 import com.timekeeper.bibexpo.exception.ImportAlreadyRunningException;
 import com.timekeeper.bibexpo.exception.ImportNotRunningException;
@@ -15,7 +16,6 @@ import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.ParticipantImportField;
 import com.timekeeper.bibexpo.model.enums.ImportMode;
-import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportError;
@@ -25,7 +25,11 @@ import com.timekeeper.bibexpo.model.dynamodb.ImportErrorDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.ImportJob;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.model.enums.EventOperation;
 import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
+import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ImportErrorDDBRepository;
@@ -74,6 +78,9 @@ public class BatchImportServiceImpl implements BatchImportService {
     private final ObjectMapper objectMapper;
     private final EventLatestImportRepository eventLatestImportRepository;
     private final ImportJobRepository importJobRepository;
+    private final EventLimitRepository eventLimitRepository;
+    private final EventOperationGuard eventOperationGuard;
+    private final CsvPreflightScanner preflightScanner;
 
     @Override
     @Auditable(entityType = AuditEntityType.PARTICIPANT, action = AuditAction.IMPORT)
@@ -84,10 +91,23 @@ public class BatchImportServiceImpl implements BatchImportService {
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
         ImportMode effectiveMode = mode != null ? mode : ImportMode.IMPORT;
-        validateModeAllowed(effectiveMode, event.getStatus());
+        eventOperationGuard.requireAllowed(event,
+                effectiveMode == ImportMode.ADD_ON ? EventOperation.ADDON_IMPORT : EventOperation.FULL_IMPORT);
 
         if (importJobRepository.existsByEventIdAndStatus(eventId, ImportJob.ImportStatus.IN_PROGRESS)) {
             throw new ImportAlreadyRunningException("An import is already running for this event.");
+        }
+
+        EventLimit limits = eventLimitRepository.findByEventId(eventId)
+                .orElseGet(() -> EventLimit.builder().build());
+        if (effectiveMode == ImportMode.IMPORT) {
+            if (importJobRepository.countByEventIdAndMode(eventId, ImportMode.IMPORT) >= limits.getMaxImports()) {
+                throw new EventLimitExceededException("You have reached the maximum number of full imports allowed for this event.");
+            }
+        } else {
+            if (importJobRepository.countByEventIdAndMode(eventId, ImportMode.ADD_ON) >= limits.getMaxAddOns()) {
+                throw new EventLimitExceededException("You have reached the maximum number of add-on imports allowed for this event.");
+            }
         }
 
         ImportMappingRequest mapping = parseAndValidateMapping(mappingJson);
@@ -102,6 +122,8 @@ public class BatchImportServiceImpl implements BatchImportService {
         } catch (IOException e) {
             throw new CsvImportException("Failed to save the uploaded file. Please try again.", e);
         }
+
+        preflightScanner.scan(tempFile, mapping, eventId, effectiveMode);
 
         String originalFileName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown";
         ImportJob pendingJob = ImportJob.builder()
@@ -144,18 +166,6 @@ public class BatchImportServiceImpl implements BatchImportService {
             pendingJob.setErrorSummary("{\"reason\":\"Failed to launch the import job\"}");
             importJobRepository.save(pendingJob);
             throw new CsvImportException("Failed to start the import. Please try again.", e);
-        }
-    }
-
-    private void validateModeAllowed(ImportMode mode, EventStatus status) {
-        if (mode == ImportMode.ADD_ON) {
-            if (status == EventStatus.COMPLETED || status == EventStatus.CANCELLED) {
-                throw new ImportNotAllowedException(
-                        "You cannot add participants once the event is completed or cancelled.");
-            }
-        } else if (status != EventStatus.DRAFT) {
-            throw new ImportNotAllowedException(
-                    "A full import is only allowed while the event is in draft.");
         }
     }
 

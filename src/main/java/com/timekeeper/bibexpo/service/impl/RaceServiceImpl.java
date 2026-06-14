@@ -14,6 +14,11 @@ import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.EventOperation;
+import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.exception.EventLimitExceededException;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.RaceService;
@@ -34,6 +39,8 @@ public class RaceServiceImpl implements RaceService {
     private final RaceRepository raceRepository;
     private final EventRepository eventRepository;
     private final com.timekeeper.bibexpo.service.validator.EventAccessValidator eventAccessValidator;
+    private final EventLimitRepository eventLimitRepository;
+    private final EventOperationGuard eventOperationGuard;
 
     @Auditable(entityType = AuditEntityType.RACE, action = AuditAction.CREATE)
     @Override
@@ -46,6 +53,13 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(EventNotFoundException::new);
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        eventOperationGuard.requireAllowed(event, EventOperation.RACE_WRITE);
+
+        EventLimit limits = eventLimitRepository.findByEventId(eventId)
+                .orElseGet(() -> EventLimit.builder().build());
+        if (raceRepository.countByEventIdAndDeletedFalse(eventId) >= limits.getMaxRaces()) {
+            throw new EventLimitExceededException("You have reached the maximum number of races allowed for this event.");
+        }
 
         String raceName = NameNormalizer.toStoredName(request.getRaceName());
         if (raceRepository.existsByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)) {
@@ -79,6 +93,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(EventNotFoundException::new);
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        eventOperationGuard.requireAllowed(event, EventOperation.RACE_WRITE);
 
         Race race = raceRepository.findByIdAndDeletedFalse(raceId)
                 .orElseThrow(RaceNotFoundException::new);
@@ -165,6 +180,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(EventNotFoundException::new);
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        eventOperationGuard.requireAllowed(event, EventOperation.RACE_WRITE);
 
         Race race = raceRepository.findById(raceId)
                 .orElseThrow(RaceNotFoundException::new);

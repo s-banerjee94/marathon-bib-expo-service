@@ -9,7 +9,9 @@ import com.timekeeper.bibexpo.model.entity.ImportJob;
 import com.timekeeper.bibexpo.model.entity.Notification;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ImportMode;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
@@ -42,6 +44,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private final UserRepository userRepository;
     private final EventStatsService eventStatsService;
     private final ObjectMapper objectMapper;
+    private final EventLimitRepository eventLimitRepository;
 
     @Override
     public void beforeJob(JobExecution jobExecution) {
@@ -217,6 +220,13 @@ public class BatchJobNotificationListener implements JobExecutionListener {
 
         try {
             List<String> goodiesList = List.of(goodiesColumns.split(","));
+            EventLimit limits = eventLimitRepository.findByEventId(eventId)
+                    .orElseGet(() -> EventLimit.builder().build());
+            if (goodiesList.size() > limits.getMaxGoodies()) {
+                log.warn("Skipping goodies update for event {}: CSV has {} goodies columns but limit is {}",
+                        eventId, goodiesList.size(), limits.getMaxGoodies());
+                return;
+            }
             event.setEventGoodies(objectMapper.writeValueAsString(goodiesList));
             eventRepository.save(event);
             log.info("Updated event {} goodies: {}", eventId, goodiesColumns);

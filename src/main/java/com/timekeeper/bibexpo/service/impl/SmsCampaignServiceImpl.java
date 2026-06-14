@@ -9,12 +9,16 @@ import com.timekeeper.bibexpo.model.dto.request.CreateSmsCampaignRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateSmsCampaignRequest;
 import com.timekeeper.bibexpo.model.dto.response.SmsCampaignResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.SmsCampaign;
 import com.timekeeper.bibexpo.model.entity.SmsTemplate;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.model.enums.CampaignTargetFilter;
 import com.timekeeper.bibexpo.model.enums.CampaignTriggerType;
+import com.timekeeper.bibexpo.model.enums.EventOperation;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
+import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.repository.SmsTemplateRepository;
@@ -35,7 +39,6 @@ import java.util.List;
 @Slf4j
 public class SmsCampaignServiceImpl implements SmsCampaignService {
 
-    private static final int MAX_CAMPAIGNS_PER_EVENT = 20;
     private static final int DISARM_CUTOFF_SECONDS = 30;
     private static final int MIN_SCHEDULE_AHEAD_MINUTES = 3;
 
@@ -43,6 +46,8 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
     private final SmsTemplateRepository smsTemplateRepository;
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
+    private final EventLimitRepository eventLimitRepository;
+    private final EventOperationGuard eventOperationGuard;
 
     @Auditable(entityType = AuditEntityType.SMS_CAMPAIGN, action = AuditAction.CREATE)
     @Override
@@ -51,9 +56,12 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         log.info("Creating SMS campaign for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = validateEventAccess(eventId, currentUser);
+        eventOperationGuard.requireAllowed(event, EventOperation.CAMPAIGN_WRITE);
 
-        if (smsCampaignRepository.countByEventId(eventId) >= MAX_CAMPAIGNS_PER_EVENT) {
-            throw new InvalidSmsCampaignException("An event can have a maximum of 20 SMS campaigns.");
+        EventLimit limits = eventLimitRepository.findByEventId(eventId)
+                .orElseGet(() -> EventLimit.builder().build());
+        if (smsCampaignRepository.countByEventId(eventId) >= limits.getMaxSmsCampaigns()) {
+            throw new EventLimitExceededException("You have reached the maximum number of SMS campaigns allowed for this event.");
         }
 
         SmsTemplate template = smsTemplateRepository.findByIdAndEventId(request.getSmsTemplateId(), eventId)
@@ -85,6 +93,7 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
         log.info("Updating SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
 
         Event event = validateEventAccess(eventId, currentUser);
+        eventOperationGuard.requireAllowed(event, EventOperation.CAMPAIGN_WRITE);
 
         SmsCampaign campaign = findCampaignOrThrow(campaignId, eventId);
 
@@ -142,7 +151,8 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
     public SmsCampaignResponse disarmCampaign(Long eventId, Long campaignId, User currentUser) {
         log.info("Disarming SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
 
-        validateEventAccess(eventId, currentUser);
+        Event disarmEvent = validateEventAccess(eventId, currentUser);
+        eventOperationGuard.requireAllowed(disarmEvent, EventOperation.CAMPAIGN_WRITE);
 
         SmsCampaign campaign = findCampaignOrThrow(campaignId, eventId);
 
@@ -175,7 +185,8 @@ public class SmsCampaignServiceImpl implements SmsCampaignService {
     public void deleteCampaign(Long eventId, Long campaignId, User currentUser) {
         log.info("Deleting SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
 
-        validateEventAccess(eventId, currentUser);
+        Event deleteEvent = validateEventAccess(eventId, currentUser);
+        eventOperationGuard.requireAllowed(deleteEvent, EventOperation.CAMPAIGN_WRITE);
 
         SmsCampaign campaign = findCampaignOrThrow(campaignId, eventId);
 

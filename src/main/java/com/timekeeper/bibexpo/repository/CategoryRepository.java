@@ -20,4 +20,6 @@ public interface CategoryRepository extends JpaRepository<Category, Long>, JpaSp
     boolean existsByCategoryNameAndRaceId(String categoryName, Long raceId);
 
     Optional<Category> findByCategoryNameAndRaceId(String categoryName, Long raceId);
+
+    int countByRaceId(Long raceId);
 }

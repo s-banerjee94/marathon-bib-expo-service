@@ -12,6 +12,7 @@ import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.*;
 import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.service.CategoryService;
 import com.timekeeper.bibexpo.service.EventStatsService;
@@ -61,6 +62,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     private final EventStatsDDBRepository eventStatsRepo;
     private final EventStatsService eventStatsService;
     private final RaceCategoryNameResolver nameResolver;
+    private final EventLimitRepository eventLimitRepository;
 
     private DynamoDbTable<ParticipantDDB> participantTable;
 
@@ -83,6 +85,13 @@ public class ParticipantServiceImpl implements ParticipantService {
                 request.getBibNumber(), eventId, currentUser.getUsername());
 
         accessGuard.forWrite(eventId, currentUser);
+
+        EventLimit limits = eventLimitRepository.findByEventId(eventId)
+                .orElseGet(() -> EventLimit.builder().build());
+        long currentCount = eventStatsRepo.getTotalParticipantCount(eventId.toString());
+        if (currentCount >= limits.getMaxParticipants()) {
+            throw new EventLimitExceededException("You have reached the maximum number of participants allowed for this event.");
+        }
 
         ParticipantDDB existingParticipant = participantTable.getItem(
                 Key.builder()

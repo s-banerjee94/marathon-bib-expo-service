@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.repository;
 
 import com.timekeeper.bibexpo.model.entity.ImportJob;
+import com.timekeeper.bibexpo.model.enums.ImportMode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,4 +24,6 @@ public interface ImportJobRepository extends JpaRepository<ImportJob, String> {
     Optional<ImportJob> findByJobExecutionIdAndEventId(Long jobExecutionId, Long eventId);
 
     List<ImportJob> findByStatus(ImportJob.ImportStatus status);
+
+    int countByEventIdAndMode(Long eventId, ImportMode mode);
 }
