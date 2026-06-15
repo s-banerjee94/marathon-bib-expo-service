@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.messaging.provider.model.entity;
 
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
 import com.timekeeper.bibexpo.messaging.provider.converter.ProviderParamListConverter;
 import com.timekeeper.bibexpo.messaging.provider.converter.SecretAttributeConverter;
 import com.timekeeper.bibexpo.messaging.provider.model.ProviderParam;
@@ -24,16 +25,20 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * How the system talks to one outbound provider (one row per channel — SMS, WhatsApp). Holds the
+ * How the system talks to one outbound provider over a channel (SMS, WhatsApp, …). Holds the
  * endpoint, the auth pair, the message-rendering mode, and a JSON request-parameter mapping that
- * lets a new provider be wired in by editing data rather than code. Root-managed.
+ * lets a new provider be wired in by editing data rather than code.
  *
- * <p>Deliberately independent of the participant campaign SMS/WhatsApp code — no shared logic.
+ * <p>A row is scoped by {@code usage} and {@code organizationId}: SYSTEM rows are the platform-wide
+ * transactional senders (root-managed, {@code organizationId} null); CAMPAIGN rows are either the
+ * platform default (null) or one organization's override. The unique key is
+ * (usage, channel, organizationId).
  */
 @Entity
 @Table(name = "messaging_providers",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_messaging_provider_channel", columnNames = "channel")
+                @UniqueConstraint(name = "uk_messaging_provider_usage_channel_org",
+                        columnNames = {"message_usage", "channel", "organization_id"})
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data
@@ -47,8 +52,18 @@ public class MessagingProvider implements Serializable {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20, unique = true)
+    @Column(nullable = false, length = 20)
     private MessageChannel channel;
+
+    // Transactional system sender vs participant-facing campaign sender
+    @Enumerated(EnumType.STRING)
+    @Column(name = "message_usage", nullable = false, length = 20)
+    @Builder.Default
+    private MessageUsage usage = MessageUsage.SYSTEM;
+
+    // null = platform default (root-managed); set = a specific organization's override
+    @Column(name = "organization_id")
+    private Long organizationId;
 
     @Column(name = "base_url", length = 512)
     private String baseUrl;

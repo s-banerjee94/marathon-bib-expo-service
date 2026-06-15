@@ -1,4 +1,5 @@
 package com.timekeeper.bibexpo.model.entity;
+import com.timekeeper.bibexpo.messaging.campaign.model.entity.SmsTemplate;
 
 import com.timekeeper.bibexpo.config.EmptyStringToNullConverter;
 import jakarta.persistence.*;

@@ -1,4 +1,10 @@
 package com.timekeeper.bibexpo.exception;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateAlreadyExistsException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsCampaignException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignAlreadyActiveException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignNotFoundException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsTemplateException;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;

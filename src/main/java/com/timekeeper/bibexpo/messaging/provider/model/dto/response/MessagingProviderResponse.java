@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.messaging.provider.model.dto.response;
 
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
 import com.timekeeper.bibexpo.messaging.provider.model.ProviderParam;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.AuthType;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.HttpMethodType;
@@ -27,6 +28,13 @@ import java.util.List;
 public class MessagingProviderResponse {
 
     private MessageChannel channel;
+
+    @Schema(description = "Whether this is a transactional system sender or a campaign sender", example = "CAMPAIGN")
+    private MessageUsage usage;
+
+    @Schema(description = "Owning organization for a campaign override; null for system and platform-default rows", example = "42")
+    private Long organizationId;
+
     private String baseUrl;
     private HttpMethodType httpMethod;
     private AuthType authType;

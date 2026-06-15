@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.messaging.provider.service.impl;
 
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
 import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderException;
 import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
 import com.timekeeper.bibexpo.messaging.provider.model.ProviderParam;
@@ -12,6 +13,7 @@ import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient
 import com.timekeeper.bibexpo.messaging.provider.service.impl.RequestTokenResolver.Escape;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -32,6 +34,7 @@ import java.util.Map;
  * URL) is expressed as data. Switching or adding a provider is a data change, not a code change.
  */
 @Service
+@ConditionalOnProperty(name = "messaging.stub-enabled", havingValue = "false", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 public class MessagingProviderClientImpl implements MessagingProviderClient {
@@ -42,12 +45,21 @@ public class MessagingProviderClientImpl implements MessagingProviderClient {
 
     @Override
     public void send(MessageChannel channel, OutboundMessage message) {
-        MessagingProvider provider = providerRepository.findByChannel(channel)
+        MessagingProvider provider = providerRepository
+                .findByUsageAndChannelAndOrganizationIdIsNull(MessageUsage.SYSTEM, channel)
                 .orElseThrow(() -> new MessagingProviderException(
                         "No " + channel + " provider is configured."));
         if (!provider.isEnabled()) {
             throw new MessagingProviderException("The " + channel + " provider is disabled.");
         }
+        send(provider, message);
+    }
+
+    // No enabled-gate here: the SYSTEM path checks above, the campaign resolver only returns enabled
+    // rows, and a test-send must be able to exercise a provider before it is switched on.
+    @Override
+    public void send(MessagingProvider provider, OutboundMessage message) {
+        MessageChannel channel = provider.getChannel();
         if (provider.getBaseUrl() == null || provider.getBaseUrl().isBlank()) {
             throw new MessagingProviderException("The " + channel + " provider has no endpoint configured.");
         }
@@ -76,7 +88,7 @@ public class MessagingProviderClientImpl implements MessagingProviderClient {
         String url = uri.build().encode().toUriString();
         logRequest(channel, provider, url, headers, body);
         fire(provider, url, headers, body, channel);
-        log.info("System message dispatched over {} to {}", channel, message.getRecipientPhone());
+        log.info("Message dispatched over {} to {}", channel, message.getRecipientPhone());
     }
 
     /**

@@ -10,7 +10,7 @@ spring:
       enabled: false
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:192.168.0.111}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo_test}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+    url: jdbc:mysql://${DB_HOST:192.168.0.111}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo_test1}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -126,30 +126,24 @@ batch:
     sweeper-interval-ms: ${BATCH_IMPORT_SWEEPER_INTERVAL_MS:900000}
     sweeper-initial-delay-ms: ${BATCH_IMPORT_SWEEPER_INITIAL_DELAY_MS:300000}
 
-# SMS Configuration
+# Messaging — set true in dev/test to stub ALL outbound provider calls (logs the request, never sends)
+messaging:
+  stub-enabled: ${MESSAGING_STUB_ENABLED:true}
+
+# SMS campaign scheduler — the provider connection (endpoint, auth, body) is configured in the DB
+# via /api/system/campaign-providers (root) and /api/organizations/{id}/campaign-providers (org override)
 sms:
   scheduler:
     send-delay-ms: ${SMS_SCHEDULER_SEND_DELAY_MS:10}
     max-retry-count: ${SMS_SCHEDULER_MAX_RETRY_COUNT:2}
-    stuck-threshold-minutes: ${SMS_SCHEDULER_STUCK_THRESHOLD_MINUTES:10}
-  api:
-    url: ${SMS_API_URL:https://sms.bluwaves.in/sendsms/dlrstatus.php}
-    username: ${SMS_API_USERNAME:}
-    password: ${SMS_API_PASSWORD:}
-    sender: ${SMS_API_SENDER:}
+    stuck-threshold-minutes: ${SMS_SCHEDULER_STUCK_THRESHOLD_MINUTES:20}
 
-# WhatsApp Configuration (via Twilio) — application-default sender; per-org overrides live in the DB
+# WhatsApp campaign scheduler — the provider connection is configured in the DB (see campaign-providers)
 whatsapp:
-  token-enc-key: ${WHATSAPP_TOKEN_ENC_KEY:dev-only-token-enc-key-change-in-production}  # AES key source for org auth tokens at rest
-  api:
-    url: ${WHATSAPP_API_URL:https://api.twilio.com}
-    account-sid: ${TWILIO_ACCOUNT_SID:}
-    auth-token: ${TWILIO_AUTH_TOKEN:}
-    from-number: ${TWILIO_WHATSAPP_FROM:+14155238886}                                 # platform WhatsApp sender, e.g. whatsapp:+14155238886
   scheduler:
-    send-delay-ms: ${WHATSAPP_SCHEDULER_SEND_DELAY_MS:250}
+    send-delay-ms: ${WHATSAPP_SCHEDULER_SEND_DELAY_MS:10}
     max-retry-count: ${WHATSAPP_SCHEDULER_MAX_RETRY_COUNT:2}
-    stuck-threshold-minutes: ${WHATSAPP_SCHEDULER_STUCK_THRESHOLD_MINUTES:10}
+    stuck-threshold-minutes: ${WHATSAPP_SCHEDULER_STUCK_THRESHOLD_MINUTES:20}
 
 # AWS Configuration
 aws:
