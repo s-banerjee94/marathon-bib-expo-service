@@ -16,6 +16,7 @@ import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTargetFilte
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsCampaignSendService;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignNotifier;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchOutcome;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchRequest;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
@@ -40,6 +41,7 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
     private final SmsSchedulerProperties schedulerProperties;
     private final RaceCategoryNameResolver nameResolver;
     private final CampaignDispatcher campaignDispatcher;
+    private final CampaignNotifier campaignNotifier;
 
     @Override
     @Async("smsCampaignTaskExecutor")
@@ -61,6 +63,7 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
             campaign.setStatus(CampaignStatus.FAILED);
             smsCampaignRepository.save(campaign);
             log.error("SMS campaign ID: {} failed: {}", campaignId, e.getMessage());
+            campaignNotifier.notifyFailed(campaignId, campaign.getName(), campaign.getOrganizationId(), "SMS");
             return;
         }
 
@@ -102,6 +105,7 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
         campaign.setSentCount(outcome.getSentCount());
         smsCampaignRepository.save(campaign);
         log.info("Campaign ID: {} completed — {} SMS sent", campaignId, outcome.getSentCount());
+        campaignNotifier.notifyCompleted(campaignId, campaign.getName(), campaign.getOrganizationId(), "SMS", outcome.getSentCount());
     }
 
     private void saveSentCount(SmsCampaign campaign, int sentCount) {

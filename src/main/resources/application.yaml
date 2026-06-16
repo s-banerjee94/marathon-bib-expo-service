@@ -96,7 +96,6 @@ logging:
     org.springframework.web.servlet.handler.HandlerMappingIntrospector: ERROR
     com.timekeeper.bibexpo.security: DEBUG
     com.timekeeper.bibexpo.service.impl.JwtServiceImpl: DEBUG
-    com.timekeeper.bibexpo.service.SseEmitterRegistry: DEBUG
 
 # Application Statistics and Participant Access Configuration
 app:

@@ -19,8 +19,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
-import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -765,19 +763,6 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-    }
-
-    @ExceptionHandler(AsyncRequestTimeoutException.class)
-    public ResponseEntity<Void> handleAsyncTimeout(AsyncRequestTimeoutException ex) {
-        // SSE connection timed out — response already committed, nothing to write
-        return null;
-    }
-
-    @ExceptionHandler(AsyncRequestNotUsableException.class)
-    public ResponseEntity<Void> handleAsyncNotUsable(AsyncRequestNotUsableException ex) {
-        // SSE client disconnected mid-stream — response is no longer writable, nothing to do
-        log.debug("SSE client disconnected: {}", ex.getMessage());
-        return null;
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

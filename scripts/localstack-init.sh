@@ -219,6 +219,36 @@ awslocal dynamodb update-time-to-live \
 
 echo "DynamoDB table marathon-audit-log created successfully with TTL enabled!"
 
+echo "Creating DynamoDB table: marathon-notifications"
+awslocal dynamodb create-table \
+    --table-name marathon-notifications \
+    --attribute-definitions \
+        AttributeName=userId,AttributeType=N \
+        AttributeName=notificationKey,AttributeType=S \
+        AttributeName=unreadKey,AttributeType=S \
+    --key-schema \
+        AttributeName=userId,KeyType=HASH \
+        AttributeName=notificationKey,KeyType=RANGE \
+    --local-secondary-indexes \
+        "[
+            {
+                \"IndexName\": \"LSI-UnreadIndex\",
+                \"KeySchema\": [
+                    {\"AttributeName\": \"userId\", \"KeyType\": \"HASH\"},
+                    {\"AttributeName\": \"unreadKey\", \"KeyType\": \"RANGE\"}
+                ],
+                \"Projection\": {\"ProjectionType\": \"ALL\"}
+            }
+        ]" \
+    --billing-mode PAY_PER_REQUEST
+
+echo "Enabling TTL on marathon-notifications table (expirationTime attribute — 30 day retention)"
+awslocal dynamodb update-time-to-live \
+    --table-name marathon-notifications \
+    --time-to-live-specification "Enabled=true, AttributeName=expirationTime"
+
+echo "DynamoDB table marathon-notifications created successfully with TTL enabled!"
+
 # Bucket name matches the application.yaml default (aws.s3.bucket / AWS_S3_BUCKET).
 echo "Creating S3 bucket: marathon-bib-expo-media"
 awslocal s3api create-bucket --bucket marathon-bib-expo-media

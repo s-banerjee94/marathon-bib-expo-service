@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.*;
+import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
@@ -14,6 +15,8 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.NotificationAudience;
+import com.timekeeper.bibexpo.model.enums.NotificationType;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.model.event.EventStatusChangedEvent;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
@@ -22,6 +25,7 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.service.EventBillingGuard;
 import com.timekeeper.bibexpo.service.EventService;
+import com.timekeeper.bibexpo.service.NotificationService;
 import com.timekeeper.bibexpo.service.StorageService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventStatusTransitionValidator;
@@ -35,6 +39,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -61,6 +67,7 @@ public class EventServiceImpl implements EventService {
     private final EventStatusTransitionValidator statusTransitionValidator;
     private final EventBillingGuard eventBillingGuard;
     private final StorageService storageService;
+    private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
 
@@ -155,7 +162,26 @@ public class EventServiceImpl implements EventService {
         log.info("Successfully created event with ID: {} by user: {}",
                 savedEvent.getId(), currentUser.getUsername());
 
+        notifyEventCreated(savedEvent, currentUser);
+
         return toResponse(savedEvent);
+    }
+
+    /** Alert the application owners (ROOT + ADMIN) when an organizer creates an event. */
+    private void notifyEventCreated(Event event, User actor) {
+        if (actor.getRole() != UserRole.ORGANIZER_ADMIN && actor.getRole() != UserRole.ORGANIZER_USER) {
+            return;
+        }
+        publishAfterCommit(NotifyRequest.builder()
+                .audience(NotificationAudience.PLATFORM_ADMINS)
+                .type(NotificationType.EVENT_CREATED)
+                .title("New Event Created")
+                .message(String.format("%s created a new event \"%s\"%s.",
+                        actor.getUsername(), event.getEventName(), orgSuffix(event)))
+                .entityType("EVENT")
+                .entityId(String.valueOf(event.getId()))
+                .actor(actor)
+                .build());
     }
 
     @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.UPDATE)
@@ -379,7 +405,69 @@ public class EventServiceImpl implements EventService {
 
         eventPublisher.publishEvent(new EventStatusChangedEvent(updatedEvent.getId(), updatedEvent.getStatus()));
 
+        if (status != current) {
+            notifyEventStatusChange(updatedEvent, status, currentUser);
+        }
+
         return toResponse(updatedEvent);
+    }
+
+    /**
+     * PUBLISHED/COMPLETED concern the application owners (ROOT + ADMIN); CANCELLED concerns the
+     * organization's own staff. A move back to DRAFT raises nothing.
+     */
+    private void notifyEventStatusChange(Event event, EventStatus status, User actor) {
+        NotifyRequest.NotifyRequestBuilder builder = NotifyRequest.builder()
+                .entityType("EVENT")
+                .entityId(String.valueOf(event.getId()))
+                .actor(actor);
+
+        switch (status) {
+            case PUBLISHED -> builder
+                    .audience(NotificationAudience.PLATFORM_ADMINS)
+                    .type(NotificationType.EVENT_PUBLISHED)
+                    .title("Event Published")
+                    .message(String.format("Event \"%s\"%s is now published.", event.getEventName(), orgSuffix(event)));
+            case COMPLETED -> builder
+                    .audience(NotificationAudience.PLATFORM_ADMINS)
+                    .type(NotificationType.EVENT_COMPLETED)
+                    .title("Event Completed")
+                    .message(String.format("Event \"%s\"%s has been marked completed.", event.getEventName(), orgSuffix(event)));
+            case CANCELLED -> builder
+                    .audience(NotificationAudience.ORGANIZATION_STAFF)
+                    .organizationId(event.getOrganization() != null ? event.getOrganization().getId() : null)
+                    .type(NotificationType.EVENT_CANCELLED)
+                    .title("Event Cancelled")
+                    .message(String.format("Event \"%s\" has been cancelled.", event.getEventName()));
+            default -> {
+                return;
+            }
+        }
+        publishAfterCommit(builder.build());
+    }
+
+    /**
+     * Defers the send until the surrounding transaction commits, so a rolled-back create/update never
+     * produces a notification. The request is built by the caller while the JPA session is open (lazy
+     * fields are safe to read); only the send is postponed. {@link NotificationService#notify} is
+     * itself non-blocking, so this adds no latency to the request.
+     */
+    private void publishAfterCommit(NotifyRequest request) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    notificationService.notify(request);
+                }
+            });
+        } else {
+            notificationService.notify(request);
+        }
+    }
+
+    /** " (Org Name)" when the event's organization is known, else empty — for notification messages. */
+    private String orgSuffix(Event event) {
+        return event.getOrganization() != null ? " (" + event.getOrganization().getOrganizerName() + ")" : "";
     }
 
     @Override

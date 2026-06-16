@@ -23,6 +23,7 @@ import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppCampaign;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppTemplate;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppCampaignSendService;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignNotifier;
 import com.timekeeper.bibexpo.messaging.campaign.util.WhatsAppVariableRenderer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
     private final WhatsAppSchedulerProperties schedulerProperties;
     private final RaceCategoryNameResolver nameResolver;
     private final CampaignDispatcher campaignDispatcher;
+    private final CampaignNotifier campaignNotifier;
 
     @Override
     @Async("whatsAppCampaignTaskExecutor")
@@ -70,6 +72,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
             campaign.setStatus(CampaignStatus.FAILED);
             campaignRepository.save(campaign);
             log.error("WhatsApp campaign ID: {} failed: {}", campaignId, e.getMessage());
+            campaignNotifier.notifyFailed(campaignId, campaign.getName(), campaign.getOrganizationId(), "WhatsApp");
             return;
         }
 
@@ -113,6 +116,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
         campaign.setSentCount(outcome.getSentCount());
         campaignRepository.save(campaign);
         log.info("WhatsApp campaign ID: {} completed — {} messages sent", campaignId, outcome.getSentCount());
+        campaignNotifier.notifyCompleted(campaignId, campaign.getName(), campaign.getOrganizationId(), "WhatsApp", outcome.getSentCount());
     }
 
     private void saveSentCount(WhatsAppCampaign campaign, int sentCount) {

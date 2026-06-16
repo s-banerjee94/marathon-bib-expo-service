@@ -1,42 +1,39 @@
 package com.timekeeper.bibexpo.service;
 
-import com.timekeeper.bibexpo.model.dto.response.NotificationResponse;
-import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
-import com.timekeeper.bibexpo.model.entity.Notification;
+import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
+import com.timekeeper.bibexpo.model.dto.response.NotificationListResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 
 /**
- * Service for managing in-app notifications.
- * Notifications are persisted to DB for history and delivered in real-time via SSE.
+ * In-app notifications: stored in DynamoDB (auto-expiring), targeted at an audience, and read by
+ * short-polling. Sending is best-effort — a delivery failure is logged, never thrown, so it cannot
+ * break the business operation that triggered it.
  */
 public interface NotificationService {
 
     /**
-     * Creates and persists a notification for a completed batch import job.
+     * Fans the request out to its audience and persists one notification row per recipient (the
+     * triggering actor, if any, is excluded). Never throws.
+     */
+    void notify(NotifyRequest request);
+
+    /**
+     * Returns one page of the user's notifications, newest first.
      *
-     * @param userId         the ID of the user who launched the import
-     * @param eventId        the event the import was for
-     * @param jobExecutionId the Spring Batch job execution ID
-     * @param writeCount     number of participants successfully imported
-     * @param skipCount      number of rows skipped due to validation errors
-     * @param jobStatus      final job status (COMPLETED, FAILED, etc.)
-     * @return the persisted notification
+     * @param limit  max items per page (clamped to 1–50)
+     * @param cursor opaque cursor from a previous page's {@code lastEvaluatedKey}; null for the first page
      */
-    Notification createJobNotification(Long userId, Long eventId, Long jobExecutionId,
-                                       int writeCount, int skipCount, String jobStatus);
+    NotificationListResponse getNotifications(User user, int limit, String cursor);
 
-    /**
-     * Returns paginated notifications for the given user, newest first.
-     */
-    PageableResponse<NotificationResponse> getNotifications(User user, int page, int size);
-
-    /**
-     * Returns the count of unread notifications for the given user.
-     */
+    /** Count of the user's unread notifications (for the bell badge). */
     long getUnreadCount(User user);
 
-    /**
-     * Marks a notification as read. Throws if not found or owned by a different user.
-     */
-    void markAsRead(Long id, User user);
+    /** Marks one notification read. Idempotent — unknown or already-read ids are a no-op. */
+    void markAsRead(User user, String id);
+
+    /** Marks all of the user's notifications read; returns how many changed. */
+    int markAllAsRead(User user);
+
+    /** Deletes every notification for a user; returns how many were removed. Called on user deletion. */
+    int deleteAllForUser(Long userId);
 }

@@ -6,7 +6,6 @@ import com.timekeeper.bibexpo.model.entity.ActiveSession;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.repository.ActiveSessionRepository;
 import com.timekeeper.bibexpo.service.SessionService;
-import com.timekeeper.bibexpo.service.SseEmitterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -23,7 +22,6 @@ import java.util.UUID;
 public class SessionServiceImpl implements SessionService {
 
     private final ActiveSessionRepository activeSessionRepository;
-    private final SseEmitterRegistry sseEmitterRegistry;
     private final JwtConfig jwtConfig;
 
     @Override
@@ -62,7 +60,6 @@ public class SessionServiceImpl implements SessionService {
     @CacheEvict(value = CacheConfig.ACTIVE_SESSIONS_CACHE, key = "#user.username")
     public void endSession(User user) {
         activeSessionRepository.deleteByUsername(user.getUsername());
-        sseEmitterRegistry.removeAll(user.getId());
         log.info("Session ended for user {}", user.getUsername());
     }
 
@@ -71,9 +68,6 @@ public class SessionServiceImpl implements SessionService {
     @CacheEvict(value = CacheConfig.ACTIVE_SESSIONS_CACHE, key = "#username")
     public void endSession(String username, Long userId) {
         activeSessionRepository.deleteByUsername(username);
-        if (userId != null) {
-            sseEmitterRegistry.removeAll(userId);
-        }
         log.info("Session force-ended for user {}", username);
     }
 }

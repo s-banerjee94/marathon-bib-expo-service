@@ -1,14 +1,15 @@
 package com.timekeeper.bibexpo.batch;
 
 import tools.jackson.databind.ObjectMapper;
+import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
 import com.timekeeper.bibexpo.model.dto.response.ErrorSummary;
-import com.timekeeper.bibexpo.model.dto.response.NotificationResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLatestImport;
 import com.timekeeper.bibexpo.model.entity.ImportJob;
-import com.timekeeper.bibexpo.model.entity.Notification;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ImportMode;
+import com.timekeeper.bibexpo.model.enums.NotificationAudience;
+import com.timekeeper.bibexpo.model.enums.NotificationType;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
@@ -18,7 +19,6 @@ import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.NotificationService;
-import com.timekeeper.bibexpo.service.SseEmitterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.JobExecution;
@@ -36,7 +36,6 @@ import java.util.List;
 public class BatchJobNotificationListener implements JobExecutionListener {
 
     private final NotificationService notificationService;
-    private final SseEmitterRegistry sseEmitterRegistry;
     private final ImportJobRepository importJobRepository;
     private final EventLatestImportRepository eventLatestImportRepository;
     private final ParticipantDDBRepository participantDDBRepository;
@@ -114,36 +113,61 @@ public class BatchJobNotificationListener implements JobExecutionListener {
         }
 
         if ("COMPLETED".equals(jobStatus)) {
-            reconcileStats(eventId, userId, jobExecutionId);
+            User uploader = userRepository.findById(userId).orElse(null);
+            reconcileStats(eventId, uploader, jobExecutionId);
+            notifyOrgAdminsOfImport(uploader, eventId, writeCount, skipCount);
         }
 
-        try {
-            Notification notification = notificationService.createJobNotification(
-                    userId, eventId, jobExecutionId, writeCount, skipCount, jobStatus);
-
-            NotificationResponse payload = NotificationResponse.builder()
-                    .id(notification.getId())
-                    .title(notification.getTitle())
-                    .message(notification.getMessage())
-                    .read(notification.getRead())
-                    .eventId(notification.getEventId())
-                    .jobExecutionId(notification.getJobExecutionId())
-                    .createdAt(notification.getCreatedAt())
-                    .build();
-
-            String eventName = "COMPLETED".equals(jobStatus) ? "import:completed" : "import:failed";
-            sseEmitterRegistry.send(userId, eventName, payload);
-        } catch (Exception e) {
-            log.error("Failed to create or send notification for job {} user {}", jobExecutionId, userId, e);
-        }
+        sendImportNotification(userId, eventId, jobStatus, writeCount, skipCount);
     }
 
-    private void reconcileStats(Long eventId, Long userId, Long jobExecutionId) {
+    /**
+     * On a successful import, also inform the organization's admin(s). The uploader is passed as the
+     * actor so an admin who ran the import themselves is excluded here and only gets their own
+     * {@code USER} notification — no duplicate.
+     */
+    private void notifyOrgAdminsOfImport(User uploader, Long eventId, int writeCount, int skipCount) {
+        if (uploader == null || uploader.getOrganization() == null) {
+            return;
+        }
+        notificationService.notify(NotifyRequest.builder()
+                .audience(NotificationAudience.ORGANIZATION_ADMINS)
+                .organizationId(uploader.getOrganization().getId())
+                .type(NotificationType.IMPORT_COMPLETED)
+                .title("CSV Import Completed")
+                .message(String.format("%s imported %d participant(s) for event #%d. %d row(s) skipped.",
+                        uploader.getUsername(), writeCount, eventId, skipCount))
+                .entityType("EVENT")
+                .entityId(String.valueOf(eventId))
+                .actor(uploader)
+                .build());
+    }
+
+    private void sendImportNotification(Long userId, Long eventId, String jobStatus, int writeCount, int skipCount) {
+        boolean completed = "COMPLETED".equals(jobStatus);
+        String title = completed ? "CSV Import Completed" : "CSV Import Failed";
+        String message = completed
+                ? String.format("Successfully imported %d participant(s) for event #%d. %d row(s) skipped.",
+                        writeCount, eventId, skipCount)
+                : String.format("Import job for event #%d ended with status %s. %d row(s) written, %d skipped.",
+                        eventId, jobStatus, writeCount, skipCount);
+
+        notificationService.notify(NotifyRequest.builder()
+                .audience(NotificationAudience.USER)
+                .targetUserId(userId)
+                .type(completed ? NotificationType.IMPORT_COMPLETED : NotificationType.IMPORT_FAILED)
+                .title(title)
+                .message(message)
+                .entityType("EVENT")
+                .entityId(String.valueOf(eventId))
+                .build());
+    }
+
+    private void reconcileStats(Long eventId, User user, Long jobExecutionId) {
         try {
-            User user = userRepository.findById(userId).orElse(null);
             if (user == null) {
-                log.warn("Skipping stats reconcile for job {} event {}: uploader user {} not found",
-                        jobExecutionId, eventId, userId);
+                log.warn("Skipping stats reconcile for job {} event {}: uploader user not found",
+                        jobExecutionId, eventId);
                 return;
             }
             eventStatsService.reconcile(eventId, user);

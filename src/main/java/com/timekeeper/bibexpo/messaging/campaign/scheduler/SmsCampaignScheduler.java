@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType;
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsCampaignSendService;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignNotifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -24,6 +25,7 @@ public class SmsCampaignScheduler {
     private final SmsCampaignRepository smsCampaignRepository;
     private final SmsCampaignSendService smsCampaignSendService;
     private final SmsSchedulerProperties schedulerProperties;
+    private final CampaignNotifier campaignNotifier;
 
     @Scheduled(fixedDelay = 60_000)
     public void tick() {
@@ -68,6 +70,7 @@ public class SmsCampaignScheduler {
                 smsCampaignRepository.save(campaign);
                 log.error("Campaign ID: {} exceeded max retries ({}) — marked FAILED",
                         campaign.getId(), schedulerProperties.getMaxRetryCount());
+                campaignNotifier.notifyFailed(campaign.getId(), campaign.getName(), campaign.getOrganizationId(), "SMS");
             } else {
                 campaign.setRetryCount(campaign.getRetryCount() + 1);
                 smsCampaignRepository.save(campaign);

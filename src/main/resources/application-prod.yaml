@@ -85,4 +85,3 @@ logging:
   level:
     com.timekeeper.bibexpo.security: INFO
     com.timekeeper.bibexpo.service.impl.JwtServiceImpl: INFO
-    com.timekeeper.bibexpo.service.SseEmitterRegistry: INFO

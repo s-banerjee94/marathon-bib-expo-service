@@ -19,6 +19,13 @@ public class CacheConfig {
 
     public static final String ACTIVE_SESSIONS_CACHE = "activeSessions";
 
+    /**
+     * Unread-notification badge counts, keyed by user id. Kept correct by explicit eviction on every
+     * write path (new notification, mark-read, delete); the write-expiry is only a backstop for a
+     * missed eviction. Lets the frequent badge poll skip DynamoDB between changes.
+     */
+    public static final String UNREAD_COUNTS_CACHE = "unreadNotificationCounts";
+
     @Bean
     public CacheManager cacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager();
@@ -28,6 +35,11 @@ public class CacheConfig {
         manager.registerCustomCache(OrgDashboardService.DASHBOARD_CACHE,
                 Caffeine.newBuilder()
                         .maximumSize(1_000)
+                        .expireAfterWrite(5, TimeUnit.MINUTES)
+                        .build());
+        manager.registerCustomCache(UNREAD_COUNTS_CACHE,
+                Caffeine.newBuilder()
+                        .maximumSize(50_000)
                         .expireAfterWrite(5, TimeUnit.MINUTES)
                         .build());
         return manager;

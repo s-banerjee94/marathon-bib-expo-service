@@ -20,11 +20,11 @@ import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserArchive;
 import com.timekeeper.bibexpo.model.entity.UserRole;
-import com.timekeeper.bibexpo.repository.NotificationRepository;
 import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
+import com.timekeeper.bibexpo.service.NotificationService;
 import com.timekeeper.bibexpo.service.UserService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +54,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserArchiveRepository userArchiveRepository;
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
     private final PasswordEncoder passwordEncoder;
@@ -802,7 +802,7 @@ public class UserServiceImpl implements UserService {
         UserArchive archive = buildArchiveFromUser(targetUser, currentUsername);
         userArchiveRepository.save(archive);
 
-        int notificationsDeleted = notificationRepository.deleteAllByUserId(targetUser.getId());
+        int notificationsDeleted = notificationService.deleteAllForUser(targetUser.getId());
         log.debug("Deleted {} notifications for user ID: {}", notificationsDeleted, userId);
 
         Organization organization = targetUser.getOrganization();
