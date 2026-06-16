@@ -112,28 +112,6 @@ public interface WhatsAppCampaignControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     /**
-     * Fetch a single WhatsApp campaign.
-     */
-    @GetMapping("/{campaignId}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(summary = "Get a WhatsApp campaign by ID")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Campaign retrieved",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = WhatsAppCampaignResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event or campaign not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    ResponseEntity<WhatsAppCampaignResponse> getCampaignById(
-            @PathVariable Long eventId,
-            @PathVariable Long campaignId,
-            @AuthenticationPrincipal User currentUser);
-
-    /**
      * Disarm an ACTIVE campaign back to DRAFT.
      */
     @PatchMapping("/{campaignId}/disarm")

@@ -56,17 +56,6 @@ public class WhatsAppTemplateController implements WhatsAppTemplateControllerApi
     }
 
     @Override
-    public ResponseEntity<WhatsAppTemplateResponse> getTemplateById(
-            @PathVariable Long eventId,
-            @PathVariable Long templateId,
-            @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get WhatsApp template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
-        return ResponseEntity.ok(templateService.getTemplateById(eventId, templateId, currentUser));
-    }
-
-    @Override
     public ResponseEntity<WhatsAppTemplateResponse> updateTemplate(
             @PathVariable Long eventId,
             @PathVariable Long templateId,

@@ -135,16 +135,6 @@ public class WhatsAppCampaignServiceImpl implements WhatsAppCampaignService {
         ).stream().map(campaign -> WhatsAppCampaignResponse.fromEntity(campaign, event)).toList();
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public WhatsAppCampaignResponse getCampaignById(Long eventId, Long campaignId, User currentUser) {
-        log.info("Fetching WhatsApp campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
-
-        Event event = validateEventAccess(eventId, currentUser);
-
-        return WhatsAppCampaignResponse.fromEntity(findCampaignOrThrow(campaignId, eventId), event);
-    }
-
     @Auditable(entityType = AuditEntityType.WHATSAPP_CAMPAIGN, action = AuditAction.STATUS_CHANGE)
     @Override
     @Transactional

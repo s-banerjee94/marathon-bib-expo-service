@@ -43,16 +43,6 @@ public interface WhatsAppCampaignService {
     List<WhatsAppCampaignResponse> getCampaignsByEvent(Long eventId, User currentUser);
 
     /**
-     * Fetch a single campaign by ID within an event.
-     *
-     * @param eventId     event the campaign belongs to
-     * @param campaignId  campaign to fetch
-     * @param currentUser caller; organizer roles may only access their organization's events
-     * @return the campaign
-     */
-    WhatsAppCampaignResponse getCampaignById(Long eventId, Long campaignId, User currentUser);
-
-    /**
      * Disarm an ACTIVE campaign back to DRAFT (clears trigger, filter and schedule).
      * Scheduled campaigns cannot be disarmed within 30 seconds of their scheduled time.
      *

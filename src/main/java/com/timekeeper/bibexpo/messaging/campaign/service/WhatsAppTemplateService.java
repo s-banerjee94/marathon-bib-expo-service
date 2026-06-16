@@ -43,16 +43,6 @@ public interface WhatsAppTemplateService {
     List<WhatsAppTemplateResponse> getTemplatesByEvent(Long eventId, String search, User currentUser);
 
     /**
-     * Fetch a single template by ID within an event.
-     *
-     * @param eventId     event the template belongs to
-     * @param templateId  template to fetch
-     * @param currentUser caller; organizer roles may only access their organization's events
-     * @return the template
-     */
-    WhatsAppTemplateResponse getTemplateById(Long eventId, Long templateId, User currentUser);
-
-    /**
      * Delete a template.
      *
      * @param eventId     event the template belongs to

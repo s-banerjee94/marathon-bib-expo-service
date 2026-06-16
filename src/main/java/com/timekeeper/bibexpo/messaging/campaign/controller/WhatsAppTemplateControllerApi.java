@@ -88,28 +88,6 @@ public interface WhatsAppTemplateControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     /**
-     * Fetch a single WhatsApp template.
-     */
-    @GetMapping("/{templateId}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(summary = "Get a WhatsApp template by ID")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Template retrieved",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = WhatsAppTemplateResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event or template not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    ResponseEntity<WhatsAppTemplateResponse> getTemplateById(
-            @PathVariable Long eventId,
-            @PathVariable Long templateId,
-            @AuthenticationPrincipal User currentUser);
-
-    /**
      * Partially update a WhatsApp template.
      */
     @PatchMapping("/{templateId}")

@@ -136,19 +136,6 @@ public class WhatsAppTemplateServiceImpl implements WhatsAppTemplateService {
         return templates.stream().map(template -> WhatsAppTemplateResponse.fromEntity(template, event)).toList();
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public WhatsAppTemplateResponse getTemplateById(Long eventId, Long templateId, User currentUser) {
-        log.info("Fetching WhatsApp template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
-        Event event = validateEventAccess(eventId, currentUser);
-
-        WhatsAppTemplate template = findTemplateOrThrow(templateId, eventId);
-
-        return WhatsAppTemplateResponse.fromEntity(template, event);
-    }
-
     @Auditable(entityType = AuditEntityType.WHATSAPP_TEMPLATE, action = AuditAction.DELETE)
     @Override
     @Transactional

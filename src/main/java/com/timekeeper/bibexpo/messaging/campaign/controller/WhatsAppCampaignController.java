@@ -59,15 +59,6 @@ public class WhatsAppCampaignController implements WhatsAppCampaignControllerApi
     }
 
     @Override
-    public ResponseEntity<WhatsAppCampaignResponse> getCampaignById(
-            @PathVariable Long eventId,
-            @PathVariable Long campaignId,
-            @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get WhatsApp campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
-        return ResponseEntity.ok(campaignService.getCampaignById(eventId, campaignId, currentUser));
-    }
-
-    @Override
     public ResponseEntity<WhatsAppCampaignResponse> disarmCampaign(
             @PathVariable Long eventId,
             @PathVariable Long campaignId,
