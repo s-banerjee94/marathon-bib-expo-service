@@ -330,6 +330,13 @@ public class EventServiceImpl implements EventService {
         Long organizationId = currentUser.getOrganization().getId();
 
         Specification<Event> spec = buildEventSpecification(organizationId, status, search);
+        // A distributor is bound to a single event, so its listing is narrowed to that event only
+        // (and is empty if it has none).
+        if (currentUser.getRole() == UserRole.DISTRIBUTOR) {
+            Long assignedEventId = currentUser.getEvent() != null ? currentUser.getEvent().getId() : null;
+            spec = spec.and((root, query, cb) ->
+                    assignedEventId == null ? cb.disjunction() : cb.equal(root.get("id"), assignedEventId));
+        }
 
         Page<Event> eventsPage = eventRepository.findAll(spec, pageable);
 

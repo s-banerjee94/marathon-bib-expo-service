@@ -28,6 +28,12 @@ public class InvitationDetailsResponse {
     @Schema(description = "Organization name (null for system-level roles)", example = "Mumbai Runners")
     private String organizationName;
 
+    @Schema(description = "Event ID the distributor will be assigned to (null for non-distributor roles)", example = "10")
+    private Long eventId;
+
+    @Schema(description = "Event name the distributor will be assigned to (null for non-distributor roles)", example = "Mumbai Marathon 2026")
+    private String eventName;
+
     @Schema(description = "Phone number the invite was sent to, to pre-fill the accept form (null if none)", example = "9876543210")
     private String recipientPhone;
 

@@ -77,6 +77,23 @@ public class EventAccessValidator {
         }
     }
 
+    /**
+     * A DISTRIBUTOR is bound to a single event and may act only on that event. Other roles are
+     * not event-scoped and pass through. A mismatch is reported as not found so an event the
+     * distributor is not assigned to is never disclosed.
+     *
+     * @throws EventNotFoundException if the distributor is not assigned to this event
+     */
+    public void enforceDistributorEventScope(User currentUser, Event event) {
+        if (currentUser.getRole() != UserRole.DISTRIBUTOR) {
+            return;
+        }
+        Event assigned = currentUser.getEvent();
+        if (assigned == null || !assigned.getId().equals(event.getId())) {
+            throw new EventNotFoundException();
+        }
+    }
+
     private boolean isPlatformAdmin(User currentUser) {
         UserRole role = currentUser.getRole();
         return role == UserRole.ROOT || role == UserRole.ADMIN;
@@ -91,5 +108,6 @@ public class EventAccessValidator {
         if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
             throw new EventNotFoundException();
         }
+        enforceDistributorEventScope(currentUser, event);
     }
 }

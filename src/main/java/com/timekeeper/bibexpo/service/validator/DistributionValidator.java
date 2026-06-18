@@ -55,6 +55,7 @@ public class DistributionValidator {
                 throw new UnauthorizedAccessException(
                         "User can only access events from their own organization");
             }
+            eventAccessValidator.enforceDistributorEventScope(currentUser, event);
             return;
         }
 

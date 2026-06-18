@@ -34,6 +34,9 @@ public class CreateInvitationRequest {
     @Schema(description = "Organization ID (required for ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR)", example = "7")
     private Long organizationId;
 
+    @Schema(description = "Event ID the distributor is assigned to (required for DISTRIBUTOR; ignored for other roles)", example = "10")
+    private Long eventId;
+
     @Schema(description = "Channels to deliver the invite link on. Omit for manual (the URL is just returned).",
             example = "[\"WHATSAPP\"]",
             allowableValues = {"WHATSAPP", "SMS"})

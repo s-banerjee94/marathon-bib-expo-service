@@ -29,7 +29,8 @@ public interface PublicInvitationControllerApi {
 
     @Operation(
             summary = "Read a pending invite",
-            description = "Returns the fixed role and organization of the invite so the accept form can render. No authentication required."
+            description = "Returns the fixed role and organization of the invite (plus the event, for a distributor invite) "
+                    + "so the accept form can render. No authentication required."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Invite details",
@@ -49,7 +50,8 @@ public interface PublicInvitationControllerApi {
             summary = "Accept an invite and create the account",
             description = """
                     Creates the account using the invitee's details together with the invite's fixed \
-                    role and organization. Any role or organization in the body is ignored. The link is \
+                    role and organization (and event, for a distributor invite). Any role, organization, or \
+                    event in the body is ignored. The link is \
                     consumed only on success, so a recoverable failure (such as a taken username) can be \
                     retried while the link is still live. No authentication required."""
     )

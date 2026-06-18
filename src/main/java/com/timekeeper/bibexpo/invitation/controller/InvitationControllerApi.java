@@ -38,26 +38,30 @@ public interface InvitationControllerApi {
                     ROOT can invite ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization). \
                     ADMIN can invite ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR (any organization). \
                     ORGANIZER_ADMIN can invite ORGANIZER_USER, DISTRIBUTOR (own organization only). \
-                    ORGANIZER_USER can invite DISTRIBUTOR (own organization only)."""
+                    ORGANIZER_USER can invite DISTRIBUTOR (own organization only). \
+                    A DISTRIBUTOR invite additionally requires an eventId; the event must belong to the same \
+                    organization and must not be completed or cancelled, and is fixed in the link too."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Invite link issued",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = InvitationLinkResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid role, or organization required but missing or disabled",
+            @ApiResponse(responseCode = "400", description = "Invalid role, organization required but missing or disabled, "
+                    + "missing event for a distributor, or the event is completed or cancelled",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Issuer not allowed to create the requested role or organization",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization not found",
+            @ApiResponse(responseCode = "404", description = "Organization not found, "
+                    + "or event not found / outside the organization (for a distributor)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     ResponseEntity<InvitationLinkResponse> createInvitation(
-            @Parameter(description = "Role and organization the invite is fixed to", required = true)
+            @Parameter(description = "Role, organization, and (for a distributor) event the invite is fixed to", required = true)
             @Valid @RequestBody CreateInvitationRequest request,
 
             @Parameter(hidden = true)

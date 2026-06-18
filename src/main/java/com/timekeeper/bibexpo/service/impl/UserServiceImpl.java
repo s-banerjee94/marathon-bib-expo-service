@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.aspect.AuditContextHolder;
+import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.InvalidFileException;
 import com.timekeeper.bibexpo.exception.InvalidUserDataException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
@@ -16,10 +17,13 @@ import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.service.StorageService;
+import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserArchive;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserArchiveRepository;
@@ -57,6 +61,7 @@ public class UserServiceImpl implements UserService {
     private final NotificationService notificationService;
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
+    private final EventRepository eventRepository;
     private final PasswordEncoder passwordEncoder;
     private final StorageService storageService;
 
@@ -77,18 +82,19 @@ public class UserServiceImpl implements UserService {
         log.info("Creating user with username: {} by: {}", request.getUsername(), currentUsername);
 
         UserRole role = UserRole.valueOf(request.getRole());
-        assertCanCreateUser(role, request.getOrganizationId(), currentUsername);
+        assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), currentUsername);
 
         return provisionUser(request, role);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public void assertCanCreateUser(UserRole role, Long organizationId, String currentUsername) {
+    public void assertCanCreateUser(UserRole role, Long organizationId, Long eventId, String currentUsername) {
         User currentUser = fetchCurrentUser(currentUsername);
         validateRootCreationAttempt(role, currentUsername);
         validateCreateUserAuthorization(currentUser, role, organizationId);
-        fetchAndValidateOrganization(organizationId, role);
+        Organization organization = fetchAndValidateOrganization(organizationId, role);
+        resolveDistributorEvent(eventId, organization, role);
     }
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.CREATE)
@@ -112,12 +118,51 @@ public class UserServiceImpl implements UserService {
         validateUniqueness(request);
 
         Organization organization = fetchAndValidateOrganization(request.getOrganizationId(), role);
-        User user = buildUserEntity(request, organization, role);
+        Event event = resolveDistributorEvent(request.getEventId(), organization, role);
+        User user = buildUserEntity(request, organization, event, role);
         reserveUserSlot(organization, role);
         User savedUser = userRepository.save(user);
 
         log.info("Successfully created user with ID: {} and role: {}", savedUser.getId(), savedUser.getRole());
         return toResponse(savedUser);
+    }
+
+    @Auditable(entityType = AuditEntityType.USER, action = AuditAction.UPDATE)
+    @Override
+    @Transactional
+    public UserResponse reassignDistributorEvent(Long userId, Long eventId, String currentUsername) {
+        log.info("Reassigning distributor ID: {} to event ID: {} by: {}", userId, eventId, currentUsername);
+
+        User currentUser = fetchCurrentUser(currentUsername);
+        User targetUser = fetchTargetUser(userId);
+
+        if (targetUser.getRole() != UserRole.DISTRIBUTOR) {
+            throw new InvalidUserDataException("Only a distributor can be assigned to an event.");
+        }
+        validateReassignAuthorization(currentUser, targetUser);
+
+        Event event = resolveDistributorEvent(eventId, targetUser.getOrganization(), UserRole.DISTRIBUTOR);
+        targetUser.setEvent(event);
+        User saved = userRepository.save(targetUser);
+
+        log.info("Reassigned distributor ID: {} to event ID: {}", userId, eventId);
+        return toResponse(saved);
+    }
+
+    /**
+     * Authorize a distributor reassignment. ROOT and ADMIN may reassign any distributor;
+     * ORGANIZER_ADMIN and ORGANIZER_USER only distributors in their own organization.
+     */
+    private void validateReassignAuthorization(User currentUser, User targetUser) {
+        UserRole currentRole = currentUser.getRole();
+        if (currentRole == UserRole.ROOT || currentRole == UserRole.ADMIN) {
+            return;
+        }
+        if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
+            validateSameOrganization(currentUser, targetUser, "reassign");
+            return;
+        }
+        throw new UnauthorizedAccessException("You are not allowed to reassign distributors.");
     }
 
     /**
@@ -214,9 +259,37 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
+     * Resolve and validate the event a distributor is assigned to. The event must belong to the
+     * distributor's organization and must not have ended. Returns null for every non-distributor
+     * role, since only distributors are event-scoped.
+     */
+    private Event resolveDistributorEvent(Long eventId, Organization organization, UserRole role) {
+        if (role != UserRole.DISTRIBUTOR) {
+            return null;
+        }
+        if (eventId == null) {
+            throw new InvalidUserDataException("An event is required for a distributor.");
+        }
+        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        // Events outside the distributor's organization are reported as not found so their
+        // existence is not disclosed across organizations.
+        if (organization == null || !event.getOrganization().getId().equals(organization.getId())) {
+            throw new EventNotFoundException();
+        }
+        if (isTerminalEvent(event)) {
+            throw new InvalidUserDataException("You cannot assign a distributor to a completed or cancelled event.");
+        }
+        return event;
+    }
+
+    private boolean isTerminalEvent(Event event) {
+        return event.getStatus() == EventStatus.COMPLETED || event.getStatus() == EventStatus.CANCELLED;
+    }
+
+    /**
      * Build user entity from request
      */
-    private User buildUserEntity(CreateUserRequest request, Organization organization, UserRole role) {
+    private User buildUserEntity(CreateUserRequest request, Organization organization, Event event, UserRole role) {
         return User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
@@ -225,6 +298,7 @@ public class UserServiceImpl implements UserService {
                 .phoneNumber(request.getPhoneNumber())
                 .role(role)
                 .organization(organization)
+                .event(event)
                 .enabled(defaultTrue(request.getEnabled()))
                 .accountNonExpired(defaultTrue(request.getAccountNonExpired()))
                 .accountNonLocked(defaultTrue(request.getAccountNonLocked()))
@@ -726,11 +800,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<UserResponse> getUsers(UserRole role, Long organizationId, Boolean enabled,
+    public Page<UserResponse> getUsers(UserRole role, Long organizationId, Long eventId, Boolean enabled,
                                        String search, Pageable pageable,
                                        String currentUsername) {
-        log.info("Getting users - role: {}, orgId: {}, enabled: {}, search: {} by: {}",
-                role, organizationId, enabled, search, currentUsername);
+        log.info("Getting users - role: {}, orgId: {}, eventId: {}, enabled: {}, search: {} by: {}",
+                role, organizationId, eventId, enabled, search, currentUsername);
 
         User currentUser = fetchCurrentUser(currentUsername);
         UserRole currentRole = currentUser.getRole();
@@ -742,7 +816,7 @@ public class UserServiceImpl implements UserService {
             scopedOrgId = currentUser.getOrganization().getId();
         }
 
-        Specification<User> spec = buildUserSpecification(role, scopedOrgId, enabled, search);
+        Specification<User> spec = buildUserSpecification(role, scopedOrgId, eventId, enabled, search);
         Page<UserResponse> responsePage = userRepository.findAll(spec, pageable).map(this::toResponse);
 
         log.info("Successfully retrieved {} users (page {} of {})",
@@ -751,7 +825,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private Specification<User> buildUserSpecification(
-            UserRole role, Long organizationId, Boolean enabled, String search) {
+            UserRole role, Long organizationId, Long eventId, Boolean enabled, String search) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -760,6 +834,9 @@ public class UserServiceImpl implements UserService {
             }
             if (organizationId != null) {
                 predicates.add(cb.equal(root.get("organization").get("id"), organizationId));
+            }
+            if (eventId != null) {
+                predicates.add(cb.equal(root.get("event").get("id"), eventId));
             }
             if (enabled != null) {
                 predicates.add(cb.equal(root.get("enabled"), enabled));

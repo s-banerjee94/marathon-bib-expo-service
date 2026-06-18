@@ -59,6 +59,9 @@ public class CreateUserRequest {
     @Schema(description = "Organization ID (required for ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR)", example = "1")
     private Long organizationId;
 
+    @Schema(description = "Event ID the distributor is assigned to (required for DISTRIBUTOR; ignored for other roles)", example = "10")
+    private Long eventId;
+
     @Builder.Default
     @Schema(description = "Whether the account is enabled", example = "true", defaultValue = "true")
     private Boolean enabled = true;

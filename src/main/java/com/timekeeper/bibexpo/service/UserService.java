@@ -41,12 +41,14 @@ public interface UserService {
      *
      * @param role the role the invited user would be created with
      * @param organizationId the target organization (required for organization-scoped roles)
+     * @param eventId the target event (required for DISTRIBUTOR; must belong to the organization and not have ended)
      * @param currentUsername the username of the user issuing the invite
      * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the role is not creatable by the caller
-     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the organization is required but missing or disabled
+     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the organization is required but missing or disabled, or the event is required but missing or has ended
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
+     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
      */
-    void assertCanCreateUser(UserRole role, Long organizationId, String currentUsername);
+    void assertCanCreateUser(UserRole role, Long organizationId, Long eventId, String currentUsername);
 
     /**
      * Create a user from an accepted invite. Authorization is intentionally skipped here
@@ -87,6 +89,25 @@ public interface UserService {
     UserResponse updateUser(Long userId, UpdateUserRequest request, String currentUsername);
 
     /**
+     * Reassign a distributor to a different event within its own organization.
+     *
+     * <p>Only ROOT, ADMIN, ORGANIZER_ADMIN, and ORGANIZER_USER may reassign; the two
+     * organization-scoped roles are limited to distributors in their own organization. The
+     * target must be a DISTRIBUTOR, and the new event must belong to the distributor's
+     * organization and must not have ended.
+     *
+     * @param userId the distributor to reassign
+     * @param eventId the new event to bind the distributor to
+     * @param currentUsername the username of the user performing the reassignment
+     * @return the updated user response
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist
+     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the target is not a distributor, or the event is missing or has ended
+     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     */
+    UserResponse reassignDistributorEvent(Long userId, Long eventId, String currentUsername);
+
+    /**
      * Toggle the enabled status of a user.
      * This is an administrative operation to enable/disable user accounts.
      *
@@ -125,6 +146,7 @@ public interface UserService {
      *
      * @param role optional role filter
      * @param organizationId optional organization filter (ROOT/ADMIN only)
+     * @param eventId optional event filter (matches distributors assigned to that event)
      * @param enabled optional enabled status filter
      * @param search optional search term (searches username, email, fullName)
      * @param pageable pagination parameters
@@ -132,7 +154,7 @@ public interface UserService {
      * @return page of user responses matching filters
      * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission
      */
-    Page<UserResponse> getUsers(UserRole role, Long organizationId, Boolean enabled,
+    Page<UserResponse> getUsers(UserRole role, Long organizationId, Long eventId, Boolean enabled,
                                 String search, Pageable pageable,
                                 String currentUsername);
 

@@ -19,8 +19,10 @@ import com.timekeeper.bibexpo.messaging.system.service.SystemMessageTemplateServ
 import com.timekeeper.bibexpo.exception.InvalidUserDataException;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
+import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.service.UserService;
 import com.timekeeper.bibexpo.util.SmsTemplateParser;
@@ -46,6 +48,7 @@ public class InvitationServiceImpl implements InvitationService {
     private final InvitationStore invitationStore;
     private final UserService userService;
     private final OrganizationRepository organizationRepository;
+    private final EventRepository eventRepository;
     private final InviteProperties inviteProperties;
     private final MessagingProviderClient messagingProviderClient;
     private final SystemMessageTemplateService systemMessageTemplateService;
@@ -53,7 +56,7 @@ public class InvitationServiceImpl implements InvitationService {
     @Override
     public InvitationLinkResponse createInvitation(CreateInvitationRequest request, String currentUsername) {
         UserRole role = UserRole.valueOf(request.getRole());
-        userService.assertCanCreateUser(role, request.getOrganizationId(), currentUsername);
+        userService.assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), currentUsername);
 
         Set<MessageChannel> channels = request.getDeliveryChannels() == null ? Set.of() : request.getDeliveryChannels();
         if (requiresPhone(channels) && isBlank(request.getRecipientPhone())) {
@@ -64,6 +67,7 @@ public class InvitationServiceImpl implements InvitationService {
         String token = invitationStore.issue(Invitation.builder()
                 .role(role)
                 .organizationId(request.getOrganizationId())
+                .eventId(request.getEventId())
                 .invitedBy(currentUsername)
                 .recipientPhone(request.getRecipientPhone())
                 .expiresAt(expiresAt)
@@ -93,6 +97,8 @@ public class InvitationServiceImpl implements InvitationService {
                 .role(invitation.getRole().name())
                 .organizationId(invitation.getOrganizationId())
                 .organizationName(resolveOrganizationName(invitation.getOrganizationId()))
+                .eventId(invitation.getEventId())
+                .eventName(resolveEventName(invitation.getEventId()))
                 .recipientPhone(invitation.getRecipientPhone())
                 .expiresAt(invitation.getExpiresAt())
                 .build();
@@ -123,6 +129,7 @@ public class InvitationServiceImpl implements InvitationService {
                 .phoneNumber(request.getPhoneNumber())
                 .role(invitation.getRole().name())
                 .organizationId(invitation.getOrganizationId())
+                .eventId(invitation.getEventId())
                 .build();
     }
 
@@ -203,6 +210,15 @@ public class InvitationServiceImpl implements InvitationService {
         }
         return organizationRepository.findById(organizationId)
                 .map(Organization::getOrganizerName)
+                .orElse(null);
+    }
+
+    private String resolveEventName(Long eventId) {
+        if (eventId == null) {
+            return null;
+        }
+        return eventRepository.findById(eventId)
+                .map(Event::getEventName)
                 .orElse(null);
     }
 

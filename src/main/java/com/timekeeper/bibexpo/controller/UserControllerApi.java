@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
+import com.timekeeper.bibexpo.model.dto.request.ReassignDistributorEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
@@ -49,6 +50,8 @@ public interface UserControllerApi {
                     ORGANIZER_ADMIN can create: ORGANIZER_USER, DISTRIBUTOR (own organization only). \
                     ORGANIZER_USER can create: DISTRIBUTOR (own organization only). \
                     Cannot create ROOT (system-initialized only). \
+                    A DISTRIBUTOR additionally requires an eventId; the event must belong to the same \
+                    organization and must not be completed or cancelled. \
                     Organization user limits (administrators, organizer users, distributors) are enforced."""
     )
     @ApiResponses(value = {
@@ -62,7 +65,8 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid request data, validation failed, or organization limit exceeded",
+                    description = "Invalid request data, validation failed, organization limit exceeded, "
+                            + "missing event for a distributor, or the event is completed or cancelled",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -80,7 +84,8 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Organization not found (when organizationId is provided)",
+                    description = "Organization not found (when organizationId is provided), "
+                            + "or event not found / outside the organization (for a distributor)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -169,6 +174,63 @@ public interface UserControllerApi {
 
             @Parameter(description = "User update request", required = true)
             @Valid @RequestBody UpdateUserRequest request,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
+            summary = "Reassign a distributor to a different event",
+            description = """
+                    Moves a distributor to another event within its own organization. \
+                    Only DISTRIBUTOR accounts can be reassigned; the target event must belong to the \
+                    distributor's organization and must not be completed or cancelled. \
+                    Permission hierarchy: \
+                    ROOT and ADMIN can reassign any distributor. \
+                    ORG_ADMIN and ORG_USER can reassign distributors in their own organization only."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Distributor reassigned successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Target is not a distributor, or the event is missing or has ended",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - Insufficient permissions to reassign this distributor",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User or event not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    @PatchMapping("/{userId}/event")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<UserResponse> reassignDistributorEvent(
+            @Parameter(description = "Distributor user ID", required = true)
+            @PathVariable Long userId,
+
+            @Parameter(description = "Reassignment request", required = true)
+            @Valid @RequestBody ReassignDistributorEventRequest request,
 
             @Parameter(hidden = true)
             @AuthenticationPrincipal User currentUser
@@ -300,6 +362,9 @@ public interface UserControllerApi {
 
             @Parameter(description = "Filter by organization ID (ROOT/ADMIN only)")
             @RequestParam(required = false) Long organizationId,
+
+            @Parameter(description = "Filter by assigned event ID (matches distributors for that event)")
+            @RequestParam(required = false) Long eventId,
 
             @Parameter(description = "Filter by enabled status")
             @RequestParam(required = false) Boolean enabled,
