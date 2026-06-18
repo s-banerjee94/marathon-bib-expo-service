@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.User;
 
+import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -44,18 +45,23 @@ public interface EventStatsService {
      * Increment bib-collected counters for a participant whose bib was just collected.
      * Updates BIB_COLLECTED, RACE#&lt;id&gt;#COLLECTED, CATEGORY#&lt;id&gt;#COLLECTED, plus a
      * GOODIE#&lt;name&gt;#DISTRIBUTED counter for each goodie distributed in the same operation.
+     * Also bumps the range-scoped activity counters HOUR#&lt;date&gt;#&lt;hh&gt; and
+     * DIST#&lt;date&gt;#&lt;distributorId&gt;, bucketed in the event's time zone.
      * @param participant         The participant after the bib-collect write
      * @param goodiesDistributed  Names of goodies distributed alongside the bib (may be empty)
+     * @param eventZone           The event's time zone, used to bucket the collection by local date and hour
      */
-    void onBibCollected(ParticipantDDB participant, List<String> goodiesDistributed);
+    void onBibCollected(ParticipantDDB participant, List<String> goodiesDistributed, ZoneId eventZone);
 
     /**
      * Decrement bib-collected counters for a participant whose bib collection was undone.
      * The participant snapshot must be captured BEFORE the undo mutation, since undoBib
-     * clears bibCollectedAt and goodiesDistribution from the row.
+     * clears bibCollectedAt and goodiesDistribution from the row. Reverses the range-scoped
+     * activity counters using the snapshot's original collection time.
      * @param participantBefore The participant snapshot taken before the undo write
+     * @param eventZone         The event's time zone, used to locate the original activity bucket
      */
-    void onBibUndone(ParticipantDDB participantBefore);
+    void onBibUndone(ParticipantDDB participantBefore, ZoneId eventZone);
 
     /**
      * Increment goodie-distribution counters when goodies are distributed without a

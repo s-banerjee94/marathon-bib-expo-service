@@ -33,14 +33,20 @@ public class RaceCategoryNameResolver {
         });
 
         Map<String, String> categoryNames = new HashMap<>();
-        categoryRepository.findByRaceEventId(eventId)
-                .forEach(category -> categoryNames.put(String.valueOf(category.getId()), category.getCategoryName()));
+        Map<String, String> categoryRaceIds = new HashMap<>();
+        categoryRepository.findByRaceEventId(eventId).forEach(category -> {
+            String key = String.valueOf(category.getId());
+            categoryNames.put(key, category.getCategoryName());
+            if (category.getRace() != null) {
+                categoryRaceIds.put(key, String.valueOf(category.getRace().getId()));
+            }
+        });
 
-        return new EventNames(raceNames, categoryNames, raceReportingTimes);
+        return new EventNames(raceNames, categoryNames, raceReportingTimes, categoryRaceIds);
     }
 
     public record EventNames(Map<String, String> raceNames, Map<String, String> categoryNames,
-                             Map<String, Instant> raceReportingTimes) {
+                             Map<String, Instant> raceReportingTimes, Map<String, String> categoryRaceIds) {
 
         public String raceName(String raceId) {
             return raceId == null ? null : raceNames.get(raceId);
@@ -52,6 +58,10 @@ public class RaceCategoryNameResolver {
 
         public Instant reportingTime(String raceId) {
             return raceId == null ? null : raceReportingTimes.get(raceId);
+        }
+
+        public String categoryRaceId(String categoryId) {
+            return categoryId == null ? null : categoryRaceIds.get(categoryId);
         }
     }
 }

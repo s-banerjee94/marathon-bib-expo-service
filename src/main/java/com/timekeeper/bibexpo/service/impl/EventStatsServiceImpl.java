@@ -12,15 +12,19 @@ import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository.Counte
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.EventStatsService;
+import com.timekeeper.bibexpo.service.util.DistributionConstants;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.util.EventTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -38,6 +42,8 @@ public class EventStatsServiceImpl implements EventStatsService {
     public static final String PREFIX_CATEGORY = "CATEGORY#";
     public static final String PREFIX_GENDER = "GENDER#";
     public static final String PREFIX_GOODIE = "GOODIE#";
+    public static final String PREFIX_HOUR = "HOUR#";
+    public static final String PREFIX_DIST = "DIST#";
     public static final String SUFFIX_COLLECTED = "#COLLECTED";
     public static final String SUFFIX_DISTRIBUTED = "#DISTRIBUTED";
     public static final String GENDER_M = PREFIX_GENDER + "M";
@@ -83,7 +89,7 @@ public class EventStatsServiceImpl implements EventStatsService {
     }
 
     @Override
-    public void onBibCollected(ParticipantDDB p, List<String> goodiesDistributed) {
+    public void onBibCollected(ParticipantDDB p, List<String> goodiesDistributed, ZoneId eventZone) {
         runSafely(p.getEventId(), "onBibCollected", () -> {
             DeltaBuilder d = new DeltaBuilder();
             d.simple(KEY_BIB_COLLECTED, +1);
@@ -94,12 +100,13 @@ public class EventStatsServiceImpl implements EventStatsService {
                     d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, +1);
                 }
             }
+            addActivityDeltas(d, p.getBibCollectedAt(), p.getBibDistributedBy(), eventZone, +1);
             statsRepo.applyDeltas(p.getEventId(), d.build());
         });
     }
 
     @Override
-    public void onBibUndone(ParticipantDDB before) {
+    public void onBibUndone(ParticipantDDB before, ZoneId eventZone) {
         runSafely(before.getEventId(), "onBibUndone", () -> {
             DeltaBuilder d = new DeltaBuilder();
             d.simple(KEY_BIB_COLLECTED, -1);
@@ -110,6 +117,7 @@ public class EventStatsServiceImpl implements EventStatsService {
                     d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, -1);
                 }
             }
+            addActivityDeltas(d, before.getBibCollectedAt(), before.getBibDistributedBy(), eventZone, -1);
             statsRepo.applyDeltas(before.getEventId(), d.build());
         });
     }
@@ -148,7 +156,8 @@ public class EventStatsServiceImpl implements EventStatsService {
         validator.validateUserAuthorizationForEvent(currentUser, event);
         eventService.validateEventEnabled(event, currentUser);
 
-        ReconcileState state = aggregateParticipants(eventId, nameResolver.forEvent(eventId));
+        ZoneId zone = EventTimeUtil.zoneOf(event.getTimezone());
+        ReconcileState state = aggregateParticipants(eventId, nameResolver.forEvent(eventId), zone);
         int statRowsWritten = writeReconciledRows(eventId, state.accumulator);
 
         log.info("Reconciled event {}: total={} bibCollected={} statRows={}",
@@ -157,17 +166,17 @@ public class EventStatsServiceImpl implements EventStatsService {
         return buildReconcileResponse(eventId, state);
     }
 
-    private ReconcileState aggregateParticipants(Long eventId, EventNames names) {
+    private ReconcileState aggregateParticipants(Long eventId, EventNames names, ZoneId zone) {
         ReconcileState s = new ReconcileState();
         for (Page<ParticipantDDB> page : participantRepo.findPagesByEventId(eventId, PARTICIPANT_PAGE_SIZE)) {
             for (ParticipantDDB p : page.items()) {
-                aggregateOne(s, p, names);
+                aggregateOne(s, p, names, zone);
             }
         }
         return s;
     }
 
-    private static void aggregateOne(ReconcileState s, ParticipantDDB p, EventNames names) {
+    private static void aggregateOne(ReconcileState s, ParticipantDDB p, EventNames names, ZoneId zone) {
         s.total++;
         boolean collected = isCollected(p);
         if (collected) s.bibCollected++;
@@ -176,6 +185,9 @@ public class EventStatsServiceImpl implements EventStatsService {
         applyParticipantPresence(s.accumulator, p, +1);
         accumulateRace(s, p, collected, names);
         accumulateCategory(s, p, names);
+        if (collected) {
+            addActivityDeltas(s.accumulator, p.getBibCollectedAt(), p.getBibDistributedBy(), zone, +1);
+        }
     }
 
     private static void accumulateGender(ReconcileState s, ParticipantDDB p) {
@@ -274,6 +286,33 @@ public class EventStatsServiceImpl implements EventStatsService {
                 .updatedAt(now)
                 .build()));
         return rows;
+    }
+
+    /**
+     * Bumps the range-scoped activity counters for one bib collection: an hourly bucket
+     * (HOUR#&lt;localDate&gt;#&lt;hh&gt;) and a per-distributor/day bucket (DIST#&lt;localDate&gt;#&lt;id&gt;),
+     * both bucketed in the event's time zone. No-op when the collection time is absent.
+     */
+    private static void addActivityDeltas(DeltaBuilder d, String collectedAtIso,
+                                          String bibDistributedBy, ZoneId zone, long sign) {
+        if (collectedAtIso == null || collectedAtIso.isBlank() || zone == null) {
+            return;
+        }
+        ZonedDateTime local = Instant.parse(collectedAtIso).atZone(zone);
+        String date = local.toLocalDate().toString();
+        d.simple(PREFIX_HOUR + date + "#" + String.format("%02d", local.getHour()), sign);
+        String distId = distributorId(bibDistributedBy);
+        if (distId != null) {
+            d.simple(PREFIX_DIST + date + "#" + distId, sign);
+        }
+    }
+
+    private static String distributorId(String bibDistributedBy) {
+        if (bibDistributedBy == null || bibDistributedBy.isBlank()) {
+            return null;
+        }
+        int idx = bibDistributedBy.indexOf(DistributionConstants.DISTRIBUTOR_SEPARATOR);
+        return idx > 0 ? bibDistributedBy.substring(0, idx) : bibDistributedBy;
     }
 
     private static boolean isCollected(ParticipantDDB p) {

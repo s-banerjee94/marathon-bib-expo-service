@@ -24,6 +24,7 @@ import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.DistributionValidator;
+import com.timekeeper.bibexpo.util.EventTimeUtil;
 import com.timekeeper.bibexpo.util.TextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -112,7 +113,7 @@ public class DistributionServiceImpl implements DistributionService {
         }
 
         participantRepository.save(participant);
-        eventStatsService.onBibCollected(participant, goodiesDistributed);
+        eventStatsService.onBibCollected(participant, goodiesDistributed, EventTimeUtil.zoneOf(event.getTimezone()));
         markDistributionStarted(event);
 
         logDistributionAction(String.valueOf(eventId), bibNumber, now,
@@ -164,7 +165,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedBy(currentUser.getUsername());
 
         participantRepository.save(participant);
-        eventStatsService.onBibUndone(beforeSnapshot);
+        eventStatsService.onBibUndone(beforeSnapshot, EventTimeUtil.zoneOf(event.getTimezone()));
 
         logDistributionAction(String.valueOf(eventId), bibNumber, now,
                 DistributionConstants.ACTION_BIB_UNDONE,

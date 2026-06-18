@@ -129,7 +129,7 @@ public class OpenApiConfig {
 
     @Bean
     public GroupedOpenApi dashboardDoc() {
-        return group("12-dashboard", "Dashboard", "/api/dashboard/**");
+        return group("12-dashboard", "Dashboard", "/api/dashboard/**", "/api/events/*/dashboard");
     }
 
     @Bean
