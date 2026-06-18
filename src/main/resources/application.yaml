@@ -112,12 +112,6 @@ app:
   system-messaging:
     secret-key: ${SYSTEM_MESSAGING_SECRET_KEY:dev-only-system-messaging-key-change-in-production}
 
-# Dashboard backfill — flip enabled to true once to seed org_daily_stats history, then set back to false
-dashboard:
-  backfill:
-    enabled: ${DASHBOARD_BACKFILL_ENABLED:false}
-    days: ${DASHBOARD_BACKFILL_DAYS:90}
-
 # Batch import tuning
 batch:
   import:

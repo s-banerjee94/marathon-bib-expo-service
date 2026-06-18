@@ -53,6 +53,10 @@ public class OrgInfoDto {
     @Schema(description = "Whether the organization is enabled", example = "true")
     private Boolean enabled;
 
+    @Schema(description = "Short-lived presigned URL for the organization logo, null if none set",
+            example = "https://bucket.s3.ap-south-1.amazonaws.com/organizations/1/logo/uuid.png?X-Amz-...")
+    private String logoUrl;
+
     public static OrgInfoDto fromEntity(Organization org) {
         return OrgInfoDto.builder()
                 .id(org.getId())
