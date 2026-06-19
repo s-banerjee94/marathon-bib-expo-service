@@ -42,6 +42,19 @@ spring:
     caffeine:
       spec: maximumSize=10000,expireAfterWrite=60s
 
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+          temperature: 0.2
+    mcp:
+      server:
+        name: marathon-bib-expo-mcp
+        version: 0.0.1
+        instructions: "Tools to manage marathon bib expo events, participants, users and organizations. All tools run as the authenticated user and respect the same role-based access as the REST API."
+
 management:
   endpoints:
     web:
@@ -99,6 +112,10 @@ logging:
 
 # Application Statistics and Participant Access Configuration
 app:
+  ai:
+    # System prompt for the in-app assistant. Defaults to the bundled file; point this at a
+    # file: path (e.g. file:/opt/bibexpo/system-prompt.st) to edit it live without a restart.
+    system-prompt-location: ${AI_SYSTEM_PROMPT_LOCATION:classpath:prompts/system-prompt.st}
   statistics:
     stale-threshold-minutes: ${STATS_STALE_THRESHOLD_MINUTES:15}
   participant-access:

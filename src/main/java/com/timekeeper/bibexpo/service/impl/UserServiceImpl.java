@@ -773,6 +773,28 @@ public class UserServiceImpl implements UserService {
         return toResponse(targetUser);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public UserResponse getUserByUsername(String username, String currentUsername) {
+        log.info("Getting user with username: {} by: {}", username, currentUsername);
+
+        User currentUser = fetchCurrentUser(currentUsername);
+        User targetUser = fetchTargetUserByUsername(username);
+
+        validateGetUserAuthorization(currentUser, targetUser);
+
+        log.info("Successfully retrieved user with username: {}", username);
+        return toResponse(targetUser);
+    }
+
+    private User fetchTargetUserByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> {
+                    log.error("User not found with username: {}", username);
+                    return new UserNotFoundException();
+                });
+    }
+
     /**
      * Validates that the current user has permission to view the target user.
      *

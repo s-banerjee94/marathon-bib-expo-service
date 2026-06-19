@@ -140,6 +140,19 @@ public interface UserService {
     UserResponse getUserById(Long userId, String currentUsername);
 
     /**
+     * Get a single user by username, applying the same visibility rules as {@link #getUserById}.
+     * Username is the primary, human-friendly way to identify a user; the numeric id is the
+     * alternative via {@link #getUserById}.
+     *
+     * @param username the username to look up
+     * @param currentUsername the username of the user making the request
+     * @return the user response
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if no such user exists
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission to view the user
+     */
+    UserResponse getUserByUsername(String username, String currentUsername);
+
+    /**
      * Get users with role-based scoping.
      * ROOT/ADMIN: full access, organizationId honored.
      * ORGANIZER_ADMIN/ORGANIZER_USER/DISTRIBUTOR: auto-scoped to own org, organizationId ignored.
