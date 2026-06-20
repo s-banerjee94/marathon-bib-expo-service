@@ -24,8 +24,9 @@ public class AiChatController implements AiChatControllerApi {
     }
 
     @Override
-    public ResponseEntity<AiChatHistoryResponse> history(@AuthenticationPrincipal User currentUser) {
-        return ResponseEntity.ok(aiChatService.getConversation(currentUser));
+    public ResponseEntity<AiChatHistoryResponse> history(Integer cursor, Integer limit,
+                                                         @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(aiChatService.getConversation(currentUser, cursor, limit));
     }
 
     @Override

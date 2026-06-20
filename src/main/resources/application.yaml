@@ -47,7 +47,7 @@ spring:
       api-key: ${OPENAI_API_KEY:}
       chat:
         options:
-          model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+          model: ${OPENAI_CHAT_MODEL:gpt-4.1-mini}
           temperature: 0.2
     mcp:
       server:
@@ -116,6 +116,10 @@ app:
     # System prompt for the in-app assistant. Defaults to the bundled file; point this at a
     # file: path (e.g. file:/opt/bibexpo/system-prompt.st) to edit it live without a restart.
     system-prompt-location: ${AI_SYSTEM_PROMPT_LOCATION:classpath:prompts/system-prompt.st}
+    memory:
+      # Days of inactivity after which a user's chat history auto-expires via the
+      # marathon-ai-chat-memory DynamoDB table TTL (expirationTime attribute).
+      ttl-days: ${AI_CHAT_MEMORY_TTL_DAYS:30}
   statistics:
     stale-threshold-minutes: ${STATS_STALE_THRESHOLD_MINUTES:15}
   participant-access:

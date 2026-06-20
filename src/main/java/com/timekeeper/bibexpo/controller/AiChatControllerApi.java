@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * In-app AI assistant. Send a natural-language message and get a reply; the assistant may call
@@ -37,13 +38,18 @@ public interface AiChatControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     /**
-     * Load the signed-in user's stored conversation so the client can repaint it, for example
-     * after a page refresh.
+     * Load one page of the signed-in user's stored conversation (newest first) so the client can
+     * repaint it and lazily load older turns. Omit the cursor for the most recent page, then pass
+     * the previous response's nextCursor to fetch older turns.
      */
-    @Operation(summary = "Get my assistant conversation history")
+    @Operation(summary = "Get my assistant conversation history (paged, newest first)")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @GetMapping
     ResponseEntity<AiChatHistoryResponse> history(
+            @Parameter(description = "Cursor from a previous response's nextCursor; omit for the most recent page")
+            @RequestParam(required = false) Integer cursor,
+            @Parameter(description = "Max turns per page (default 20, max 50)")
+            @RequestParam(required = false) Integer limit,
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     /**

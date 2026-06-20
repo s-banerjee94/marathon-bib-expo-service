@@ -13,11 +13,15 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "The signed-in user's stored assistant conversation, oldest turn first")
+@Schema(description = "One page of the signed-in user's stored assistant conversation, oldest turn first")
 public class AiChatHistoryResponse {
 
     @Schema(description = "The conversation turns in chronological order; empty when there is no history")
     private List<Turn> messages;
+
+    @Schema(description = "Cursor for the next, older page; pass it back as the cursor query param. Null when the start of the conversation has been reached",
+            example = "120")
+    private Integer nextCursor;
 
     @Data
     @Builder
