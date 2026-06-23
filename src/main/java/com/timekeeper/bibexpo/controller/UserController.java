@@ -67,6 +67,13 @@ public class UserController implements UserControllerApi {
     }
 
     @Override
+    public ResponseEntity<UserResponse> getUserByUsername(String username, User currentUser) {
+        log.info("Request to get user by username: {} by: {}", username, currentUser.getUsername());
+        UserResponse response = userService.getUserByUsername(username, currentUser.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
     public ResponseEntity<PageableResponse<UserResponse>> getUsers(UserRole role, Long organizationId,
                                                                     Long eventId, Boolean enabled, String search,
                                                                     Pageable pageable, User currentUser) {

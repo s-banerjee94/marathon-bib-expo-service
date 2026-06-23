@@ -131,13 +131,32 @@ public interface UserService {
      * - ROOT and ADMIN: Can get any user
      * - ORG_ADMIN, ORG_USER, DISTRIBUTOR: Can get users in their organization only
      *
+     * A target the caller is not permitted to view is reported as not found, so a user's
+     * existence is not disclosed across organizations or privilege levels.
+     *
      * @param userId the ID of the user to retrieve
      * @param currentUsername the username of the user making the request
      * @return the user response
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found or archived
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to view target user
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist, is archived, or is not visible to the caller
      */
     UserResponse getUserById(Long userId, String currentUsername);
+
+    /**
+     * Get a single user by username.
+     * Permission hierarchy:
+     * - ROOT and ADMIN: Can get any user
+     * - ORG_ADMIN, ORG_USER: Can get users in their organization only
+     *
+     * A target the caller is not permitted to view is reported as not found, so a username
+     * belonging to a privileged or cross-organization account cannot be distinguished from
+     * a username that does not exist.
+     *
+     * @param username the username of the user to retrieve
+     * @param currentUsername the username of the user making the request
+     * @return the user response
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist, is archived, or is not visible to the caller
+     */
+    UserResponse getUserByUsername(String username, String currentUsername);
 
     /**
      * Get users with role-based scoping.

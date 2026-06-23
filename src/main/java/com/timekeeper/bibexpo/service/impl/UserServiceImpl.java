@@ -767,35 +767,62 @@ public class UserServiceImpl implements UserService {
         User currentUser = fetchCurrentUser(currentUsername);
         User targetUser = fetchTargetUser(userId);
 
-        validateGetUserAuthorization(currentUser, targetUser);
+        // A target the caller may not view is reported as not found, so its existence
+        // is not disclosed across organizations or privilege levels.
+        if (!canViewUser(currentUser, targetUser)) {
+            log.warn("{} {} not permitted to view user ID {}; reporting as not found",
+                    currentUser.getRole(), currentUsername, userId);
+            throw new UserNotFoundException();
+        }
 
         log.info("Successfully retrieved user with ID: {}", userId);
         return toResponse(targetUser);
     }
 
-    /**
-     * Validates that the current user has permission to view the target user.
-     *
-     * Permission rules:
-     * - ROOT can view any user
-     * - ADMIN can view any user
-     * - ORG_ADMIN can view users in their organization
-     * - ORG_USER can view users in their organization
-     * - DISTRIBUTOR can view users in their organization
-     */
-    private void validateGetUserAuthorization(User currentUser, User targetUser) {
-        UserRole currentRole = currentUser.getRole();
+    @Override
+    @Transactional(readOnly = true)
+    public UserResponse getUserByUsername(String username, String currentUsername) {
+        log.info("Getting user with username: {} by: {}", username, currentUsername);
 
-        // ROOT and ADMIN can view anyone
-        if (currentRole == UserRole.ROOT || currentRole == UserRole.ADMIN) {
-            log.debug("{} user authorized to view user ID: {}", currentRole, targetUser.getId());
-            return;
+        User currentUser = fetchCurrentUser(currentUsername);
+        User targetUser = fetchTargetUserByUsername(username);
+
+        // A target the caller may not view is reported as not found, so that a username
+        // belonging to a privileged or cross-organization account cannot be distinguished
+        // from one that does not exist (no account-existence disclosure by username).
+        if (!canViewUser(currentUser, targetUser)) {
+            log.warn("{} {} not permitted to view user '{}'; reporting as not found",
+                    currentUser.getRole(), currentUsername, username);
+            throw new UserNotFoundException();
         }
 
-        // Organization-scoped roles can only view users in their organization
-        validateSameOrganization(currentUser, targetUser, "view");
+        log.info("Successfully retrieved user with username: {}", username);
+        return toResponse(targetUser);
+    }
 
-        log.debug("{} user authorized to view user ID: {}", currentRole, targetUser.getId());
+    /**
+     * Fetch the target user by username
+     */
+    private User fetchTargetUserByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> {
+                    log.error("User not found with username: {}", username);
+                    return new UserNotFoundException();
+                });
+    }
+
+    /**
+     * Whether {@code currentUser} is permitted to view {@code targetUser}: ROOT and ADMIN may
+     * view anyone, organization-scoped roles only users within their own organization.
+     */
+    private boolean canViewUser(User currentUser, User targetUser) {
+        UserRole currentRole = currentUser.getRole();
+        if (currentRole == UserRole.ROOT || currentRole == UserRole.ADMIN) {
+            return true;
+        }
+        return currentUser.getOrganization() != null
+                && targetUser.getOrganization() != null
+                && currentUser.getOrganization().getId().equals(targetUser.getOrganization().getId());
     }
 
     @Override
@@ -846,7 +873,8 @@ public class UserServiceImpl implements UserService {
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("username")), pattern),
                         cb.like(cb.lower(root.get("email")), pattern),
-                        cb.like(cb.lower(root.get("fullName")), pattern)
+                        cb.like(cb.lower(root.get("fullName")), pattern),
+                        cb.like(cb.lower(root.get("phoneNumber")), pattern)
                 ));
             }
 

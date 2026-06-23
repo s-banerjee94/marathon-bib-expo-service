@@ -52,9 +52,6 @@ public class UserResponse {
     @Schema(description = "Event ID the distributor is assigned to (null for non-distributor roles)", example = "10")
     private Long eventId;
 
-    @Schema(description = "Name of the event the distributor is assigned to (null for non-distributor roles)", example = "Mumbai Marathon 2026")
-    private String eventName;
-
     @Schema(description = "Whether the account is enabled", example = "true")
     private Boolean enabled;
 
@@ -93,7 +90,6 @@ public class UserResponse {
                 .organizationId(user.getOrganization() != null ? user.getOrganization().getId() : null)
                 .organizationName(user.getOrganization() != null ? user.getOrganization().getOrganizerName() : null)
                 .eventId(user.getEvent() != null ? user.getEvent().getId() : null)
-                .eventName(user.getEvent() != null ? user.getEvent().getEventName() : null)
                 .enabled(user.getEnabled())
                 .accountNonExpired(user.getAccountNonExpired())
                 .accountNonLocked(user.getAccountNonLocked())

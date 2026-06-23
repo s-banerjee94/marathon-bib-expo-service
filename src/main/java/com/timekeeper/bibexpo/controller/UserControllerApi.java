@@ -290,7 +290,48 @@ public interface UserControllerApi {
                     Permission hierarchy: \
                     ROOT and ADMIN can get any user. \
                     ORG_ADMIN, ORG_USER, and DISTRIBUTOR can only get users in their organization. \
-                    Archived users return 404 Not Found."""
+                    A user that does not exist, is archived, or is not visible to the caller \
+                    all return 404 Not Found, so account existence is not disclosed across \
+                    organizations or privilege levels."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "User retrieved successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User not found, archived, or not visible to the caller",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    @GetMapping("/{userId}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    ResponseEntity<UserResponse> getUserById(
+            @Parameter(description = "User ID", required = true)
+            @PathVariable Long userId,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
+            summary = "Get user by username",
+            description = """
+                    Retrieves a single user by their username. \
+                    Permission hierarchy: \
+                    ROOT and ADMIN can get any user. \
+                    ORG_ADMIN and ORG_USER can only get users in their organization. \
+                    A username that does not exist, is archived, or is not visible to the caller \
+                    all return 404 Not Found, so account existence is not disclosed across \
+                    organizations or privilege levels."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -303,7 +344,7 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Forbidden - Insufficient permissions to view this user",
+                    description = "Forbidden - Caller's role is not permitted to use this endpoint",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -311,18 +352,18 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "User not found or archived",
+                    description = "User not found, archived, or not visible to the caller",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
                     )
             )
     })
-    @GetMapping("/{userId}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
-    ResponseEntity<UserResponse> getUserById(
-            @Parameter(description = "User ID", required = true)
-            @PathVariable Long userId,
+    @GetMapping("/by-username/{username}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<UserResponse> getUserByUsername(
+            @Parameter(description = "Username", required = true)
+            @PathVariable String username,
 
             @Parameter(hidden = true)
             @AuthenticationPrincipal User currentUser

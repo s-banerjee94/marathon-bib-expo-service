@@ -101,17 +101,7 @@ public class DistributionValidator {
             return;
         }
 
-        if (role == UserRole.ORGANIZER_ADMIN) {
-            if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException("User does not belong to any organization");
-            }
-
-            if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
-                throw new UnauthorizedAccessException(
-                        "User can only access events from their own organization");
-            }
-            return;
-        }
+        if (orgUserValidation(currentUser, event, role)) return;
 
         throw new UnauthorizedAccessException(
                 "User does not have permission to access distribution logs.");
