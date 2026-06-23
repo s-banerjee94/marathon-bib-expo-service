@@ -86,10 +86,10 @@ public class Organization implements Serializable {
 
     // Billing & Subscription
     @Column(length = 50)
-    private String subscriptionTier;  // FREE, BASIC, PREMIUM, ENTERPRISE
+    private String subscriptionTier;  // PAY_AS_YOU_GO (baseline), PREMIUM, PARTNER; null normalizes to PAY_AS_YOU_GO
 
     @Column(length = 50)
-    private String subscriptionStatus;  // ACTIVE, SUSPENDED, CANCELLED, TRIAL
+    private String subscriptionStatus;  // ACTIVE (PREMIUM/PARTNER, in term), EXPIRED (term lapsed), FREE (PAY_AS_YOU_GO baseline)
 
     private LocalDateTime subscriptionStartDate;
 

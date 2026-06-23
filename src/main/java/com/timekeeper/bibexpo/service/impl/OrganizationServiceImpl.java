@@ -17,6 +17,7 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.SubscriptionTier;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
@@ -33,6 +34,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,16 @@ import java.util.stream.Collectors;
 public class OrganizationServiceImpl implements OrganizationService {
 
     public static final String THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST = "The organization you requested does not exist.";
+
+    // Legacy stored tier value tolerated as baseline; current tiers are in SubscriptionTier.
+    private static final String LEGACY_FREE_TIER = "FREE";
+    private static final String STATUS_ACTIVE = "ACTIVE";
+    // Reserved for the automatic expiry job (deferred): a lapsed term flips ACTIVE -> EXPIRED,
+    // then the organization falls back to the PAY_AS_YOU_GO baseline.
+    private static final String STATUS_EXPIRED = "EXPIRED";
+    private static final String STATUS_FREE = "FREE";
+    private static final int SUBSCRIPTION_TERM_YEARS = 1;
+
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
     private final UserRepository userRepository;
@@ -193,10 +205,12 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .registrationNumber(request.getRegistrationNumber())
                 .subscriptionTier(TextUtils.trimToNull(request.getSubscriptionTier()))
                 .billingEmail(TextUtils.trimToNull(request.getBillingEmail()))
-                .subscriptionStatus("ACTIVE")
                 .enabled(true)
                 .deleted(false)
                 .build();
+
+        // New organizations start from no prior subscription, so a paid tier opens a fresh term.
+        reconcileSubscriptionState(organization, null);
 
         // Save the organization
         Organization savedOrganization = organizationRepository.save(organization);
@@ -394,8 +408,45 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void updateSubscriptionInfo(Organization organization, UpdateOrganizationRequest request) {
+        String previousTier = organization.getSubscriptionTier();
         TextUtils.applyIfSent(request.getSubscriptionTier(), organization::setSubscriptionTier);
         TextUtils.applyIfSent(request.getBillingEmail(), organization::setBillingEmail);
+        reconcileSubscriptionState(organization, previousTier);
+    }
+
+    /**
+     * Derives subscription status and term dates from the organization's tier. PAY_AS_YOU_GO is the
+     * baseline (a null/blank tier is normalized to it): status FREE, no term dates, no committed
+     * subscription. PREMIUM or PARTNER is a committed subscription; opening one from the baseline (or
+     * with no term recorded yet) activates a one-year term from now. An unchanged subscription tier
+     * keeps its current status — including EXPIRED set by the expiry job — and term, so unrelated
+     * edits never silently reactivate a lapsed subscription. When a PREMIUM/PARTNER term lapses the
+     * organization falls back to PAY_AS_YOU_GO (manually now; via the deferred expiry job later).
+     *
+     * @param organization the organization being reconciled, mutated in place
+     * @param previousTier  the tier held before this change
+     */
+    private void reconcileSubscriptionState(Organization organization, String previousTier) {
+        if (isBaselineTier(organization.getSubscriptionTier())) {
+            organization.setSubscriptionTier(SubscriptionTier.PAY_AS_YOU_GO.name());
+            organization.setSubscriptionStatus(STATUS_FREE);
+            organization.setSubscriptionStartDate(null);
+            organization.setSubscriptionEndDate(null);
+            return;
+        }
+        if (isBaselineTier(previousTier) || organization.getSubscriptionStartDate() == null) {
+            organization.setSubscriptionStatus(STATUS_ACTIVE);
+            LocalDateTime start = LocalDateTime.now();
+            organization.setSubscriptionStartDate(start);
+            organization.setSubscriptionEndDate(start.plusYears(SUBSCRIPTION_TERM_YEARS));
+        }
+    }
+
+    /** Baseline (no committed subscription): PAY_AS_YOU_GO, no tier (null/blank), or legacy "FREE". */
+    private boolean isBaselineTier(String tier) {
+        return tier == null || tier.isBlank()
+                || SubscriptionTier.PAY_AS_YOU_GO.name().equalsIgnoreCase(tier.trim())
+                || LEGACY_FREE_TIER.equalsIgnoreCase(tier.trim());
     }
 
     private boolean hasText(String value) {

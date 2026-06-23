@@ -1,5 +1,7 @@
 package com.timekeeper.bibexpo.model.dto.request;
 
+import com.timekeeper.bibexpo.model.enums.SubscriptionTier;
+import com.timekeeper.bibexpo.validator.ValidEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -68,8 +70,9 @@ public class UpdateOrganizationRequest {
     @Schema(description = "Per-role user quota caps. Optional; only the roles you include are changed.")
     private UserQuotaRequest userQuota;
 
-    @Size(max = 50, message = "Subscription tier must not exceed 50 characters")
-    @Schema(description = "Subscription tier", example = "PREMIUM", allowableValues = {"FREE", "BASIC", "PREMIUM", "ENTERPRISE"})
+    @ValidEnum(enumClass = SubscriptionTier.class)
+    @Schema(description = "Subscription tier; set to PAY_AS_YOU_GO (or send empty/null) to fall back to the baseline",
+            example = "PREMIUM", allowableValues = {"PAY_AS_YOU_GO", "PREMIUM", "PARTNER"})
     private String subscriptionTier;
 
     @Email(message = "Billing email must be valid")

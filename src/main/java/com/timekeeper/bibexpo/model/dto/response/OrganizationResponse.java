@@ -64,16 +64,18 @@ public class OrganizationResponse {
     @Schema(description = "Per-role user quota (maximum allowed and current usage)")
     private UserQuotaDto userQuota;
 
-    @Schema(description = "Subscription tier", example = "BASIC")
+    @Schema(description = "Subscription tier; PAY_AS_YOU_GO is the baseline (committed plans: PREMIUM, PARTNER)",
+            example = "PREMIUM", allowableValues = {"PAY_AS_YOU_GO", "PREMIUM", "PARTNER"})
     private String subscriptionTier;
 
-    @Schema(description = "Subscription status", example = "ACTIVE")
+    @Schema(description = "Subscription status, derived from the tier (read-only): ACTIVE/EXPIRED for PREMIUM and PARTNER, FREE on the PAY_AS_YOU_GO baseline",
+            example = "ACTIVE", allowableValues = {"ACTIVE", "EXPIRED", "FREE"})
     private String subscriptionStatus;
 
-    @Schema(description = "Subscription start date")
+    @Schema(description = "Subscription term start; null on the PAY_AS_YOU_GO baseline")
     private LocalDateTime subscriptionStartDate;
 
-    @Schema(description = "Subscription end date")
+    @Schema(description = "Subscription term end (start + 1 year); null on the PAY_AS_YOU_GO baseline")
     private LocalDateTime subscriptionEndDate;
 
     @Schema(description = "Billing email address", example = "billing@indiabookexpo.in")

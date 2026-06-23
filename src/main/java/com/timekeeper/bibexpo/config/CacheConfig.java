@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.timekeeper.bibexpo.invitation.config.InviteProperties;
 import com.timekeeper.bibexpo.invitation.model.Invitation;
 import com.timekeeper.bibexpo.service.dashboard.OrgDashboardService;
+import com.timekeeper.bibexpo.service.dashboard.PlatformDashboardService;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -35,6 +36,11 @@ public class CacheConfig {
         manager.registerCustomCache(OrgDashboardService.DASHBOARD_CACHE,
                 Caffeine.newBuilder()
                         .maximumSize(1_000)
+                        .expireAfterWrite(5, TimeUnit.MINUTES)
+                        .build());
+        manager.registerCustomCache(PlatformDashboardService.DASHBOARD_CACHE,
+                Caffeine.newBuilder()
+                        .maximumSize(200)
                         .expireAfterWrite(5, TimeUnit.MINUTES)
                         .build());
         manager.registerCustomCache(UNREAD_COUNTS_CACHE,

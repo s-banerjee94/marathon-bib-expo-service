@@ -4,7 +4,11 @@ import com.timekeeper.bibexpo.billing.model.entity.Invoice;
 import com.timekeeper.bibexpo.billing.model.entity.InvoiceStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,4 +62,22 @@ public interface InvoiceRepository extends JpaRepository<Invoice, String>, JpaSp
      * @return true if at least one matching invoice exists
      */
     boolean existsByEventIdAndStatus(Long eventId, InvoiceStatus status);
+
+    /**
+     * Total revenue collected (paid) in a paid-at window. Counts only FINAL bills marked PAID,
+     * summed by {@code paidAt}. Null bounds are unbounded. Returns 0 when nothing matches.
+     *
+     * @param from inclusive lower bound on paidAt, or null for unbounded
+     * @param to   exclusive upper bound on paidAt, or null for unbounded
+     * @return gross collected amount in the window
+     */
+    @Query("""
+            SELECT COALESCE(SUM(i.totalAmount), 0) FROM Invoice i
+            WHERE i.status = com.timekeeper.bibexpo.billing.model.entity.InvoiceStatus.FINAL
+              AND i.paymentStatus = com.timekeeper.bibexpo.billing.model.entity.PaymentStatus.PAID
+              AND i.paidAt IS NOT NULL
+              AND (:from IS NULL OR i.paidAt >= :from)
+              AND (:to IS NULL OR i.paidAt < :to)
+            """)
+    BigDecimal sumCollectedBetween(@Param("from") Instant from, @Param("to") Instant to);
 }

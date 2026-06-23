@@ -68,4 +68,11 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     long countByOrganizationIdAndEnabledTrue(Long organizationId);
 
     long countByOrganizationIdAndEnabledFalse(Long organizationId);
+
+    // --- Platform (global) dashboard queries ---
+
+    @Query("SELECT u.role, COUNT(u) FROM User u GROUP BY u.role")
+    List<Object[]> countGroupByRole();
+
+    long countByCreatedAtLessThanEqual(java.time.Instant asOf);
 }

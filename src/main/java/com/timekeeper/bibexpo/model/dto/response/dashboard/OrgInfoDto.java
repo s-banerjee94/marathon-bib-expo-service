@@ -38,14 +38,19 @@ public class OrgInfoDto {
     @Schema(description = "Country code", example = "IN")
     private String country;
 
-    @Schema(description = "Subscription tier", example = "PRO")
+    @Schema(description = "Subscription tier; PAY_AS_YOU_GO is the baseline", example = "PREMIUM",
+            allowableValues = {"PAY_AS_YOU_GO", "PREMIUM", "PARTNER"})
     private String subscriptionTier;
 
-    @Schema(description = "Subscription status", example = "ACTIVE")
+    @Schema(description = "Subscription status, derived from the tier (FREE on the PAY_AS_YOU_GO baseline)",
+            example = "ACTIVE", allowableValues = {"ACTIVE", "EXPIRED", "FREE"})
     private String subscriptionStatus;
 
-    @Schema(description = "Subscription start date")
+    @Schema(description = "Subscription term start; null on the PAY_AS_YOU_GO baseline")
     private LocalDateTime subscriptionStartDate;
+
+    @Schema(description = "Subscription term end (when PREMIUM/PARTNER lapses and falls back to PAY_AS_YOU_GO); null on the baseline")
+    private LocalDateTime subscriptionEndDate;
 
     @Schema(description = "Account creation timestamp")
     private Instant createdAt;
@@ -69,6 +74,7 @@ public class OrgInfoDto {
                 .subscriptionTier(org.getSubscriptionTier())
                 .subscriptionStatus(org.getSubscriptionStatus())
                 .subscriptionStartDate(org.getSubscriptionStartDate())
+                .subscriptionEndDate(org.getSubscriptionEndDate())
                 .createdAt(org.getCreatedAt())
                 .enabled(org.getEnabled())
                 .build();
