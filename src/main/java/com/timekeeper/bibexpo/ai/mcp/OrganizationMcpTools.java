@@ -1,0 +1,80 @@
+package com.timekeeper.bibexpo.ai.mcp;
+
+import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
+import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
+import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.service.OrganizationService;
+import jakarta.validation.Validator;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class OrganizationMcpTools implements McpToolGroup {
+
+    private static final int SEARCH_LIMIT = 10;
+
+    private final OrganizationService organizationService;
+    private final Validator validator;
+
+    @Tool(name = "search_organizations",
+            description = "Search organizations by name (also matches email and phone). Read-only; returns matching "
+                    + "organizations with brief details and their ids. Use this to turn an organization name the user "
+                    + "mentioned into the organization id that other tools need — never ask the user for a numeric "
+                    + "organization id. ROOT and ADMIN can search all organizations; other users only ever have their own.")
+    public List<OrganizationResponse> searchOrganizations(
+            @ToolParam(description = "Text to match against the organization name, email or phone") String query) {
+
+        User currentUser = McpToolSupport.requireCurrentUser();
+
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException("Please provide an organization name to search for.");
+        }
+
+        String search = query.trim();
+        log.info("MCP search_organizations - query '{}', by {}", search, currentUser.getUsername());
+
+        return switch (currentUser.getRole()) {
+            case ROOT, ADMIN -> McpToolSupport.capOrNarrow(
+                    organizationService.getAllOrganizations(null, false, search, PageRequest.of(0, SEARCH_LIMIT), currentUser),
+                    "organizations");
+            default -> ownOrganizationMatching(search, currentUser);
+        };
+    }
+
+    /** Organization-scoped users have exactly one organization; return it only if it matches the query. */
+    private List<OrganizationResponse> ownOrganizationMatching(String search, User currentUser) {
+        OrganizationResponse own = organizationService.getCurrentUserOrganization(currentUser);
+        boolean matches = own.getOrganizerName() != null
+                && own.getOrganizerName().toLowerCase().contains(search.toLowerCase());
+        return matches ? List.of(own) : List.of();
+    }
+
+    @Tool(name = "create_organization",
+            description = "Create a new organization. This writes data, so only call it after the user has confirmed "
+                    + "the details. Only ROOT and ADMIN may create organizations. Returns the created organization.")
+    public OrganizationResponse createOrganization(
+            @ToolParam(description = "The organization details") CreateOrganizationRequest request) {
+
+        User currentUser = McpToolSupport.requireCurrentUser();
+        if (currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedAccessException("You are not allowed to create organizations.");
+        }
+
+        McpToolSupport.validate(validator, request);
+
+        log.info("MCP create_organization - name '{}', by {}",
+                request.getOrganizerName(), currentUser.getUsername());
+        return organizationService.createOrganization(request);
+    }
+}

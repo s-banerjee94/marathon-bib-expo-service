@@ -153,6 +153,11 @@ public class OpenApiConfig {
         return group("16-dev-operations", "Dev Operations (Dev Profile Only)", "/api/dev/**");
     }
 
+    @Bean
+    public GroupedOpenApi aiAssistantDoc() {
+        return group("17-ai-assistant", "AI Assistant", "/api/ai/**");
+    }
+
     // ---- helpers ----
 
     private static GroupedOpenApi group(String id, String displayName, String... pathsToMatch) {
