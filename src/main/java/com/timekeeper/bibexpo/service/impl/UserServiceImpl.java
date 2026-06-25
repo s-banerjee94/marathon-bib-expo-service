@@ -30,6 +30,7 @@ import com.timekeeper.bibexpo.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.NotificationService;
 import com.timekeeper.bibexpo.service.UserService;
+import com.timekeeper.bibexpo.service.cache.AuthUserCache;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +65,7 @@ public class UserServiceImpl implements UserService {
     private final EventRepository eventRepository;
     private final PasswordEncoder passwordEncoder;
     private final StorageService storageService;
+    private final AuthUserCache authUserCache;
 
     /**
      * Map a user to a response, presigning a short-lived URL for its profile picture.
@@ -144,6 +146,7 @@ public class UserServiceImpl implements UserService {
         Event event = resolveDistributorEvent(eventId, targetUser.getOrganization(), UserRole.DISTRIBUTOR);
         targetUser.setEvent(event);
         User saved = userRepository.save(targetUser);
+        authUserCache.evict(saved.getUsername());
 
         log.info("Reassigned distributor ID: {} to event ID: {}", userId, eventId);
         return toResponse(saved);
@@ -501,6 +504,7 @@ public class UserServiceImpl implements UserService {
         }
 
         User updatedUser = userRepository.save(targetUser);
+        authUserCache.evict(updatedUser.getUsername());
         log.info("Successfully updated user with ID: {}", updatedUser.getId());
 
         return toResponse(updatedUser);
@@ -686,6 +690,7 @@ public class UserServiceImpl implements UserService {
         targetUser.setEnabled(newEnabledStatus);
 
         User updatedUser = userRepository.save(targetUser);
+        authUserCache.evict(updatedUser.getUsername());
         log.info("Successfully toggled enabled status for user ID: {} to: {}", userId, newEnabledStatus);
 
         return toResponse(updatedUser);
@@ -919,11 +924,13 @@ public class UserServiceImpl implements UserService {
         AuditContextHolder.setOrganizationId(organization != null ? organization.getId() : null);
 
         String pictureKey = targetUser.getProfilePictureKey();
+        String username = targetUser.getUsername();
         userRepository.delete(targetUser);
         releaseUserSlot(organization, role);
+        authUserCache.evict(username);
         deleteQuietly(pictureKey);
 
-        log.info("Successfully archived user ID: {} (username: {})", userId, targetUser.getUsername());
+        log.info("Successfully archived user ID: {} (username: {})", userId, username);
     }
 
     /**
@@ -1027,6 +1034,7 @@ public class UserServiceImpl implements UserService {
         String previousKey = targetUser.getProfilePictureKey();
         targetUser.setProfilePictureKey(objectKey);
         User saved = userRepository.saveAndFlush(targetUser);
+        authUserCache.evict(saved.getUsername());
         if (previousKey != null && !previousKey.equals(objectKey)) {
             deleteQuietly(previousKey);
         }
@@ -1045,6 +1053,7 @@ public class UserServiceImpl implements UserService {
         String previousKey = targetUser.getProfilePictureKey();
         targetUser.setProfilePictureKey(null);
         User saved = userRepository.saveAndFlush(targetUser);
+        authUserCache.evict(saved.getUsername());
         deleteQuietly(previousKey);
         log.info("Successfully removed profile picture for user ID: {}", userId);
         return toResponse(saved);

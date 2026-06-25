@@ -22,6 +22,7 @@ import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.RaceService;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.util.NameNormalizer;
 import com.timekeeper.bibexpo.util.TextUtils;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class RaceServiceImpl implements RaceService {
     private final com.timekeeper.bibexpo.service.validator.EventAccessValidator eventAccessValidator;
     private final EventLimitRepository eventLimitRepository;
     private final EventOperationGuard eventOperationGuard;
+    private final RaceCategoryNameResolver nameResolver;
 
     @Auditable(entityType = AuditEntityType.RACE, action = AuditAction.CREATE)
     @Override
@@ -76,6 +78,7 @@ public class RaceServiceImpl implements RaceService {
                 .build();
 
         Race savedRace = raceRepository.save(race);
+        nameResolver.evict(eventId);
         log.info("Successfully created race with ID: {} by user: {}",
                 savedRace.getId(), currentUser.getUsername());
 
@@ -116,6 +119,7 @@ public class RaceServiceImpl implements RaceService {
         TextUtils.applyIfSent(request.getReportingTime(), race::setReportingTime);
 
         Race updatedRace = raceRepository.save(race);
+        nameResolver.evict(eventId);
 
         log.info("Successfully updated race with ID: {} by user: {}",
                 updatedRace.getId(), currentUser.getUsername());
@@ -198,6 +202,7 @@ public class RaceServiceImpl implements RaceService {
         AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         raceRepository.delete(race);
+        nameResolver.evict(eventId);
         log.info("Successfully deleted race with ID: {} by user: {}",
                 raceId, currentUser.getUsername());
     }

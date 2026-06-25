@@ -19,6 +19,7 @@ import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.NotificationService;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.JobExecution;
@@ -44,6 +45,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private final EventStatsService eventStatsService;
     private final ObjectMapper objectMapper;
     private final EventLimitRepository eventLimitRepository;
+    private final RaceCategoryNameResolver nameResolver;
 
     @Override
     public void beforeJob(JobExecution jobExecution) {
@@ -79,6 +81,10 @@ public class BatchJobNotificationListener implements JobExecutionListener {
 
         Long userId = Long.parseLong(userIdParam);
         Long eventId = Long.parseLong(eventIdParam);
+
+        // The import may have auto-created races/categories, so drop the cached name maps for the event.
+        nameResolver.evict(eventId);
+
         Long jobExecutionId = jobExecution.getId();
         String jobStatus = jobExecution.getStatus().toString();
 

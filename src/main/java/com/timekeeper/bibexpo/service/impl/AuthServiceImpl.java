@@ -18,6 +18,7 @@ import com.timekeeper.bibexpo.service.CsrfTokenService;
 import com.timekeeper.bibexpo.service.JwtService;
 import com.timekeeper.bibexpo.service.SessionService;
 import com.timekeeper.bibexpo.service.audit.AuditPublisher;
+import com.timekeeper.bibexpo.service.cache.AuthUserCache;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -45,6 +46,7 @@ public class AuthServiceImpl implements AuthService {
     private final SessionService sessionService;
     private final CsrfTokenService csrfTokenService;
     private final AuditPublisher auditPublisher;
+    private final AuthUserCache authUserCache;
 
     @Override
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
@@ -116,8 +118,10 @@ public class AuthServiceImpl implements AuthService {
             throw new JwtAuthenticationException("Invalid session. Please log in again.");
         }
 
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new JwtAuthenticationException("Your session has expired. Please log in again."));
+        User user = authUserCache.findByUsername(username);
+        if (user == null) {
+            throw new JwtAuthenticationException("Your session has expired. Please log in again.");
+        }
 
         if (!user.isEnabled()) {
             sessionService.endSession(user);

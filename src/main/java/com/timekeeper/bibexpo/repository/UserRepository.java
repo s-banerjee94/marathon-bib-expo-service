@@ -55,6 +55,9 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.organization WHERE u.username = :username")
     Optional<User> findByUsernameWithOrganization(@Param("username") String username);
 
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.organization LEFT JOIN FETCH u.event WHERE u.username = :username")
+    Optional<User> findByUsernameWithOrganizationAndEvent(@Param("username") String username);
+
     // --- Statistics count queries ---
 
     long countByEnabledTrue();

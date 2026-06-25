@@ -1,14 +1,13 @@
 package com.timekeeper.bibexpo.messaging.provider.service.impl;
 
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
 import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderException;
 import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
 import com.timekeeper.bibexpo.messaging.provider.model.ProviderParam;
 import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.HttpMethodType;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.MessageContentType;
-import com.timekeeper.bibexpo.messaging.provider.repository.MessagingProviderRepository;
+import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderCache;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
 import com.timekeeper.bibexpo.messaging.provider.service.impl.RequestTokenResolver.Escape;
 import lombok.RequiredArgsConstructor;
@@ -39,14 +38,13 @@ import java.util.Map;
 @Slf4j
 public class MessagingProviderClientImpl implements MessagingProviderClient {
 
-    private final MessagingProviderRepository providerRepository;
+    private final MessagingProviderCache providerCache;
     private final RestClient restClient;
     private final RequestTokenResolver tokenResolver;
 
     @Override
     public void send(MessageChannel channel, OutboundMessage message) {
-        MessagingProvider provider = providerRepository
-                .findByUsageAndChannelAndOrganizationIdIsNull(MessageUsage.SYSTEM, channel)
+        MessagingProvider provider = providerCache.findSystem(channel)
                 .orElseThrow(() -> new MessagingProviderException(
                         "No " + channel + " provider is configured."));
         if (!provider.isEnabled()) {

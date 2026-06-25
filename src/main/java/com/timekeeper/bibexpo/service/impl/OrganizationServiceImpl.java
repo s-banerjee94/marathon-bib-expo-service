@@ -24,6 +24,8 @@ import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.OrganizationService;
 import com.timekeeper.bibexpo.service.StorageService;
+import com.timekeeper.bibexpo.service.cache.AuthUserCache;
+import com.timekeeper.bibexpo.service.cache.OrganizationCache;
 import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +64,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     private final OrganizationLimitRepository organizationLimitRepository;
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final OrganizationCache organizationCache;
+    private final AuthUserCache authUserCache;
 
     @Override
     @Transactional(readOnly = true)
@@ -250,6 +254,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Organization updatedOrganization = organizationRepository.save(organization);
         OrganizationLimit updatedLimit = organizationLimitRepository.save(limit);
+        organizationCache.evict(updatedOrganization.getId());
         log.info("Successfully updated organization with ID: {}", updatedOrganization.getId());
 
         return buildResponse(updatedOrganization, updatedLimit);
@@ -269,6 +274,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         // Update organization's enabled status
         organization.setEnabled(enabled);
         Organization updatedOrganization = organizationRepository.save(organization);
+        organizationCache.evict(updatedOrganization.getId());
 
         // Cascading behavior: Only disable users when organization is being disabled
         if (Boolean.FALSE.equals(enabled)) {
@@ -284,6 +290,8 @@ public class OrganizationServiceImpl implements OrganizationService {
                 });
 
                 userRepository.saveAll(organizationUsers);
+                // Drop the disabled users from the auth cache so they cannot keep authenticating.
+                organizationUsers.forEach(user -> authUserCache.evict(user.getUsername()));
                 log.info("Successfully disabled all users for organization ID: {}", id);
             } else {
                 log.info("No users found for organization ID: {}", id);
@@ -458,10 +466,10 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse getOrganizationById(Long id, User currentUser) {
         log.info("Fetching organization by ID: {} for user: {}", id, currentUser.getUsername());
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new OrganizationNotFoundException(
-                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
-                ));
+        Organization organization = organizationCache.findActiveById(id);
+        if (organization == null) {
+            throw new OrganizationNotFoundException(THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST);
+        }
 
         if ((currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) &&
                 (currentUser.getOrganization() == null || !currentUser.getOrganization().getId().equals(id))) {
@@ -486,9 +494,10 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Long organizationId = currentUser.getOrganization().getId();
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(organizationId)
-                .orElseThrow(() -> new OrganizationNotFoundException(
-                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
+        Organization organization = organizationCache.findActiveById(organizationId);
+        if (organization == null) {
+            throw new OrganizationNotFoundException(THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST);
+        }
 
         log.info("Successfully retrieved organization with ID: {} for user: {}",
                 organizationId, currentUser.getUsername());
@@ -572,6 +581,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         String previousKey = organization.getLogoKey();
         organization.setLogoKey(objectKey);
         Organization saved = organizationRepository.saveAndFlush(organization);
+        organizationCache.evict(saved.getId());
         if (previousKey != null && !previousKey.equals(objectKey)) {
             deleteQuietly(previousKey);
         }
@@ -589,6 +599,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         String previousKey = organization.getLogoKey();
         organization.setLogoKey(null);
         Organization saved = organizationRepository.saveAndFlush(organization);
+        organizationCache.evict(saved.getId());
         deleteQuietly(previousKey);
         log.info("Successfully removed logo for organization ID: {}", id);
         return toResponse(saved);

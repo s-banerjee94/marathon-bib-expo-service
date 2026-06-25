@@ -8,6 +8,7 @@ import com.timekeeper.bibexpo.messaging.system.model.dto.response.SystemMessageT
 import com.timekeeper.bibexpo.messaging.system.model.entity.SystemMessageTemplate;
 import com.timekeeper.bibexpo.messaging.system.repository.SystemMessageTemplateRepository;
 import com.timekeeper.bibexpo.messaging.system.service.SystemMessageTemplateAdminService;
+import com.timekeeper.bibexpo.messaging.system.service.SystemMessageTemplateCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.util.List;
 public class SystemMessageTemplateAdminServiceImpl implements SystemMessageTemplateAdminService {
 
     private final SystemMessageTemplateRepository templateRepository;
+    private final SystemMessageTemplateCache templateCache;
 
     @Override
     @Transactional(readOnly = true)
@@ -50,7 +52,9 @@ public class SystemMessageTemplateAdminServiceImpl implements SystemMessageTempl
         template.setSenderId(request.getSenderId());
         template.setEnabled(request.isEnabled());
 
-        return toResponse(templateRepository.save(template));
+        SystemMessageTemplate saved = templateRepository.save(template);
+        templateCache.evict(purpose, channel);
+        return toResponse(saved);
     }
 
     private SystemMessageTemplate findOrThrow(SystemTemplatePurpose purpose, MessageChannel channel) {

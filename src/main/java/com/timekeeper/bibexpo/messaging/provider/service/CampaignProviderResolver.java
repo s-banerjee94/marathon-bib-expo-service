@@ -2,7 +2,6 @@ package com.timekeeper.bibexpo.messaging.provider.service;
 
 import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderException;
 import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
-import com.timekeeper.bibexpo.messaging.provider.repository.MessagingProviderRepository;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +22,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class CampaignProviderResolver {
 
-    private final MessagingProviderRepository providerRepository;
+    private final MessagingProviderCache providerCache;
 
     // When true (dev/test), an unconfigured channel resolves to a placeholder so the stub client
     // still renders the would-be request to the console instead of failing the campaign.
@@ -63,14 +62,12 @@ public class CampaignProviderResolver {
         if (organizationId == null) {
             return Optional.empty();
         }
-        return providerRepository
-                .findByUsageAndChannelAndOrganizationId(MessageUsage.CAMPAIGN, channel, organizationId)
+        return providerCache.findCampaignOverride(channel, organizationId)
                 .filter(MessagingProvider::isEnabled);
     }
 
     private Optional<MessagingProvider> platformDefault(MessageChannel channel) {
-        return providerRepository
-                .findByUsageAndChannelAndOrganizationIdIsNull(MessageUsage.CAMPAIGN, channel)
+        return providerCache.findCampaignDefault(channel)
                 .filter(MessagingProvider::isEnabled);
     }
 }

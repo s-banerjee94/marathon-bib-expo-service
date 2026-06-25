@@ -10,6 +10,7 @@ import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.MessageContentType;
 import com.timekeeper.bibexpo.messaging.provider.repository.MessagingProviderRepository;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderAdminService;
+import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderCache;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
@@ -32,6 +33,7 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
     private final MessagingProviderRepository providerRepository;
     private final OrganizationRepository organizationRepository;
     private final MessagingProviderClient messagingProviderClient;
+    private final MessagingProviderCache providerCache;
 
     // ---- SYSTEM (root) ----
 
@@ -53,7 +55,9 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
     @Override
     @Transactional
     public MessagingProviderResponse save(MessageChannel channel, SaveMessagingProviderRequest request) {
-        return toResponse(upsert(MessageUsage.SYSTEM, channel, null, request));
+        MessagingProvider saved = upsert(MessageUsage.SYSTEM, channel, null, request);
+        providerCache.evictSystem(channel);
+        return toResponse(saved);
     }
 
     // ---- CAMPAIGN (platform default when organizationId == null, org override otherwise) ----
@@ -88,7 +92,9 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
                                                           SaveMessagingProviderRequest request, User currentUser) {
         authorize(currentUser, organizationId);
         verifyOrganizationExists(organizationId);
-        return toResponse(upsert(MessageUsage.CAMPAIGN, channel, organizationId, request));
+        MessagingProvider saved = upsert(MessageUsage.CAMPAIGN, channel, organizationId, request);
+        evictCampaign(channel, organizationId);
+        return toResponse(saved);
     }
 
     @Override
@@ -97,6 +103,7 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
         authorize(currentUser, organizationId);
         verifyOrganizationExists(organizationId);
         providerRepository.delete(findOrThrow(MessageUsage.CAMPAIGN, channel, organizationId));
+        evictCampaign(channel, organizationId);
     }
 
     // Intentionally non-transactional: the real gateway call must not run inside a DB transaction.
@@ -146,6 +153,14 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
         }
 
         return providerRepository.save(provider);
+    }
+
+    private void evictCampaign(MessageChannel channel, Long organizationId) {
+        if (organizationId == null) {
+            providerCache.evictCampaignDefault(channel);
+        } else {
+            providerCache.evictCampaignOverride(channel, organizationId);
+        }
     }
 
     private MessagingProvider findOrThrow(MessageUsage usage, MessageChannel channel, Long organizationId) {
