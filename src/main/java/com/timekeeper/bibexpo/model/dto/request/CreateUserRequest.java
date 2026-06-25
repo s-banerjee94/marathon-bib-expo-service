@@ -62,19 +62,4 @@ public class CreateUserRequest {
     @Schema(description = "Event ID the distributor is assigned to (required for DISTRIBUTOR; ignored for other roles)", example = "10")
     private Long eventId;
 
-    @Builder.Default
-    @Schema(description = "Whether the account is enabled", example = "true", defaultValue = "true")
-    private Boolean enabled = true;
-
-    @Builder.Default
-    @Schema(description = "Whether the account is non-expired", example = "true", defaultValue = "true")
-    private Boolean accountNonExpired = true;
-
-    @Builder.Default
-    @Schema(description = "Whether the account is non-locked", example = "true", defaultValue = "true")
-    private Boolean accountNonLocked = true;
-
-    @Builder.Default
-    @Schema(description = "Whether the credentials are non-expired", example = "true", defaultValue = "true")
-    private Boolean credentialsNonExpired = true;
 }

@@ -301,10 +301,8 @@ public class UserServiceImpl implements UserService {
                 .role(role)
                 .organization(organization)
                 .event(event)
-                .enabled(defaultTrue(request.getEnabled()))
-                .accountNonExpired(defaultTrue(request.getAccountNonExpired()))
-                .accountNonLocked(defaultTrue(request.getAccountNonLocked()))
-                .credentialsNonExpired(defaultTrue(request.getCredentialsNonExpired()))
+                .enabled(true)
+                .accountNonLocked(true)
                 .build();
     }
 
@@ -454,10 +452,6 @@ public class UserServiceImpl implements UserService {
             log.error("{} {} has no organization assigned", user.getRole(), user.getUsername());
             throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
         }
-    }
-
-    private boolean defaultTrue(Boolean val) {
-        return val == null || val;
     }
 
     private boolean isSelfUpdate(User currentUser, User targetUser) {
@@ -1010,9 +1004,7 @@ public class UserServiceImpl implements UserService {
                 .phoneNumber(user.getPhoneNumber())
                 .role(user.getRole())
                 .organization(user.getOrganization())
-                .accountNonExpired(user.getAccountNonExpired())
                 .accountNonLocked(user.getAccountNonLocked())
-                .credentialsNonExpired(user.getCredentialsNonExpired())
                 .enabled(user.getEnabled())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())

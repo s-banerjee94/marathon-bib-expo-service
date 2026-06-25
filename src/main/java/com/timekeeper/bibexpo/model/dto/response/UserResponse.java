@@ -55,14 +55,8 @@ public class UserResponse {
     @Schema(description = "Whether the account is enabled", example = "true")
     private Boolean enabled;
 
-    @Schema(description = "Whether the account is non-expired", example = "true")
-    private Boolean accountNonExpired;
-
     @Schema(description = "Whether the account is non-locked", example = "true")
     private Boolean accountNonLocked;
-
-    @Schema(description = "Whether the credentials are non-expired", example = "true")
-    private Boolean credentialsNonExpired;
 
     @Schema(description = "When the user was created", example = "2026-01-15T10:30:00Z")
     private Instant createdAt;
@@ -91,9 +85,7 @@ public class UserResponse {
                 .organizationName(user.getOrganization() != null ? user.getOrganization().getOrganizerName() : null)
                 .eventId(user.getEvent() != null ? user.getEvent().getId() : null)
                 .enabled(user.getEnabled())
-                .accountNonExpired(user.getAccountNonExpired())
                 .accountNonLocked(user.getAccountNonLocked())
-                .credentialsNonExpired(user.getCredentialsNonExpired())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .createdBy(user.getCreatedBy())

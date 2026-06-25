@@ -48,9 +48,7 @@ public class RootUserInitializer implements CommandLineRunner {
                 .email(null)  // Optional for root user
                 .organization(null)  // Root users don't belong to any organization
                 .enabled(true)
-                .accountNonExpired(true)
                 .accountNonLocked(true)
-                .credentialsNonExpired(true)
                 .build();
 
         userRepository.save(rootUser);

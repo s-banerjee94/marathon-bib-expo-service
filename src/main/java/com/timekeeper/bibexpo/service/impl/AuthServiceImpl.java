@@ -164,14 +164,6 @@ public class AuthServiceImpl implements AuthService {
             log.warn("Login attempt for locked account: {}", username);
             throw new AccountDisabledException("Account is locked");
         }
-        if (!user.isAccountNonExpired()) {
-            log.warn("Login attempt for expired account: {}", username);
-            throw new AccountDisabledException("Account has expired");
-        }
-        if (!user.isCredentialsNonExpired()) {
-            log.warn("Login attempt for account with expired credentials: {}", username);
-            throw new AccountDisabledException("Credentials have expired");
-        }
     }
 
     private String readCookie(HttpServletRequest request, String name) {

@@ -50,13 +50,7 @@ public class UserArchive {
     private Organization organization;
 
     @Column(nullable = false)
-    private Boolean accountNonExpired;
-
-    @Column(nullable = false)
     private Boolean accountNonLocked;
-
-    @Column(nullable = false)
-    private Boolean credentialsNonExpired;
 
     @Column(nullable = false)
     private Boolean enabled;

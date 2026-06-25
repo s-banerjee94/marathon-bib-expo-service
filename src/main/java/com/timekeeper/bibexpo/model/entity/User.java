@@ -83,15 +83,7 @@ public class User implements UserDetails {
     // UserDetails properties
     @Builder.Default
     @Column(nullable = false)
-    private Boolean accountNonExpired = true;
-
-    @Builder.Default
-    @Column(nullable = false)
     private Boolean accountNonLocked = true;
-
-    @Builder.Default
-    @Column(nullable = false)
-    private Boolean credentialsNonExpired = true;
 
     @Builder.Default
     @Column(nullable = false)
@@ -124,18 +116,8 @@ public class User implements UserDetails {
     }
 
     @Override
-    public boolean isAccountNonExpired() {
-        return Boolean.TRUE.equals(accountNonExpired);
-    }
-
-    @Override
     public boolean isAccountNonLocked() {
         return Boolean.TRUE.equals(accountNonLocked);
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return Boolean.TRUE.equals(credentialsNonExpired);
     }
 
 }
