@@ -1,8 +1,10 @@
 package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.InvalidFileException;
 import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.exception.UserLimitReductionException;
@@ -19,11 +21,13 @@ import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.SubscriptionTier;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
+import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.OrganizationService;
 import com.timekeeper.bibexpo.service.StorageService;
+import com.timekeeper.bibexpo.service.UserService;
 import com.timekeeper.bibexpo.service.cache.AuthUserCache;
 import com.timekeeper.bibexpo.service.cache.OrganizationCache;
 import com.timekeeper.bibexpo.util.TextUtils;
@@ -63,6 +67,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
     private final UserRepository userRepository;
+    private final EventRepository eventRepository;
+    private final UserService userService;
     private final StorageService storageService;
     private final OrganizationCache organizationCache;
     private final AuthUserCache authUserCache;
@@ -70,9 +76,9 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional(readOnly = true)
     public Page<OrganizationResponse> getAllOrganizations(
-            Boolean enabled, Boolean deleted, String search, Pageable pageable, User currentUser) {
-        log.info("Fetching all organizations with filters - enabled: {}, deleted: {}, search: {}, user: {}",
-                enabled, deleted, search, currentUser.getUsername());
+            Boolean enabled, String search, Pageable pageable, User currentUser) {
+        log.info("Fetching all organizations with filters - enabled: {}, search: {}, user: {}",
+                enabled, search, currentUser.getUsername());
 
         // Only ROOT and ADMIN can access this method (enforced by @PreAuthorize in controller)
         // But we'll add an additional check here for extra security
@@ -82,7 +88,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
 
         // Build dynamic specification for filtering
-        Specification<Organization> spec = buildOrganizationSpecification(enabled, deleted, search);
+        Specification<Organization> spec = buildOrganizationSpecification(enabled, search);
 
         // Fetch organizations with pagination
         Page<Organization> organizationsPage = organizationRepository.findAll(spec, pageable);
@@ -110,21 +116,13 @@ public class OrganizationServiceImpl implements OrganizationService {
      * Build dynamic specification for filtering organizations
      */
     private Specification<Organization> buildOrganizationSpecification(
-            Boolean enabled, Boolean deleted, String search) {
+            Boolean enabled, String search) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             // Filter by enabled status if provided
             if (enabled != null) {
                 predicates.add(criteriaBuilder.equal(root.get("enabled"), enabled));
-            }
-
-            // Filter by deleted status if provided
-            if (deleted != null) {
-                predicates.add(criteriaBuilder.equal(root.get("deleted"), deleted));
-            } else {
-                // By default, exclude deleted organizations unless explicitly requested
-                predicates.add(criteriaBuilder.equal(root.get("deleted"), false));
             }
 
             // Multi-field search across organizerName, email, and phoneNumber
@@ -166,28 +164,28 @@ public class OrganizationServiceImpl implements OrganizationService {
         log.info("Creating organization with email: {}", request.getEmail());
 
         // Check if organization with email already exists
-        if (organizationRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
+        if (organizationRepository.existsByEmail(request.getEmail())) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this email already exists."
             );
         }
 
         // Check if organization with name already exists
-        if (organizationRepository.existsByOrganizerNameAndDeletedFalse(request.getOrganizerName())) {
+        if (organizationRepository.existsByOrganizerName(request.getOrganizerName())) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this name already exists."
             );
         }
 
         // Check if organization with phone number already exists (if provided)
-        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank() && organizationRepository.existsByPhoneNumberAndDeletedFalse(request.getPhoneNumber())) {
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank() && organizationRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this phone number already exists."
             );
         }
 
         // Check if organization with taxId already exists (if taxId is provided)
-        if (request.getTaxId() != null && !request.getTaxId().isBlank() && organizationRepository.existsByTaxIdAndDeletedFalse(request.getTaxId())) {
+        if (request.getTaxId() != null && !request.getTaxId().isBlank() && organizationRepository.existsByTaxId(request.getTaxId())) {
                 throw new OrganizationAlreadyExistsException(
                         "An organization with this tax ID already exists."
                 );
@@ -210,7 +208,6 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .subscriptionTier(TextUtils.trimToNull(request.getSubscriptionTier()))
                 .billingEmail(TextUtils.trimToNull(request.getBillingEmail()))
                 .enabled(true)
-                .deleted(false)
                 .build();
 
         // New organizations start from no prior subscription, so a paid tier opens a fresh term.
@@ -236,7 +233,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, User currentUser) {
         log.info("Updating organization with ID: {} by user: {}", id, currentUser.getUsername());
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
+        Organization organization = organizationRepository.findById(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
                         THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
                 ));
@@ -266,7 +263,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse toggleOrganizationStatus(Long id, Boolean enabled) {
         log.info("Toggling organization status for ID: {} to enabled={}", id, enabled);
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
+        Organization organization = organizationRepository.findById(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
                         THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
                 ));
@@ -307,6 +304,37 @@ public class OrganizationServiceImpl implements OrganizationService {
         return toResponse(updatedOrganization);
     }
 
+    @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.DELETE)
+    @Override
+    @Transactional
+    public void deleteOrganization(Long id, User currentUser) {
+        log.info("Deleting organization with ID: {} by user: {}", id, currentUser.getUsername());
+
+        Organization organization = organizationRepository.findById(id)
+                .orElseThrow(() -> new OrganizationNotFoundException(
+                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
+
+        if (eventRepository.countByOrganizationId(id) > 0) {
+            throw new OrganizationDeletionNotAllowedException(
+                    "You cannot delete this organization while it still has events. Delete them first.");
+        }
+
+        AuditContextHolder.setEntityLabel(organization.getOrganizerName());
+        AuditContextHolder.setOrganizationId(organization.getId());
+
+        String logoKey = organization.getLogoKey();
+        userService.purgeUsersForOrganization(id);
+
+        // The organization_limits row shares the organization's PK via an FK with no cascade, so it
+        // must be removed (and flushed) before the organization itself to avoid a constraint violation.
+        organizationLimitRepository.deleteById(id);
+        organizationLimitRepository.flush();
+        organizationRepository.delete(organization);
+        organizationCache.evict(id);
+        deleteQuietly(logoKey);
+        log.info("Successfully deleted organization with ID: {} by user: {}", id, currentUser.getUsername());
+    }
+
     private void validateUpdateAuthorization(User currentUser, Long organizationId) {
         if (currentUser.getRole() == UserRole.ORGANIZER_ADMIN && (currentUser.getOrganization() == null ||
                     !currentUser.getOrganization().getId().equals(organizationId))) {
@@ -317,7 +345,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void validateEmailUniqueness(String newEmail, String currentEmail) {
-        if (newEmail != null && !newEmail.isBlank() && !newEmail.equals(currentEmail) && organizationRepository.existsByEmailAndDeletedFalse(newEmail)) {
+        if (newEmail != null && !newEmail.isBlank() && !newEmail.equals(currentEmail) && organizationRepository.existsByEmail(newEmail)) {
                 throw new OrganizationAlreadyExistsException(
                         "An organization with this email already exists."
                 );
@@ -326,7 +354,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void validateTaxIdUniqueness(String newTaxId, String currentTaxId) {
-        if (newTaxId != null && !newTaxId.isBlank() && !newTaxId.equals(currentTaxId) && organizationRepository.existsByTaxIdAndDeletedFalse(newTaxId)) {
+        if (newTaxId != null && !newTaxId.isBlank() && !newTaxId.equals(currentTaxId) && organizationRepository.existsByTaxId(newTaxId)) {
                 throw new OrganizationAlreadyExistsException(
                         "An organization with this tax ID already exists."
                 );
@@ -335,7 +363,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void validateOrganizerNameUniqueness(String newName, String currentName) {
-        if (newName != null && !newName.isBlank() && !newName.equals(currentName) && organizationRepository.existsByOrganizerNameAndDeletedFalse(newName)) {
+        if (newName != null && !newName.isBlank() && !newName.equals(currentName) && organizationRepository.existsByOrganizerName(newName)) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this name already exists."
             );
@@ -343,7 +371,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void validatePhoneNumberUniqueness(String newPhone, String currentPhone) {
-        if (newPhone != null && !newPhone.isBlank() && !newPhone.equals(currentPhone) && organizationRepository.existsByPhoneNumberAndDeletedFalse(newPhone)) {
+        if (newPhone != null && !newPhone.isBlank() && !newPhone.equals(currentPhone) && organizationRepository.existsByPhoneNumber(newPhone)) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this phone number already exists."
             );
@@ -606,7 +634,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private Organization getActiveOrganizationOrThrow(Long id) {
-        return organizationRepository.findByIdAndDeletedFalse(id)
+        return organizationRepository.findById(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
                         THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
     }

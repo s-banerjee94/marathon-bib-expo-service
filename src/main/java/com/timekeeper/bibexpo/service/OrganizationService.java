@@ -15,13 +15,12 @@ public interface OrganizationService {
      * Get all organizations with optional filters and pagination
      * Only ROOT and ADMIN users can access this method
      * @param enabled Filter by enabled status (null for all)
-     * @param deleted Filter by deleted status (null for all)
      * @param search Search across organizer name, email, and phone number (partial match, case-insensitive, null for all)
      * @param pageable Pagination parameters
      * @param currentUser The authenticated user
      * @return Page of organization responses
      */
-    Page<OrganizationResponse> getAllOrganizations(Boolean enabled, Boolean deleted, String search, Pageable pageable, User currentUser);
+    Page<OrganizationResponse> getAllOrganizations(Boolean enabled, String search, Pageable pageable, User currentUser);
 
     /**
      * Create a new organization
@@ -48,6 +47,17 @@ public interface OrganizationService {
      * @return The updated organization response
      */
     OrganizationResponse toggleOrganizationStatus(Long id, Boolean enabled);
+
+    /**
+     * Permanently delete an organization. Allowed only when the organization has no events
+     * (no events means no bills), so nothing of record-keeping value is lost. Any users of the
+     * organization are permanently deleted along with it.
+     * @param id The organization ID
+     * @param currentUser The authenticated user
+     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
+     * @throws com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException if the organization still has events
+     */
+    void deleteOrganization(Long id, User currentUser);
 
     /**
      * Get organization by ID with authorization validation

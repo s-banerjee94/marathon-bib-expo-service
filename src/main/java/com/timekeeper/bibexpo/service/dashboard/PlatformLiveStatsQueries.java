@@ -25,7 +25,7 @@ public class PlatformLiveStatsQueries {
 
     @Transactional(readOnly = true)
     public int countOrganizations() {
-        return (int) organizationRepository.countByDeletedFalse();
+        return (int) organizationRepository.count();
     }
 
     @Transactional(readOnly = true)
@@ -52,7 +52,7 @@ public class PlatformLiveStatsQueries {
 
     @Transactional(readOnly = true)
     public int countOrganizationsAsOf(Instant asOf) {
-        return (int) organizationRepository.countByDeletedFalseAndCreatedAtLessThanEqual(asOf);
+        return (int) organizationRepository.countByCreatedAtLessThanEqual(asOf);
     }
 
     @Transactional(readOnly = true)

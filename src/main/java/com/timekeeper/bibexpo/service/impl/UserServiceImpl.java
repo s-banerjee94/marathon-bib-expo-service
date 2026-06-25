@@ -247,13 +247,12 @@ public class UserServiceImpl implements UserService {
         }
 
         Organization organization = organizationRepository.findById(organizationId)
-                .filter(org -> !org.getDeleted())
                 .orElseThrow(() -> {
-                    log.error("Organization not found or deleted with ID: {}", organizationId);
+                    log.error("Organization not found with ID: {}", organizationId);
                     return new OrganizationNotFoundException();
                 });
 
-        if (Boolean.FALSE.equals(organization.getEnabled()) || Boolean.TRUE.equals(organization.getDeleted())) {
+        if (Boolean.FALSE.equals(organization.getEnabled())) {
             log.error("Cannot create user for disabled organization ID: {}", organizationId);
             throw new InvalidUserDataException("This organization is currently disabled.");
         }
@@ -931,6 +930,23 @@ public class UserServiceImpl implements UserService {
         deleteQuietly(pictureKey);
 
         log.info("Successfully archived user ID: {} (username: {})", userId, username);
+    }
+
+    @Override
+    @Transactional
+    public int purgeUsersForOrganization(Long organizationId) {
+        List<User> users = userRepository.findByOrganizationId(organizationId);
+        for (User user : users) {
+            notificationService.deleteAllForUser(user.getId());
+            authUserCache.evict(user.getUsername());
+            deleteQuietly(user.getProfilePictureKey());
+        }
+        userRepository.deleteAll(users);
+        // Archived (former) users still FK the organization, so drop those rows before it is removed.
+        userArchiveRepository.deleteByOrganizationId(organizationId);
+        userRepository.flush();
+        log.info("Purged {} users for organization ID: {}", users.size(), organizationId);
+        return users.size();
     }
 
     /**

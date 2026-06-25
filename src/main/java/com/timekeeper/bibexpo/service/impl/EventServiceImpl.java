@@ -20,9 +20,14 @@ import com.timekeeper.bibexpo.model.enums.NotificationType;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.model.event.EventStatusChangedEvent;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
+import com.timekeeper.bibexpo.messaging.campaign.repository.SmsTemplateRepository;
+import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
+import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppTemplateRepository;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.EventBillingGuard;
 import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.NotificationService;
@@ -63,6 +68,11 @@ public class EventServiceImpl implements EventService {
     private final EventRepository eventRepository;
     private final OrganizationRepository organizationRepository;
     private final EventLimitRepository eventLimitRepository;
+    private final RaceRepository raceRepository;
+    private final SmsTemplateRepository smsTemplateRepository;
+    private final SmsCampaignRepository smsCampaignRepository;
+    private final WhatsAppTemplateRepository whatsAppTemplateRepository;
+    private final WhatsAppCampaignRepository whatsAppCampaignRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventStatusTransitionValidator statusTransitionValidator;
     private final EventBillingGuard eventBillingGuard;
@@ -107,7 +117,7 @@ public class EventServiceImpl implements EventService {
         log.info("Creating event: {} for organization ID: {} by user: {}",
                 request.getEventName(), request.getOrganizationId(), currentUser.getUsername());
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(request.getOrganizationId())
+        Organization organization = organizationRepository.findById(request.getOrganizationId())
                 .orElseThrow(OrganizationNotFoundException::new);
 
         validateUserAuthorization(currentUser, organization);
@@ -504,19 +514,38 @@ public class EventServiceImpl implements EventService {
                     "Only events in DRAFT or CANCELLED status can be deleted.");
         }
 
-        // TODO: Check if participant list is empty once participant feature is fully implemented
-        // if (!event.getParticipants().isEmpty()) {
-        //     throw new EventDeletionNotAllowedException(
-        //             "Event cannot be deleted because it has registered participants");
-        // }
+        requireEmptyForDeletion(id);
 
         AuditContextHolder.setEntityLabel(event.getEventName());
         AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         String logoKey = event.getLogoObjectKey();
+        // The event_limits row carries an FK to the event with no cascade, so it must be removed
+        // (and flushed) before the event itself to avoid a constraint violation.
+        eventLimitRepository.deleteById(id);
+        eventLimitRepository.flush();
         eventRepository.delete(event);
         deleteQuietly(logoKey);
         log.info("Successfully deleted event with ID: {} by user: {}", id, currentUser.getUsername());
+    }
+
+    /**
+     * An event is only deletable once it is empty. Blocking on races transitively guarantees no
+     * categories or participants, since neither can exist without a race above it.
+     */
+    private void requireEmptyForDeletion(Long eventId) {
+        rejectIfPresent(raceRepository.countByEventIdAndDeletedFalse(eventId), "races");
+        rejectIfPresent(smsTemplateRepository.countByEventId(eventId), "SMS templates");
+        rejectIfPresent(whatsAppTemplateRepository.countByEventId(eventId), "WhatsApp templates");
+        rejectIfPresent(smsCampaignRepository.countByEventId(eventId), "SMS campaigns");
+        rejectIfPresent(whatsAppCampaignRepository.countByEventId(eventId), "WhatsApp campaigns");
+    }
+
+    private void rejectIfPresent(long count, String content) {
+        if (count > 0) {
+            throw new EventDeletionNotAllowedException(
+                    "You cannot delete this event while it still has " + content + ". Delete them first.");
+        }
     }
 
     private Specification<Event> buildEventSpecification(

@@ -210,6 +210,17 @@ public interface UserService {
     void deleteUser(Long userId, String currentUsername);
 
     /**
+     * Permanently delete every user of an organization, with no archival. For each user the
+     * notifications and profile picture are removed and the auth cache is evicted; any archived
+     * user records for the organization are dropped too. Intended for organization deletion,
+     * where retaining user records has no value.
+     *
+     * @param organizationId the organization whose users are being purged
+     * @return the number of live users deleted
+     */
+    int purgeUsersForOrganization(Long organizationId);
+
+    /**
      * Create a presigned S3 upload URL for a user's profile picture. The caller must
      * have permission to update the target user (same rules as {@link #updateUser}).
      *

@@ -28,7 +28,6 @@ import java.util.List;
         },
         indexes = {
                 @Index(name = "idx_org_email", columnList = "email"),
-                @Index(name = "idx_org_deleted", columnList = "deleted"),
                 @Index(name = "idx_org_enabled", columnList = "enabled")
         })
 @EntityListeners(AuditingEntityListener.class)
@@ -102,10 +101,6 @@ public class Organization implements Serializable {
     @Column(nullable = false)
     @Builder.Default
     private Boolean enabled = true;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private Boolean deleted = false;
 
     // Audit Fields
     @CreatedDate

@@ -12,9 +12,9 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * Caches active (non-deleted) organizations by id, since organization-scoped users read their own
- * organization repeatedly. Only the entity is cached, not the response, so each read still presigns
- * a fresh logo URL. Eviction is deferred to after the surrounding transaction commits.
+ * Caches organizations by id, since organization-scoped users read their own organization
+ * repeatedly. Only the entity is cached, not the response, so each read still presigns a fresh
+ * logo URL. Eviction is deferred to after the surrounding transaction commits.
  */
 @Component
 @RequiredArgsConstructor
@@ -24,15 +24,15 @@ public class OrganizationCache {
     private final CacheManager cacheManager;
 
     /**
-     * Returns the active organization for the given id, or null if it does not exist or is deleted.
-     * Null results are not cached, so a later create/restore is picked up immediately.
+     * Returns the organization for the given id, or null if it does not exist.
+     * Null results are not cached, so a later create is picked up immediately.
      *
      * @param id the organization id
-     * @return the active organization, or null
+     * @return the organization, or null
      */
     @Cacheable(value = CacheConfig.ORGANIZATIONS_CACHE, key = "#id", unless = "#result == null")
     public Organization findActiveById(Long id) {
-        return organizationRepository.findByIdAndDeletedFalse(id).orElse(null);
+        return organizationRepository.findById(id).orElse(null);
     }
 
     /**

@@ -21,63 +21,43 @@ public interface OrganizationRepository extends JpaRepository<Organization, Long
 
     boolean existsByTaxId(String taxId);
 
-    // Soft delete query methods - exclude deleted organizations
-    Optional<Organization> findByIdAndDeletedFalse(Long id);
+    boolean existsByOrganizerName(String organizerName);
 
-    Optional<Organization> findByEmailAndDeletedFalse(String email);
+    boolean existsByPhoneNumber(String phoneNumber);
 
-    boolean existsByEmailAndDeletedFalse(String email);
-
-    Optional<Organization> findByTaxIdAndDeletedFalse(String taxId);
-
-    boolean existsByTaxIdAndDeletedFalse(String taxId);
-
-    boolean existsByOrganizerNameAndDeletedFalse(String organizerName);
-
-    boolean existsByPhoneNumberAndDeletedFalse(String phoneNumber);
-
-    List<Organization> findByDeletedFalse();
-
-    List<Organization> findByEnabledTrueAndDeletedFalse();
-
-    // Queries for deleted organizations
-    List<Organization> findByDeletedTrue();
-
-    @Query("SELECT o.id FROM Organization o WHERE o.enabled = true AND o.deleted = false")
+    @Query("SELECT o.id FROM Organization o WHERE o.enabled = true")
     List<Long> findAllActiveIds();
 
     // --- Statistics count queries ---
-    long countByDeletedFalse();
+    long countByEnabledTrue();
 
-    long countByEnabledTrueAndDeletedFalse();
+    long countByEnabledFalse();
 
-    long countByEnabledFalseAndDeletedFalse();
-
-    @Query("SELECT o.subscriptionTier, COUNT(o) FROM Organization o WHERE o.deleted = false GROUP BY o.subscriptionTier")
+    @Query("SELECT o.subscriptionTier, COUNT(o) FROM Organization o GROUP BY o.subscriptionTier")
     List<Object[]> countGroupBySubscriptionTier();
 
-    @Query("SELECT o.subscriptionStatus, COUNT(o) FROM Organization o WHERE o.deleted = false GROUP BY o.subscriptionStatus")
+    @Query("SELECT o.subscriptionStatus, COUNT(o) FROM Organization o GROUP BY o.subscriptionStatus")
     List<Object[]> countGroupBySubscriptionStatus();
 
     // --- Platform (global) dashboard queries ---
 
-    @Query("SELECT COUNT(o) FROM Organization o WHERE o.deleted = false AND (:from IS NULL OR o.createdAt >= :from) AND (:to IS NULL OR o.createdAt <= :to)")
-    long countByDeletedFalseAndCreatedAtRange(@Param("from") java.time.Instant from, @Param("to") java.time.Instant to);
+    @Query("SELECT COUNT(o) FROM Organization o WHERE (:from IS NULL OR o.createdAt >= :from) AND (:to IS NULL OR o.createdAt <= :to)")
+    long countByCreatedAtRange(@Param("from") java.time.Instant from, @Param("to") java.time.Instant to);
 
-    @Query("SELECT o.subscriptionTier, COUNT(o) FROM Organization o WHERE o.deleted = false AND (:from IS NULL OR o.createdAt >= :from) AND (:to IS NULL OR o.createdAt <= :to) GROUP BY o.subscriptionTier")
+    @Query("SELECT o.subscriptionTier, COUNT(o) FROM Organization o WHERE (:from IS NULL OR o.createdAt >= :from) AND (:to IS NULL OR o.createdAt <= :to) GROUP BY o.subscriptionTier")
     List<Object[]> countGroupBySubscriptionTierAndRange(@Param("from") java.time.Instant from, @Param("to") java.time.Instant to);
 
-    @Query("SELECT o.subscriptionStatus, COUNT(o) FROM Organization o WHERE o.deleted = false AND (:from IS NULL OR o.createdAt >= :from) AND (:to IS NULL OR o.createdAt <= :to) GROUP BY o.subscriptionStatus")
+    @Query("SELECT o.subscriptionStatus, COUNT(o) FROM Organization o WHERE (:from IS NULL OR o.createdAt >= :from) AND (:to IS NULL OR o.createdAt <= :to) GROUP BY o.subscriptionStatus")
     List<Object[]> countGroupBySubscriptionStatusAndRange(@Param("from") java.time.Instant from, @Param("to") java.time.Instant to);
 
-    List<Organization> findTop5ByDeletedFalseOrderByCreatedAtDesc();
+    List<Organization> findTop5ByOrderByCreatedAtDesc();
 
-    List<Organization> findByIdInAndDeletedFalse(List<Long> ids);
+    List<Organization> findByIdIn(List<Long> ids);
 
     // --- Trend backfill / live cumulative counts ---
 
-    long countByDeletedFalseAndCreatedAtLessThanEqual(java.time.Instant asOf);
+    long countByCreatedAtLessThanEqual(java.time.Instant asOf);
 
-    @Query("SELECT MIN(o.createdAt) FROM Organization o WHERE o.deleted = false")
+    @Query("SELECT MIN(o.createdAt) FROM Organization o")
     java.time.Instant findMinCreatedAt();
 }

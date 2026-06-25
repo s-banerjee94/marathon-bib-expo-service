@@ -75,8 +75,8 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
 
     List<Event> findTop4ByStatusAndEventStartDateGreaterThanOrderByEventStartDateAsc(EventStatus status, Instant now);
 
-    /** Top organizations by event count (deleted orgs excluded), as (organizationId, eventCount) rows, descending. */
-    @Query(value = "SELECT e.organization_id, COUNT(*) AS cnt FROM events e JOIN organizations o ON o.id = e.organization_id WHERE o.deleted = false GROUP BY e.organization_id ORDER BY cnt DESC LIMIT :topN", nativeQuery = true)
+    /** Top organizations by event count, as (organizationId, eventCount) rows, descending. */
+    @Query(value = "SELECT e.organization_id, COUNT(*) AS cnt FROM events e GROUP BY e.organization_id ORDER BY cnt DESC LIMIT :topN", nativeQuery = true)
     List<Object[]> findTopOrganizationIdsByEventCount(@Param("topN") int topN);
 
     // --- Trend backfill / live cumulative counts ---

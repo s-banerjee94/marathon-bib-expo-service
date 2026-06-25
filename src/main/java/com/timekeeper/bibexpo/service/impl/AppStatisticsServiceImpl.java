@@ -235,9 +235,9 @@ public class AppStatisticsServiceImpl implements AppStatisticsService {
     }
 
     private OrganizationStatsData buildGlobalOrganizationStats() {
-        long total = organizationRepository.countByDeletedFalse();
-        long active = organizationRepository.countByEnabledTrueAndDeletedFalse();
-        long inactive = organizationRepository.countByEnabledFalseAndDeletedFalse();
+        long total = organizationRepository.count();
+        long active = organizationRepository.countByEnabledTrue();
+        long inactive = organizationRepository.countByEnabledFalse();
 
         Map<String, Long> byTier = toStringMap(organizationRepository.countGroupBySubscriptionTier());
         Map<String, Long> byStatus = toStringMap(organizationRepository.countGroupBySubscriptionStatus());

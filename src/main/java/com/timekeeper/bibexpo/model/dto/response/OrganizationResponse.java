@@ -84,9 +84,6 @@ public class OrganizationResponse {
     @Schema(description = "Organization enabled status", example = "true")
     private Boolean enabled;
 
-    @Schema(description = "Organization deleted status", example = "false")
-    private Boolean deleted;
-
     @Schema(description = "Creation timestamp", example = "2026-01-15T10:30:00Z")
     private Instant createdAt;
 
@@ -129,7 +126,6 @@ public class OrganizationResponse {
                 .subscriptionEndDate(organization.getSubscriptionEndDate())
                 .billingEmail(organization.getBillingEmail())
                 .enabled(organization.getEnabled())
-                .deleted(organization.getDeleted())
                 .createdAt(organization.getCreatedAt())
                 .updatedAt(organization.getUpdatedAt())
                 .createdBy(organization.getCreatedBy())

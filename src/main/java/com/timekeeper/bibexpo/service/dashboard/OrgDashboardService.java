@@ -52,7 +52,7 @@ public class OrgDashboardService {
     }
 
     private OrgInfoDto loadOrgInfo(Long orgId) {
-        return organizationRepository.findByIdAndDeletedFalse(orgId)
+        return organizationRepository.findById(orgId)
                 .map(org -> {
                     OrgInfoDto dto = OrgInfoDto.fromEntity(org);
                     dto.setLogoUrl(storageService.createDownloadUrl(org.getLogoKey()));

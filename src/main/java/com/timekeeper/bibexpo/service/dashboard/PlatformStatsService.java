@@ -44,11 +44,11 @@ public class PlatformStatsService {
         Instant tfrom = rangeFrom(query.getTierRange());
         Instant sfrom = rangeFrom(query.getStatusRange());
 
-        long total = organizationRepository.countByDeletedFalseAndCreatedAtRange(from, null);
+        long total = organizationRepository.countByCreatedAtRange(from, null);
         Map<String, Long> byTier   = toStringMap(organizationRepository.countGroupBySubscriptionTierAndRange(tfrom, null));
         Map<String, Long> byStatus = toStringMap(organizationRepository.countGroupBySubscriptionStatusAndRange(sfrom, null));
 
-        List<OrgListItemDto> recent = organizationRepository.findTop5ByDeletedFalseOrderByCreatedAtDesc()
+        List<OrgListItemDto> recent = organizationRepository.findTop5ByOrderByCreatedAtDesc()
                 .stream().map(OrgListItemDto::fromEntity).toList();
 
         return PlatformOrganizationsDto.builder()
@@ -113,7 +113,7 @@ public class PlatformStatsService {
         rows.forEach(row -> eventCountByOrg.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue()));
 
         Map<Long, Organization> orgs = organizationRepository
-                .findByIdInAndDeletedFalse(List.copyOf(eventCountByOrg.keySet()))
+                .findByIdIn(List.copyOf(eventCountByOrg.keySet()))
                 .stream().collect(Collectors.toMap(Organization::getId, o -> o));
 
         return eventCountByOrg.entrySet().stream()

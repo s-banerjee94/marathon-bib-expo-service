@@ -46,7 +46,7 @@ public class OrganizationMcpTools implements McpToolGroup {
 
         return switch (currentUser.getRole()) {
             case ROOT, ADMIN -> McpToolSupport.capOrNarrow(
-                    organizationService.getAllOrganizations(null, false, search, PageRequest.of(0, SEARCH_LIMIT), currentUser),
+                    organizationService.getAllOrganizations(null, search, PageRequest.of(0, SEARCH_LIMIT), currentUser),
                     "organizations");
             default -> ownOrganizationMatching(search, currentUser);
         };

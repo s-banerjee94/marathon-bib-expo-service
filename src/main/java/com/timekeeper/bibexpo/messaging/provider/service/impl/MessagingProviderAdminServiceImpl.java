@@ -196,7 +196,6 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
             return;
         }
         organizationRepository.findById(organizationId)
-                .filter(org -> !Boolean.TRUE.equals(org.getDeleted()))
                 .orElseThrow(OrganizationNotFoundException::new);
     }
 

@@ -1,6 +1,8 @@
 package com.timekeeper.bibexpo.controller;
 
 
+import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException;
 import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
@@ -19,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.WebRequest;
 
 @RestController
 @RequestMapping("/api/organizations")
@@ -32,15 +35,14 @@ public class OrganizationController implements OrganizationControllerApi {
     @GetMapping
     public ResponseEntity<PageableResponse<OrganizationResponse>> getAllOrganizations(
             @RequestParam(required = false) Boolean enabled,
-            @RequestParam(required = false) Boolean deleted,
             @RequestParam(required = false) String search,
             Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get all organizations by user: {} with filters - enabled: {}, deleted: {}, search: {}",
-                currentUser.getUsername(), enabled, deleted, search);
+        log.info("Received request to get all organizations by user: {} with filters - enabled: {}, search: {}",
+                currentUser.getUsername(), enabled, search);
 
         Page<OrganizationResponse> organizationsPage = organizationService.getAllOrganizations(
-                enabled, deleted, search, pageable, currentUser);
+                enabled, search, pageable, currentUser);
 
         PageableResponse<OrganizationResponse> response = PageableResponse.of(organizationsPage);
 
@@ -83,6 +85,19 @@ public class OrganizationController implements OrganizationControllerApi {
         OrganizationResponse response = organizationService.toggleOrganizationStatus(id, enabled);
 
         return ResponseEntity.ok(response);
+    }
+
+    @Override
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteOrganization(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser) {
+        log.info("Received request to delete organization ID: {} by user: {}",
+                id, currentUser.getUsername());
+
+        organizationService.deleteOrganization(id, currentUser);
+
+        return ResponseEntity.noContent().build();
     }
 
     @Override
@@ -132,5 +147,13 @@ public class OrganizationController implements OrganizationControllerApi {
         log.info("Request to remove logo for organization ID: {} by user: {}", id, currentUser.getUsername());
         OrganizationResponse response = organizationService.removeLogo(id, currentUser);
         return ResponseEntity.ok(response);
+    }
+
+    @ExceptionHandler(OrganizationDeletionNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleOrganizationDeletionNotAllowed(
+            OrganizationDeletionNotAllowedException ex, WebRequest request) {
+        log.info("Organization deletion not allowed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
 }
