@@ -60,6 +60,13 @@ public class UserController implements UserControllerApi {
     }
 
     @Override
+    public ResponseEntity<UserResponse> toggleUserLocked(Long userId, User currentUser) {
+        log.info("Request to toggle locked status for user ID: {} by: {}", userId, currentUser.getUsername());
+        UserResponse response = userService.toggleUserLocked(userId, currentUser.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
     public ResponseEntity<UserResponse> getUserById(Long userId, User currentUser) {
         log.info("Request to get user ID: {} by: {}", userId, currentUser.getUsername());
         UserResponse response = userService.getUserById(userId, currentUser.getUsername());

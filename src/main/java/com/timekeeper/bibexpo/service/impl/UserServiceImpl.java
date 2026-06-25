@@ -689,6 +689,27 @@ public class UserServiceImpl implements UserService {
         return toResponse(updatedUser);
     }
 
+    @Auditable(entityType = AuditEntityType.USER, action = AuditAction.STATUS_CHANGE)
+    @Override
+    @Transactional
+    public UserResponse toggleUserLocked(Long userId, String currentUsername) {
+        log.info("Toggling locked status for user ID: {} by: {}", userId, currentUsername);
+
+        User currentUser = fetchCurrentUser(currentUsername);
+        User targetUser = fetchTargetUser(userId);
+
+        validateToggleLockedAuthorization(currentUser, targetUser);
+
+        boolean newNonLockedStatus = !targetUser.getAccountNonLocked();
+        targetUser.setAccountNonLocked(newNonLockedStatus);
+
+        User updatedUser = userRepository.save(targetUser);
+        authUserCache.evict(updatedUser.getUsername());
+        log.info("Successfully toggled locked status for user ID: {} to accountNonLocked: {}", userId, newNonLockedStatus);
+
+        return toResponse(updatedUser);
+    }
+
     /**
      * Validates that the current user has permission to toggle the enabled status of the target user.
      *
@@ -755,6 +776,26 @@ public class UserServiceImpl implements UserService {
         log.error("User {} with role {} attempted to toggle enabled status",
                 currentUser.getUsername(), currentRole);
         throw new UnauthorizedAccessException("You are not allowed to enable or disable users.");
+    }
+
+    /**
+     * Validates that the current user has permission to toggle the locked status of the target user.
+     *
+     * Permission hierarchy:
+     * - ROOT can lock/unlock: any user
+     * - ADMIN can lock/unlock: any user
+     */
+    private void validateToggleLockedAuthorization(User currentUser, User targetUser) {
+        UserRole currentRole = currentUser.getRole();
+
+        if (currentRole == UserRole.ROOT || currentRole == UserRole.ADMIN) {
+            log.debug("{} user authorized to toggle locked status for user ID: {}", currentRole, targetUser.getId());
+            return;
+        }
+
+        log.error("User {} with role {} attempted to toggle locked status",
+                currentUser.getUsername(), currentRole);
+        throw new UnauthorizedAccessException("You are not allowed to lock or unlock users.");
     }
 
     @Override

@@ -85,8 +85,7 @@ public class JwtServiceImpl implements JwtService {
             final String type = claims.get("type", String.class);
             return username.equals(userDetails.getUsername())
                     && expectedType.equals(type)
-                    && claims.getExpiration().after(new Date())
-                    && userDetails.isEnabled();
+                    && claims.getExpiration().after(new Date());
         } catch (ExpiredJwtException e) {
             log.debug("Token expired for user: {}", e.getClaims().getSubject());
             return false;

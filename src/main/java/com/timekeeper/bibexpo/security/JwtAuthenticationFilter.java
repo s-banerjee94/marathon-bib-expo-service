@@ -11,9 +11,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.jspecify.annotations.NonNull;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsChecker;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -30,6 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
     private final SessionService sessionService;
+    private final UserDetailsChecker accountStatusChecker = new AccountStatusUserDetailsChecker();
 
     @Override
     protected void doFilterInternal(
@@ -65,6 +70,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     sessionService.endSession(username, userId);
                     log.info("Session invalidated for user {} (sid mismatch) — forcing logout", username);
                     writeUnauthorized(request, response, "Session invalidated by another login. Please log in again.");
+                    return;
+                }
+
+                try {
+                    accountStatusChecker.check(userDetails);
+                } catch (AccountStatusException e) {
+                    log.info("Blocking request for {} — {}", username, e.getMessage());
+                    writeUnauthorized(request, response, e instanceof LockedException
+                            ? "Your account has been locked. Please contact an platform administrator."
+                            : "Your account has been disabled. Please contact an administrator.");
                     return;
                 }
 

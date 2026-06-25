@@ -25,11 +25,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseCookie;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetailsChecker;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -47,6 +50,7 @@ public class AuthServiceImpl implements AuthService {
     private final CsrfTokenService csrfTokenService;
     private final AuditPublisher auditPublisher;
     private final AuthUserCache authUserCache;
+    private final UserDetailsChecker accountStatusChecker = new AccountStatusUserDetailsChecker();
 
     @Override
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
@@ -59,8 +63,6 @@ public class AuthServiceImpl implements AuthService {
 
             User user = userRepository.findByUsername(request.getUsername())
                     .orElseThrow(() -> new InvalidCredentialsException("Invalid username or password"));
-
-            validateUserAccount(user, request.getUsername());
 
             String deviceInfo = buildDeviceInfo(httpRequest);
             String sid = sessionService.startSession(user, deviceInfo);
@@ -123,10 +125,13 @@ public class AuthServiceImpl implements AuthService {
             throw new JwtAuthenticationException("Your session has expired. Please log in again.");
         }
 
-        if (!user.isEnabled()) {
+        try {
+            accountStatusChecker.check(user);
+        } catch (AccountStatusException e) {
             sessionService.endSession(user);
             clearAuthCookies(httpResponse);
-            throw new AccountDisabledException("Account is disabled");
+            throw new AccountDisabledException(
+                    e instanceof LockedException ? "Account is locked" : "Account is disabled");
         }
 
         String activeSid = sessionService.getActiveSid(username);
@@ -153,17 +158,6 @@ public class AuthServiceImpl implements AuthService {
         sessionService.endSession(user);
         clearAuthCookies(httpResponse);
         log.info("User {} logged out", user.getUsername());
-    }
-
-    private void validateUserAccount(User user, String username) {
-        if (!user.isEnabled()) {
-            log.warn("Login attempt for disabled account: {}", username);
-            throw new AccountDisabledException("Account is disabled");
-        }
-        if (!user.isAccountNonLocked()) {
-            log.warn("Login attempt for locked account: {}", username);
-            throw new AccountDisabledException("Account is locked");
-        }
     }
 
     private String readCookie(HttpServletRequest request, String name) {

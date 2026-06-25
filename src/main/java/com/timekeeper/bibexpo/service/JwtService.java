@@ -34,7 +34,8 @@ public interface JwtService {
     String extractUsername(String token);
 
     /**
-     * Validate signature, expiry, type, and that the user is enabled.
+     * Validate the token itself: signature, expiry, type, and subject. Account status
+     * (enabled, non-locked) is enforced separately by the security layer's UserDetailsChecker.
      *
      * @param expectedType either {@link #TYPE_ACCESS} or {@link #TYPE_REFRESH}
      */

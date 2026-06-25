@@ -284,6 +284,51 @@ public interface UserControllerApi {
     );
 
     @Operation(
+            summary = "Toggle user locked status",
+            description = """
+                    Toggles the locked/unlocked status of a user account (flips accountNonLocked). \
+                    A locked account cannot log in. This is a platform-administrator operation. \
+                    Permission hierarchy: \
+                    ROOT can lock/unlock any user. \
+                    ADMIN can lock/unlock any user."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "User locked status toggled successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - Insufficient permissions to lock or unlock users",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    @PatchMapping("/{userId}/toggle-locked")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
+    ResponseEntity<UserResponse> toggleUserLocked(
+            @Parameter(description = "User ID", required = true)
+            @PathVariable Long userId,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
             summary = "Get user by ID",
             description = """
                     Retrieves a single user by their ID. \

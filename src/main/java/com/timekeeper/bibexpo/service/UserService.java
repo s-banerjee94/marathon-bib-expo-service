@@ -126,6 +126,22 @@ public interface UserService {
     UserResponse toggleUserEnabled(Long userId, String currentUsername);
 
     /**
+     * Toggle the locked status of a user account (flips accountNonLocked).
+     * A locked account cannot log in. Restricted to platform administrators.
+     *
+     * Permission hierarchy:
+     * - ROOT can lock/unlock: any user
+     * - ADMIN can lock/unlock: any user
+     *
+     * @param userId the ID of the user to toggle
+     * @param currentUsername the username of the user performing the toggle
+     * @return the updated user response
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to toggle target user
+     */
+    UserResponse toggleUserLocked(Long userId, String currentUsername);
+
+    /**
      * Get a single user by ID.
      * Permission hierarchy:
      * - ROOT and ADMIN: Can get any user
