@@ -22,9 +22,9 @@ public class CreateRaceRequest {
     @Schema(description = "Race name", example = "Full Marathon")
     private String raceName;
 
-    @Schema(description = "Race description", example = "42.195 km race for experienced runners")
+    @Schema(description = "Race description", example = "42.195 km race for experienced runners", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String raceDescription;
 
-    @Schema(description = "Reporting time for participants (UTC instant, interpreted in event timezone)", example = "2026-06-15T01:30:00Z")
+    @Schema(description = "Reporting time for participants (UTC instant, interpreted in event timezone)", example = "2026-06-15T01:30:00Z", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Instant reportingTime;
 }

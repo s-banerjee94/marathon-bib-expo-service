@@ -20,7 +20,7 @@ import java.util.Map;
 @Schema(description = "Request to create a new participant")
 public class CreateParticipantRequest {
 
-    @Schema(description = "Chip number (optional; must be unique within the event when provided)", example = "0784525")
+    @Schema(description = "Chip number (optional; must be unique within the event when provided)", example = "0784525", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String chipNumber;
 
     @NotBlank(message = "BIB number is required")
@@ -44,42 +44,42 @@ public class CreateParticipantRequest {
     @Schema(description = "Gender (M/F/O)", example = "M", requiredMode = Schema.RequiredMode.REQUIRED)
     private String gender;
 
-    @Schema(description = "Phone number (required if email is not provided)", example = "9876543210")
+    @Schema(description = "Phone number (required if email is not provided)", example = "9876543210", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
     private String phoneNumber;
 
-    @Schema(description = "Email address (required if phone number is not provided)", example = "john.doe@example.com")
+    @Schema(description = "Email address (required if phone number is not provided)", example = "john.doe@example.com", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String email;
 
-    @Schema(description = "Date of birth (required if age is not provided)", example = "1990-01-15")
+    @Schema(description = "Date of birth (required if age is not provided)", example = "1990-01-15", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String dateOfBirth;
 
-    @Schema(description = "Age (required if date of birth is not provided)", example = "35")
+    @Schema(description = "Age (required if date of birth is not provided)", example = "35", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Integer age;
 
-    @Schema(description = "Country", example = "India")
+    @Schema(description = "Country", example = "India", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String country;
 
-    @Schema(description = "City", example = "Mumbai")
+    @Schema(description = "City", example = "Mumbai", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String city;
 
-    @Schema(description = "Bib collection timestamp", example = "2024-01-15T10:30:00")
+    @Schema(description = "Bib collection timestamp", example = "2024-01-15T10:30:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String bibCollectedAt;
 
-    @Schema(description = "Goodies map (key-value pairs)", example = "{\"T-Shirt Size\": \"L\", \"Cap Size\": \"M\"}")
+    @Schema(description = "Goodies map (key-value pairs)", example = "{\"T-Shirt Size\": \"L\", \"Cap Size\": \"M\"}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Map<String, String> goodies;
 
     @Schema(description = "Additional free-form columns as key-value pairs",
-            example = "{\"pre-existing disease\": \"stroke\"}")
+            example = "{\"pre-existing disease\": \"stroke\"}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Map<String, String> additionalFields;
 
-    @Schema(description = "Emergency contact name", example = "Jane Doe")
+    @Schema(description = "Emergency contact name", example = "Jane Doe", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String emergencyContactName;
 
-    @Schema(description = "Emergency contact phone", example = "9876543211")
+    @Schema(description = "Emergency contact phone", example = "9876543211", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
     private String emergencyContactPhone;
 
-    @Schema(description = "Additional notes", example = "VIP participant")
+    @Schema(description = "Additional notes", example = "VIP participant", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String notes;
 }

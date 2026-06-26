@@ -31,15 +31,15 @@ public class CreateSmsCampaignRequest {
     @Schema(description = "ID of the SMS template to use", example = "12345")
     private Long smsTemplateId;
 
-    @Schema(description = "Set to arm the campaign immediately. AUTO_BIB_COLLECTED: fires per participant on bib collection. SCHEDULED: fires once at scheduledAt.", example = "SCHEDULED")
+    @Schema(description = "Set to arm the campaign immediately. AUTO_BIB_COLLECTED: fires per participant on bib collection. SCHEDULED: fires once at scheduledAt.", example = "SCHEDULED", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private CampaignTriggerType triggerType;
 
-    @Schema(description = "Required when triggerType is present. ALL: every participant. NOT_COLLECTED: only participants who have not yet collected their bib.", example = "ALL")
+    @Schema(description = "Required when triggerType is present. ALL: every participant. NOT_COLLECTED: only participants who have not yet collected their bib.", example = "ALL", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private CampaignTargetFilter targetFilter;
 
-    @Schema(description = "Date for scheduled send (SCHEDULED type only), format yyyy-MM-dd.", example = "2026-01-20")
+    @Schema(description = "Date for scheduled send (SCHEDULED type only), format yyyy-MM-dd.", example = "2026-01-20", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String scheduledDate;
 
-    @Schema(description = "Time for scheduled send (SCHEDULED type only), format HH:mm. Must be at least 3 minutes in the future relative to the event timezone.", example = "09:00")
+    @Schema(description = "Time for scheduled send (SCHEDULED type only), format HH:mm. Must be at least 3 minutes in the future relative to the event timezone.", example = "09:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String scheduledTime;
 }

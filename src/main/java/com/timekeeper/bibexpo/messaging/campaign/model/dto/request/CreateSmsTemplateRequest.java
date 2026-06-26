@@ -41,7 +41,7 @@ public class CreateSmsTemplateRequest {
     private String template;
 
     @Size(max = 500, message = "Note must not exceed 500 characters")
-    @Schema(description = "Optional note or description", example = "Reminder to collect bib at expo")
+    @Schema(description = "Optional note or description", example = "Reminder to collect bib at expo", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String note;
 
 }

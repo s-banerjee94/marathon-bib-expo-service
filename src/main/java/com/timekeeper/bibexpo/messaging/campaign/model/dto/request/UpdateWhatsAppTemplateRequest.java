@@ -19,24 +19,24 @@ import java.util.List;
 public class UpdateWhatsAppTemplateRequest {
 
     @Size(max = 100, message = "Template name must not exceed 100 characters.")
-    @Schema(description = "Human-readable name for the template", example = "bib collection confirmation")
+    @Schema(description = "Human-readable name for the template", example = "bib collection confirmation", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String name;
 
     @Pattern(regexp = "^HX[0-9a-fA-F]{32}$", message = "Content SID must look like HX followed by 32 characters.")
-    @Schema(description = "Twilio Content SID of the approved template", example = "HX1234567890abcdef1234567890abcdef")
+    @Schema(description = "Twilio Content SID of the approved template", example = "HX1234567890abcdef1234567890abcdef", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String contentSid;
 
     @Size(max = 1024, message = "Message body must not exceed 1024 characters.")
     @Schema(description = "The approved template body with positional {{n}} markers. Absent or blank leaves it unchanged.",
-            example = "Hi {{1}}, your bib {{2}} is ready for collection at {{3}}.")
+            example = "Hi {{1}}, your bib {{2}} is ready for collection at {{3}}.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String body;
 
     @Size(max = 20, message = "A template can have a maximum of 20 variables.")
-    @Schema(description = "Ordered variable expressions; entry n fills the Twilio template variable {{n}}. Sending an empty list clears the variables.")
+    @Schema(description = "Ordered variable expressions; entry n fills the Twilio template variable {{n}}. Sending an empty list clears the variables.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private List<@NotBlank(message = "Template variables must not be blank.")
             @Size(max = 200, message = "A template variable must not exceed 200 characters.") String> bodyVariables;
 
     @Size(max = 500, message = "Note must not exceed 500 characters.")
-    @Schema(description = "Optional note or description")
+    @Schema(description = "Optional note or description", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String note;
 }

@@ -23,19 +23,19 @@ import lombok.NoArgsConstructor;
 public class UpdateUserRequest {
 
     @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
-    @Schema(description = "New password for the user (will be encrypted)", example = "NewSecurePass123!")
+    @Schema(description = "New password for the user (will be encrypted)", example = "NewSecurePass123!", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String password;
 
     @Email(message = "Email must be valid")
     @Size(max = 100, message = "Email must not exceed 100 characters")
-    @Schema(description = "Email address", example = "john.doe@example.com")
+    @Schema(description = "Email address", example = "john.doe@example.com", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String email;
 
     @Size(max = 100, message = "Full name must not exceed 100 characters")
-    @Schema(description = "Full name of the user", example = "John Doe")
+    @Schema(description = "Full name of the user", example = "John Doe", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String fullName;
 
     @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
-    @Schema(description = "Phone number, 10-digit Indian format", example = "9876543210")
+    @Schema(description = "Phone number, 10-digit Indian format", example = "9876543210", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String phoneNumber;
 }

@@ -44,11 +44,11 @@ public class CreateWhatsAppTemplateRequest {
                     Event: #{eventName}, #{venueName}, #{eventStartDate}, #{eventEndDate}, #{eventCity}. \
                     Race: #{reportingTime}. \
                     Any placeholder not in this list will be rejected with a validation error.""",
-            example = "[\"#{fullName}\", \"#{bibNumber}\", \"#{eventName}\"]")
+            example = "[\"#{fullName}\", \"#{bibNumber}\", \"#{eventName}\"]", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private List<@NotBlank(message = "Template variables must not be blank.")
             @Size(max = 200, message = "A template variable must not exceed 200 characters.") String> bodyVariables;
 
     @Size(max = 500, message = "Note must not exceed 500 characters.")
-    @Schema(description = "Optional note or description", example = "Sent automatically when a bib is collected")
+    @Schema(description = "Optional note or description", example = "Sent automatically when a bib is collected", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String note;
 }

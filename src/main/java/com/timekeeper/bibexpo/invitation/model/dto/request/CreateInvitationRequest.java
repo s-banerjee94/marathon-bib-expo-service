@@ -31,20 +31,20 @@ public class CreateInvitationRequest {
             allowableValues = {"ADMIN", "ORGANIZER_ADMIN", "ORGANIZER_USER", "DISTRIBUTOR"})
     private String role;
 
-    @Schema(description = "Organization ID (required for ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR)", example = "7")
+    @Schema(description = "Organization ID (required for ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR)", example = "7", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Long organizationId;
 
-    @Schema(description = "Event ID the distributor is assigned to (required for DISTRIBUTOR; ignored for other roles)", example = "10")
+    @Schema(description = "Event ID the distributor is assigned to (required for DISTRIBUTOR; ignored for other roles)", example = "10", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Long eventId;
 
     @Schema(description = "Channels to deliver the invite link on. Omit for manual (the URL is just returned).",
             example = "[\"WHATSAPP\"]",
-            allowableValues = {"WHATSAPP", "SMS"})
+            allowableValues = {"WHATSAPP", "SMS"}, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Set<MessageChannel> deliveryChannels;
 
     @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
     @Schema(description = "Invitee phone number, 10 digits without country code; the provider configuration decides whether the +91 country code is added at send time. "
             + "Required when a phone channel (WHATSAPP/SMS) is selected. Also pre-fills the accept form.",
-            example = "9876543210")
+            example = "9876543210", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String recipientPhone;
 }

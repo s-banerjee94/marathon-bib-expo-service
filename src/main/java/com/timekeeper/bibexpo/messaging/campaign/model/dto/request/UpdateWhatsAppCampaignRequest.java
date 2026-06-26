@@ -20,21 +20,21 @@ import lombok.NoArgsConstructor;
 public class UpdateWhatsAppCampaignRequest {
 
     @Size(max = 100, message = "Campaign name must not exceed 100 characters.")
-    @Schema(description = "Human readable name for the campaign", example = "Bib Collection Confirmation")
+    @Schema(description = "Human readable name for the campaign", example = "Bib Collection Confirmation", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String name;
 
-    @Schema(description = "ID of the WhatsApp template to use", example = "1")
+    @Schema(description = "ID of the WhatsApp template to use", example = "1", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Long whatsAppTemplateId;
 
-    @Schema(description = "Set to arm the campaign. AUTO_BIB_COLLECTED: fires per participant on bib collection. SCHEDULED: fires once at the scheduled date and time.", example = "SCHEDULED")
+    @Schema(description = "Set to arm the campaign. AUTO_BIB_COLLECTED: fires per participant on bib collection. SCHEDULED: fires once at the scheduled date and time.", example = "SCHEDULED", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private CampaignTriggerType triggerType;
 
-    @Schema(description = "Required when triggerType is present. ALL: every participant. NOT_COLLECTED: only participants who have not yet collected their bib.", example = "ALL")
+    @Schema(description = "Required when triggerType is present. ALL: every participant. NOT_COLLECTED: only participants who have not yet collected their bib.", example = "ALL", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private CampaignTargetFilter targetFilter;
 
-    @Schema(description = "Date for scheduled send (SCHEDULED type only), format yyyy-MM-dd.", example = "2026-07-20")
+    @Schema(description = "Date for scheduled send (SCHEDULED type only), format yyyy-MM-dd.", example = "2026-07-20", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String scheduledDate;
 
-    @Schema(description = "Time for scheduled send (SCHEDULED type only), format HH:mm. Must be at least 3 minutes in the future relative to the event timezone.", example = "09:00")
+    @Schema(description = "Time for scheduled send (SCHEDULED type only), format HH:mm. Must be at least 3 minutes in the future relative to the event timezone.", example = "09:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String scheduledTime;
 }
