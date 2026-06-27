@@ -15,6 +15,7 @@ class Session:
     """
 
     token: str                    # JWT sent on every MCP call
+    user_id: int | None           # signed-in user's id (keys their conversation memory)
     role: str                     # ROOT, ADMIN, ORGANIZER_ADMIN or ORGANIZER_USER
     organization_id: int | None   # the user's org, when they belong to one
 
@@ -37,6 +38,7 @@ def login(settings: Settings) -> Session:
         raise RuntimeError("Login succeeded but no accessToken was returned.")
     return Session(
         token=token,
+        user_id=data.get("userId"),
         role=data.get("role"),
         organization_id=data.get("organizationId"),
     )

@@ -1,12 +1,23 @@
 from dataclasses import dataclass
 
+import boto3
 from langchain.agents import create_agent
+from langchain.agents.middleware import SummarizationMiddleware
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph_checkpoint_aws import DynamoDBSaver
 
 from auth import login
 from settings import Settings, load_settings
 from tool_visibility import visible_tools
+
+# Conversations expire from DynamoDB after this long without activity (mirrors the
+# Java chat-memory TTL of 30 days).
+_CHECKPOINT_TTL_SECONDS = 30 * 24 * 60 * 60
+
+# Once the message history passes this many tokens, older turns are condensed into a
+# running summary while the most recent turns are kept verbatim (controls cost / TPM).
+_SUMMARY_TRIGGER_TOKENS = 4000
+_SUMMARY_KEEP_MESSAGES = 20
 
 
 @dataclass
@@ -21,6 +32,7 @@ class BuiltAgent:
     tools: list          # tools the agent may use (already filtered by role)
     role: str            # the signed-in user's role
     total_tools: int     # tools the server offered before filtering
+    user_id: int | None  # signed-in user's id (used to key their conversation memory)
 
 
 SYSTEM_PROMPT = """\
@@ -70,17 +82,39 @@ async def build_agent(settings: Settings) -> BuiltAgent:
     # survive the filter are still gated by the "confirm before any change" rule in the prompt.
     tools = visible_tools(session.role, all_tools)
 
+    # Persist conversation state to DynamoDB so memory survives restarts. boto3 picks up the
+    # LocalStack creds that settings already loaded; endpoint_url points at LocalStack locally
+    # and is None (real AWS) in production, where profile is also None (EC2 instance role).
+    boto_session = boto3.Session(
+        region_name=settings.aws_region,
+        profile_name=settings.aws_profile,
+    )
+    checkpointer = DynamoDBSaver(
+        table_name=settings.checkpoint_table,
+        session=boto_session,
+        endpoint_url=settings.ddb_endpoint_url,
+        ttl_seconds=_CHECKPOINT_TTL_SECONDS,
+    )
+
     agent = create_agent(
         model=f"openai:{settings.openai_model}",
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
-        checkpointer=MemorySaver(),
+        checkpointer=checkpointer,
+        middleware=[
+            SummarizationMiddleware(
+                model=f"openai:{settings.summary_model}",
+                trigger=("tokens", _SUMMARY_TRIGGER_TOKENS),
+                keep=("messages", _SUMMARY_KEEP_MESSAGES),
+            ),
+        ],
     )
     return BuiltAgent(
         agent=agent,
         tools=tools,
         role=session.role,
         total_tools=len(all_tools),
+        user_id=session.user_id,
     )
 
 

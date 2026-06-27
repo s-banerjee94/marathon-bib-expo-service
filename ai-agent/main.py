@@ -10,13 +10,15 @@ async def main() -> None:
     settings = load_settings()
     print(f"Connecting to {settings.mcp_sse_url} as {settings.username} ...")
     built = await build_agent(settings)
+    # One continuous, persistent conversation per user (matches the Java conversationId
+    # convention "user-<id>"); reusing the same thread_id lets the agent remember.
+    thread_id = f"user-{built.user_id}"
     print(
         f"Signed in as {built.role} — {len(built.tools)} of {built.total_tools} "
-        "tools available. Type 'exit' or 'quit' to leave.\n"
+        f"tools available (conversation: {thread_id}). Type 'exit' or 'quit' to leave.\n"
     )
 
-    # Same thread_id every turn = one continuous conversation the agent remembers.
-    config = {"configurable": {"thread_id": "repl-session"}}
+    config = {"configurable": {"thread_id": thread_id}}
 
     while True:
         try:
