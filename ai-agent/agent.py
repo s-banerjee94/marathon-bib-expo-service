@@ -2,10 +2,11 @@ from dataclasses import dataclass
 
 import boto3
 from langchain.agents import create_agent
-from langchain.agents.middleware import SummarizationMiddleware
+from langchain.agents.middleware import HumanInTheLoopMiddleware, SummarizationMiddleware
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph_checkpoint_aws import DynamoDBSaver
 
+from approval import ModeState, build_interrupt_on
 from auth import login
 from settings import Settings, load_settings
 from tool_visibility import visible_tools
@@ -28,11 +29,12 @@ class BuiltAgent:
     readable, the same way Session did for login.
     """
 
-    agent: object        # the LangGraph agent to invoke
-    tools: list          # tools the agent may use (already filtered by role)
-    role: str            # the signed-in user's role
-    total_tools: int     # tools the server offered before filtering
-    user_id: int | None  # signed-in user's id (used to key their conversation memory)
+    agent: object          # the LangGraph agent to invoke
+    tools: list            # tools the agent may use (already filtered by role)
+    role: str              # the signed-in user's role
+    total_tools: int       # tools the server offered before filtering
+    user_id: int | None    # signed-in user's id (used to key their conversation memory)
+    mode_state: ModeState  # current approval mode; flip .mode to switch live
 
 
 SYSTEM_PROMPT = """\
@@ -96,12 +98,17 @@ async def build_agent(settings: Settings) -> BuiltAgent:
         ttl_seconds=_CHECKPOINT_TTL_SECONDS,
     )
 
+    # The approval gate. mode_state starts from settings but is mutable so the REPL can
+    # switch modes live; the interrupt_on map reads it fresh on every tool call.
+    mode_state = ModeState(mode=settings.approval_mode)
+
     agent = create_agent(
         model=f"openai:{settings.openai_model}",
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
         checkpointer=checkpointer,
         middleware=[
+            HumanInTheLoopMiddleware(interrupt_on=build_interrupt_on(tools, mode_state)),
             SummarizationMiddleware(
                 model=f"openai:{settings.summary_model}",
                 trigger=("tokens", _SUMMARY_TRIGGER_TOKENS),
@@ -115,6 +122,7 @@ async def build_agent(settings: Settings) -> BuiltAgent:
         role=session.role,
         total_tools=len(all_tools),
         user_id=session.user_id,
+        mode_state=mode_state,
     )
 
 

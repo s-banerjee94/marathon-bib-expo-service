@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
+from approval import ApprovalMode
+
 # Read the .env file and copy its values into the environment, so os.getenv() can see them.
 load_dotenv()
 
@@ -24,6 +26,16 @@ class Settings:
     ddb_endpoint_url: str | None  # LocalStack endpoint; None for real AWS
     checkpoint_table: str         # DynamoDB table holding the conversation checkpoints
 
+    approval_mode: ApprovalMode   # how freely the agent acts before asking a human
+
+
+def _parse_mode(raw: str) -> ApprovalMode:
+    """Turn the BIBEXPO_APPROVAL_MODE text into a mode, defaulting to AGENT if unknown."""
+    try:
+        return ApprovalMode(raw.strip().lower())
+    except ValueError:
+        return ApprovalMode.AGENT
+
 
 def load_settings() -> Settings:
     """Build a Settings object from environment variables, applying dev defaults."""
@@ -39,4 +51,5 @@ def load_settings() -> Settings:
         aws_profile=os.getenv("AWS_PROFILE") or None,
         ddb_endpoint_url=os.getenv("BIBEXPO_DDB_ENDPOINT_URL") or None,
         checkpoint_table=os.getenv("BIBEXPO_CHECKPOINT_TABLE", "marathon-ai-agent-checkpoints"),
+        approval_mode=_parse_mode(os.getenv("BIBEXPO_APPROVAL_MODE", "agent")),
     )
