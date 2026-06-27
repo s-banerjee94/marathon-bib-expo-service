@@ -7,7 +7,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph_checkpoint_aws import DynamoDBSaver
 
 from approval import ModeState, build_interrupt_on
-from auth import login
+from auth import Session
 from settings import Settings, load_settings
 from tool_visibility import visible_tools
 
@@ -60,13 +60,16 @@ Before any action that creates, changes or removes data, confirm the details fir
 """
 
 
-async def build_agent(settings: Settings) -> BuiltAgent:
-    """Log in, load the MCP tools over SSE, filter them by role, and assemble the agent.
+async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
+    """Build an agent for one already-authenticated user.
+
+    The caller supplies the session (the user's token + role + id): the REPL gets it
+    from login(), and the HTTP server gets it from the identity Spring forwards. This
+    keeps "how we learned who the user is" out of agent assembly, so the same builder
+    serves both the dev REPL and a per-request web call.
 
     Returns a BuiltAgent (the agent plus a summary of the session).
     """
-    session = login(settings)
-
     client = MultiServerMCPClient(
         {
             "bibexpo": {
@@ -130,7 +133,10 @@ async def build_agent(settings: Settings) -> BuiltAgent:
 if __name__ == "__main__":
     import asyncio
 
-    built = asyncio.run(build_agent(load_settings()))
+    from auth import login
+
+    _settings = load_settings()
+    built = asyncio.run(build_agent(_settings, login(_settings)))
     print(f"Connected as {built.role}. {len(built.tools)} of {built.total_tools} tools available:")
     for tool in built.tools:
         print(" -", tool.name)

@@ -28,6 +28,11 @@ class Settings:
 
     approval_mode: ApprovalMode   # how freely the agent acts before asking a human
 
+    # HTTP chat service (Spring calls this server-to-server, never the browser directly).
+    api_host: str                 # interface uvicorn binds
+    api_port: int                 # port uvicorn binds
+    internal_secret: str | None   # shared secret Spring must send; None disables the check (dev)
+
 
 def _parse_mode(raw: str) -> ApprovalMode:
     """Turn the BIBEXPO_APPROVAL_MODE text into a mode, defaulting to AGENT if unknown."""
@@ -52,4 +57,7 @@ def load_settings() -> Settings:
         ddb_endpoint_url=os.getenv("BIBEXPO_DDB_ENDPOINT_URL") or None,
         checkpoint_table=os.getenv("BIBEXPO_CHECKPOINT_TABLE", "marathon-ai-agent-checkpoints"),
         approval_mode=_parse_mode(os.getenv("BIBEXPO_APPROVAL_MODE", "agent")),
+        api_host=os.getenv("BIBEXPO_API_HOST", "127.0.0.1"),
+        api_port=int(os.getenv("BIBEXPO_API_PORT", "8000")),
+        internal_secret=os.getenv("BIBEXPO_INTERNAL_SECRET") or None,
     )

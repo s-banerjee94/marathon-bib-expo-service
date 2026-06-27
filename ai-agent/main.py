@@ -5,6 +5,7 @@ from langgraph.types import Command
 
 from agent import build_agent
 from approval import ApprovalMode, ModeState
+from auth import login
 from settings import load_settings
 
 
@@ -45,7 +46,9 @@ async def _run_turn(agent: object, payload: object, config: dict) -> dict:
 async def main() -> None:
     settings = load_settings()
     print(f"Connecting to {settings.mcp_sse_url} as {settings.username} ...")
-    built = await build_agent(settings)
+    # The REPL authenticates with the dev credentials; the HTTP server (next step) will
+    # instead build the session from the identity Spring forwards.
+    built = await build_agent(settings, login(settings))
     # One continuous, persistent conversation per user (matches the Java conversationId
     # convention "user-<id>"); reusing the same thread_id lets the agent remember.
     thread_id = f"user-{built.user_id}"
