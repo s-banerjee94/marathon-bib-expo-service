@@ -23,7 +23,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
-from agent import build_agent
+from agent import BuiltAgent, build_agent
 from approval import ApprovalMode
 from auth import Session
 from settings import Settings, load_settings
@@ -103,14 +103,19 @@ def _format(result: dict, thread_id: str) -> dict:
     return {"status": "complete", "reply": result["messages"][-1].content, "threadId": thread_id}
 
 
+def _set_mode(built: BuiltAgent, mode: str | None) -> None:
+    """Apply an optional per-request approval override; raises ValueError if invalid."""
+    if mode:
+        built.mode_state.mode = ApprovalMode(mode.strip().lower())
+
+
 async def _run(session: Session, payload: object, mode: str | None) -> dict:
     """Build this user's agent and run one step (a new message or a resume)."""
     built = await build_agent(settings, session)
-    if mode:
-        try:
-            built.mode_state.mode = ApprovalMode(mode.strip().lower())
-        except ValueError:
-            raise HTTPException(status_code=400, detail="mode must be auto, agent or ask.")
+    try:
+        _set_mode(built, mode)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="mode must be auto, agent or ask.")
     thread_id = f"user-{session.user_id}"
     config = {"configurable": {"thread_id": thread_id}}
     result = await built.agent.ainvoke(payload, config=config)
@@ -132,6 +137,27 @@ def _tool_events(chunk: dict):
                 yield _sse("tool", {"name": call.get("name"), "args": call.get("args", {})})
 
 
+def _token_event(chunk: tuple, reply_parts: list[str]) -> str | None:
+    """Turn a 'messages' chunk into a 'token' SSE event, appending its text to reply_parts.
+
+    Skips tokens from the summarization model so its internal running-summary text never
+    leaks into the user's reply. Fail-open: only filters when the summary model differs from
+    the main one (otherwise we cannot tell them apart, and would rather show everything than
+    swallow the real answer).
+    """
+    message_chunk, meta = chunk
+    if (
+        settings.summary_model != settings.openai_model
+        and meta.get("ls_model_name") == settings.summary_model
+    ):
+        return None
+    text = message_chunk.content
+    if isinstance(text, str) and text:
+        reply_parts.append(text)
+        return _sse("token", {"text": text})
+    return None
+
+
 async def _event_stream(session: Session, payload: object, mode: str | None):
     """Run the agent and yield SSE events as it works: 'tool' when it calls a tool, 'token' for
     each piece of the answer, then either an 'interrupt' (a write needs approval) or a final
@@ -140,12 +166,11 @@ async def _event_stream(session: Session, payload: object, mode: str | None):
     """
     try:
         built = await build_agent(settings, session)
-        if mode:
-            try:
-                built.mode_state.mode = ApprovalMode(mode.strip().lower())
-            except ValueError:
-                yield _sse("error", {"detail": "mode must be auto, agent or ask."})
-                return
+        try:
+            _set_mode(built, mode)
+        except ValueError:
+            yield _sse("error", {"detail": "mode must be auto, agent or ask."})
+            return
         thread_id = f"user-{session.user_id}"
         config = {"configurable": {"thread_id": thread_id}}
         reply_parts: list[str] = []
@@ -156,11 +181,8 @@ async def _event_stream(session: Session, payload: object, mode: str | None):
             payload, config=config, stream_mode=["updates", "messages"]
         ):
             if stream_mode == "messages":
-                message_chunk, _meta = chunk
-                text = message_chunk.content
-                if isinstance(text, str) and text:
-                    reply_parts.append(text)
-                    yield _sse("token", {"text": text})
+                if event := _token_event(chunk, reply_parts):
+                    yield event
             elif stream_mode == "updates":
                 if "__interrupt__" in chunk:
                     pending = _pending_actions(chunk["__interrupt__"][0].value)
