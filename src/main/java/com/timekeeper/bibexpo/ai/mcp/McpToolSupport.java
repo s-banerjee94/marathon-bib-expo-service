@@ -3,11 +3,9 @@ package com.timekeeper.bibexpo.ai.mcp;
 import com.timekeeper.bibexpo.model.entity.User;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
-import org.springframework.data.domain.Page;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -40,25 +38,6 @@ public final class McpToolSupport {
     }
 
     /**
-     * Cap a page of search results for an AI tool. When the query matched more rows than the page
-     * can hold, returning a silently truncated list would let the assistant pick the wrong record,
-     * so this refuses and asks the user to narrow the search instead; otherwise it returns the rows.
-     *
-     * @param page the page of results, sized to the tool's display cap
-     * @param what plural label for the records, used in the narrow-down message (e.g. "events")
-     * @return the page content when it is the complete result set
-     * @throws IllegalArgumentException if more rows matched than the page can hold
-     */
-    public static <T> List<T> capOrNarrow(Page<T> page, String what) {
-        if (page.getTotalElements() > page.getSize()) {
-            throw new IllegalArgumentException(
-                    "There are too many matching " + what + " to list (" + page.getTotalElements()
-                            + " found). Please narrow the search with a more specific name or extra detail.");
-        }
-        return page.getContent();
-    }
-
-    /**
      * Resolve the signed-in user from the security context.
      *
      * @return the authenticated {@link User}
@@ -70,5 +49,17 @@ public final class McpToolSupport {
             throw new IllegalStateException("You must be signed in to use this tool.");
         }
         return user;
+    }
+
+    /**
+     * Normalize a free-text search argument from a tool call. A null or blank value means "no
+     * filter", so it is returned as null to let the search list everything in the user's scope;
+     * otherwise the trimmed text is returned.
+     *
+     * @param query the raw query argument, possibly null or blank
+     * @return the trimmed query, or null when nothing was provided
+     */
+    public static String normalizeSearch(String query) {
+        return (query == null || query.isBlank()) ? null : query.trim();
     }
 }

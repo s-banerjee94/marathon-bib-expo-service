@@ -25,34 +25,31 @@ import java.util.List;
 @Slf4j
 public class UserMcpTools implements McpToolGroup {
 
-    private static final int SEARCH_LIMIT = 10;
+    private static final int SEARCH_LIMIT = 20;
 
     private final UserService userService;
     private final InvitationService invitationService;
     private final Validator validator;
 
     @Tool(name = "search_users",
-            description = "Search for users by a text query matched against username, email and full name. "
-                    + "Read-only; returns up to a few matching users with brief details only. Use get_user for "
-                    + "one user's full details. Results are limited to users the signed-in user may see.")
+            description = "List or search users by a text query matched against username, email and full name. "
+                    + "Read-only; returns users with brief details only. Omit the query to list all users in scope. "
+                    + "Use get_user for one user's full details. ROOT and ADMIN see all users; organizers see only "
+                    + "their own organization's users.")
     public List<UserResponse> searchUsers(
-            @ToolParam(description = "Text to match against username, email or full name") String query,
+            @ToolParam(required = false, description = "Optional text to match against username, email or full name; omit to list all") String query,
             @ToolParam(required = false, description = "Optional role filter: ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER or DISTRIBUTOR") UserRole role,
             @ToolParam(required = false, description = "Optional organization id to scope the search (honoured for ROOT and ADMIN)") Long organizationId,
             @ToolParam(required = false, description = "Optional event id; matches distributors assigned to that event") Long eventId) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
 
-        if (query == null || query.isBlank()) {
-            throw new InvalidUserDataException("Please provide something to search for, such as a name, username or email.");
-        }
-
+        String search = McpToolSupport.normalizeSearch(query);
         Pageable pageable = PageRequest.of(0, SEARCH_LIMIT);
-        log.info("MCP search_users - query '{}', role {}, by {}", query, role, currentUser.getUsername());
+        log.info("MCP search_users - query '{}', role {}, by {}", search, role, currentUser.getUsername());
 
-        return McpToolSupport.capOrNarrow(
-                userService.getUsers(role, organizationId, eventId, null, query.trim(), pageable, currentUser.getUsername()),
-                "users");
+        return userService.getUsers(role, organizationId, eventId, null, search, pageable, currentUser.getUsername())
+                .getContent();
     }
 
     @Tool(name = "get_user",

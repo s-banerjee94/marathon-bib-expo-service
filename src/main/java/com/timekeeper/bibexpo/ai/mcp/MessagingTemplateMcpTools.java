@@ -35,7 +35,7 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
             @ToolParam(required = false, description = "Optional text to match against the template name or id; omit to list all") String query) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-        String search = (query == null || query.isBlank()) ? null : query.trim();
+        String search = McpToolSupport.normalizeSearch(query);
         log.info("MCP search_sms_templates - event {}, query '{}', by {}", eventId, search, currentUser.getUsername());
         return smsTemplateService.getSmsTemplatesByEvent(eventId, search, currentUser);
     }
@@ -67,7 +67,7 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
             @ToolParam(required = false, description = "Optional text to match against the template name or Content SID; omit to list all") String query) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-        String search = (query == null || query.isBlank()) ? null : query.trim();
+        String search = McpToolSupport.normalizeSearch(query);
         log.info("MCP search_whatsapp_templates - event {}, query '{}', by {}", eventId, search, currentUser.getUsername());
         return whatsAppTemplateService.getTemplatesByEvent(eventId, search, currentUser);
     }

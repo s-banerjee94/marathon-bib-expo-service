@@ -22,28 +22,24 @@ import java.util.List;
 @Slf4j
 public class EventMcpTools implements McpToolGroup {
 
-    private static final int SEARCH_LIMIT = 10;
+    private static final int SEARCH_LIMIT = 20;
 
     private final EventService eventService;
     private final Validator validator;
 
     @Tool(name = "search_events",
-            description = "Search events by name (also matches description and venue) and/or by status. Read-only; "
-                    + "returns up to a few matching events with brief details and their ids. Give a name, a status, or "
-                    + "both — for example list every DRAFT event to find the only one in draft, without needing its "
-                    + "name. Use this to turn an event the user mentioned into the event id that other tools need — "
-                    + "never ask the user for a numeric event id. Scoped to events the signed-in user may see.")
+            description = "List or search events the signed-in user may see. Read-only; returns events with brief "
+                    + "details and their ids. Optionally filter by name (also matches description and venue) and/or by "
+                    + "status — for example list every DRAFT event — or omit both to list all events in scope. Use this "
+                    + "to turn an event the user mentioned into the event id that other tools need; never ask the user "
+                    + "for a numeric event id.")
     public List<EventResponse> searchEvents(
-            @ToolParam(required = false, description = "Text to match against the event name, description or venue; omit it to search by status alone") String query,
+            @ToolParam(required = false, description = "Optional text to match against the event name, description or venue; omit to list all") String query,
             @ToolParam(required = false, description = "Optional status filter: DRAFT, PUBLISHED, CANCELLED or COMPLETED") EventStatus status) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
 
-        String search = (query == null || query.isBlank()) ? null : query.trim();
-        if (search == null && status == null) {
-            throw new IllegalArgumentException("Please provide an event name or a status to search for.");
-        }
-
+        String search = McpToolSupport.normalizeSearch(query);
         Pageable pageable = PageRequest.of(0, SEARCH_LIMIT);
         log.info("MCP search_events - query '{}', status {}, by {}", search, status, currentUser.getUsername());
 
@@ -53,7 +49,7 @@ public class EventMcpTools implements McpToolGroup {
             default -> Page.<EventResponse>empty();
         };
 
-        return McpToolSupport.capOrNarrow(page, "events");
+        return page.getContent();
     }
 
     @Tool(name = "create_event",

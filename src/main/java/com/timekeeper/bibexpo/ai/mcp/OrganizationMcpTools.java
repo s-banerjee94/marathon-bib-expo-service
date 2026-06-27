@@ -22,42 +22,31 @@ import java.util.List;
 @Slf4j
 public class OrganizationMcpTools implements McpToolGroup {
 
-    private static final int SEARCH_LIMIT = 10;
+    private static final int SEARCH_LIMIT = 20;
 
     private final OrganizationService organizationService;
     private final Validator validator;
 
     @Tool(name = "search_organizations",
-            description = "Search organizations by name (also matches email and phone). Read-only; returns matching "
-                    + "organizations with brief details and their ids. Use this to turn an organization name the user "
-                    + "mentioned into the organization id that other tools need — never ask the user for a numeric "
-                    + "organization id. ROOT and ADMIN can search all organizations; other users only ever have their own.")
+            description = "List or search organizations by name (also matches email and phone). Read-only; returns "
+                    + "organizations with brief details and their ids. Omit the query to list all. Use this to turn an "
+                    + "organization name the user mentioned into the organization id that other tools need — never ask "
+                    + "the user for a numeric organization id. Only ROOT and ADMIN may use this; organization users "
+                    + "should read their own organization from get_my_profile instead.")
     public List<OrganizationResponse> searchOrganizations(
-            @ToolParam(description = "Text to match against the organization name, email or phone") String query) {
+            @ToolParam(required = false, description = "Optional text to match against the organization name, email or phone; omit to list all") String query) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-
-        if (query == null || query.isBlank()) {
-            throw new IllegalArgumentException("Please provide an organization name to search for.");
+        if (currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedAccessException("You are not allowed to view organizations.");
         }
 
-        String search = query.trim();
+        String search = McpToolSupport.normalizeSearch(query);
         log.info("MCP search_organizations - query '{}', by {}", search, currentUser.getUsername());
 
-        return switch (currentUser.getRole()) {
-            case ROOT, ADMIN -> McpToolSupport.capOrNarrow(
-                    organizationService.getAllOrganizations(null, search, PageRequest.of(0, SEARCH_LIMIT), currentUser),
-                    "organizations");
-            default -> ownOrganizationMatching(search, currentUser);
-        };
-    }
-
-    /** Organization-scoped users have exactly one organization; return it only if it matches the query. */
-    private List<OrganizationResponse> ownOrganizationMatching(String search, User currentUser) {
-        OrganizationResponse own = organizationService.getCurrentUserOrganization(currentUser);
-        boolean matches = own.getOrganizerName() != null
-                && own.getOrganizerName().toLowerCase().contains(search.toLowerCase());
-        return matches ? List.of(own) : List.of();
+        return organizationService
+                .getAllOrganizations(null, search, PageRequest.of(0, SEARCH_LIMIT), currentUser)
+                .getContent();
     }
 
     @Tool(name = "create_organization",
