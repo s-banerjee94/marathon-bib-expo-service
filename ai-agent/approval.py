@@ -5,8 +5,9 @@ Three modes control how much the agent does on its own:
   * AGENT -> pause only for *critical* writes (destructive / mass / reaches real people).
   * ASK   -> pause before *every* write.
 
-Reads never pause in any mode. This is the "stop and ask a human" gate; the Spring
-server still enforces the real access check on every call as the backstop.
+Reads (get_/list_/search_/count_/find_) never pause; every other tool is treated as a write,
+so an unrecognised tool fails closed (gated, not auto-run). This is the "stop and ask a human"
+gate; the Spring server still enforces the real access check on every call as the backstop.
 """
 
 from __future__ import annotations
@@ -42,9 +43,13 @@ class ModeState:
     mode: ApprovalMode = ApprovalMode.AGENT
 
 
-# A tool whose name starts with one of these changes data (it is a "write").
-# Several of these prefixes match no tool today (delete_/update_/collect_/undo_/
-# distribute_/import_/send_/bulk_); they are kept so future tools are gated automatically.
+# A tool whose name starts with one of these only reads data; it never needs approval.
+# Anything that is NOT a read is treated as a write (fail closed).
+_READ_PREFIXES = ("get_", "list_", "search_", "count_", "find_")
+
+# A tool whose name starts with one of these changes data (a known "write"). Several match no
+# tool today (delete_/update_/collect_/undo_/distribute_/import_/send_/bulk_); they are kept so
+# future tools are classified automatically.
 _WRITE_PREFIXES = (
     "create_",
     "update_",
@@ -78,7 +83,11 @@ _CRITICAL_NAMES = frozenset(
 )
 
 
-def _is_write(name: str) -> bool:
+def _is_read(name: str) -> bool:
+    return name.startswith(_READ_PREFIXES)
+
+
+def _is_known_write(name: str) -> bool:
     return name.startswith(_WRITE_PREFIXES) or name in _WRITE_NAMES
 
 
@@ -92,7 +101,9 @@ def _should_pause(tool_name: str, mode_state: ModeState) -> Callable[[ToolCallRe
     It reads the *current* mode each time it is called, so flipping ModeState takes
     effect immediately.
     """
-    critical = _is_critical(tool_name)
+    # Fail closed: a tool we do not recognise as a known write is treated as critical, so
+    # AGENT mode pauses for it too (a new write tool is gated until it's classified above).
+    pause_in_agent = _is_critical(tool_name) or not _is_known_write(tool_name)
 
     def predicate(_request: ToolCallRequest) -> bool:
         mode = mode_state.mode
@@ -100,7 +111,7 @@ def _should_pause(tool_name: str, mode_state: ModeState) -> Callable[[ToolCallRe
             return False  # never pause
         if mode is ApprovalMode.ASK:
             return True  # pause for any write
-        return critical  # AGENT: pause only for critical writes
+        return pause_in_agent  # AGENT: critical or unrecognised writes
 
     return predicate
 
@@ -108,13 +119,15 @@ def _should_pause(tool_name: str, mode_state: ModeState) -> Callable[[ToolCallRe
 def build_interrupt_on(
     tools: list[BaseTool], mode_state: ModeState
 ) -> dict[str, InterruptOnConfig]:
-    """Map each write tool to its pause rule, for HumanInTheLoopMiddleware.
+    """Map each non-read tool to its pause rule, for HumanInTheLoopMiddleware.
 
-    Read-only tools are left out entirely, so they always run without interruption.
+    Fail closed: only tools whose names clearly mark them as reads are left out (they always
+    run without interruption). Every other tool — known writes and any unrecognised tool — gets
+    a pause rule, so a new write can never slip through un-gated.
     """
     interrupt_on: dict[str, InterruptOnConfig] = {}
     for tool in tools:
-        if not _is_write(tool.name):
+        if _is_read(tool.name):
             continue
         interrupt_on[tool.name] = {
             "allowed_decisions": ["approve", "edit", "reject"],

@@ -15,6 +15,7 @@ class Settings:
 
     api_base_url: str   # where the Spring app runs
     mcp_sse_url: str    # the MCP server's SSE endpoint
+    mcp_timeout_seconds: float  # HTTP timeout connecting to / calling the MCP server
     username: str       # dev login username
     password: str       # dev login password
     openai_model: str   # which OpenAI model to use
@@ -48,6 +49,7 @@ def load_settings() -> Settings:
     return Settings(
         api_base_url=api_base,
         mcp_sse_url=os.getenv("BIBEXPO_MCP_SSE_URL", f"{api_base}/sse"),
+        mcp_timeout_seconds=float(os.getenv("BIBEXPO_MCP_TIMEOUT_SECONDS", "30")),
         username=os.getenv("BIBEXPO_USERNAME", "root"),
         password=os.getenv("BIBEXPO_PASSWORD", "root"),
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4.1"),

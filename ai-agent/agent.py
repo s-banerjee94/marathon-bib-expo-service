@@ -1,15 +1,26 @@
+from __future__ import annotations
+
+import asyncio
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import boto3
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware, SummarizationMiddleware
-from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.sessions import create_session
+from langchain_mcp_adapters.tools import convert_mcp_tool_to_langchain_tool
 from langgraph_checkpoint_aws import DynamoDBSaver
 
 from approval import ModeState, build_interrupt_on
 from auth import Session
 from settings import Settings, load_settings
 from tool_visibility import visible_tools
+
+if TYPE_CHECKING:  # imported only for type hints, never at runtime
+    from langchain_mcp_adapters.sessions import Connection
+    from langgraph.graph.state import CompiledStateGraph
+    from mcp import ClientSession
+    from mcp.types import Tool as MCPTool
 
 # Conversations expire from DynamoDB after this long without activity (mirrors the
 # Java chat-memory TTL of 30 days).
@@ -29,7 +40,7 @@ class BuiltAgent:
     readable, the same way Session did for login.
     """
 
-    agent: object          # the LangGraph agent to invoke
+    agent: CompiledStateGraph  # the LangGraph agent to invoke
     tools: list            # tools the agent may use (already filtered by role)
     role: str              # the signed-in user's role
     total_tools: int       # tools the server offered before filtering
@@ -57,7 +68,74 @@ match, say so. Never ask the user for a numeric id, and do not show raw ids unle
 
 Be concise. For questions, just call the relevant read-only tool and report the result.
 Before any action that creates, changes or removes data, confirm the details first.
+
+Always answer in clean, conversational markdown — never raw JSON. Present a single record as
+a few labelled lines (a bold title with its key details beneath); present several records as a
+markdown table or a short bullet list. Use the human-friendly fields such as names, dates and
+status, and leave out internal ids unless the user asks for them.
 """
+
+
+# Built once and shared by every request. The checkpointer wraps a boto3 DynamoDB client
+# (comparatively expensive to create) and is user-independent — it keys conversations by
+# thread_id only when invoked — so one instance serves everyone. The tool *schemas* (names,
+# descriptions, input shapes) are identical for every caller, so we fetch them once too; only
+# the per-request auth token differs, and that is re-bound on each request (never cached).
+_checkpointer: DynamoDBSaver | None = None
+_tool_schemas: list[MCPTool] | None = None
+_tool_schemas_lock = asyncio.Lock()
+
+
+def _get_checkpointer(settings: Settings) -> DynamoDBSaver:
+    """Return the shared DynamoDB checkpointer, creating it on first use.
+
+    boto3 picks up the LocalStack creds settings already loaded; endpoint_url points at
+    LocalStack locally and is None (real AWS) in production, where profile is also None
+    (EC2 instance role). The client is stateless and user-independent, so we build it once.
+    """
+    global _checkpointer
+    if _checkpointer is None:
+        boto_session = boto3.Session(
+            region_name=settings.aws_region,
+            profile_name=settings.aws_profile,
+        )
+        _checkpointer = DynamoDBSaver(
+            table_name=settings.checkpoint_table,
+            session=boto_session,
+            endpoint_url=settings.ddb_endpoint_url,
+            ttl_seconds=_CHECKPOINT_TTL_SECONDS,
+        )
+    return _checkpointer
+
+
+async def _list_tool_schemas(session: ClientSession) -> list[MCPTool]:
+    """Read every tool definition from an open MCP session, following pagination."""
+    schemas: list[MCPTool] = []
+    cursor: str | None = None
+    while True:
+        page = await session.list_tools(cursor=cursor)
+        schemas.extend(page.tools)
+        cursor = page.nextCursor
+        if not cursor:
+            break
+    return schemas
+
+
+async def _get_tool_schemas(connection: Connection) -> list[MCPTool]:
+    """Return the MCP tool schemas, fetching them from the server once and caching them.
+
+    The schemas are the same for every user, so the one-time network round trip rides on
+    whichever request is first; its token only authenticates the *listing*, and the schemas
+    it returns carry no token. The lock stops two early concurrent requests both fetching.
+    """
+    global _tool_schemas
+    if _tool_schemas is None:
+        async with _tool_schemas_lock:
+            if _tool_schemas is None:
+                async with create_session(connection) as session:
+                    await session.initialize()
+                    _tool_schemas = await _list_tool_schemas(session)
+    return _tool_schemas
 
 
 async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
@@ -70,36 +148,32 @@ async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
 
     Returns a BuiltAgent (the agent plus a summary of the session).
     """
-    client = MultiServerMCPClient(
-        {
-            "bibexpo": {
-                "transport": "sse",
-                "url": settings.mcp_sse_url,
-                "headers": {"Authorization": f"Bearer {session.token}"},
-            }
-        }
-    )
-    all_tools = await client.get_tools()
+    connection: Connection = {
+        "transport": "sse",
+        "url": settings.mcp_sse_url,
+        "headers": {"Authorization": f"Bearer {session.token}"},
+        # Fail fast if the MCP server is unreachable or a tool call hangs, instead of waiting
+        # on the library's short 5s default (sse_read_timeout keeps its generous 5-min default).
+        "timeout": settings.mcp_timeout_seconds,
+    }
+    schemas = await _get_tool_schemas(connection)
 
-    # Keep only the tools this user's role may see. The MCP server sends every client the full
-    # list (it cannot filter per user), so we trim it here using the role from the trusted login
-    # response; the server still enforces real access on every call as a backstop. Writes that
-    # survive the filter are still gated by the "confirm before any change" rule in the prompt.
+    # Wrap the cached schemas as LangChain tools bound to THIS request's connection, so every
+    # tool call carries this user's own fresh token (the token is never cached — only the
+    # schemas are). The MCP server sends every client the full list and cannot filter per user,
+    # so we trim it next using the role from the trusted login response; the server still
+    # enforces real access on every call as a backstop. Writes that survive the filter are still
+    # gated by the "confirm before any change" rule in the prompt.
+    all_tools = [
+        convert_mcp_tool_to_langchain_tool(
+            None, schema, connection=connection, server_name="bibexpo"
+        )
+        for schema in schemas
+    ]
     tools = visible_tools(session.role, all_tools)
 
-    # Persist conversation state to DynamoDB so memory survives restarts. boto3 picks up the
-    # LocalStack creds that settings already loaded; endpoint_url points at LocalStack locally
-    # and is None (real AWS) in production, where profile is also None (EC2 instance role).
-    boto_session = boto3.Session(
-        region_name=settings.aws_region,
-        profile_name=settings.aws_profile,
-    )
-    checkpointer = DynamoDBSaver(
-        table_name=settings.checkpoint_table,
-        session=boto_session,
-        endpoint_url=settings.ddb_endpoint_url,
-        ttl_seconds=_CHECKPOINT_TTL_SECONDS,
-    )
+    # Persist conversation state to DynamoDB so memory survives restarts (shared, built once).
+    checkpointer = _get_checkpointer(settings)
 
     # The approval gate. mode_state starts from settings but is mutable so the REPL can
     # switch modes live; the interrupt_on map reads it fresh on every tool call.
@@ -131,8 +205,6 @@ async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
 
 # Self-test: `uv run python agent.py` connects and lists the tools visible to this role.
 if __name__ == "__main__":
-    import asyncio
-
     from auth import login
 
     _settings = load_settings()
