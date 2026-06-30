@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 public class UpdateEventRequest {
 
     @Size(min = 2, max = 200, message = "Event name must be between 2 and 200 characters")
-    @Schema(description = "Event name", example = "Mumbai Marathon 2024", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "Event name", example = "Mumbai City Marathon", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String eventName;
 
     @Schema(description = "Event description", example = "Annual marathon event in Mumbai with multiple race categories", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
@@ -27,16 +27,16 @@ public class UpdateEventRequest {
     @Schema(description = "IANA timezone ID for the event location", example = "Asia/Kolkata", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String timezone;
 
-    @Schema(description = "Event start date in yyyy-MM-dd format", example = "2026-10-15", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "Event start date in yyyy-MM-dd format", example = "2026-10-24", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String eventStartDate;
 
-    @Schema(description = "Event start time in HH:mm format", example = "06:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "Event start time in HH:mm format", example = "09:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String eventStartTime;
 
-    @Schema(description = "Event end date in yyyy-MM-dd format", example = "2026-10-15", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "Event end date in yyyy-MM-dd format", example = "2026-10-25", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String eventEndDate;
 
-    @Schema(description = "Event end time in HH:mm format", example = "13:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "Event end time in HH:mm format", example = "18:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String eventEndTime;
 
     @Size(min = 2, max = 200, message = "Venue name must be between 2 and 200 characters")

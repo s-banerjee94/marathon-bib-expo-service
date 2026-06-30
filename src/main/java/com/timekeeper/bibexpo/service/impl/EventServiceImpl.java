@@ -34,6 +34,7 @@ import com.timekeeper.bibexpo.service.NotificationService;
 import com.timekeeper.bibexpo.service.StorageService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventStatusTransitionValidator;
+import com.timekeeper.bibexpo.util.EventDateTimeUtil;
 import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -50,13 +51,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.DateTimeException;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -128,10 +124,10 @@ public class EventServiceImpl implements EventService {
                     "An event with this name already exists for this organization.");
         }
 
-        ZoneId zone = validateTimezone(request.getTimezone());
+        ZoneId zone = EventDateTimeUtil.zone(request.getTimezone());
 
-        Instant startInstant = parseToInstant(request.getEventStartDate(), request.getEventStartTime(), zone);
-        Instant endInstant = parseToInstant(request.getEventEndDate(), request.getEventEndTime(), zone);
+        Instant startInstant = EventDateTimeUtil.toInstant(request.getEventStartDate(), request.getEventStartTime(), zone);
+        Instant endInstant = EventDateTimeUtil.toInstant(request.getEventEndDate(), request.getEventEndTime(), zone);
 
         if (!startInstant.isAfter(Instant.now())) {
             throw new InvalidUserDataException("Event start date must be in the future.");
@@ -258,7 +254,7 @@ public class EventServiceImpl implements EventService {
         if (event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED) {
             throw new InvalidUserDataException("Timezone cannot be changed after the event is published.");
         }
-        validateTimezone(request.getTimezone());
+        EventDateTimeUtil.zone(request.getTimezone());
         event.setTimezone(request.getTimezone());
     }
 
@@ -300,7 +296,7 @@ public class EventServiceImpl implements EventService {
             throw new InvalidUserDataException(
                     "Both event " + fieldLabel + " date and time must be provided together.");
         }
-        return parseToInstant(date, time, effectiveZone);
+        return EventDateTimeUtil.toInstant(date, time, effectiveZone);
     }
 
     @Override
@@ -615,22 +611,6 @@ public class EventServiceImpl implements EventService {
         }
 
         throw new UnauthorizedAccessException("You are not allowed to create events.");
-    }
-
-    private ZoneId validateTimezone(String timezone) {
-        try {
-            return ZoneId.of(timezone);
-        } catch (DateTimeException e) {
-            throw new InvalidUserDataException("Invalid timezone. Use a valid IANA timezone ID such as 'Asia/Kolkata' or 'Europe/London'.");
-        }
-    }
-
-    private Instant parseToInstant(String date, String time, ZoneId zone) {
-        try {
-            return ZonedDateTime.of(LocalDate.parse(date), LocalTime.parse(time), zone).toInstant();
-        } catch (DateTimeParseException e) {
-            throw new InvalidUserDataException("Invalid date or time format. Use yyyy-MM-dd and HH:mm.");
-        }
     }
 
     @Override

@@ -8,8 +8,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -25,6 +23,11 @@ public class CreateRaceRequest {
     @Schema(description = "Race description", example = "42.195 km race for experienced runners", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String raceDescription;
 
-    @Schema(description = "Reporting time for participants (UTC instant, interpreted in event timezone)", example = "2026-06-15T01:30:00Z", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private Instant reportingTime;
+    @Schema(description = "Race-day reporting date in the event's local timezone (yyyy-MM-dd). Send together with reportingTime",
+            example = "2026-10-26", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String reportingDate;
+
+    @Schema(description = "Race-day reporting time in the event's local timezone (HH:mm). Must be at least one hour ahead",
+            example = "04:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String reportingTime;
 }
