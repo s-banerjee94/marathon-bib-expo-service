@@ -31,10 +31,24 @@ class Settings:
 
     approval_mode: ApprovalMode   # how freely the agent acts before asking a human
 
-    # HTTP chat service (Spring calls this server-to-server, never the browser directly).
+    # HTTP chat service (the browser calls this directly with a Bearer access token).
     api_host: str                 # interface uvicorn binds
     api_port: int                 # port uvicorn binds
-    internal_secret: str | None   # shared secret Spring must send; None disables the check (dev)
+
+    # User-token verification (RS256). The agent holds ONLY the public key: it can verify a user's
+    # access token but cannot mint tokens. The PEM is the same public key the Spring app signs with.
+    jwt_public_key_path: str      # path to the RSA public key PEM (verify-only)
+    jwt_issuer: str               # expected 'iss' claim; must match Spring's jwt.issuer
+
+    # Per-role daily token budgets (prompt + completion). Must mirror Spring's app.ai.agent.limits —
+    # both processes read the same counter, so a user's cap has to be identical on each side. A role
+    # absent here (e.g. DISTRIBUTOR) or a negative value means "no cap enforced here".
+    ai_limits: dict[str, int]
+
+    # Browser-direct CORS. The frontend calls this service cross-origin: in local dev from
+    # http://localhost:<port>, and in prod from the Amplify site origin (different host than the api
+    # subdomain). List the EXACT frontend origins; set your Amplify origin here in prod.
+    cors_allowed_origins: list[str]
 
 
 def _parse_mode(raw: str) -> ApprovalMode:
@@ -65,5 +79,17 @@ def load_settings() -> Settings:
         approval_mode=_parse_mode(os.getenv("BIBEXPO_APPROVAL_MODE", "agent")),
         api_host=os.getenv("BIBEXPO_API_HOST", "127.0.0.1"),
         api_port=int(os.getenv("BIBEXPO_API_PORT", "8000")),
-        internal_secret=os.getenv("BIBEXPO_INTERNAL_SECRET") or None,
+        jwt_public_key_path=os.getenv("BIBEXPO_JWT_PUBLIC_KEY_PATH", "../keys/jwt-public-dev.pem"),
+        jwt_issuer=os.getenv("BIBEXPO_JWT_ISSUER", "marathon-bib-expo-service"),
+        ai_limits={
+            "ROOT": int(os.getenv("AI_LIMIT_ROOT", "1000000")),
+            "ADMIN": int(os.getenv("AI_LIMIT_ADMIN", "300000")),
+            "ORGANIZER_ADMIN": int(os.getenv("AI_LIMIT_ORGANIZER_ADMIN", "100000")),
+            "ORGANIZER_USER": int(os.getenv("AI_LIMIT_ORGANIZER_USER", "100000")),
+        },
+        cors_allowed_origins=[
+            o.strip()
+            for o in os.getenv("BIBEXPO_CORS_ALLOWED_ORIGINS", "http://localhost:4200,http://localhost:3000").split(",")
+            if o.strip()
+        ],
     )

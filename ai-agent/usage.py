@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 import boto3
@@ -32,8 +32,15 @@ logger = logging.getLogger(__name__)
 # Daily buckets self-expire a few days after their first write (the window is only a coarse day).
 _USAGE_TTL_SECONDS = 3 * 24 * 60 * 60
 
+# Shown to a user who has spent their daily budget; mirrors Spring's message.
+_OVER_LIMIT_MESSAGE = "You've reached your AI assistant limit for today, please try again tomorrow."
+
 # Building a boto3 client is comparatively expensive and the client is stateless, so cache one.
 _client: Any = None
+
+
+class UsageLimitError(Exception):
+    """Raised when a user has reached their daily AI token budget; surfaced to the caller as HTTP 429."""
 
 
 def _get_client(settings: Settings) -> Any:
@@ -60,6 +67,61 @@ def record_usage(settings: Settings, user_id: int, tokens: int) -> None:
             ":ttl": {"N": str(expires)},
         },
     )
+
+
+def usage_today(settings: Settings, user_id: int) -> int:
+    """Read today's token total for a user (UTC day). Fails open (returns 0) on any store error,
+    so a DynamoDB hiccup never blocks the assistant — matching Spring's read side."""
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        response = _get_client(settings).get_item(
+            TableName=settings.usage_table,
+            Key={"PK": {"S": f"USER#{user_id}"}, "SK": {"S": f"DAY#{day}"}},
+        )
+        tokens = response.get("Item", {}).get("tokens", {}).get("N")
+        return int(tokens) if tokens else 0
+    except Exception as exc:  # noqa: BLE001 — never let a usage read take down the assistant
+        logger.warning("could not read AI usage for user %s: %s", user_id, exc)
+        return 0
+
+
+def check_allowed(settings: Settings, user_id: int | None, role: str | None) -> None:
+    """Block a user who has spent their daily budget by raising UsageLimitError.
+
+    Mirrors Spring's checkAllowed: a missing limit (role not configured) or a negative value means
+    "not enforced here", so unknown roles pass through. Both sides read the same daily counter.
+    """
+    if user_id is None:
+        return
+    limit = settings.ai_limits.get(role) if role else None
+    if limit is None:
+        logger.warning("no AI token limit configured for role %s; allowing without enforcement", role)
+        return
+    if limit < 0:
+        return
+    used = usage_today(settings, user_id)
+    if used >= limit:
+        logger.info("AI usage blocked: user=%s used=%s limit=%s", user_id, used, limit)
+        raise UsageLimitError(_OVER_LIMIT_MESSAGE)
+
+
+def usage_snapshot(settings: Settings, user_id: int | None, role: str | None) -> dict:
+    """The caller's daily budget meter: tokens used, the role cap, what remains, and the reset time.
+
+    Read-only — never consumes budget or raises. An uncapped role reports limit/remaining as -1,
+    mirroring Spring's AgentUsageResponse so the frontend can switch sources without code changes.
+    """
+    limit = settings.ai_limits.get(role) if role else None
+    capped = limit is not None and limit >= 0
+    used = usage_today(settings, user_id) if user_id is not None else 0
+    now = datetime.now(timezone.utc)
+    resets_at = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return {
+        "used": used,
+        "limit": limit if capped else -1,
+        "remaining": max(0, limit - used) if capped else -1,
+        "resets_at": resets_at,
+    }
 
 
 class UsageTrackingMiddleware(AgentMiddleware):

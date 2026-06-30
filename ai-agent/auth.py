@@ -1,8 +1,15 @@
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 import httpx
+import jwt
 
 from settings import Settings
+
+# Token types Spring mints that the agent will act on: a user's own access token (browser-direct)
+# or the short-lived MCP token Spring forwards server-to-server. Anything else (e.g. refresh) is refused.
+_ACCEPTED_TOKEN_TYPES = {"access", "mcp"}
 
 
 @dataclass(frozen=True)
@@ -41,4 +48,35 @@ def login(settings: Settings) -> Session:
         user_id=data.get("userId"),
         role=data.get("role"),
         organization_id=data.get("organizationId"),
+    )
+
+
+@lru_cache(maxsize=1)
+def _public_key_pem(path: str) -> str:
+    """Read the RSA public key PEM once. PyJWT accepts the PEM text directly for RS256."""
+    return Path(path).read_text(encoding="utf-8")
+
+
+def verify_token(token: str, settings: Settings) -> Session:
+    """Verify an RS256 JWT with the public key and return the identity it carries.
+
+    Trusts ONLY the signed claims, never caller-supplied fields. The algorithm is pinned to RS256
+    so a forged 'alg' (e.g. 'none', or HS256 using the public key as a secret) is rejected. Raises
+    a ``jwt.InvalidTokenError`` subclass on a bad signature, wrong issuer, expiry, or token type.
+    """
+    claims = jwt.decode(
+        token,
+        _public_key_pem(settings.jwt_public_key_path),
+        algorithms=["RS256"],
+        issuer=settings.jwt_issuer,
+        options={"require": ["exp", "sub"]},
+    )
+    token_type = claims.get("type")
+    if token_type not in _ACCEPTED_TOKEN_TYPES:
+        raise jwt.InvalidTokenError(f"unexpected token type: {token_type!r}")
+    return Session(
+        token=token,
+        user_id=claims.get("userId"),
+        role=claims.get("role"),
+        organization_id=claims.get("organizationId"),
     )

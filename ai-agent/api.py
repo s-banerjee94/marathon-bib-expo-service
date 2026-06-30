@@ -1,10 +1,9 @@
-"""HTTP entry point for the agent: Spring forwards a user's message here.
+"""HTTP entry point for the agent: the browser sends a user's message here directly.
 
-The browser never calls this directly. Spring authenticates the user, then calls these
-endpoints server-to-server, forwarding the user's JWT and trusted identity (role / id)
-together in a single JSON body (this is an internal service-to-service API, so the token
-travels in the body rather than an Authorization header). We build a per-request agent for
-that user, so each caller gets their own role-filtered tools and persistent memory.
+The browser calls these endpoints cross-origin with the user's access token in an
+'Authorization: Bearer' header. We verify that token (RS256, public key only), read the
+trusted identity (role / id) from its signed claims, and build a per-request agent for that
+user, so each caller gets their own role-filtered tools and persistent memory.
 
 Because writes pause through the checkpointer (not a blocking console prompt), an approval
 is returned to the caller and resumed later via /chat/resume on the same conversation.
@@ -12,24 +11,29 @@ is returned to the caller and resumed later via /chat/resume on the same convers
 Run it with:  uv run python api.py      (or: uv run uvicorn api:app --reload)
 """
 
-import hmac
+import json
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Any, Literal
 
+import jwt
 import openai
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+from sse_starlette import EventSourceResponse
 
 from agent import BuiltAgent, _get_checkpointer, build_agent
 from approval import ApprovalMode
-from auth import Session
+from auth import Session, verify_token
 from settings import Settings, load_settings
+from usage import UsageLimitError, check_allowed, usage_snapshot
 
 # One logging setup for the whole service. Works whether started via `python api.py` or
 # `uvicorn api:app`; our app logs and uvicorn's request logs both land on the console.
@@ -55,15 +59,11 @@ class CamelModel(BaseModel):
 
 
 class ChatRequest(CamelModel):
-    """A user's message plus the identity Spring vouches for, all in one JSON body."""
+    """A user's message. Identity comes from the VERIFIED JWT in the Authorization header,
+    never from plain body fields."""
 
-    token: str = Field(description="The user's JWT, forwarded by Spring (in the body, not a header).")
     message: str = Field(description="The user's message to the assistant.")
-    user_id: int = Field(description="Trusted user id minted by Spring.")
-    role: str = Field(description="Trusted role minted by Spring.")
-    organization_id: int | None = Field(default=None, description="The user's organization, if any.")
     mode: str = Field(description="Approval mode (required): auto | agent | ask.", min_length=1)
-    internal_secret: str | None = Field(default=None, description="Shared secret; checked only when configured.")
 
 
 class Decision(CamelModel):
@@ -79,26 +79,10 @@ class Decision(CamelModel):
 
 
 class ResumeRequest(CamelModel):
-    """The decisions for a paused conversation, plus the same identity as the chat call."""
+    """The decisions for a paused conversation. Identity comes from the verified JWT, as for /chat."""
 
-    token: str
-    user_id: int
-    role: str
-    organization_id: int | None = None
-    mode: str = Field(description="Approval mode (required): auto | agent | ask. Send the same mode the conversation is using.", min_length=1)
     decisions: list[Decision]
-    internal_secret: str | None = None
-
-
-class ResetRequest(CamelModel):
-    """Identity for a conversation reset: just the trusted user id whose thread to wipe.
-
-    No token or message is needed — a delete makes no LLM/MCP call. Spring derives user_id
-    from the trusted identity, so a user can only ever reset their own conversation.
-    """
-
-    user_id: int = Field(description="Trusted user id minted by Spring; selects the thread to delete.")
-    internal_secret: str | None = Field(default=None, description="Shared secret; checked only when configured.")
+    mode: str = Field(description="Approval mode (required): auto | agent | ask. Send the same mode the conversation is using.", min_length=1)
 
 
 class PendingAction(CamelModel):
@@ -123,9 +107,7 @@ class ChatResponse(CamelModel):
 class HistoryRequest(CamelModel):
     """Ask for a page of a user's stored conversation, newest first."""
 
-    user_id: int = Field(description="Trusted user id minted by Spring; selects the thread to read.")
     cursor: int | None = Field(default=None, description="nextCursor from the previous page; omit for the newest page.")
-    internal_secret: str | None = Field(default=None, description="Shared secret; checked only when configured.")
 
 
 class HistoryMessage(CamelModel):
@@ -144,15 +126,16 @@ class HistoryResponse(CamelModel):
     has_more: bool = Field(description="Whether older messages remain to load.")
 
 
-# --------------------------------------------------------------------------- app setup
+class UsageResponse(CamelModel):
+    """The caller's daily AI token budget — a read-only meter (mirrors Spring's usage response)."""
 
-# A shared secret is mandatory: Spring must send it on every call and the agent verifies it.
-# Without it, anyone who could reach the port could impersonate any user, so fail fast at import
-# time rather than serve unauthenticated.
-if not settings.internal_secret:
-    raise RuntimeError(
-        "BIBEXPO_INTERNAL_SECRET must be set; the agent requires a shared secret on every request."
-    )
+    used: int = Field(description="Tokens used today (counted in UTC).")
+    limit: int = Field(description="Daily token cap for the caller's role, or -1 when uncapped.")
+    remaining: int = Field(description="Tokens left today, or -1 when uncapped.")
+    resets_at: datetime = Field(description="When the daily counter resets (next UTC midnight).")
+
+
+# --------------------------------------------------------------------------- app setup
 
 
 @asynccontextmanager
@@ -171,8 +154,8 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="Marathon Bib Expo AI Agent",
     description=(
-        "Internal service-to-service API. Spring authenticates the user and forwards the message "
-        "in the request body; the browser never calls this directly."
+        "AI agent chat API. The browser calls it directly with a Bearer access token, which is "
+        "verified here (RS256, public key only) before any tools run."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -180,6 +163,19 @@ app = FastAPI(
         {"name": "chat", "description": "Send a message and resume after an approval pause."},
         {"name": "meta", "description": "Health and diagnostics."},
     ],
+)
+
+# Browser-direct calls are cross-origin (local dev, and the Amplify site vs the api host in prod). Auth
+# rides in the Authorization header, NOT a cookie, so we do not use credentialed CORS — which lets dev
+# use a wildcard origin (set BIBEXPO_CORS_ALLOWED_ORIGINS='*' to test from a phone on the same Wi-Fi).
+# In prod set it to the exact Amplify origin. The frontend must stream with fetch() (EventSource cannot
+# send headers), which triggers the CORS preflight this handles.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -201,6 +197,12 @@ async def _rate_limited(request: Request, exc: openai.RateLimitError) -> JSONRes
     return JSONResponse(status_code=429, content={"detail": detail})
 
 
+@app.exception_handler(UsageLimitError)
+async def _usage_limited(request: Request, exc: UsageLimitError) -> JSONResponse:
+    """Turn a spent daily budget into a 429 with the user-facing message (checked before streaming)."""
+    return JSONResponse(status_code=429, content={"detail": str(exc)})
+
+
 @app.exception_handler(Exception)
 async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
     """Last-resort handler: log the full traceback and return a clean 500 (never a stack trace)."""
@@ -212,16 +214,6 @@ async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse
 
 # Tool-call argument keys whose values must never be sent to the client in the clear.
 _SENSITIVE_ARG_KEYS = {"password", "secret", "token", "api_key", "apikey", "auth_token", "authtoken"}
-
-
-def _require_secret(provided: str | None) -> None:
-    """Reject anyone but Spring: every request must carry the shared secret.
-
-    The secret is mandatory (enforced at startup), so there is no "unset" bypass. Uses a
-    constant-time compare so the secret cannot be guessed by timing the response.
-    """
-    if not provided or not hmac.compare_digest(provided, settings.internal_secret):
-        raise HTTPException(status_code=401, detail="Invalid internal secret.")
 
 
 def _redact_args(args: dict) -> dict:
@@ -373,14 +365,99 @@ async def _run(session: Session, payload: object, mode: str | None) -> ChatRespo
     return outcome
 
 
-def _session(req: ChatRequest | ResumeRequest) -> Session:
-    """The authenticated identity Spring vouched for, lifted out of the request body."""
-    return Session(
-        token=req.token,
-        user_id=req.user_id,
-        role=req.role,
-        organization_id=req.organization_id,
-    )
+def _sse(event: str, payload: dict) -> dict:
+    """One Server-Sent Event for sse-starlette: a named event carrying a JSON data line."""
+    return {"event": event, "data": json.dumps(payload)}
+
+
+async def _stream_run(session: Session, payload: object, mode: str | None):
+    """Run one step and yield SSE events: 'token' deltas as the answer forms, then either
+    'needs_approval' (a write is paused for sign-off) or 'done' (final reply). Once streaming has
+    begun the HTTP status is already sent, so a failure becomes an 'error' event, not an HTTP error.
+    """
+    try:
+        built = await build_agent(settings, session)
+        try:
+            _set_mode(built, mode)
+        except ValueError:
+            yield _sse("error", {"detail": "mode must be auto, agent or ask."})
+            return
+        thread_id = _thread_id(session.user_id)
+        config = {"configurable": {"thread_id": thread_id}}
+        if not isinstance(payload, Command):
+            await _discard_stale_approval(built.agent, config, thread_id)
+
+        reply_parts: list[str] = []
+        pending: list[PendingAction] = []
+        async for stream_mode, data in built.agent.astream(
+            payload, config=config, stream_mode=["updates", "messages"]
+        ):
+            if stream_mode == "messages":
+                chunk, meta = data
+                # Stream only the main model's answer pieces; skip the summarization model's tokens
+                # (it runs on a different model) so a background compaction never leaks into the chat.
+                if isinstance(chunk, AIMessageChunk) and meta.get("ls_model_name") != settings.summary_model:
+                    text = _text(chunk.content)
+                    if text:
+                        reply_parts.append(text)
+                        yield _sse("token", {"text": text})
+            elif stream_mode == "updates" and isinstance(data, dict):
+                interrupts = data.get("__interrupt__")
+                if interrupts:
+                    pending = _all_pending(interrupts)
+
+        if pending:
+            logger.info("thread=%s stream needs approval for %d action(s)", thread_id, len(pending))
+            yield _sse("needs_approval", {
+                "pending": [p.model_dump(by_alias=True) for p in pending],
+                "threadId": thread_id,
+            })
+        else:
+            reply = "".join(reply_parts)
+            if not reply:  # nothing streamed (rare): fall back to the final stored message
+                snapshot = await built.agent.aget_state(config)
+                messages = snapshot.values.get("messages") if snapshot and snapshot.values else None
+                if messages:
+                    reply = _text(messages[-1].content)
+            logger.info("thread=%s stream complete", thread_id)
+            yield _sse("done", {"reply": reply, "threadId": thread_id})
+    except openai.RateLimitError as exc:
+        logger.warning("OpenAI rate limit during stream: %s", exc)
+        yield _sse("error", {"detail": "The assistant is busy right now, please try again in a few seconds."})
+    except Exception:
+        logger.exception("unhandled error during stream")
+        yield _sse("error", {"detail": "The AI assistant hit an unexpected error."})
+
+
+def _bearer(request: Request) -> str | None:
+    """The token from an 'Authorization: Bearer <jwt>' header, or None when absent."""
+    header = request.headers.get("authorization", "")
+    if header[:7].lower() == "bearer ":
+        return header[7:].strip() or None
+    return None
+
+
+def _verified(token: str) -> Session:
+    """Verify a JWT or fail the request with 401 (the crypto reason is logged, never returned)."""
+    try:
+        return verify_token(token, settings)
+    except jwt.InvalidTokenError as exc:
+        logger.info("token rejected: %s", exc)
+        raise HTTPException(status_code=401, detail="Your session is invalid or has expired. Please log in again.")
+
+
+def _authenticate(request: Request) -> Session:
+    """Identity for a chat call, from the VERIFIED Bearer access token in the Authorization header."""
+    bearer = _bearer(request)
+    if not bearer:
+        raise HTTPException(status_code=401, detail="Missing credentials.")
+    return _verified(bearer)
+
+
+def _authenticated_user_id(request: Request) -> int:
+    """Trusted user id for a thread read/delete, from the verified Bearer token, so a user can
+    only ever touch their own conversation."""
+    return _authenticate(request).user_id
 
 
 def _thread_id(user_id: int) -> str:
@@ -475,49 +552,104 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/chat", tags=["chat"], summary="Send a message to the AI agent")
-async def chat(req: ChatRequest) -> ChatResponse:
-    _require_secret(req.internal_secret)
-    logger.info("POST /chat user=%s role=%s mode=%s len=%d", req.user_id, req.role, req.mode, len(req.message))
-    return await _run(_session(req), {"messages": [HumanMessage(content=req.message)]}, req.mode)
+async def chat(req: ChatRequest, request: Request) -> ChatResponse:
+    session = _authenticate(request)
+    check_allowed(settings, session.user_id, session.role)
+    logger.info("POST /chat user=%s role=%s mode=%s len=%d", session.user_id, session.role, req.mode, len(req.message))
+    return await _run(session, {"messages": [HumanMessage(content=req.message)]}, req.mode)
 
 
 @app.post("/chat/resume", tags=["chat"], summary="Resume the AI agent after an approval pause")
-async def resume(req: ResumeRequest) -> ChatResponse:
-    _require_secret(req.internal_secret)
-    logger.info("POST /chat/resume user=%s mode=%s decisions=%d", req.user_id, req.mode, len(req.decisions))
+async def resume(req: ResumeRequest, request: Request) -> ChatResponse:
+    session = _authenticate(request)
+    check_allowed(settings, session.user_id, session.role)
+    logger.info("POST /chat/resume user=%s mode=%s decisions=%d", session.user_id, req.mode, len(req.decisions))
     decisions = [_to_decision(d) for d in req.decisions]
-    return await _run(_session(req), Command(resume={"decisions": decisions}), req.mode)
+    return await _run(session, Command(resume={"decisions": decisions}), req.mode)
+
+
+# Documented once for both streaming endpoints so Swagger explains the SSE event vocabulary.
+_SSE_DESCRIPTION = (
+    "Server-Sent Events stream (text/event-stream). Event types:\n"
+    "- `token` — `{text}`: a piece of the answer; append as it arrives.\n"
+    "- `needs_approval` — `{pending[], threadId}`: a write awaits sign-off; the stream ends, then "
+    "call the resume-stream endpoint with one decision per pending action.\n"
+    "- `done` — `{reply, threadId}`: the final assembled reply.\n"
+    "- `error` — `{detail}`: a failure after streaming began.\n\n"
+    "Consume with fetch() streaming, not EventSource (the token must travel in the Authorization "
+    "header). Auth: `Authorization: Bearer <accessToken>`."
+)
+
+
+@app.post(
+    "/chat/stream",
+    tags=["chat"],
+    summary="Send a message to the AI agent (streamed via SSE)",
+    description=_SSE_DESCRIPTION,
+)
+async def chat_stream(req: ChatRequest, request: Request) -> EventSourceResponse:
+    session = _authenticate(request)
+    check_allowed(settings, session.user_id, session.role)
+    logger.info("POST /chat/stream user=%s role=%s mode=%s len=%d", session.user_id, session.role, req.mode, len(req.message))
+    payload = {"messages": [HumanMessage(content=req.message)]}
+    return EventSourceResponse(_stream_run(session, payload, req.mode), ping=15)
+
+
+@app.post(
+    "/chat/resume/stream",
+    tags=["chat"],
+    summary="Resume after an approval pause (streamed via SSE)",
+    description=_SSE_DESCRIPTION,
+)
+async def resume_stream(req: ResumeRequest, request: Request) -> EventSourceResponse:
+    session = _authenticate(request)
+    check_allowed(settings, session.user_id, session.role)
+    logger.info("POST /chat/resume/stream user=%s mode=%s decisions=%d", session.user_id, req.mode, len(req.decisions))
+    decisions = [_to_decision(d) for d in req.decisions]
+    return EventSourceResponse(_stream_run(session, Command(resume={"decisions": decisions}), req.mode), ping=15)
 
 
 @app.delete("/chat/memory", tags=["chat"], summary="Delete a user's conversation memory (start fresh)")
-async def reset_memory(req: ResetRequest) -> Response:
+async def reset_memory(request: Request) -> Response:
     """Wipe one user's stored conversation so their next message starts with empty history.
 
     Reaches the shared checkpointer directly — no agent is built, since a delete needs no
     tools or model — and removes every checkpoint and write for thread user-<id>. Idempotent:
     deleting an already-empty thread is a no-op and still returns 204.
     """
-    _require_secret(req.internal_secret)
-    thread_id = _thread_id(req.user_id)
-    logger.info("DELETE /chat/memory user=%s thread=%s", req.user_id, thread_id)
+    user_id = _authenticated_user_id(request)
+    thread_id = _thread_id(user_id)
+    logger.info("DELETE /chat/memory user=%s thread=%s", user_id, thread_id)
     await _get_checkpointer(settings).adelete_thread(thread_id)
     return Response(status_code=204)
 
 
 @app.post("/chat/history", tags=["chat"], summary="Fetch a page of stored conversation history")
-async def history(req: HistoryRequest) -> HistoryResponse:
+async def history(req: HistoryRequest, request: Request) -> HistoryResponse:
     """Return a page of the user's prior messages so the frontend can restore the chat after a reload.
 
     Reads the saved messages from the checkpointer, drops tool-call noise, and slices the newest 25
     not yet seen (the client walks older with the returned cursor). The summary divider, if present,
     is the oldest stored line, so paging stops there.
     """
-    _require_secret(req.internal_secret)
-    thread_id = _thread_id(req.user_id)
+    user_id = _authenticated_user_id(request)
+    thread_id = _thread_id(user_id)
     messages = await _load_messages(thread_id)
     outcome = _paginate_history(_to_history(messages), req.cursor)
-    logger.info("POST /chat/history user=%s returned=%d hasMore=%s", req.user_id, len(outcome.messages), outcome.has_more)
+    logger.info("POST /chat/history user=%s returned=%d hasMore=%s", user_id, len(outcome.messages), outcome.has_more)
     return outcome
+
+
+@app.get("/chat/usage", tags=["chat"], summary="Get the caller's daily AI token usage")
+async def usage(request: Request) -> UsageResponse:
+    """Read-only meter for the signed-in user: tokens used, the role cap, what remains, and when it
+    resets (next UTC midnight). Never consumes budget and never returns 429. Identity comes from the
+    Bearer access token."""
+    bearer = _bearer(request)
+    if not bearer:
+        raise HTTPException(status_code=401, detail="Missing credentials.")
+    session = _verified(bearer)
+    return UsageResponse(**usage_snapshot(settings, session.user_id, session.role))
 
 
 if __name__ == "__main__":
