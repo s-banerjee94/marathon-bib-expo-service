@@ -60,6 +60,18 @@ public class JwtServiceImpl implements JwtService {
         return buildToken(claims, user.getUsername(), jwtConfig.getRefreshTokenExpiration());
     }
 
+    @Override
+    public String generateAgentToken(User user) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId());
+        claims.put("role", user.getRole().name());
+        claims.put("type", TYPE_MCP);
+        if (user.getOrganization() != null) {
+            claims.put("organizationId", user.getOrganization().getId());
+        }
+        return buildToken(claims, user.getUsername(), jwtConfig.getAgentTokenExpiration());
+    }
+
     private String buildToken(Map<String, Object> claims, String subject, long expirationMs) {
         long now = System.currentTimeMillis();
         return Jwts.builder()

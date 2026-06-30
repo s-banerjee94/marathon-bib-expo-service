@@ -158,6 +158,11 @@ public class OpenApiConfig {
         return group("17-ai-assistant", "AI Assistant", "/api/ai/**");
     }
 
+    @Bean
+    public GroupedOpenApi aiAgentDoc() {
+        return group("18-ai-agent", "AI Agent (Python service)", "/api/agent/**");
+    }
+
     // ---- helpers ----
 
     private static GroupedOpenApi group(String id, String displayName, String... pathsToMatch) {

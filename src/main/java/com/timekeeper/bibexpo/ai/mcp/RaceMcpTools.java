@@ -34,8 +34,8 @@ public class RaceMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_race",
-            description = "Create a new race under an event. This writes data, so only call it after the user has "
-                    + "confirmed the details. Runs as the signed-in user and is limited to events that user may manage. "
+            description = "Create a new race under an event. This writes data. Runs as the signed-in user and is "
+                    + "limited to events that user may manage. "
                     + "Resolve the event from its name with search_events; never ask the user for a numeric id. "
                     + "Returns the created race.")
     public RaceResponse createRace(

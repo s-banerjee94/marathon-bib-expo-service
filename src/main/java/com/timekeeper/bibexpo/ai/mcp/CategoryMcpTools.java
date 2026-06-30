@@ -38,8 +38,8 @@ public class CategoryMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_category",
-            description = "Create a new category under a race. This writes data, so only call it after the user has "
-                    + "confirmed the details. Runs as the signed-in user and is limited to events that user may manage. "
+            description = "Create a new category under a race. This writes data. Runs as the signed-in user and "
+                    + "is limited to events that user may manage. "
                     + "Resolve the event and race from their names with search_events and list_event_races; never ask "
                     + "the user for a numeric id. Returns the created category.")
     public CategoryResponse createCategory(

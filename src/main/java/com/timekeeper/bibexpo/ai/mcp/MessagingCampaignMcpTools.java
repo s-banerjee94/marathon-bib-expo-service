@@ -38,8 +38,8 @@ public class MessagingCampaignMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_sms_campaign",
-            description = "Create an SMS campaign for an event. This writes data, so only call it after the user has "
-                    + "confirmed the details. Without a trigger type it is saved as a DRAFT; with one it is armed and "
+            description = "Create an SMS campaign for an event. This writes data. Without a trigger type it is "
+                    + "saved as a DRAFT; with one it is armed and "
                     + "starts sending. Resolve the event from its name with search_events and the SMS template from its "
                     + "name with search_sms_templates; never ask the user for a numeric id. Returns the created campaign.")
     public SmsCampaignResponse createSmsCampaign(
@@ -67,8 +67,8 @@ public class MessagingCampaignMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_whatsapp_campaign",
-            description = "Create a WhatsApp campaign for an event. This writes data, so only call it after the user "
-                    + "has confirmed the details. Without a trigger type it is saved as a DRAFT; with one it is armed "
+            description = "Create a WhatsApp campaign for an event. This writes data. Without a trigger type it "
+                    + "is saved as a DRAFT; with one it is armed "
                     + "and starts sending. Resolve the event from its name with search_events and the WhatsApp template "
                     + "from its name with search_whatsapp_templates; never ask the user for a numeric id. Returns the created campaign.")
     public WhatsAppCampaignResponse createWhatsAppCampaign(

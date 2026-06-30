@@ -84,8 +84,8 @@ public class UserMcpTools implements McpToolGroup {
 
     @Tool(name = "create_user",
             description = "Create a new user account (ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER or DISTRIBUTOR). "
-                    + "This writes data, so only call it after the user has confirmed the details. Runs as the "
-                    + "signed-in user and is limited to the roles and organizations that user is allowed to create; "
+                    + "This writes data. Runs as the signed-in user and is limited to the roles and organizations "
+                    + "that user is allowed to create; "
                     + "limits and uniqueness are enforced. Resolve any organization or event from its name with "
                     + "search_organizations / search_events; never ask the user for a numeric id. Returns the created user.")
     public UserResponse createUser(
@@ -101,8 +101,8 @@ public class UserMcpTools implements McpToolGroup {
 
     @Tool(name = "invite_user",
             description = "Invite a new user by issuing a one-time invite link, optionally delivered by WhatsApp or "
-                    + "SMS. Preferred over create_user because the invitee sets their own password. This writes data, "
-                    + "so only call it after the user has confirmed the details. Runs as the signed-in user and is "
+                    + "SMS. Preferred over create_user because the invitee sets their own password. This writes data. "
+                    + "Runs as the signed-in user and is "
                     + "limited to the roles and organizations that user is allowed to create. Resolve any organization "
                     + "or event from its name with search_organizations / search_events; never ask the user for a "
                     + "numeric id. Returns the invite link.")
@@ -119,7 +119,7 @@ public class UserMcpTools implements McpToolGroup {
 
     @Tool(name = "reassign_distributor_event",
             description = "Reassign a distributor to a different event within their own organization. This writes "
-                    + "data, so only call it after the user has confirmed. Identify the distributor by username "
+                    + "data. Identify the distributor by username "
                     + "(preferred) or numeric id. The event must belong to the distributor's organization and must "
                     + "not have ended. Returns the updated user.")
     public UserResponse reassignDistributorEvent(

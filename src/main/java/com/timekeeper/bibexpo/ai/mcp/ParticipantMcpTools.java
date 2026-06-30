@@ -45,8 +45,8 @@ public class ParticipantMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_participant",
-            description = "Manually add one participant to an event. This writes data, so only call it after the "
-                    + "user has confirmed the details. Runs as the signed-in user and is limited to events that user "
+            description = "Manually add one participant to an event. This writes data. Runs as the signed-in user "
+                    + "and is limited to events that user "
                     + "may manage; the bib number must be unique within the event. Resolve the event from its name with "
                     + "search_events, the race with list_event_races and the category with list_race_categories; never "
                     + "ask the user for a numeric id. A participant needs at least a phone or an email, and either a "

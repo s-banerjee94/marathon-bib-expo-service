@@ -53,8 +53,8 @@ public class EventMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_event",
-            description = "Create a new event under an organization. This writes data, so only call it after the "
-                    + "user has confirmed the details. Runs as the signed-in user: ROOT and ADMIN can create events "
+            description = "Create a new event under an organization. This writes data. Runs as the signed-in "
+                    + "user: ROOT and ADMIN can create events "
                     + "for any organization, organizer admins and users only for their own. The event starts in DRAFT. "
                     + "Resolve the organization from its name with search_organizations; never ask the user for a "
                     + "numeric id. Dates are yyyy-MM-dd and times are 24-hour HH:mm in the event timezone. "

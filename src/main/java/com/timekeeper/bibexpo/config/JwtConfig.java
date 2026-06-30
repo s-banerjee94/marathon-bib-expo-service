@@ -12,6 +12,7 @@ public class JwtConfig {
     private String issuer;
 
     private Long accessTokenExpiration;
+    private Long agentTokenExpiration;
     private Long refreshTokenExpiration;
 
     private String cookieDomain;

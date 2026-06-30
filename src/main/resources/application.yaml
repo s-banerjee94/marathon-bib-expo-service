@@ -98,6 +98,7 @@ jwt:
   secret: ${JWT_SECRET:default-secret-key-for-development-only-please-change-in-production-this-should-be-at-least-256-bits}
   issuer: marathon-bib-expo-service
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000}      # 15 minutes
+  agent-token-expiration: ${JWT_AGENT_TOKEN_EXPIRATION:600000}        # 10 minutes (MCP-scoped token for the Python agent)
   refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000} # 7 days
   cookie-domain: ${JWT_COOKIE_DOMAIN:}                                # e.g. .yourdomain.com (empty for localhost)
   refresh-cookie-name: ${JWT_REFRESH_COOKIE_NAME:refreshToken}
@@ -120,6 +121,22 @@ app:
       # Days of inactivity after which a user's chat history auto-expires via the
       # marathon-ai-chat-memory DynamoDB table TTL (expirationTime attribute).
       ttl-days: ${AI_CHAT_MEMORY_TTL_DAYS:30}
+    # The Python LangGraph agent (server-to-server). Spring mints a short-lived MCP token per
+    # call and forwards it here; internal-secret must match the agent's BIBEXPO_INTERNAL_SECRET.
+    agent:
+      base-url: ${BIBEXPO_AGENT_BASE_URL:http://localhost:8000}
+      internal-secret: ${BIBEXPO_AGENT_INTERNAL_SECRET:default-agent-secret-change-in-production}
+      connect-timeout-ms: ${BIBEXPO_AGENT_CONNECT_TIMEOUT_MS:5000}
+      read-timeout-ms: ${BIBEXPO_AGENT_READ_TIMEOUT_MS:120000}
+      # DynamoDB table for per-user daily token usage (Spring pre-checks, the Python agent writes).
+      usage-table: ${BIBEXPO_AI_USAGE_TABLE:marathon-ai-usage}
+      # Daily token budget per role (prompt + completion); over-budget users get 429 until UTC
+      # midnight. DISTRIBUTOR has no AI access. Tune against real usage and OpenAI pricing.
+      limits:
+        ROOT: ${AI_LIMIT_ROOT:1000000}
+        ADMIN: ${AI_LIMIT_ADMIN:300000}
+        ORGANIZER_ADMIN: ${AI_LIMIT_ORGANIZER_ADMIN:100000}
+        ORGANIZER_USER: ${AI_LIMIT_ORGANIZER_USER:100000}
   statistics:
     stale-threshold-minutes: ${STATS_STALE_THRESHOLD_MINUTES:15}
   participant-access:

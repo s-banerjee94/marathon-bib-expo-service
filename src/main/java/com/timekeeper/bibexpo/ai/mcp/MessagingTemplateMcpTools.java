@@ -41,8 +41,8 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_sms_template",
-            description = "Create a reusable SMS template for an event. This writes data, so only call it after the "
-                    + "user has confirmed the details. Runs as the signed-in user and is limited to events that user "
+            description = "Create a reusable SMS template for an event. This writes data. Runs as the signed-in "
+                    + "user and is limited to events that user "
                     + "may manage. Resolve the event from its name with search_events; never ask the user for a numeric "
                     + "id. Returns the created template.")
     public SmsTemplateResponse createSmsTemplate(
@@ -73,8 +73,8 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_whatsapp_template",
-            description = "Register an approved Twilio WhatsApp Content Template for an event. This writes data, so "
-                    + "only call it after the user has confirmed the details. The Content SID must already be approved "
+            description = "Register an approved Twilio WhatsApp Content Template for an event. This writes data. "
+                    + "The Content SID must already be approved "
                     + "on Twilio. Runs as the signed-in user and is limited to events that user may manage. Resolve the "
                     + "event from its name with search_events; never ask the user for a numeric id. Returns the created template.")
     public WhatsAppTemplateResponse createWhatsAppTemplate(

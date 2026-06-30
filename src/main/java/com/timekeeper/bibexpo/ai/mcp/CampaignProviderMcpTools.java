@@ -51,8 +51,7 @@ public class CampaignProviderMcpTools implements McpToolGroup {
 
     @Tool(name = "test_campaign_provider",
             description = "Send one real test message through a configured campaign sender to verify it works. This "
-                    + "sends an actual SMS or WhatsApp message and may incur a charge, so only call it after the user "
-                    + "has confirmed the channel, scope and recipient phone number. It uses the stored credentials — "
+                    + "sends an actual SMS or WhatsApp message and may incur a charge. It uses the stored credentials — "
                     + "never ask the user for an API key or password. Omit the organization for the platform default "
                     + "(root only); give an organization for its own sender. Resolve the organization from its name "
                     + "with search_organizations.")

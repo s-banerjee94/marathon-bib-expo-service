@@ -267,6 +267,46 @@ awslocal dynamodb update-time-to-live \
 
 echo "DynamoDB table marathon-ai-chat-memory created successfully with TTL enabled!"
 
+# LangGraph (Python agent) checkpoint store — schema required by langgraph-checkpoint-aws's
+# DynamoDBSaver: partition key PK, sort key SK, TTL attribute "ttl".
+echo "Creating DynamoDB table: marathon-ai-agent-checkpoints"
+awslocal dynamodb create-table \
+    --table-name marathon-ai-agent-checkpoints \
+    --attribute-definitions \
+        AttributeName=PK,AttributeType=S \
+        AttributeName=SK,AttributeType=S \
+    --key-schema \
+        AttributeName=PK,KeyType=HASH \
+        AttributeName=SK,KeyType=RANGE \
+    --billing-mode PAY_PER_REQUEST
+
+echo "Enabling TTL on marathon-ai-agent-checkpoints table (ttl attribute — 30 day retention)"
+awslocal dynamodb update-time-to-live \
+    --table-name marathon-ai-agent-checkpoints \
+    --time-to-live-specification "Enabled=true, AttributeName=ttl"
+
+echo "DynamoDB table marathon-ai-agent-checkpoints created successfully with TTL enabled!"
+
+# Per-user daily AI token usage. Spring pre-checks the day's bucket; the Python agent atomically
+# ADDs the tokens of each model call. PK=USER#<id>, SK=DAY#<yyyy-MM-dd>; ttl auto-expires old days.
+echo "Creating DynamoDB table: marathon-ai-usage"
+awslocal dynamodb create-table \
+    --table-name marathon-ai-usage \
+    --attribute-definitions \
+        AttributeName=PK,AttributeType=S \
+        AttributeName=SK,AttributeType=S \
+    --key-schema \
+        AttributeName=PK,KeyType=HASH \
+        AttributeName=SK,KeyType=RANGE \
+    --billing-mode PAY_PER_REQUEST
+
+echo "Enabling TTL on marathon-ai-usage table (ttl attribute — daily buckets auto-expire)"
+awslocal dynamodb update-time-to-live \
+    --table-name marathon-ai-usage \
+    --time-to-live-specification "Enabled=true, AttributeName=ttl"
+
+echo "DynamoDB table marathon-ai-usage created successfully with TTL enabled!"
+
 # Bucket name matches the application.yaml default (aws.s3.bucket / AWS_S3_BUCKET).
 echo "Creating S3 bucket: marathon-bib-expo-media"
 awslocal s3api create-bucket --bucket marathon-bib-expo-media

@@ -50,8 +50,8 @@ public class OrganizationMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_organization",
-            description = "Create a new organization. This writes data, so only call it after the user has confirmed "
-                    + "the details. Only ROOT and ADMIN may create organizations. Returns the created organization.")
+            description = "Create a new organization. This writes data. Only ROOT and ADMIN may create "
+                    + "organizations. Returns the created organization.")
     public OrganizationResponse createOrganization(
             @ToolParam(description = "The organization details") CreateOrganizationRequest request) {
 
