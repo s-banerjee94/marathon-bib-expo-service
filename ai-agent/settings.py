@@ -20,12 +20,14 @@ class Settings:
     password: str       # dev login password
     openai_model: str   # which OpenAI model to use
     summary_model: str  # cheaper model used to summarize old conversation history
+    context_budget_tokens: int  # working token budget; summarization triggers at 75% of this
 
     # Where the agent stores conversation memory (DynamoDB checkpoints).
     aws_region: str               # AWS region for the checkpoint table
     aws_profile: str | None       # local AWS CLI profile; None on EC2 (instance role)
     ddb_endpoint_url: str | None  # LocalStack endpoint; None for real AWS
     checkpoint_table: str         # DynamoDB table holding the conversation checkpoints
+    usage_table: str              # DynamoDB table holding per-user daily token usage
 
     approval_mode: ApprovalMode   # how freely the agent acts before asking a human
 
@@ -54,10 +56,12 @@ def load_settings() -> Settings:
         password=os.getenv("BIBEXPO_PASSWORD", "root"),
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4.1"),
         summary_model=os.getenv("OPENAI_SUMMARY_MODEL", "gpt-4.1-mini"),
+        context_budget_tokens=int(os.getenv("BIBEXPO_CONTEXT_BUDGET_TOKENS", "16000")),
         aws_region=os.getenv("AWS_REGION", "ap-south-1"),
         aws_profile=os.getenv("AWS_PROFILE") or None,
         ddb_endpoint_url=os.getenv("BIBEXPO_DDB_ENDPOINT_URL") or None,
         checkpoint_table=os.getenv("BIBEXPO_CHECKPOINT_TABLE", "marathon-ai-agent-checkpoints"),
+        usage_table=os.getenv("BIBEXPO_AI_USAGE_TABLE", "marathon-ai-usage"),
         approval_mode=_parse_mode(os.getenv("BIBEXPO_APPROVAL_MODE", "agent")),
         api_host=os.getenv("BIBEXPO_API_HOST", "127.0.0.1"),
         api_port=int(os.getenv("BIBEXPO_API_PORT", "8000")),

@@ -17,10 +17,11 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
+import openai
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -119,6 +120,30 @@ class ChatResponse(CamelModel):
     thread_id: str = Field(description="Conversation thread id (always user-<id>).")
 
 
+class HistoryRequest(CamelModel):
+    """Ask for a page of a user's stored conversation, newest first."""
+
+    user_id: int = Field(description="Trusted user id minted by Spring; selects the thread to read.")
+    cursor: int | None = Field(default=None, description="nextCursor from the previous page; omit for the newest page.")
+    internal_secret: str | None = Field(default=None, description="Shared secret; checked only when configured.")
+
+
+class HistoryMessage(CamelModel):
+    """One restorable line of history: a real user/assistant turn, or a summarization divider."""
+
+    role: Literal["user", "assistant"] = Field(description="Who said it.")
+    content: str = Field(description="The message text, in markdown.")
+    summary: bool = Field(default=False, description="True when this marks where earlier turns were summarized.")
+
+
+class HistoryResponse(CamelModel):
+    """A page of history (oldest->newest within the page) plus how to load older messages."""
+
+    messages: list[HistoryMessage] = Field(description="The page's messages, oldest first; prepend above what you have.")
+    next_cursor: int | None = Field(description="Pass back as 'cursor' to load the previous page; null when no more.")
+    has_more: bool = Field(description="Whether older messages remain to load.")
+
+
 # --------------------------------------------------------------------------- app setup
 
 # A shared secret is mandatory: Spring must send it on every call and the agent verifies it.
@@ -156,6 +181,24 @@ app = FastAPI(
         {"name": "meta", "description": "Health and diagnostics."},
     ],
 )
+
+
+@app.exception_handler(openai.RateLimitError)
+async def _rate_limited(request: Request, exc: openai.RateLimitError) -> JSONResponse:
+    """Turn OpenAI's 429 into an intentional 'busy' reply instead of a generic 500.
+
+    The OpenAI SDK already retries a 429 a few times with backoff; this fires only once those are
+    exhausted. Two cases share the 429: transient throughput throttling (TPM/RPM), which clears on
+    its own within seconds, and an exhausted account quota, which needs a credit top-up and will not
+    fix itself. We answer 429 for both but word them differently and log the quota case louder.
+    """
+    if getattr(exc, "code", None) == "insufficient_quota":
+        logger.error("OpenAI quota exhausted on %s %s: %s", request.method, request.url.path, exc)
+        detail = "The AI assistant is temporarily unavailable. Please try again later."
+    else:
+        logger.warning("OpenAI rate limit on %s %s: %s", request.method, request.url.path, exc)
+        detail = "The assistant is busy right now, please try again in a few seconds."
+    return JSONResponse(status_code=429, content={"detail": detail})
 
 
 @app.exception_handler(Exception)
@@ -318,7 +361,7 @@ async def _run(session: Session, payload: object, mode: str | None) -> ChatRespo
         _set_mode(built, mode)
     except ValueError:
         raise HTTPException(status_code=400, detail="mode must be auto, agent or ask.")
-    thread_id = f"user-{session.user_id}"
+    thread_id = _thread_id(session.user_id)
     config = {"configurable": {"thread_id": thread_id}}
     # A new message (not a resume) must not arrive while an approval is still pending, or the
     # dangling tool-call corrupts the thread; clear it first so the conversation self-heals.
@@ -338,6 +381,11 @@ def _session(req: ChatRequest | ResumeRequest) -> Session:
         role=req.role,
         organization_id=req.organization_id,
     )
+
+
+def _thread_id(user_id: int) -> str:
+    """The single conversation thread id for a user (the agent keeps one conversation per user)."""
+    return f"user-{user_id}"
 
 
 def _to_decision(decision: Decision) -> dict[str, str]:
@@ -363,6 +411,59 @@ def _to_decision(decision: Decision) -> dict[str, str]:
             ),
         }
     return {"type": "reject", "message": decision.message or "The user cancelled this action."}
+
+
+# History is fixed at 25 messages per page; the client only sends a cursor, never a page size.
+_HISTORY_PAGE_SIZE = 25
+
+
+def _is_summary(message: object) -> bool:
+    """True if this is the marker the summarization middleware leaves where it compacted history."""
+    extra = getattr(message, "additional_kwargs", None) or {}
+    return extra.get("lc_source") == "summarization"
+
+
+def _to_history(messages: list) -> list[HistoryMessage]:
+    """Keep only restorable lines: real user/assistant turns and the summarization divider.
+
+    Tool calls, tool results and system text are dropped as noise. The summary marker is a
+    HumanMessage, so it must be checked before the plain-user case.
+    """
+    history: list[HistoryMessage] = []
+    for message in messages:
+        text = _text(message.content)
+        if _is_summary(message):
+            history.append(HistoryMessage(role="assistant", content=text, summary=True))
+        elif isinstance(message, HumanMessage):
+            if text.strip():
+                history.append(HistoryMessage(role="user", content=text))
+        elif isinstance(message, AIMessage):
+            if text.strip():  # skip tool-call-only assistant turns (no visible text)
+                history.append(HistoryMessage(role="assistant", content=text))
+    return history
+
+
+def _paginate_history(items: list[HistoryMessage], cursor: int | None) -> HistoryResponse:
+    """Slice the newest unseen 25 from a chronological list; cursor counts messages already shown."""
+    offset = cursor or 0
+    end = max(0, len(items) - offset)
+    start = max(0, end - _HISTORY_PAGE_SIZE)
+    page = items[start:end]
+    has_more = start > 0
+    return HistoryResponse(
+        messages=page,
+        next_cursor=(offset + len(page)) if has_more else None,
+        has_more=has_more,
+    )
+
+
+async def _load_messages(thread_id: str) -> list:
+    """Read a thread's stored messages straight from the checkpointer (no agent/MCP build)."""
+    config = {"configurable": {"thread_id": thread_id}}
+    snapshot = await _get_checkpointer(settings).aget_tuple(config)
+    if snapshot is None:
+        return []
+    return snapshot.checkpoint.get("channel_values", {}).get("messages", [])
 
 
 # --------------------------------------------------------------------------- endpoints
@@ -397,10 +498,26 @@ async def reset_memory(req: ResetRequest) -> Response:
     deleting an already-empty thread is a no-op and still returns 204.
     """
     _require_secret(req.internal_secret)
-    thread_id = f"user-{req.user_id}"
+    thread_id = _thread_id(req.user_id)
     logger.info("DELETE /chat/memory user=%s thread=%s", req.user_id, thread_id)
     await _get_checkpointer(settings).adelete_thread(thread_id)
     return Response(status_code=204)
+
+
+@app.post("/chat/history", tags=["chat"], summary="Fetch a page of stored conversation history")
+async def history(req: HistoryRequest) -> HistoryResponse:
+    """Return a page of the user's prior messages so the frontend can restore the chat after a reload.
+
+    Reads the saved messages from the checkpointer, drops tool-call noise, and slices the newest 25
+    not yet seen (the client walks older with the returned cursor). The summary divider, if present,
+    is the oldest stored line, so paging stops there.
+    """
+    _require_secret(req.internal_secret)
+    thread_id = _thread_id(req.user_id)
+    messages = await _load_messages(thread_id)
+    outcome = _paginate_history(_to_history(messages), req.cursor)
+    logger.info("POST /chat/history user=%s returned=%d hasMore=%s", req.user_id, len(outcome.messages), outcome.has_more)
+    return outcome
 
 
 if __name__ == "__main__":

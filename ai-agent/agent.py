@@ -15,6 +15,7 @@ from approval import ModeState, build_interrupt_on
 from auth import Session
 from settings import Settings, load_settings
 from tool_visibility import visible_tools
+from usage import UsageTrackingMiddleware
 
 if TYPE_CHECKING:  # imported only for type hints, never at runtime
     from langchain_mcp_adapters.sessions import Connection
@@ -26,10 +27,12 @@ if TYPE_CHECKING:  # imported only for type hints, never at runtime
 # Java chat-memory TTL of 30 days).
 _CHECKPOINT_TTL_SECONDS = 30 * 24 * 60 * 60
 
-# Once the message history passes this many tokens, older turns are condensed into a
-# running summary while the most recent turns are kept verbatim (controls cost / TPM).
-_SUMMARY_TRIGGER_TOKENS = 4000
-_SUMMARY_KEEP_MESSAGES = 20
+# When the running history approaches the model's working budget, older turns are condensed into a
+# summary while the most recent few are kept verbatim (controls cost and TPM). We trigger at 75% of
+# the configurable context budget — leaving headroom for the next message, the reply, tool output
+# and the summary call itself — and keep only the last few messages.
+_SUMMARY_TRIGGER_FRACTION = 0.75
+_SUMMARY_KEEP_MESSAGES = 5
 
 
 @dataclass
@@ -67,7 +70,10 @@ several match, ask the user to choose by a human detail such as date or city; wh
 match, say so. Never ask the user for a numeric id, and do not show raw ids unless asked.
 
 Be concise. For questions, just call the relevant read-only tool and report the result.
-Before any action that creates, changes or removes data, confirm the details first.
+When the user asks you to create, change or remove data, gather the details you need and go
+ahead. The application itself pauses and asks the user to approve a write when confirmation is
+required, so do not ask the user to confirm again yourself; only ask a question when a detail
+is genuinely missing or ambiguous.
 
 Always answer in clean, conversational markdown — never raw JSON. Present a single record as
 a few labelled lines (a bold title with its key details beneath); present several records as a
@@ -163,7 +169,7 @@ async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
     # schemas are). The MCP server sends every client the full list and cannot filter per user,
     # so we trim it next using the role from the trusted login response; the server still
     # enforces real access on every call as a backstop. Writes that survive the filter are still
-    # gated by the "confirm before any change" rule in the prompt.
+    # gated by HumanInTheLoopMiddleware below, which pauses them for approval.
     all_tools = [
         convert_mcp_tool_to_langchain_tool(
             None, schema, connection=connection, server_name="bibexpo"
@@ -188,9 +194,11 @@ async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
             HumanInTheLoopMiddleware(interrupt_on=build_interrupt_on(tools, mode_state)),
             SummarizationMiddleware(
                 model=f"openai:{settings.summary_model}",
-                trigger=("tokens", _SUMMARY_TRIGGER_TOKENS),
+                trigger=("tokens", int(_SUMMARY_TRIGGER_FRACTION * settings.context_budget_tokens)),
                 keep=("messages", _SUMMARY_KEEP_MESSAGES),
             ),
+            # Records each model call's token usage to the user's daily counter (Spring's budget gate).
+            UsageTrackingMiddleware(settings, session.user_id),
         ],
     )
     return BuiltAgent(
