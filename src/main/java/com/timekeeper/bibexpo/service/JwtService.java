@@ -8,7 +8,6 @@ public interface JwtService {
 
     String TYPE_ACCESS = "access";
     String TYPE_REFRESH = "refresh";
-    String TYPE_MCP = "mcp";
 
     /**
      * Generate a short-lived access token (JWT) bound to the given session id.
@@ -28,17 +27,6 @@ public interface JwtService {
      * @return refresh JWT
      */
     String generateRefreshToken(User user, String sid);
-
-    /**
-     * Generate a short-lived token scoped to the MCP server, used by the Python agent to call
-     * tools on behalf of {@code user}. Carries {@code sub}, {@code userId}, {@code role} and
-     * {@code type=mcp}, with no {@code sid} — it is a per-turn service credential, not a browser
-     * session. The MCP security filter accepts only {@code type=mcp}; the REST chain rejects it.
-     *
-     * @param user the user the agent acts on behalf of
-     * @return MCP-scoped JWT
-     */
-    String generateAgentToken(User user);
 
     /**
      * Extract username (subject) from a token.

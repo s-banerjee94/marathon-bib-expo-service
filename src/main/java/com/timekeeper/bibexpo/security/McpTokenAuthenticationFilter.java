@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.security;
 
 import com.timekeeper.bibexpo.service.JwtService;
+import com.timekeeper.bibexpo.service.SessionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,12 +24,11 @@ import java.io.IOException;
 /**
  * Authenticates the Python agent on the MCP routes ({@code /sse}, {@code /mcp/message}).
  *
- * <p>Accepts only {@code type=mcp} tokens minted by {@link JwtService#generateAgentToken}. Unlike
- * {@link JwtAuthenticationFilter} it does not enforce the single-session {@code sid} check — an
- * agent turn is a short-lived service credential, not a browser session — but it still loads the
- * real user and applies their account status and authorities, so server-side RBAC is unchanged.
- * An invalid or missing token leaves the context unauthenticated, so the chain's entry point
- * returns 401.
+ * <p>Accepts only the user's own {@code type=access} token, which the Python agent forwards
+ * unchanged (browser → agent → MCP). The single-session {@code sid} check is enforced so a token
+ * from a superseded login cannot keep acting. It loads the real user and applies their account
+ * status and authorities, so server-side RBAC is unchanged. An invalid or missing token leaves the
+ * context unauthenticated, so the chain's entry point returns 401.
  */
 @RequiredArgsConstructor
 @Slf4j
@@ -36,6 +36,7 @@ public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final SessionService sessionService;
     private final UserDetailsChecker accountStatusChecker = new AccountStatusUserDetailsChecker();
 
     @Override
@@ -58,8 +59,21 @@ public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                if (!jwtService.isTokenValid(jwt, userDetails, JwtService.TYPE_MCP)) {
-                    log.debug("Invalid MCP token for user: {}", username);
+                // Only the user's own access token is accepted (the Python agent forwards it
+                // unchanged). isTokenValid still checks signature, username and expiry.
+                final String tokenType = jwtService.extractTokenType(jwt);
+                if (!JwtService.TYPE_ACCESS.equals(tokenType)
+                        || !jwtService.isTokenValid(jwt, userDetails, tokenType)) {
+                    log.debug("Invalid agent token (type={}) for user: {}", tokenType, username);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                // The access token carries a browser session id: honour single-session logout so a
+                // token from a superseded login cannot keep acting.
+                String tokenSid = jwtService.extractSid(jwt);
+                if (tokenSid == null || !tokenSid.equals(sessionService.getActiveSid(username))) {
+                    log.debug("Stale access token (sid mismatch) on MCP route for user: {}", username);
                     filterChain.doFilter(request, response);
                     return;
                 }

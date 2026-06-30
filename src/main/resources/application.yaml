@@ -43,12 +43,6 @@ spring:
       spec: maximumSize=10000,expireAfterWrite=60s
 
   ai:
-    openai:
-      api-key: ${OPENAI_API_KEY:}
-      chat:
-        options:
-          model: ${OPENAI_CHAT_MODEL:gpt-4.1-mini}
-          temperature: 0.2
     mcp:
       server:
         name: marathon-bib-expo-mcp
@@ -94,11 +88,16 @@ root:
   password: ${ROOT_PASSWORD:root}
 
 # JWT Configuration
+# RS256 (asymmetric): Spring signs with the PRIVATE key and verifies with the PUBLIC key. The
+# public key is also handed to the Python agent so it can verify tokens without being able to mint
+# them. Local defaults point at a gitignored dev keypair under keys/ (generate with openssl); prod
+# supplies file: locations via env (see application-prod.yaml). The private key is a secret — never
+# commit it.
 jwt:
-  secret: ${JWT_SECRET:default-secret-key-for-development-only-please-change-in-production-this-should-be-at-least-256-bits}
+  private-key-location: ${JWT_PRIVATE_KEY_LOCATION:file:keys/jwt-private-dev.pem}
+  public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:keys/jwt-public-dev.pem}
   issuer: marathon-bib-expo-service
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000}      # 15 minutes
-  agent-token-expiration: ${JWT_AGENT_TOKEN_EXPIRATION:600000}        # 10 minutes (MCP-scoped token for the Python agent)
   refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000} # 7 days
   cookie-domain: ${JWT_COOKIE_DOMAIN:}                                # e.g. .yourdomain.com (empty for localhost)
   refresh-cookie-name: ${JWT_REFRESH_COOKIE_NAME:refreshToken}
@@ -113,30 +112,6 @@ logging:
 
 # Application Statistics and Participant Access Configuration
 app:
-  ai:
-    # System prompt for the in-app assistant. Defaults to the bundled file; point this at a
-    # file: path (e.g. file:/opt/bibexpo/system-prompt.st) to edit it live without a restart.
-    system-prompt-location: ${AI_SYSTEM_PROMPT_LOCATION:classpath:prompts/system-prompt.st}
-    memory:
-      # Days of inactivity after which a user's chat history auto-expires via the
-      # marathon-ai-chat-memory DynamoDB table TTL (expirationTime attribute).
-      ttl-days: ${AI_CHAT_MEMORY_TTL_DAYS:30}
-    # The Python LangGraph agent (server-to-server). Spring mints a short-lived MCP token per
-    # call and forwards it here; internal-secret must match the agent's BIBEXPO_INTERNAL_SECRET.
-    agent:
-      base-url: ${BIBEXPO_AGENT_BASE_URL:http://localhost:8000}
-      internal-secret: ${BIBEXPO_AGENT_INTERNAL_SECRET:default-agent-secret-change-in-production}
-      connect-timeout-ms: ${BIBEXPO_AGENT_CONNECT_TIMEOUT_MS:5000}
-      read-timeout-ms: ${BIBEXPO_AGENT_READ_TIMEOUT_MS:120000}
-      # DynamoDB table for per-user daily token usage (Spring pre-checks, the Python agent writes).
-      usage-table: ${BIBEXPO_AI_USAGE_TABLE:marathon-ai-usage}
-      # Daily token budget per role (prompt + completion); over-budget users get 429 until UTC
-      # midnight. DISTRIBUTOR has no AI access. Tune against real usage and OpenAI pricing.
-      limits:
-        ROOT: ${AI_LIMIT_ROOT:1000000}
-        ADMIN: ${AI_LIMIT_ADMIN:300000}
-        ORGANIZER_ADMIN: ${AI_LIMIT_ORGANIZER_ADMIN:100000}
-        ORGANIZER_USER: ${AI_LIMIT_ORGANIZER_USER:100000}
   statistics:
     stale-threshold-minutes: ${STATS_STALE_THRESHOLD_MINUTES:15}
   participant-access:

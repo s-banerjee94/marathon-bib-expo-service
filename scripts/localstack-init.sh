@@ -249,24 +249,6 @@ awslocal dynamodb update-time-to-live \
 
 echo "DynamoDB table marathon-notifications created successfully with TTL enabled!"
 
-echo "Creating DynamoDB table: marathon-ai-chat-memory"
-awslocal dynamodb create-table \
-    --table-name marathon-ai-chat-memory \
-    --attribute-definitions \
-        AttributeName=conversationId,AttributeType=S \
-        AttributeName=position,AttributeType=N \
-    --key-schema \
-        AttributeName=conversationId,KeyType=HASH \
-        AttributeName=position,KeyType=RANGE \
-    --billing-mode PAY_PER_REQUEST
-
-echo "Enabling TTL on marathon-ai-chat-memory table (expirationTime attribute — 30 day retention)"
-awslocal dynamodb update-time-to-live \
-    --table-name marathon-ai-chat-memory \
-    --time-to-live-specification "Enabled=true, AttributeName=expirationTime"
-
-echo "DynamoDB table marathon-ai-chat-memory created successfully with TTL enabled!"
-
 # LangGraph (Python agent) checkpoint store — schema required by langgraph-checkpoint-aws's
 # DynamoDBSaver: partition key PK, sort key SK, TTL attribute "ttl".
 echo "Creating DynamoDB table: marathon-ai-agent-checkpoints"

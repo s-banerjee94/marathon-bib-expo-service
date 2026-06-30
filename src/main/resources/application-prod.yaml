@@ -33,9 +33,12 @@ cors:
 # cookie-secure=true  -> cookies only over HTTPS (nginx provides it).
 # cookie-domain=.example.com -> shared parent so the Amplify frontend's JS can
 #   read the csrfToken cookie issued by api.example.com (the double-submit point).
-# secret has NO default here on purpose: prod must supply JWT_SECRET via env.
+# RS256 keys have NO default here on purpose: prod must supply both file: locations
+# via env (e.g. file:/opt/bibexpo/keys/jwt-private.pem). The private key is a secret;
+# the public key may be shared with the Python agent for verify-only use.
 jwt:
-  secret:        ${JWT_SECRET}
+  private-key-location: ${JWT_PRIVATE_KEY_LOCATION}
+  public-key-location:  ${JWT_PUBLIC_KEY_LOCATION}
   cookie-secure: ${JWT_COOKIE_SECURE:true}
   cookie-domain: ${JWT_COOKIE_DOMAIN:.example.com}
 

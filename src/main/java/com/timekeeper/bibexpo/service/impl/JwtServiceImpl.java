@@ -8,15 +8,24 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.SecretKey;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +36,20 @@ import java.util.Map;
 public class JwtServiceImpl implements JwtService {
 
     private final JwtConfig jwtConfig;
+
+    private PrivateKey privateKey;
+    private PublicKey publicKey;
+
+    @PostConstruct
+    void loadKeys() {
+        try {
+            KeyFactory rsa = KeyFactory.getInstance("RSA");
+            this.privateKey = rsa.generatePrivate(new PKCS8EncodedKeySpec(readDer(jwtConfig.getPrivateKeyLocation(), "private")));
+            this.publicKey = rsa.generatePublic(new X509EncodedKeySpec(readDer(jwtConfig.getPublicKeyLocation(), "public")));
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("Invalid RSA key material for JWT signing.", e);
+        }
+    }
 
     @Override
     public String generateAccessToken(User user, String sid) {
@@ -60,18 +83,6 @@ public class JwtServiceImpl implements JwtService {
         return buildToken(claims, user.getUsername(), jwtConfig.getRefreshTokenExpiration());
     }
 
-    @Override
-    public String generateAgentToken(User user) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", user.getId());
-        claims.put("role", user.getRole().name());
-        claims.put("type", TYPE_MCP);
-        if (user.getOrganization() != null) {
-            claims.put("organizationId", user.getOrganization().getId());
-        }
-        return buildToken(claims, user.getUsername(), jwtConfig.getAgentTokenExpiration());
-    }
-
     private String buildToken(Map<String, Object> claims, String subject, long expirationMs) {
         long now = System.currentTimeMillis();
         return Jwts.builder()
@@ -80,7 +91,7 @@ public class JwtServiceImpl implements JwtService {
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + expirationMs))
                 .issuer(jwtConfig.getIssuer())
-                .signWith(getSigningKey())
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
@@ -117,7 +128,7 @@ public class JwtServiceImpl implements JwtService {
     public Claims extractAllClaims(String token) {
         try {
             return Jwts.parser()
-                    .verifyWith(getSigningKey())
+                    .verifyWith(publicKey)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
@@ -177,8 +188,15 @@ public class JwtServiceImpl implements JwtService {
         return (Long) value;
     }
 
-    private SecretKey getSigningKey() {
-        byte[] keyBytes = jwtConfig.getSecret().getBytes();
-        return Keys.hmacShaKeyFor(keyBytes);
+    private byte[] readDer(Resource location, String label) {
+        try {
+            String pem = location.getContentAsString(StandardCharsets.UTF_8);
+            String base64 = pem.replaceAll("-----BEGIN [^-]+-----", "")
+                    .replaceAll("-----END [^-]+-----", "")
+                    .replaceAll("\\s", "");
+            return Base64.getDecoder().decode(base64);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to read JWT " + label + " key from " + location, e);
+        }
     }
 }

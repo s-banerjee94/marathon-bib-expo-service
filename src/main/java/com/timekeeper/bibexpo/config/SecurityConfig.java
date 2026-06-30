@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.security.JwtAuthenticationEntryPoint;
 import com.timekeeper.bibexpo.security.JwtAuthenticationFilter;
 import com.timekeeper.bibexpo.security.McpTokenAuthenticationFilter;
 import com.timekeeper.bibexpo.service.JwtService;
+import com.timekeeper.bibexpo.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,6 +37,7 @@ public class SecurityConfig {
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final CorsConfigurationSource corsConfigurationSource;
     private final JwtService jwtService;
+    private final SessionService sessionService;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -71,7 +73,7 @@ public class SecurityConfig {
                         .accessDeniedHandler(jwtAccessDeniedHandler)
                 )
                 .addFilterBefore(
-                        new McpTokenAuthenticationFilter(jwtService, userDetailsService),
+                        new McpTokenAuthenticationFilter(jwtService, userDetailsService, sessionService),
                         UsernamePasswordAuthenticationFilter.class
                 );
 
