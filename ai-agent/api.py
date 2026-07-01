@@ -346,6 +346,30 @@ async def _discard_stale_approval(agent: object, config: dict, thread_id: str) -
     await agent.ainvoke(Command(resume={"decisions": decisions}), config=config)
 
 
+# One conversation per user: only one agent run may execute at a time. A second concurrent
+# request (typically the same user sending from another browser tab) is rejected outright,
+# not queued, so two messages can never interleave into the one shared conversation. This is
+# LangGraph's "reject" double-texting strategy, hand-rolled because the open-source framework
+# only ships multitask_strategy on the managed Platform.
+_in_flight_users: set[int] = set()
+
+
+def _begin_run(user_id: int) -> None:
+    """Claim the user's single run slot, or reject with 409 if a run is already in progress."""
+    if user_id in _in_flight_users:
+        logger.info("rejecting concurrent run for user=%s (one already in progress)", user_id)
+        raise HTTPException(
+            status_code=409,
+            detail="Please wait for your current message to finish before sending another.",
+        )
+    _in_flight_users.add(user_id)
+
+
+def _end_run(user_id: int) -> None:
+    """Release the user's run slot; always called from a finally, including when a stream ends."""
+    _in_flight_users.discard(user_id)
+
+
 async def _run(session: Session, payload: object, mode: str | None) -> ChatResponse:
     """Build this user's agent and run one step (a new message or a resume)."""
     built = await build_agent(settings, session)
@@ -427,6 +451,19 @@ async def _stream_run(session: Session, payload: object, mode: str | None):
     except Exception:
         logger.exception("unhandled error during stream")
         yield _sse("error", {"detail": "The AI assistant hit an unexpected error."})
+
+
+async def _guarded_stream(user_id: int, session: Session, payload: object, mode: str | None):
+    """Wrap _stream_run so the user's single-flight slot is released once the stream ends.
+
+    The slot is claimed in the endpoint (so a concurrent request gets a real 409 before any
+    streaming starts); this releases it when the stream finishes, errors, or the client drops.
+    """
+    try:
+        async for event in _stream_run(session, payload, mode):
+            yield event
+    finally:
+        _end_run(user_id)
 
 
 def _bearer(request: Request) -> str | None:
@@ -556,7 +593,11 @@ async def chat(req: ChatRequest, request: Request) -> ChatResponse:
     session = _authenticate(request)
     check_allowed(settings, session.user_id, session.role)
     logger.info("POST /chat user=%s role=%s mode=%s len=%d", session.user_id, session.role, req.mode, len(req.message))
-    return await _run(session, {"messages": [HumanMessage(content=req.message)]}, req.mode)
+    _begin_run(session.user_id)
+    try:
+        return await _run(session, {"messages": [HumanMessage(content=req.message)]}, req.mode)
+    finally:
+        _end_run(session.user_id)
 
 
 @app.post("/chat/resume", tags=["chat"], summary="Resume the AI agent after an approval pause")
@@ -565,7 +606,11 @@ async def resume(req: ResumeRequest, request: Request) -> ChatResponse:
     check_allowed(settings, session.user_id, session.role)
     logger.info("POST /chat/resume user=%s mode=%s decisions=%d", session.user_id, req.mode, len(req.decisions))
     decisions = [_to_decision(d) for d in req.decisions]
-    return await _run(session, Command(resume={"decisions": decisions}), req.mode)
+    _begin_run(session.user_id)
+    try:
+        return await _run(session, Command(resume={"decisions": decisions}), req.mode)
+    finally:
+        _end_run(session.user_id)
 
 
 # Documented once for both streaming endpoints so Swagger explains the SSE event vocabulary.
@@ -591,8 +636,9 @@ async def chat_stream(req: ChatRequest, request: Request) -> EventSourceResponse
     session = _authenticate(request)
     check_allowed(settings, session.user_id, session.role)
     logger.info("POST /chat/stream user=%s role=%s mode=%s len=%d", session.user_id, session.role, req.mode, len(req.message))
+    _begin_run(session.user_id)
     payload = {"messages": [HumanMessage(content=req.message)]}
-    return EventSourceResponse(_stream_run(session, payload, req.mode), ping=15)
+    return EventSourceResponse(_guarded_stream(session.user_id, session, payload, req.mode), ping=15)
 
 
 @app.post(
@@ -606,7 +652,9 @@ async def resume_stream(req: ResumeRequest, request: Request) -> EventSourceResp
     check_allowed(settings, session.user_id, session.role)
     logger.info("POST /chat/resume/stream user=%s mode=%s decisions=%d", session.user_id, req.mode, len(req.decisions))
     decisions = [_to_decision(d) for d in req.decisions]
-    return EventSourceResponse(_stream_run(session, Command(resume={"decisions": decisions}), req.mode), ping=15)
+    _begin_run(session.user_id)
+    payload = Command(resume={"decisions": decisions})
+    return EventSourceResponse(_guarded_stream(session.user_id, session, payload, req.mode), ping=15)
 
 
 @app.delete("/chat/memory", tags=["chat"], summary="Delete a user's conversation memory (start fresh)")
