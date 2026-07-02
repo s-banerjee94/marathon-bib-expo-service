@@ -28,6 +28,7 @@ class Settings:
     ddb_endpoint_url: str | None  # LocalStack endpoint; None for real AWS
     checkpoint_table: str         # DynamoDB table holding the conversation checkpoints
     usage_table: str              # DynamoDB table holding per-user daily token usage
+    prefs_table: str              # DynamoDB table holding per-user assistant preferences (tool toggle)
 
     approval_mode: ApprovalMode   # how freely the agent acts before asking a human
 
@@ -76,6 +77,7 @@ def load_settings() -> Settings:
         ddb_endpoint_url=os.getenv("BIBEXPO_DDB_ENDPOINT_URL") or None,
         checkpoint_table=os.getenv("BIBEXPO_CHECKPOINT_TABLE", "marathon-ai-agent-checkpoints"),
         usage_table=os.getenv("BIBEXPO_AI_USAGE_TABLE", "marathon-ai-usage"),
+        prefs_table=os.getenv("BIBEXPO_AI_PREFS_TABLE", "marathon-ai-agent-prefs"),
         approval_mode=_parse_mode(os.getenv("BIBEXPO_APPROVAL_MODE", "agent")),
         api_host=os.getenv("BIBEXPO_API_HOST", "127.0.0.1"),
         api_port=int(os.getenv("BIBEXPO_API_PORT", "8000")),

@@ -289,6 +289,23 @@ awslocal dynamodb update-time-to-live \
 
 echo "DynamoDB table marathon-ai-usage created successfully with TTL enabled!"
 
+# Per-user AI assistant preferences (e.g. the MCP tool enable/disable toggle). Agent-owned and read
+# by the Python service; consumer is Python, so it lives beside the other AI tables. PK=USER#<id>,
+# SK=PREFS#<name> (one item per preference group). Deliberately NO TTL — unlike the usage/checkpoint
+# tables, a saved setting must persist indefinitely.
+echo "Creating DynamoDB table: marathon-ai-agent-prefs"
+awslocal dynamodb create-table \
+    --table-name marathon-ai-agent-prefs \
+    --attribute-definitions \
+        AttributeName=PK,AttributeType=S \
+        AttributeName=SK,AttributeType=S \
+    --key-schema \
+        AttributeName=PK,KeyType=HASH \
+        AttributeName=SK,KeyType=RANGE \
+    --billing-mode PAY_PER_REQUEST
+
+echo "DynamoDB table marathon-ai-agent-prefs created successfully (no TTL — preferences persist)!"
+
 # Bucket name matches the application.yaml default (aws.s3.bucket / AWS_S3_BUCKET).
 echo "Creating S3 bucket: marathon-bib-expo-media"
 awslocal s3api create-bucket --bucket marathon-bib-expo-media

@@ -5,23 +5,26 @@ one step. Writes pause through the checkpointer (not a blocking prompt), so an a
 to the caller and resumed later via the resume endpoint on the same conversation.
 """
 
+import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import openai
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langgraph.types import Command
 from sse_starlette import EventSourceResponse
 
 from ..agent.approval import ASK_USER_TOOL, ApprovalMode
-from ..agent.builder import BuiltAgent, _get_checkpointer, build_agent
-from ..agent.card import fallback_card, redact_args, render_card, text_content
+from ..agent.builder import BuiltAgent, _get_checkpointer, build_agent, visible_tool_list
+from ..agent.card import fallback_card, redact_args, render_card, text_content, tool_title
+from ..agent.prefs import get_tool_prefs, resolve_tool_prefs, save_tool_prefs
 from ..agent.usage import check_allowed, usage_snapshot
 from ..core.auth import Session
 from ..core.settings import settings
-from ..dependencies import authenticate, authenticated_user_id
+from ..dependencies import authenticate, authenticated_user_id, bearer_scheme
 from ..schemas import (
     ChatRequest,
     ChatResponse,
@@ -33,12 +36,15 @@ from ..schemas import (
     PendingField,
     PendingResponse,
     ResumeRequest,
+    ToolInfo,
+    ToolPrefsRequest,
+    ToolsResponse,
     UsageResponse,
 )
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["chat"])
+router = APIRouter(tags=["chat"], dependencies=[Depends(bearer_scheme)])
 
 
 # --------------------------------------------------------------------------- helpers
@@ -130,22 +136,15 @@ def _state_interrupts(snapshot: object) -> list:
     return pending
 
 
-async def _discard_stale_approval(agent: object, config: dict, thread_id: str) -> None:
+async def _reject_stale(agent: object, config: dict, thread_id: str, pending: list[PendingAction]) -> None:
     """Auto-reject an unanswered approval so a *new* message can't corrupt the history.
 
     If the user (or a misbehaving caller) sends a new message while a write is still awaiting
     approval, the stored history would keep an assistant tool-call with no tool response, which
     OpenAI rejects on every later turn. We pre-empt that by rejecting the abandoned action(s)
-    first — a write the user walked away from should not run anyway.
+    first — a write the user walked away from should not run anyway. The pending list comes from
+    _prepare, which also guarantees this agent can run the decisions.
     """
-    snapshot = await agent.aget_state(config)
-    interrupts = _state_interrupts(snapshot)
-    if not interrupts:
-        return
-    pending = _all_pending(interrupts)
-    if not pending:
-        logger.warning("thread=%s paused on an unrecognised interrupt; cannot auto-clear", thread_id)
-        return
     decisions = [{"type": "reject", "message": "Cancelled because a new message was sent."} for _ in pending]
     logger.info("thread=%s discarding %d stale pending action(s) before new message", thread_id, len(pending))
     await agent.ainvoke(Command(resume={"decisions": decisions}), config=config)
@@ -175,19 +174,90 @@ def _end_run(user_id: int) -> None:
     _in_flight_users.discard(user_id)
 
 
-async def _run(session: Session, payload: object, mode: str | None) -> ChatResponse:
-    """Build this user's agent and run one step (a new message or a resume)."""
-    built = await build_agent(settings, session)
-    try:
-        _set_mode(built, mode)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="mode must be auto, agent or ask.")
+@dataclass(frozen=True)
+class _RunOptions:
+    """Per-request run config pulled off a chat/resume body: approval mode + which tools to offer.
+
+    The tool fields are optional (None) — a request may set them for this turn or omit them to fall
+    back to the user's saved preference. They are resolved to concrete values in _build.
+    """
+
+    mode: str
+    mcp_enabled: bool | None
+    disabled_tools: tuple[str, ...] | None
+
+
+def _run_options(req: ChatRequest | ResumeRequest) -> _RunOptions:
+    """Read the run config off a request body (tuple for a stable disabled set; None = 'use saved')."""
+    return _RunOptions(
+        mode=req.mode,
+        mcp_enabled=req.mcp_enabled,
+        disabled_tools=tuple(req.disabled_tools) if req.disabled_tools is not None else None,
+    )
+
+
+async def _prepare(
+    session: Session, opts: _RunOptions
+) -> tuple[BuiltAgent, dict, str, list[PendingAction]]:
+    """Resolve the tool prefs, build the agent, and read any approval paused on the thread.
+
+    Any tool field the request omitted is filled from the user's saved preference (else the
+    default); the store read runs off the event loop (boto3 is blocking). Raises ValueError for
+    an invalid approval mode.
+
+    Guard: a paused write must stay decidable whatever the toggles now say. If the thread holds a
+    pending approval whose tool the prefs-built agent no longer carries (hidden by disabledTools,
+    or all tools off), the agent is rebuilt with tools on and the pending names kept visible —
+    otherwise the resume (or the stale-approval auto-reject) would run on a graph that cannot
+    execute the decision.
+    """
     thread_id = _thread_id(session.user_id)
     config = {"configurable": {"thread_id": thread_id}}
+    mcp_enabled, disabled_tools = await asyncio.to_thread(
+        resolve_tool_prefs,
+        settings,
+        session.user_id,
+        opts.mcp_enabled,
+        list(opts.disabled_tools) if opts.disabled_tools is not None else None,
+    )
+    built = await build_agent(
+        settings, session, mcp_enabled=mcp_enabled, disabled_tools=disabled_tools
+    )
+    _set_mode(built, opts.mode)
+
+    snapshot = await built.agent.aget_state(config)
+    interrupts = _state_interrupts(snapshot)
+    pending = _all_pending(interrupts)
+    if interrupts and not pending:
+        logger.warning("thread=%s paused on an unrecognised interrupt; cannot auto-clear", thread_id)
+    pending_names = {action.name for action in pending}
+    if pending_names and not pending_names <= {tool.name for tool in built.tools}:
+        logger.info("thread=%s pending approval overrides the tool prefs for this run", thread_id)
+        built = await build_agent(
+            settings,
+            session,
+            mcp_enabled=True,
+            disabled_tools=[name for name in disabled_tools if name not in pending_names],
+        )
+        _set_mode(built, opts.mode)
+    return built, config, thread_id, pending
+
+
+def _disabled_log(disabled_tools: list[str] | None) -> str:
+    """Compact log token for the disabled-tools field: a count, or 'saved' when the request omitted it."""
+    return "saved" if disabled_tools is None else str(len(disabled_tools))
+
+
+async def _run(session: Session, payload: object, opts: _RunOptions) -> ChatResponse:
+    """Build this user's agent and run one step (a new message or a resume)."""
+    try:
+        built, config, thread_id, pending = await _prepare(session, opts)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="mode must be auto, agent or ask.")
     # A new message (not a resume) must not arrive while an approval is still pending, or the
     # dangling tool-call corrupts the thread; clear it first so the conversation self-heals.
-    if not isinstance(payload, Command):
-        await _discard_stale_approval(built.agent, config, thread_id)
+    if pending and not isinstance(payload, Command):
+        await _reject_stale(built.agent, config, thread_id, pending)
     result = await built.agent.ainvoke(payload, config=config)
     outcome = await _format(result, thread_id, session.user_id, built.tools)
     logger.info("thread=%s run complete: status=%s", thread_id, outcome.status)
@@ -199,22 +269,19 @@ def _sse(event: str, payload: dict) -> dict:
     return {"event": event, "data": json.dumps(payload)}
 
 
-async def _stream_run(session: Session, payload: object, mode: str | None):
+async def _stream_run(session: Session, payload: object, opts: _RunOptions):
     """Run one step and yield SSE events: 'token' deltas as the answer forms, then either
     'needs_approval' (a write is paused for sign-off) or 'done' (final reply). Once streaming has
     begun the HTTP status is already sent, so a failure becomes an 'error' event, not an HTTP error.
     """
     try:
-        built = await build_agent(settings, session)
         try:
-            _set_mode(built, mode)
+            built, config, thread_id, stale = await _prepare(session, opts)
         except ValueError:
             yield _sse("error", {"detail": "mode must be auto, agent or ask."})
             return
-        thread_id = _thread_id(session.user_id)
-        config = {"configurable": {"thread_id": thread_id}}
-        if not isinstance(payload, Command):
-            await _discard_stale_approval(built.agent, config, thread_id)
+        if stale and not isinstance(payload, Command):
+            await _reject_stale(built.agent, config, thread_id, stale)
 
         reply_parts: list[str] = []
         pending: list[PendingAction] = []
@@ -262,14 +329,14 @@ async def _stream_run(session: Session, payload: object, mode: str | None):
         yield _sse("error", {"detail": "The AI assistant hit an unexpected error."})
 
 
-async def _guarded_stream(user_id: int, session: Session, payload: object, mode: str | None):
+async def _guarded_stream(user_id: int, session: Session, payload: object, opts: _RunOptions):
     """Wrap _stream_run so the user's single-flight slot is released once the stream ends.
 
     The slot is claimed in the endpoint (so a concurrent request gets a real 409 before any
     streaming starts); this releases it when the stream finishes, errors, or the client drops.
     """
     try:
-        async for event in _stream_run(session, payload, mode):
+        async for event in _stream_run(session, payload, opts):
             yield event
     finally:
         _end_run(user_id)
@@ -378,11 +445,14 @@ _SSE_DESCRIPTION = (
 @router.post("/chat", summary="Send a message to the AI agent")
 async def chat(req: ChatRequest, request: Request) -> ChatResponse:
     session = authenticate(request)
-    check_allowed(settings, session.user_id, session.role)
-    logger.info("POST /chat user=%s role=%s mode=%s len=%d", session.user_id, session.role, req.mode, len(req.message))
+    await asyncio.to_thread(check_allowed, settings, session.user_id, session.role)
+    logger.info(
+        "POST /chat user=%s role=%s mode=%s mcp=%s disabled=%s len=%d",
+        session.user_id, session.role, req.mode, req.mcp_enabled, _disabled_log(req.disabled_tools), len(req.message),
+    )
     _begin_run(session.user_id)
     try:
-        return await _run(session, {"messages": [HumanMessage(content=req.message)]}, req.mode)
+        return await _run(session, {"messages": [HumanMessage(content=req.message)]}, _run_options(req))
     finally:
         _end_run(session.user_id)
 
@@ -390,12 +460,12 @@ async def chat(req: ChatRequest, request: Request) -> ChatResponse:
 @router.post("/chat/resume", summary="Resume the AI agent after an approval pause")
 async def resume(req: ResumeRequest, request: Request) -> ChatResponse:
     session = authenticate(request)
-    check_allowed(settings, session.user_id, session.role)
+    await asyncio.to_thread(check_allowed, settings, session.user_id, session.role)
     logger.info("POST /chat/resume user=%s mode=%s decisions=%d", session.user_id, req.mode, len(req.decisions))
     decisions = [_to_decision(d) for d in req.decisions]
     _begin_run(session.user_id)
     try:
-        return await _run(session, Command(resume={"decisions": decisions}), req.mode)
+        return await _run(session, Command(resume={"decisions": decisions}), _run_options(req))
     finally:
         _end_run(session.user_id)
 
@@ -407,11 +477,14 @@ async def resume(req: ResumeRequest, request: Request) -> ChatResponse:
 )
 async def chat_stream(req: ChatRequest, request: Request) -> EventSourceResponse:
     session = authenticate(request)
-    check_allowed(settings, session.user_id, session.role)
-    logger.info("POST /chat/stream user=%s role=%s mode=%s len=%d", session.user_id, session.role, req.mode, len(req.message))
+    await asyncio.to_thread(check_allowed, settings, session.user_id, session.role)
+    logger.info(
+        "POST /chat/stream user=%s role=%s mode=%s mcp=%s disabled=%s len=%d",
+        session.user_id, session.role, req.mode, req.mcp_enabled, _disabled_log(req.disabled_tools), len(req.message),
+    )
     _begin_run(session.user_id)
     payload = {"messages": [HumanMessage(content=req.message)]}
-    return EventSourceResponse(_guarded_stream(session.user_id, session, payload, req.mode), ping=15)
+    return EventSourceResponse(_guarded_stream(session.user_id, session, payload, _run_options(req)), ping=15)
 
 
 @router.post(
@@ -421,12 +494,12 @@ async def chat_stream(req: ChatRequest, request: Request) -> EventSourceResponse
 )
 async def resume_stream(req: ResumeRequest, request: Request) -> EventSourceResponse:
     session = authenticate(request)
-    check_allowed(settings, session.user_id, session.role)
+    await asyncio.to_thread(check_allowed, settings, session.user_id, session.role)
     logger.info("POST /chat/resume/stream user=%s mode=%s decisions=%d", session.user_id, req.mode, len(req.decisions))
     decisions = [_to_decision(d) for d in req.decisions]
     _begin_run(session.user_id)
     payload = Command(resume={"decisions": decisions})
-    return EventSourceResponse(_guarded_stream(session.user_id, session, payload, req.mode), ping=15)
+    return EventSourceResponse(_guarded_stream(session.user_id, session, payload, _run_options(req)), ping=15)
 
 
 @router.delete("/chat/memory", summary="Delete a user's conversation memory (start fresh)")
@@ -489,3 +562,54 @@ async def usage(request: Request) -> UsageResponse:
     Bearer access token."""
     session = authenticate(request)
     return UsageResponse(**usage_snapshot(settings, session.user_id, session.role))
+
+
+async def _tool_infos(session: Session) -> list[ToolInfo]:
+    """The role-visible tools as display rows (name + Title-Case label). ask_user is excluded."""
+    visible = await visible_tool_list(settings, session)
+    return [ToolInfo(name=t.name, label=tool_title(t.name)) for t in visible]
+
+
+@router.get("/chat/tools", summary="List the user's tools and their saved enable/disable state")
+async def tools(request: Request) -> ToolsResponse:
+    """Return the tools visible to this user's role plus their saved toggle state, for the UI.
+
+    Read-only: builds no agent and runs no model. It reuses the cached tool schemas and the same role
+    filter build_agent applies, so the toggle list always matches what the agent would offer (minus
+    ask_user, an internal disambiguation tool that is never user-toggleable). Each label is the tool
+    name in Title Case (create_event -> Create Event); send a name back in disabledTools to hide it.
+    The saved state comes from the user's stored preference (defaults: tools on, none disabled).
+    Identity comes from the Bearer access token.
+    """
+    session = authenticate(request)
+    tool_infos = await _tool_infos(session)
+    saved = await asyncio.to_thread(get_tool_prefs, settings, session.user_id)
+    logger.info("GET /chat/tools user=%s role=%s tools=%d mcp=%s", session.user_id, session.role, len(tool_infos), saved["mcp_enabled"])
+    return ToolsResponse(
+        tools=tool_infos, mcp_enabled=saved["mcp_enabled"], disabled_tools=saved["disabled_tools"]
+    )
+
+
+@router.put("/chat/tools", summary="Save the user's tool enable/disable choice (persists)")
+async def save_tools(req: ToolPrefsRequest, request: Request) -> ToolsResponse:
+    """Persist the user's assistant-tool choice so it sticks across sessions, and echo it back with
+    the tool list. A full replace: send the complete desired state (master switch + hidden names).
+    Chat turns that omit mcpEnabled/disabledTools then fall back to what is saved here. Every name
+    in disabledTools must come from this endpoint's own tool list — an unknown name is a 400, so a
+    typo cannot be stored and silently do nothing. Identity comes from the Bearer access token.
+    """
+    session = authenticate(request)
+    if session.user_id is None:
+        raise HTTPException(status_code=400, detail="Cannot save preferences without a user.")
+    tool_infos = await _tool_infos(session)
+    known = {tool.name for tool in tool_infos}
+    unknown = [name for name in req.disabled_tools if name not in known]
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown tool name(s): {', '.join(sorted(set(unknown)))}. Use names from GET /chat/tools.",
+        )
+    disabled = sorted(set(req.disabled_tools))  # dedupe; stable order for storage and echo
+    await asyncio.to_thread(save_tool_prefs, settings, session.user_id, req.mcp_enabled, disabled)
+    logger.info("PUT /chat/tools user=%s mcp=%s disabled=%d", session.user_id, req.mcp_enabled, len(disabled))
+    return ToolsResponse(tools=tool_infos, mcp_enabled=req.mcp_enabled, disabled_tools=disabled)

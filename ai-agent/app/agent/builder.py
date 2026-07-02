@@ -19,6 +19,7 @@ from .tool_visibility import visible_tools
 from .usage import UsageTrackingMiddleware
 
 if TYPE_CHECKING:  # imported only for type hints, never at runtime
+    from langchain_core.tools import BaseTool
     from langchain_mcp_adapters.sessions import Connection
     from langgraph.graph.state import CompiledStateGraph
     from mcp import ClientSession
@@ -93,6 +94,25 @@ Always answer in clean, conversational markdown — never raw JSON. Present a si
 a few labelled lines (a bold title with its key details beneath); present several records as a
 markdown table or a short bullet list. Use the human-friendly fields such as names, dates and
 status, and leave out internal ids unless the user asks for them.
+"""
+
+
+# Used when the caller turns tools off for a session (mcp_enabled=False): the assistant can talk
+# but has no tools at all, so it must not claim to look anything up or act, and must not invent data.
+CHAT_ONLY_SYSTEM_PROMPT = """\
+You are the assistant for the Marathon Bib Expo application, which manages marathon
+events, races, categories, participants, bib and goodies distribution, users and
+organizations. Help only with running this application; politely decline anything else.
+
+In this session you have no tools: you cannot look anything up, and you cannot create, change
+or remove data or act on the user's behalf. You can still explain how the application works,
+talk through what the user is trying to do, and help them plan. If the user asks you to fetch
+real data or perform an action, say plainly in one sentence that tools are turned off for this
+session and they can turn them back on to do that, then help however you can with words alone.
+Never invent records, ids, counts or results — if answering would need a lookup, say you cannot
+see it here.
+
+Be concise and answer in clean, conversational markdown.
 """
 
 
@@ -173,17 +193,9 @@ async def _get_tool_schemas(connection: Connection) -> list[MCPTool]:
     return _tool_schemas
 
 
-async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
-    """Build an agent for one already-authenticated user.
-
-    The caller supplies the session (the user's token + role + id): the REPL gets it
-    from login(), and the HTTP server gets it from the identity Spring forwards. This
-    keeps "how we learned who the user is" out of agent assembly, so the same builder
-    serves both the dev REPL and a per-request web call.
-
-    Returns a BuiltAgent (the agent plus a summary of the session).
-    """
-    connection: Connection = {
+def _mcp_connection(settings: Settings, session: Session) -> Connection:
+    """The SSE connection for this user's MCP calls, carrying their own fresh bearer token."""
+    return {
         "transport": "sse",
         "url": settings.mcp_sse_url,
         "headers": {"Authorization": f"Bearer {session.token}"},
@@ -191,38 +203,97 @@ async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
         # on the library's short 5s default (sse_read_timeout keeps its generous 5-min default).
         "timeout": settings.mcp_timeout_seconds,
     }
-    schemas = await _get_tool_schemas(connection)
 
-    # Wrap the cached schemas as LangChain tools bound to THIS request's connection, so every
-    # tool call carries this user's own fresh token (the token is never cached — only the
-    # schemas are). The MCP server sends every client the full list and cannot filter per user,
-    # so we trim it next using the role from the trusted login response; the server still
-    # enforces real access on every call as a backstop. Writes that survive the filter are still
-    # gated by HumanInTheLoopMiddleware below, which pauses them for approval.
+
+async def _load_role_tools(settings: Settings, session: Session) -> tuple[list[BaseTool], int]:
+    """Return (tools this role may see, total tools the server offered), from the cached schemas.
+
+    Wraps the cached schemas as LangChain tools bound to THIS request's connection, so every tool
+    call carries this user's own fresh token (the token is never cached — only the schemas are). The
+    MCP server sends every client the full list and cannot filter per user, so we trim it here using
+    the role from the trusted login response; the server still enforces real access on every call as a
+    backstop. ask_user is NOT included — callers that run the agent append it after any further
+    filtering, so it is never trimmed out.
+    """
+    connection = _mcp_connection(settings, session)
+    schemas = await _get_tool_schemas(connection)
     all_tools = [
         convert_mcp_tool_to_langchain_tool(
             None, schema, connection=connection, server_name="bibexpo"
         )
         for schema in schemas
     ]
-    # ask_user is a local UI tool (not from MCP), so every role gets it: appended after role
-    # filtering so it is never trimmed out. It always pauses for a `respond` (see build_interrupt_on).
-    tools = visible_tools(session.role, all_tools) + [ask_user]
+    return visible_tools(session.role, all_tools), len(all_tools)
 
-    # Persist conversation state to DynamoDB so memory survives restarts (shared, built once).
-    checkpointer = _get_checkpointer(settings)
 
+async def visible_tool_list(settings: Settings, session: Session) -> list[BaseTool]:
+    """The MCP tools this user's role may see — the candidates for the enable/disable toggle UI.
+
+    The same role filter build_agent applies, minus ask_user (a local UI tool, never user-toggleable)
+    and minus any per-request disabled set (which is a display choice, not a role limit). Reuses the
+    cached schemas, so it costs no model call and no network round trip after the one-time warmup.
+    """
+    role_tools, _ = await _load_role_tools(settings, session)
+    return role_tools
+
+
+async def build_agent(
+    settings: Settings,
+    session: Session,
+    *,
+    mcp_enabled: bool = True,
+    disabled_tools: list[str] | None = None,
+) -> BuiltAgent:
+    """Build an agent for one already-authenticated user.
+
+    The caller supplies the session (the user's token + role + id): the REPL gets it
+    from login(), and the HTTP server gets it from the identity Spring forwards. This
+    keeps "how we learned who the user is" out of agent assembly, so the same builder
+    serves both the dev REPL and a per-request web call.
+
+    mcp_enabled / disabled_tools are the per-request token-saving choice: mcp_enabled=False offers
+    no tools at all (pure chat), and disabled_tools hides specific tools by name. Disabling means the
+    tool schema never reaches the model — that is where the token saving comes from. It is not a
+    security control (the MCP server still authorizes every call); it only changes what is offered.
+
+    Returns a BuiltAgent (the agent plus a summary of the session).
+    """
     # The approval gate. mode_state starts from settings but is mutable so the REPL can
     # switch modes live; the interrupt_on map reads it fresh on every tool call.
     mode_state = ModeState(mode=settings.approval_mode)
 
+    if mcp_enabled:
+        # Loading the role tools is the build's only MCP contact, so it happens ONLY when tools are
+        # wanted — a chat-only build never touches the MCP server (and works even when it is down).
+        role_tools, total_tools = await _load_role_tools(settings, session)
+        disabled = set(disabled_tools or ())
+        # ask_user is a local UI tool (not from MCP) and not user-toggleable, so it is appended after
+        # the disabled filter and always survives. Surviving writes are still gated by the approval
+        # middleware below.
+        tools = [t for t in role_tools if t.name not in disabled] + [ask_user]
+        system_prompt = SYSTEM_PROMPT
+    else:
+        # No tools at all: pure chat. Nothing to gate, so the approval middleware is skipped and a
+        # prompt variant tells the model it cannot act or look anything up this session.
+        tools = []
+        total_tools = 0
+        system_prompt = CHAT_ONLY_SYSTEM_PROMPT
+
+    # Persist conversation state to DynamoDB so memory survives restarts (shared, built once).
+    checkpointer = _get_checkpointer(settings)
+
+    # Summarization and usage tracking apply to every conversation; the approval gate only matters
+    # when tools can run, so it is added only when tools are offered.
+    approval_middleware = (
+        [HumanInTheLoopMiddleware(interrupt_on=build_interrupt_on(tools, mode_state))] if tools else []
+    )
     agent = create_agent(
         model=f"openai:{settings.openai_model}",
         tools=tools,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         checkpointer=checkpointer,
         middleware=[
-            HumanInTheLoopMiddleware(interrupt_on=build_interrupt_on(tools, mode_state)),
+            *approval_middleware,
             SummarizationMiddleware(
                 model=f"openai:{settings.summary_model}",
                 trigger=("tokens", int(_SUMMARY_TRIGGER_FRACTION * settings.context_budget_tokens)),
@@ -236,7 +307,7 @@ async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
         agent=agent,
         tools=tools,
         role=session.role,
-        total_tools=len(all_tools),
+        total_tools=total_tools,
         user_id=session.user_id,
         mode_state=mode_state,
     )

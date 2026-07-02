@@ -10,11 +10,21 @@ import logging
 
 import jwt
 from fastapi import HTTPException, Request
+from fastapi.security import HTTPBearer
 
 from .core.auth import Session, verify_token
 from .core.settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Declares the Bearer-token scheme to OpenAPI so Swagger UI shows an "Authorize" button and sends
+# 'Authorization: Bearer <token>' on every secured call (the same convenience SpringDoc gives).
+# auto_error=False leaves enforcement to authenticate()/authenticated_user_id, which already return
+# the right 401s — so attaching this only documents the requirement, it does not change behavior.
+bearer_scheme = HTTPBearer(
+    auto_error=False,
+    description="Paste a user access token (JWT). Sent as 'Authorization: Bearer <token>'.",
+)
 
 
 def _bearer(request: Request) -> str | None:

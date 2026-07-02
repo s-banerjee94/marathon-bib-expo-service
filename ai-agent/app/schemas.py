@@ -22,6 +22,16 @@ class ChatRequest(CamelModel):
 
     message: str = Field(description="The user's message to the assistant.")
     mode: str = Field(description="Approval mode (required): auto | agent | ask.", min_length=1)
+    mcp_enabled: bool | None = Field(
+        default=None,
+        description="True/false to set for this turn; omit (null) to use the user's saved setting. "
+        "False = offer no tools this turn (pure chat); no tool schemas reach the model.",
+    )
+    disabled_tools: list[str] | None = Field(
+        default=None,
+        description="Tool names to hide this turn (token saving); omit (null) to use the saved "
+        "setting. Ignored when mcpEnabled is false.",
+    )
 
 
 class EditedAction(CamelModel):
@@ -55,6 +65,16 @@ class ResumeRequest(CamelModel):
 
     decisions: list[Decision]
     mode: str = Field(description="Approval mode (required): auto | agent | ask. Send the same mode the conversation is using.", min_length=1)
+    mcp_enabled: bool | None = Field(
+        default=None,
+        description="Send the same value used to start the conversation (or omit to use the saved "
+        "setting); must keep the pending tool visible.",
+    )
+    disabled_tools: list[str] | None = Field(
+        default=None,
+        description="Send the same value used to start the conversation (or omit to use the saved "
+        "setting); must not include the pending tool.",
+    )
 
 
 class PendingField(CamelModel):
@@ -126,3 +146,31 @@ class UsageResponse(CamelModel):
     limit: int = Field(description="Daily token cap for the caller's role, or -1 when uncapped.")
     remaining: int = Field(description="Tokens left today, or -1 when uncapped.")
     resets_at: datetime = Field(description="When the daily counter resets (next UTC midnight).")
+
+
+class ToolInfo(CamelModel):
+    """One tool the signed-in user may see, for the enable/disable toggle UI (GET /chat/tools)."""
+
+    name: str = Field(description="Internal tool name; send it back in disabledTools to hide it.")
+    label: str = Field(description="Human-friendly label to show in the toggle (e.g. 'Create Event').")
+
+
+class ToolsResponse(CamelModel):
+    """The enable/disable UI payload: the tools this role may use plus the user's saved state.
+
+    Returned by GET /chat/tools (current saved state) and by PUT /chat/tools (the state just saved),
+    so the frontend can render the toggle already reflecting the user's preference.
+    """
+
+    tools: list[ToolInfo] = Field(description="Tools the signed-in user's role may enable or disable.")
+    mcp_enabled: bool = Field(description="The user's saved master switch (true = tools on).")
+    disabled_tools: list[str] = Field(description="The user's saved list of hidden tool names.")
+
+
+class ToolPrefsRequest(CamelModel):
+    """Save the user's assistant-tool choice (full replace); persists across sessions and devices."""
+
+    mcp_enabled: bool = Field(default=True, description="False = no tools at all (pure chat).")
+    disabled_tools: list[str] = Field(
+        default_factory=list, description="Tool names to keep hidden; ignored when mcpEnabled is false."
+    )

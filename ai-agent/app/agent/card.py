@@ -126,13 +126,21 @@ def _as_card(title: str, fields: list[dict[str, str]]) -> RenderedCard:
     )
 
 
+def tool_title(name: str) -> str:
+    """A tool's display title from its raw name: create_event -> Create Event.
+
+    Shared by the approval card and the enable/disable tool list so the two never drift.
+    """
+    return name.replace("_", " ").strip().title()
+
+
 def fallback_card(name: str, args: dict) -> RenderedCard:
     """Readable card without any model call: humanised labels, values shown as-is (secrets masked).
 
     This is what a stale-approval sweep uses (no display needed) and what the user sees if
     the model render fails — ids stay raw there, but the card always appears.
     """
-    title = name.replace("_", " ").strip().title()
+    title = tool_title(name)
     inner = _unwrap(redact_args(args))
     fields = [{"key": key, "label": _humanize(key), "value": str(value)} for key, value in inner.items()]
     return _as_card(title, fields)
