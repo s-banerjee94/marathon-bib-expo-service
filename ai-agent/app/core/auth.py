@@ -5,7 +5,7 @@ from pathlib import Path
 import httpx
 import jwt
 
-from settings import Settings
+from .settings import Settings
 
 # Token types Spring mints that the agent will act on: a user's own access token (browser-direct)
 # or the short-lived MCP token Spring forwards server-to-server. Anything else (e.g. refresh) is refused.

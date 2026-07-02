@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
-from approval import ApprovalMode
+from ..agent.approval import ApprovalMode
 
 # Read the .env file and copy its values into the environment, so os.getenv() can see them.
 load_dotenv()
@@ -93,3 +93,8 @@ def load_settings() -> Settings:
             if o.strip()
         ],
     )
+
+
+# Read once at import and shared by the FastAPI layer (main, dependencies, routers). The agent
+# layer instead receives a Settings via build_agent, so the same builder also serves the dev REPL.
+settings: Settings = load_settings()

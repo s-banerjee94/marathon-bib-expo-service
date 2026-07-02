@@ -7,15 +7,16 @@ from typing import TYPE_CHECKING
 import boto3
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware, SummarizationMiddleware
+from langchain_core.tools import tool
 from langchain_mcp_adapters.sessions import create_session
 from langchain_mcp_adapters.tools import convert_mcp_tool_to_langchain_tool
 from langgraph_checkpoint_aws import DynamoDBSaver
 
-from approval import ModeState, build_interrupt_on
-from auth import Session
-from settings import Settings, load_settings
-from tool_visibility import visible_tools
-from usage import UsageTrackingMiddleware
+from ..core.auth import Session
+from ..core.settings import Settings
+from .approval import ModeState, build_interrupt_on
+from .tool_visibility import visible_tools
+from .usage import UsageTrackingMiddleware
 
 if TYPE_CHECKING:  # imported only for type hints, never at runtime
     from langchain_mcp_adapters.sessions import Connection
@@ -66,8 +67,14 @@ through an action you cannot perform.
 People refer to events, organizations and users by name, not by numeric id. When a tool
 needs an id you were not given, resolve it yourself using a search tool with the name the
 user mentioned, then use that record's id. When exactly one record matches, use it; when
-several match, ask the user to choose by a human detail such as date or city; when none
-match, say so. Never ask the user for a numeric id, and do not show raw ids unless asked.
+several match, you MUST call the ask_user tool with those records as its options (each
+labelled by a human detail such as date or city) so the user can pick one — never list the
+matches yourself or ask the user to choose in prose; presenting a choice between records as
+plain text instead of ask_user is not allowed. When none match, say so. A user may also
+hand you a numeric id directly — accept it, but before calling any write tool, first fetch
+that record with the matching get or search tool, so you have confirmed the id exists and
+know the record by name. Never ask the user for a numeric id, and do not show raw ids
+unless asked.
 
 Be concise. For questions, just call the relevant read-only tool and report the result.
 When the user asks you to create, change or remove data, gather the details you need and go
@@ -75,11 +82,33 @@ ahead. The application itself pauses and asks the user to approve a write when c
 required, so do not ask the user to confirm again yourself; only ask a question when a detail
 is genuinely missing or ambiguous.
 
+Respect each tool's allowed values. For a field that accepts only a fixed set of options (for
+example a role or status), use one of those exact values; if the user's wording does not match
+an allowed value, call the ask_user tool with the allowed values so they can choose — do not
+guess. If a tool call fails because a value is invalid, do not silently try again with another
+guess: tell the user plainly what was wrong and, when the field has fixed choices, ask them to
+pick a valid one.
+
 Always answer in clean, conversational markdown — never raw JSON. Present a single record as
 a few labelled lines (a bold title with its key details beneath); present several records as a
 markdown table or a short bullet list. Use the human-friendly fields such as names, dates and
 status, and leave out internal ids unless the user asks for them.
 """
+
+
+@tool
+def ask_user(question: str, options: list[str], allow_custom: bool = False) -> str:
+    """Ask the signed-in user to choose when you cannot resolve something yourself.
+
+    Call this only for a genuine choice the user must make — most often when a search by name
+    returns several matches and you cannot tell which one they meant. Pass a short question and
+    the candidate options as short human-readable strings; set allow_custom to true only when a
+    free-text answer also makes sense. Do not call this for values you can look up with another
+    tool, and never to confirm a write (the application already handles that approval).
+    """
+    # The user's reply is returned as this tool's result via the `respond` decision, so this
+    # body does not run in normal operation; it only guards the unexpected no-pause case.
+    return "No response was provided."
 
 
 # Built once and shared by every request. The checkpointer wraps a boto3 DynamoDB client
@@ -176,7 +205,9 @@ async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
         )
         for schema in schemas
     ]
-    tools = visible_tools(session.role, all_tools)
+    # ask_user is a local UI tool (not from MCP), so every role gets it: appended after role
+    # filtering so it is never trimmed out. It always pauses for a `respond` (see build_interrupt_on).
+    tools = visible_tools(session.role, all_tools) + [ask_user]
 
     # Persist conversation state to DynamoDB so memory survives restarts (shared, built once).
     checkpointer = _get_checkpointer(settings)
@@ -209,14 +240,3 @@ async def build_agent(settings: Settings, session: Session) -> BuiltAgent:
         user_id=session.user_id,
         mode_state=mode_state,
     )
-
-
-# Self-test: `uv run python agent.py` connects and lists the tools visible to this role.
-if __name__ == "__main__":
-    from auth import login
-
-    _settings = load_settings()
-    built = asyncio.run(build_agent(_settings, login(_settings)))
-    print(f"Connected as {built.role}. {len(built.tools)} of {built.total_tools} tools available:")
-    for tool in built.tools:
-        print(" -", tool.name)

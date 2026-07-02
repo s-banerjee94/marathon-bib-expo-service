@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 import boto3
 from langchain.agents.middleware import AgentMiddleware
 
-from settings import Settings
+from ..core.settings import Settings
 
 if TYPE_CHECKING:  # imported only for type hints
     from langgraph.runtime import Runtime

@@ -3,10 +3,10 @@ import asyncio
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
-from agent import build_agent
-from approval import ApprovalMode, ModeState
-from auth import login
-from settings import load_settings
+from app.agent.approval import ApprovalMode, ModeState
+from app.agent.builder import build_agent
+from app.core.auth import login
+from app.core.settings import load_settings
 
 
 def _handle_mode(command: str, mode_state: ModeState) -> None:

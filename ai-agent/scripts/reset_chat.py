@@ -4,8 +4,8 @@ Use this to start a user's chat fresh — for example after an approval interrup
 abandoned (a new message sent instead of /resume), which leaves a dangling tool call
 that OpenAI then rejects. Run from the ai-agent/ directory:
 
-    uv run python reset_chat.py user-1     # delete one conversation by thread id
-    uv run python reset_chat.py 1          # same, given just the user id
+    uv run python scripts/reset_chat.py user-1     # delete one conversation by thread id
+    uv run python scripts/reset_chat.py 1          # same, given just the user id
 """
 
 import asyncio
@@ -14,7 +14,7 @@ import sys
 import boto3
 from langgraph_checkpoint_aws import DynamoDBSaver
 
-from settings import load_settings
+from app.core.settings import load_settings
 
 
 async def _delete(thread_id: str) -> None:

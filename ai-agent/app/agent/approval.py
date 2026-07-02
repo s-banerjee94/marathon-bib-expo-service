@@ -82,9 +82,19 @@ _CRITICAL_NAMES = frozenset(
     }
 )
 
+# The local disambiguation tool: the model calls it to ask the signed-in user to choose among
+# options. It is not a write — it always pauses (asking the human is its whole purpose) and is
+# answered with `respond` (the human's pick becomes the tool result) or cancelled with `reject`.
+ASK_USER_TOOL = "ask_user"
+
 
 def _is_read(name: str) -> bool:
     return name.startswith(_READ_PREFIXES)
+
+
+def is_read_tool(name: str) -> bool:
+    """True when a tool only reads data — safe to run in the background without approval."""
+    return _is_read(name)
 
 
 def _is_known_write(name: str) -> bool:
@@ -93,6 +103,11 @@ def _is_known_write(name: str) -> bool:
 
 def _is_critical(name: str) -> bool:
     return name.startswith(_CRITICAL_PREFIXES) or name in _CRITICAL_NAMES
+
+
+def _always(_request: ToolCallRequest) -> bool:
+    """ask_user always pauses, regardless of approval mode — asking the human is the point."""
+    return True
 
 
 def _should_pause(tool_name: str, mode_state: ModeState) -> Callable[[ToolCallRequest], bool]:
@@ -127,6 +142,13 @@ def build_interrupt_on(
     """
     interrupt_on: dict[str, InterruptOnConfig] = {}
     for tool in tools:
+        if tool.name == ASK_USER_TOOL:
+            # A question, not a write: always pause; answer with respond, or cancel with reject.
+            interrupt_on[tool.name] = {
+                "allowed_decisions": ["respond", "reject"],
+                "when": _always,
+            }
+            continue
         if _is_read(tool.name):
             continue
         interrupt_on[tool.name] = {

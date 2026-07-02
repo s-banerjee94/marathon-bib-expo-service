@@ -4,8 +4,8 @@ import json
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 
-from auth import login
-from settings import load_settings
+from app.core.auth import login
+from app.core.settings import load_settings
 
 
 async def main() -> None:
