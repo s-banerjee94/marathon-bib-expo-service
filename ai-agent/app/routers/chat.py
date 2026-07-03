@@ -12,12 +12,21 @@ from dataclasses import dataclass
 from typing import Any
 
 import openai
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langgraph.types import Command
 from sse_starlette import EventSourceResponse
 
 from ..agent.approval import ASK_USER_TOOL, ApprovalMode
+from ..agent.attachments import (
+    AttachmentError,
+    AttachmentRef,
+    AttachmentTooLargeError,
+    delete_user_attachments,
+    presign_get,
+    resolve_attachment_ids,
+    store_uploads,
+)
 from ..agent.builder import BuiltAgent, _get_checkpointer, build_agent, visible_tool_list
 from ..agent.card import fallback_card, redact_args, render_card, text_content, tool_title
 from ..agent.prefs import get_tool_prefs, resolve_tool_prefs, save_tool_prefs
@@ -26,9 +35,12 @@ from ..core.auth import Session
 from ..core.settings import settings
 from ..dependencies import authenticate, authenticated_user_id, bearer_scheme
 from ..schemas import (
+    AttachmentInfo,
+    AttachmentUploadResponse,
     ChatRequest,
     ChatResponse,
     Decision,
+    HistoryAttachment,
     HistoryMessage,
     HistoryRequest,
     HistoryResponse,
@@ -248,6 +260,42 @@ def _disabled_log(disabled_tools: list[str] | None) -> str:
     return "saved" if disabled_tools is None else str(len(disabled_tools))
 
 
+def _http_from_attachment_error(exc: AttachmentError) -> HTTPException:
+    """Map an attachment validation failure to its HTTP status: too-big -> 413, bad type -> 400."""
+    status = 413 if isinstance(exc, AttachmentTooLargeError) else 400
+    return HTTPException(status_code=status, detail=str(exc))
+
+
+async def _resolve_attachments(session: Session, req: ChatRequest) -> list[AttachmentRef]:
+    """Turn a message's attachmentIds into verified refs (off the event loop), or raise 400/413.
+
+    Done in the endpoint so a bad/expired id or an over-limit set fails as a real HTTP status
+    before any agent run or streaming begins. No ids -> no refs.
+    """
+    if not req.attachment_ids:
+        return []
+    try:
+        return await asyncio.to_thread(
+            resolve_attachment_ids, settings, session.user_id, req.attachment_ids
+        )
+    except AttachmentError as exc:
+        raise _http_from_attachment_error(exc)
+
+
+def _human_message(message: str, refs: list[AttachmentRef]) -> HumanMessage:
+    """The user's turn, with an attachment breadcrumb + tiny refs when files ride along.
+
+    The breadcrumb keeps the attachment visible in stored history (which is text-only); the refs
+    (keys + metadata, no bytes) sit in additional_kwargs for AttachmentMiddleware to load at model
+    time. No attachments -> a plain text message, exactly as before.
+    """
+    if not refs:
+        return HumanMessage(content=message)
+    names = ", ".join(ref.filename for ref in refs)
+    text = f"{message}\n\n_(attached: {names})_" if message.strip() else f"_(attached: {names})_"
+    return HumanMessage(content=text, additional_kwargs={"attachments": [ref.to_dict() for ref in refs]})
+
+
 async def _run(session: Session, payload: object, opts: _RunOptions) -> ChatResponse:
     """Build this user's agent and run one step (a new message or a resume)."""
     try:
@@ -383,11 +431,34 @@ def _is_summary(message: object) -> bool:
     return extra.get("lc_source") == "summarization"
 
 
+def _message_attachments(message: HumanMessage) -> list[HistoryAttachment]:
+    """Presigned display info for any files attached to a stored user message (for the transcript).
+
+    The saved message keeps only a tiny ref per file (key + metadata, no bytes); we presign each key
+    to a short-lived GET URL so a reloaded page can render the image/PDF. A ref that can't be signed
+    is skipped (no thumbnail). Signing is local, so this stays cheap even for a full page of history.
+    """
+    refs = (getattr(message, "additional_kwargs", None) or {}).get("attachments") or []
+    items: list[HistoryAttachment] = []
+    for ref in refs:
+        url = presign_get(settings, ref.get("key"))
+        if not url:
+            continue
+        items.append(HistoryAttachment(
+            kind=ref.get("kind") or "image",
+            filename=ref.get("filename") or "attachment",
+            mime_type=ref.get("mime") or "",
+            url=url,
+        ))
+    return items
+
+
 def _to_history(messages: list) -> list[HistoryMessage]:
     """Keep only restorable lines: real user/assistant turns and the summarization divider.
 
     Tool calls, tool results and system text are dropped as noise. The summary marker is a
-    HumanMessage, so it must be checked before the plain-user case.
+    HumanMessage, so it must be checked before the plain-user case. A user turn also carries any
+    attached files as presigned display URLs so the transcript can show them after a reload.
     """
     history: list[HistoryMessage] = []
     for message in messages:
@@ -396,7 +467,7 @@ def _to_history(messages: list) -> list[HistoryMessage]:
             history.append(HistoryMessage(role="assistant", content=text, summary=True))
         elif isinstance(message, HumanMessage):
             if text.strip():
-                history.append(HistoryMessage(role="user", content=text))
+                history.append(HistoryMessage(role="user", content=text, attachments=_message_attachments(message)))
         elif isinstance(message, AIMessage):
             if text.strip():  # skip tool-call-only assistant turns (no visible text)
                 history.append(HistoryMessage(role="assistant", content=text))
@@ -446,13 +517,14 @@ _SSE_DESCRIPTION = (
 async def chat(req: ChatRequest, request: Request) -> ChatResponse:
     session = authenticate(request)
     await asyncio.to_thread(check_allowed, settings, session.user_id, session.role)
+    refs = await _resolve_attachments(session, req)
     logger.info(
-        "POST /chat user=%s role=%s mode=%s mcp=%s disabled=%s len=%d",
-        session.user_id, session.role, req.mode, req.mcp_enabled, _disabled_log(req.disabled_tools), len(req.message),
+        "POST /chat user=%s role=%s mode=%s mcp=%s disabled=%s att=%d len=%d",
+        session.user_id, session.role, req.mode, req.mcp_enabled, _disabled_log(req.disabled_tools), len(refs), len(req.message),
     )
     _begin_run(session.user_id)
     try:
-        return await _run(session, {"messages": [HumanMessage(content=req.message)]}, _run_options(req))
+        return await _run(session, {"messages": [_human_message(req.message, refs)]}, _run_options(req))
     finally:
         _end_run(session.user_id)
 
@@ -478,12 +550,13 @@ async def resume(req: ResumeRequest, request: Request) -> ChatResponse:
 async def chat_stream(req: ChatRequest, request: Request) -> EventSourceResponse:
     session = authenticate(request)
     await asyncio.to_thread(check_allowed, settings, session.user_id, session.role)
+    refs = await _resolve_attachments(session, req)  # raises 400/413 before streaming starts
     logger.info(
-        "POST /chat/stream user=%s role=%s mode=%s mcp=%s disabled=%s len=%d",
-        session.user_id, session.role, req.mode, req.mcp_enabled, _disabled_log(req.disabled_tools), len(req.message),
+        "POST /chat/stream user=%s role=%s mode=%s mcp=%s disabled=%s att=%d len=%d",
+        session.user_id, session.role, req.mode, req.mcp_enabled, _disabled_log(req.disabled_tools), len(refs), len(req.message),
     )
     _begin_run(session.user_id)
-    payload = {"messages": [HumanMessage(content=req.message)]}
+    payload = {"messages": [_human_message(req.message, refs)]}
     return EventSourceResponse(_guarded_stream(session.user_id, session, payload, _run_options(req)), ping=15)
 
 
@@ -502,18 +575,57 @@ async def resume_stream(req: ResumeRequest, request: Request) -> EventSourceResp
     return EventSourceResponse(_guarded_stream(session.user_id, session, payload, _run_options(req)), ping=15)
 
 
+@router.post("/chat/attachments", summary="Upload image/PDF file(s) for the assistant to read")
+async def upload_attachments(
+    request: Request, files: list[UploadFile] = File(description="Up to 2 image/PDF files.")
+) -> AttachmentUploadResponse:
+    """Store one or two uploaded images/PDFs; return an id (to send with a chat message) plus a
+    short-lived presigned URL (to display the file right away) per file.
+
+    Validated server-side: at most 2 files, image <=2 MB / PDF <=1 MB each (no combined-size cap),
+    and the type is checked by magic bytes (a bad type is 400, too large is 413). The bytes go to S3 (too big
+    for a DynamoDB checkpoint); a chat message then references them by id and the agent reads them for
+    that one turn. Not gated by the single-run lock — it is an upload, not an agent run. Identity comes
+    from the Bearer access token, and every id is scoped to that user.
+    """
+    session = authenticate(request)
+    uploads = [((f.filename or "attachment"), (f.content_type or ""), await f.read()) for f in files]
+    try:
+        refs = await asyncio.to_thread(store_uploads, settings, session.user_id, uploads)
+    except AttachmentError as exc:
+        raise _http_from_attachment_error(exc)
+    logger.info("POST /chat/attachments user=%s files=%d", session.user_id, len(refs))
+    return AttachmentUploadResponse(
+        attachments=[
+            AttachmentInfo(
+                attachment_id=ref.id,
+                kind=ref.kind,
+                filename=ref.filename,
+                mime_type=ref.mime,
+                size_bytes=ref.size,
+                # Presign now so the UI can show the server copy immediately (same source as /history);
+                # the frontend can still paint the local blob first for zero-latency feedback.
+                url=presign_get(settings, ref.key) or "",
+            )
+            for ref in refs
+        ]
+    )
+
+
 @router.delete("/chat/memory", summary="Delete a user's conversation memory (start fresh)")
 async def reset_memory(request: Request) -> Response:
     """Wipe one user's stored conversation so their next message starts with empty history.
 
     Reaches the shared checkpointer directly — no agent is built, since a delete needs no
-    tools or model — and removes every checkpoint and write for thread user-<id>. Idempotent:
-    deleting an already-empty thread is a no-op and still returns 204.
+    tools or model — and removes every checkpoint and write for thread user-<id>, then deletes the
+    user's uploaded attachments so no orphaned files linger. Idempotent: deleting an already-empty
+    thread (and an empty attachment prefix) is a no-op and still returns 204.
     """
     user_id = authenticated_user_id(request)
     thread_id = _thread_id(user_id)
     logger.info("DELETE /chat/memory user=%s thread=%s", user_id, thread_id)
     await _get_checkpointer(settings).adelete_thread(thread_id)
+    await asyncio.to_thread(delete_user_attachments, settings, user_id)
     return Response(status_code=204)
 
 

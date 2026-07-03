@@ -15,6 +15,7 @@ from langgraph_checkpoint_aws import DynamoDBSaver
 from ..core.auth import Session
 from ..core.settings import Settings
 from .approval import ModeState, build_interrupt_on
+from .attachments import AttachmentMiddleware
 from .tool_visibility import visible_tools
 from .usage import UsageTrackingMiddleware
 
@@ -299,6 +300,9 @@ async def build_agent(
                 trigger=("tokens", int(_SUMMARY_TRIGGER_FRACTION * settings.context_budget_tokens)),
                 keep=("messages", _SUMMARY_KEEP_MESSAGES),
             ),
+            # Innermost (closest to the model): loads any uploaded image/PDF from S3 and attaches it
+            # to just this one model call, so the megabytes never enter saved state or summarization.
+            AttachmentMiddleware(settings),
             # Records each model call's token usage to the user's daily counter (Spring's budget gate).
             UsageTrackingMiddleware(settings, session.user_id),
         ],

@@ -32,6 +32,31 @@ class ChatRequest(CamelModel):
         description="Tool names to hide this turn (token saving); omit (null) to use the saved "
         "setting. Ignored when mcpEnabled is false.",
     )
+    attachment_ids: list[str] | None = Field(
+        default=None,
+        description="Ids returned by POST /chat/attachments for files (image/PDF) the assistant "
+        "should read with this message; omit (null) or [] for a text-only message. At most 2.",
+    )
+
+
+class AttachmentInfo(CamelModel):
+    """One stored upload the client echoes back in a chat message's attachmentIds."""
+
+    attachment_id: str = Field(description="Send this back in ChatRequest.attachmentIds to attach the file.")
+    kind: Literal["image", "pdf"] = Field(description="What the file is, so the UI can show the right icon.")
+    filename: str = Field(description="The original file name.")
+    mime_type: str = Field(description="The file's MIME type (e.g. image/png, application/pdf).")
+    size_bytes: int = Field(description="The stored file size in bytes.")
+    url: str = Field(
+        description="Short-lived presigned GET URL to display the file right away — the same URL "
+        "source /chat/history returns, so the composer and the transcript share one render path.",
+    )
+
+
+class AttachmentUploadResponse(CamelModel):
+    """The result of POST /chat/attachments: one info per accepted file, in upload order."""
+
+    attachments: list[AttachmentInfo] = Field(description="The accepted files; pass their ids to /chat.")
 
 
 class EditedAction(CamelModel):
@@ -123,12 +148,26 @@ class HistoryRequest(CamelModel):
     cursor: int | None = Field(default=None, description="nextCursor from the previous page; omit for the newest page.")
 
 
+class HistoryAttachment(CamelModel):
+    """A file attached to a stored user message, with a short-lived URL to display it."""
+
+    kind: Literal["image", "pdf"] = Field(description="image = render inline; pdf = show as a link/preview.")
+    filename: str = Field(description="Original file name.")
+    mime_type: str = Field(description="The file's MIME type (e.g. image/png, application/pdf).")
+    url: str = Field(description="Short-lived presigned GET URL; may 404 if the file has expired or was deleted.")
+
+
 class HistoryMessage(CamelModel):
     """One restorable line of history: a real user/assistant turn, or a summarization divider."""
 
     role: Literal["user", "assistant"] = Field(description="Who said it.")
     content: str = Field(description="The message text, in markdown.")
     summary: bool = Field(default=False, description="True when this marks where earlier turns were summarized.")
+    attachments: list[HistoryAttachment] = Field(
+        default_factory=list,
+        description="Files on this user turn (render thumbnails from these); [] when none. The "
+        "'(attached: …)' text in `content` is a plain fallback you may hide when showing thumbnails.",
+    )
 
 
 class HistoryResponse(CamelModel):

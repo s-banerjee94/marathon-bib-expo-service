@@ -30,6 +30,12 @@ class Settings:
     usage_table: str              # DynamoDB table holding per-user daily token usage
     prefs_table: str              # DynamoDB table holding per-user assistant preferences (tool toggle)
 
+    # S3 storage for chat attachments (images/PDFs the user uploads for the model to read). Kept in
+    # its own dedicated bucket, separate from the Spring media bucket. A file is too big to live in a
+    # DynamoDB checkpoint (400 KB cap), so the bytes go here and only a tiny reference is saved.
+    s3_bucket: str                # dedicated AI-media bucket name
+    s3_endpoint_url: str | None   # LocalStack endpoint locally; None for real AWS (instance role)
+
     approval_mode: ApprovalMode   # how freely the agent acts before asking a human
 
     # HTTP chat service (the browser calls this directly with a Bearer access token).
@@ -78,6 +84,9 @@ def load_settings() -> Settings:
         checkpoint_table=os.getenv("BIBEXPO_CHECKPOINT_TABLE", "marathon-ai-agent-checkpoints"),
         usage_table=os.getenv("BIBEXPO_AI_USAGE_TABLE", "marathon-ai-usage"),
         prefs_table=os.getenv("BIBEXPO_AI_PREFS_TABLE", "marathon-ai-agent-prefs"),
+        s3_bucket=os.getenv("BIBEXPO_S3_BUCKET", "marathon-bib-expo-ai-media"),
+        # Reuse the DynamoDB endpoint by default (same LocalStack locally), overridable on its own.
+        s3_endpoint_url=os.getenv("BIBEXPO_S3_ENDPOINT_URL", os.getenv("BIBEXPO_DDB_ENDPOINT_URL")) or None,
         approval_mode=_parse_mode(os.getenv("BIBEXPO_APPROVAL_MODE", "agent")),
         api_host=os.getenv("BIBEXPO_API_HOST", "127.0.0.1"),
         api_port=int(os.getenv("BIBEXPO_API_PORT", "8000")),
