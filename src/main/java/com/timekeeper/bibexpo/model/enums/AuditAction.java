@@ -7,5 +7,6 @@ public enum AuditAction {
     STATUS_CHANGE,
     LOGIN,
     GENERATE,
-    IMPORT
+    IMPORT,
+    PASSWORD_RESET
 }

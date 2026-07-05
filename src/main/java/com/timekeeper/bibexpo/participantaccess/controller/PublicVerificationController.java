@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/s")
+@RequestMapping("/api/public/short-links")
 @RequiredArgsConstructor
 @Slf4j
 public class PublicVerificationController implements PublicVerificationControllerApi {

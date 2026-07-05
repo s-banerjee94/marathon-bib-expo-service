@@ -10,12 +10,9 @@ import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationDetailsRes
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
 import com.timekeeper.bibexpo.invitation.store.InvitationStore;
 import com.timekeeper.bibexpo.messaging.delivery.DeliveryResult;
+import com.timekeeper.bibexpo.messaging.delivery.SystemMessageDispatcher;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
-import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
-import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
-import com.timekeeper.bibexpo.messaging.system.model.entity.SystemMessageTemplate;
-import com.timekeeper.bibexpo.messaging.system.service.SystemMessageTemplateService;
 import com.timekeeper.bibexpo.exception.InvalidUserDataException;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
@@ -34,7 +31,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -50,8 +46,7 @@ public class InvitationServiceImpl implements InvitationService {
     private final OrganizationRepository organizationRepository;
     private final EventRepository eventRepository;
     private final InviteProperties inviteProperties;
-    private final MessagingProviderClient messagingProviderClient;
-    private final SystemMessageTemplateService systemMessageTemplateService;
+    private final SystemMessageDispatcher systemMessageDispatcher;
 
     @Override
     public InvitationLinkResponse createInvitation(CreateInvitationRequest request, String currentUsername) {
@@ -74,9 +69,9 @@ public class InvitationServiceImpl implements InvitationService {
                 .build());
         String inviteUrl = buildInviteUrl(token);
 
-        List<DeliveryResult> deliveries = channels.isEmpty() ? List.of()
-                : deliver(channels, request.getRecipientPhone(),
-                        buildContext(role, request.getOrganizationId(), inviteUrl));
+        List<DeliveryResult> deliveries = systemMessageDispatcher.deliver(
+                SystemTemplatePurpose.INVITE, channels, request.getRecipientPhone(),
+                buildContext(role, request.getOrganizationId(), inviteUrl));
 
         log.info("Invite issued for role {} (org {}) by {} — channels: {}",
                 role, request.getOrganizationId(), currentUsername, channels);
@@ -139,54 +134,6 @@ public class InvitationServiceImpl implements InvitationService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
-    }
-
-    /**
-     * Best-effort delivery: each requested channel is attempted independently so one failure does
-     * not block the others, and the already-issued link is still returned to the inviter.
-     */
-    private List<DeliveryResult> deliver(Set<MessageChannel> channels, String recipientPhone,
-                                         InviteMessageContext context) {
-        List<DeliveryResult> results = new ArrayList<>();
-        for (MessageChannel channel : channels) {
-            try {
-                messagingProviderClient.send(channel, buildMessage(channel, recipientPhone, context));
-                results.add(DeliveryResult.builder().channel(channel).sent(true).build());
-            } catch (Exception e) {
-                log.warn("Invite delivery over {} failed: {}", channel, e.getMessage());
-                results.add(DeliveryResult.builder().channel(channel).sent(false).detail(e.getMessage()).build());
-            }
-        }
-        return results;
-    }
-
-    /**
-     * Builds the per-channel payload from that channel's system template: SMS renders the body,
-     * WhatsApp renders the ordered variables, and both carry the registered template and sender id.
-     */
-    private OutboundMessage buildMessage(MessageChannel channel, String recipientPhone, InviteMessageContext context) {
-        SystemMessageTemplate template = systemMessageTemplateService.resolve(SystemTemplatePurpose.INVITE, channel);
-        return OutboundMessage.builder()
-                .recipientPhone(recipientPhone)
-                .templateId(template.getDltTemplateId())
-                .senderId(template.getSenderId())
-                .message(renderBody(template.getBody(), context))
-                .variables(renderVariables(template.getVariables(), context))
-                .build();
-    }
-
-    private String renderBody(String body, InviteMessageContext context) {
-        return isBlank(body) ? null : SmsTemplateParser.parse(body, context);
-    }
-
-    /** Renders the newline-separated {@code #{field}} expressions into ordered positional values. */
-    private List<String> renderVariables(String variables, InviteMessageContext context) {
-        if (isBlank(variables)) {
-            return List.of();
-        }
-        return Arrays.stream(variables.split("\n"))
-                .map(expression -> SmsTemplateParser.parse(expression, context))
-                .toList();
     }
 
     private InviteMessageContext buildContext(UserRole role, Long organizationId, String inviteUrl) {

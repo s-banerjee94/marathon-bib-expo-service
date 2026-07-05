@@ -4,6 +4,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.timekeeper.bibexpo.invitation.config.InviteProperties;
 import com.timekeeper.bibexpo.invitation.model.Invitation;
+import com.timekeeper.bibexpo.passwordreset.config.PasswordResetProperties;
+import com.timekeeper.bibexpo.passwordreset.model.PasswordResetToken;
 import com.timekeeper.bibexpo.service.dashboard.OrgDashboardService;
 import com.timekeeper.bibexpo.service.dashboard.PlatformDashboardService;
 import org.springframework.cache.CacheManager;
@@ -124,6 +126,19 @@ public class CacheConfig {
         return Caffeine.newBuilder()
                 .maximumSize(10_000)
                 .expireAfterWrite(inviteProperties.getTtlMinutes(), TimeUnit.MINUTES)
+                .build();
+    }
+
+    /**
+     * Dedicated native cache for pending password resets. A native Caffeine cache (not the
+     * CacheManager) is used so the store can atomically remove-and-return on completion.
+     * The write-expiry is the reset link lifetime.
+     */
+    @Bean
+    public Cache<String, PasswordResetToken> passwordResetCache(PasswordResetProperties passwordResetProperties) {
+        return Caffeine.newBuilder()
+                .maximumSize(10_000)
+                .expireAfterWrite(passwordResetProperties.getTtlMinutes(), TimeUnit.MINUTES)
                 .build();
     }
 }

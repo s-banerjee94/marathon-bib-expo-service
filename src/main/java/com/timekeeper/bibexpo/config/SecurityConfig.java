@@ -61,7 +61,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").permitAll()  // Allow health checks
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()  // Allow Swagger
                         .requestMatchers("/api/dev/**").permitAll()  // Allow dev endpoints (only active in dev profile)
-                        .requestMatchers("/s/**").permitAll()  // Allow public participant verification links
+                        .requestMatchers("/api/public/**").permitAll()  // Public API endpoints (participant verification short-link lookup, etc.)
                         .anyRequest().authenticated()  // All other requests require authentication
                 )
                 .sessionManagement(session ->

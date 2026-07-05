@@ -12,8 +12,9 @@ import lombok.NoArgsConstructor;
 /**
  * DTO for updating an existing user's profile.
  * All fields are optional - only provided fields will be updated.
- * Only basic profile fields can be updated (password, email, fullName, phoneNumber).
- * Administrative fields like role, organization, and account status require separate admin operations.
+ * Only basic profile fields can be updated (email, fullName, phoneNumber).
+ * The password is changed through its own endpoints (self-service change or password reset);
+ * administrative fields like role, organization, and account status require separate admin operations.
  */
 @Data
 @Builder
@@ -21,10 +22,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Schema(description = "Request for updating a user's profile")
 public class UpdateUserRequest {
-
-    @Size(min = 8, max = 100, message = "Password must be between 8 and 100 characters")
-    @Schema(description = "New password for the user (will be encrypted)", example = "NewSecurePass123!", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private String password;
 
     @Email(message = "Email must be valid")
     @Size(max = 100, message = "Email must not exceed 100 characters")

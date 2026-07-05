@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.service;
 
+import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
@@ -67,8 +68,9 @@ public interface UserService {
 
     /**
      * Update an existing user's profile.
-     * Only basic profile fields can be updated: password, email, fullName, phoneNumber.
-     * Administrative fields (role, organization, account status) require separate admin operations.
+     * Only basic profile fields can be updated: email, fullName, phoneNumber.
+     * The password is changed through {@link #changeOwnPassword} or the password-reset flow;
+     * administrative fields (role, organization, account status) require separate admin operations.
      *
      * Permission hierarchy:
      * - ROOT can update: any user
@@ -87,6 +89,33 @@ public interface UserService {
      * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to update target user
      */
     UserResponse updateUser(Long userId, UpdateUserRequest request, String currentUsername);
+
+    /**
+     * Change the signed-in user's own password. The current password is verified before the new
+     * one is stored, and the new password must differ from the current one. No audit event is
+     * recorded for a self-service change.
+     *
+     * @param currentUsername the username of the signed-in user changing their password
+     * @param request         the current and new passwords
+     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the current password is wrong,
+     *         or the new password matches the current one
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the current user no longer exists
+     */
+    void changeOwnPassword(String currentUsername, ChangePasswordRequest request);
+
+    /**
+     * Assert that {@code currentUsername} is allowed to manage (update) the target user, applying
+     * the same permission hierarchy as {@link #updateUser}. Performs no writes.
+     *
+     * <p>Used to authorize an administrator-initiated password reset link before it is issued, so a
+     * reset can only ever be issued for a user the caller could otherwise have updated.
+     *
+     * @param userId          the target user to be managed
+     * @param currentUsername the username of the user performing the action
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the target user does not exist
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     */
+    void assertCanUpdateUser(Long userId, String currentUsername);
 
     /**
      * Reassign a distributor to a different event within its own organization.

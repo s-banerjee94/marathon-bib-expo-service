@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
+import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.ReassignDistributorEventRequest;
@@ -323,6 +324,32 @@ public interface UserControllerApi {
     ResponseEntity<UserResponse> toggleUserLocked(
             @Parameter(description = "User ID", required = true)
             @PathVariable Long userId,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
+            summary = "Change your own password",
+            description = """
+                    Changes the signed-in user's own password. The current password must be supplied \
+                    and is verified before the new one is stored, and the new password must differ from \
+                    the current one. Available to every authenticated role, only for the caller's own account."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Password changed successfully"),
+            @ApiResponse(responseCode = "400", description = "Current password incorrect, or new password invalid or unchanged",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized - user is not authenticated",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PutMapping("/me/password")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    ResponseEntity<Void> changeOwnPassword(
+            @Parameter(description = "Current and new password", required = true)
+            @Valid @RequestBody ChangePasswordRequest request,
 
             @Parameter(hidden = true)
             @AuthenticationPrincipal User currentUser

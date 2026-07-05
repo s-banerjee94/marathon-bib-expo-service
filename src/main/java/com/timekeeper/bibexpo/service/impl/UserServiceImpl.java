@@ -12,6 +12,7 @@ import com.timekeeper.bibexpo.exception.UserNotFoundException;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
+import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
@@ -474,11 +475,6 @@ public class UserServiceImpl implements UserService {
         validateUpdateUserAuthorization(currentUser, targetUser);
 
         // Update fields if provided
-        if (request.getPassword() != null) {
-            targetUser.setPassword(passwordEncoder.encode(request.getPassword()));
-            log.debug("Password updated for user ID: {}", userId);
-        }
-
         if (request.getEmail() != null) {
             validateEmailUniqueness(request.getEmail(), targetUser.getId());
             targetUser.setEmail(request.getEmail());
@@ -501,6 +497,35 @@ public class UserServiceImpl implements UserService {
         log.info("Successfully updated user with ID: {}", updatedUser.getId());
 
         return toResponse(updatedUser);
+    }
+
+    @Override
+    @Transactional
+    public void changeOwnPassword(String currentUsername, ChangePasswordRequest request) {
+        log.info("Password change requested by: {}", currentUsername);
+
+        User currentUser = fetchCurrentUser(currentUsername);
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), currentUser.getPassword())) {
+            log.warn("Password change rejected for {}: current password did not match", currentUsername);
+            throw new InvalidUserDataException("Your current password is incorrect.");
+        }
+        if (passwordEncoder.matches(request.getNewPassword(), currentUser.getPassword())) {
+            throw new InvalidUserDataException("Your new password must be different from your current password.");
+        }
+
+        currentUser.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(currentUser);
+        authUserCache.evict(currentUser.getUsername());
+        log.info("Password changed for user ID: {}", currentUser.getId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void assertCanUpdateUser(Long userId, String currentUsername) {
+        User currentUser = fetchCurrentUser(currentUsername);
+        User targetUser = fetchTargetUser(userId);
+        validateUpdateUserAuthorization(currentUser, targetUser);
     }
 
     /**
@@ -714,23 +739,36 @@ public class UserServiceImpl implements UserService {
      * Validates that the current user has permission to toggle the enabled status of the target user.
      *
      * Permission hierarchy:
-     * - ROOT can disable: any user
-     * - ADMIN can disable: any user
+     * - ROOT can disable: any other user
+     * - ADMIN can disable: ORG_ADMIN, ORG_USER, DISTRIBUTOR (not ROOT or other ADMINs)
      * - ORG_ADMIN can disable: ORG_USER, DISTRIBUTOR (own organization only)
      * - ORG_USER can disable: DISTRIBUTOR (own organization only)
+     * - No one can enable or disable their own account
      */
     private void validateToggleEnabledAuthorization(User currentUser, User targetUser) {
         UserRole currentRole = currentUser.getRole();
         UserRole targetRole = targetUser.getRole();
 
-        // ROOT can disable anyone
+        // No one may enable or disable their own account (prevents self-lockout).
+        if (isSelfUpdate(currentUser, targetUser)) {
+            log.error("User {} attempted to toggle its own enabled status", currentUser.getUsername());
+            throw new UnauthorizedAccessException("You cannot enable or disable your own account.");
+        }
+
+        // ROOT can disable any other user
         if (currentRole == UserRole.ROOT) {
             log.debug("ROOT user authorized to toggle enabled status for user ID: {}", targetUser.getId());
             return;
         }
 
-        // ADMIN can disable anyone
+        // ADMIN can disable organization roles, but not ROOT or another ADMIN
         if (currentRole == UserRole.ADMIN) {
+            if (targetRole == UserRole.ROOT || targetRole == UserRole.ADMIN) {
+                log.error("ADMIN {} attempted to toggle enabled status for {} user",
+                        currentUser.getUsername(), targetRole);
+                throw new UnauthorizedAccessException(
+                        "You cannot enable or disable users with equal or higher privileges.");
+            }
             log.debug("ADMIN user authorized to toggle enabled status for user ID: {}", targetUser.getId());
             return;
         }
@@ -754,11 +792,6 @@ public class UserServiceImpl implements UserService {
 
         // ORG_USER restrictions
         if (currentRole == UserRole.ORGANIZER_USER) {
-            if (isSelfUpdate(currentUser, targetUser)) {
-                log.debug("ORG_USER user toggling own enabled status");
-                return;
-            }
-
             if (targetRole != UserRole.DISTRIBUTOR) {
                 log.error("ORG_USER {} attempted to toggle enabled status for {} user",
                         currentUser.getUsername(), targetRole);
@@ -782,14 +815,35 @@ public class UserServiceImpl implements UserService {
      * Validates that the current user has permission to toggle the locked status of the target user.
      *
      * Permission hierarchy:
-     * - ROOT can lock/unlock: any user
-     * - ADMIN can lock/unlock: any user
+     * - ROOT can lock/unlock: any other user
+     * - ADMIN can lock/unlock: ORG_ADMIN, ORG_USER, DISTRIBUTOR (not ROOT or other ADMINs)
+     * - No one can lock or unlock their own account
      */
     private void validateToggleLockedAuthorization(User currentUser, User targetUser) {
         UserRole currentRole = currentUser.getRole();
+        UserRole targetRole = targetUser.getRole();
 
-        if (currentRole == UserRole.ROOT || currentRole == UserRole.ADMIN) {
-            log.debug("{} user authorized to toggle locked status for user ID: {}", currentRole, targetUser.getId());
+        // No one may lock or unlock their own account.
+        if (isSelfUpdate(currentUser, targetUser)) {
+            log.error("User {} attempted to toggle its own locked status", currentUser.getUsername());
+            throw new UnauthorizedAccessException("You cannot lock or unlock your own account.");
+        }
+
+        // ROOT can lock/unlock any other user
+        if (currentRole == UserRole.ROOT) {
+            log.debug("ROOT user authorized to toggle locked status for user ID: {}", targetUser.getId());
+            return;
+        }
+
+        // ADMIN can lock/unlock organization roles, but not ROOT or another ADMIN
+        if (currentRole == UserRole.ADMIN) {
+            if (targetRole == UserRole.ROOT || targetRole == UserRole.ADMIN) {
+                log.error("ADMIN {} attempted to toggle locked status for {} user",
+                        currentUser.getUsername(), targetRole);
+                throw new UnauthorizedAccessException(
+                        "You cannot lock or unlock users with equal or higher privileges.");
+            }
+            log.debug("ADMIN user authorized to toggle locked status for user ID: {}", targetUser.getId());
             return;
         }
 

@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
+import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.ReassignDistributorEventRequest;
@@ -40,6 +41,13 @@ public class UserController implements UserControllerApi {
         log.info("Request to update user ID: {} by: {}", userId, currentUser.getUsername());
         UserResponse response = userService.updateUser(userId, request, currentUser.getUsername());
         return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<Void> changeOwnPassword(ChangePasswordRequest request, User currentUser) {
+        log.info("Request to change own password by: {}", currentUser.getUsername());
+        userService.changeOwnPassword(currentUser.getUsername(), request);
+        return ResponseEntity.noContent().build();
     }
 
     @Override
