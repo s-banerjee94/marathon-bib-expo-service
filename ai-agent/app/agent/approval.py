@@ -71,12 +71,15 @@ _CRITICAL_PREFIXES = ("delete_", "send_", "import_", "test_", "bulk_", "invite_"
 # Writes that do not match a write prefix above but still change data.
 _WRITE_NAMES = frozenset({"reassign_distributor_event"})
 
-# Critical writes that a prefix cannot single out: campaign "create_"s that blast messages
-# to real participants, plus account/tenant creation, versus a harmless create_event.
+# Critical writes that a prefix cannot single out: campaign creates/updates that arm a campaign
+# and blast messages to real participants (an update with a trigger moves it ACTIVE and sends),
+# plus account/tenant creation, versus a harmless create_event.
 _CRITICAL_NAMES = frozenset(
     {
         "create_sms_campaign",
         "create_whatsapp_campaign",
+        "update_sms_campaign",
+        "update_whatsapp_campaign",
         "create_organization",
         "create_user",
     }

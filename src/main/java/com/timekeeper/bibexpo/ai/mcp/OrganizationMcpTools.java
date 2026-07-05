@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.ai.mcp;
 
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
+import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
@@ -65,5 +66,22 @@ public class OrganizationMcpTools implements McpToolGroup {
         log.info("MCP create_organization - name '{}', by {}",
                 request.getOrganizerName(), currentUser.getUsername());
         return organizationService.createOrganization(request);
+    }
+
+    @Tool(name = "update_organization",
+            description = "Update an existing organization. This writes data. Runs as the signed-in user: ROOT and "
+                    + "ADMIN may update any organization, an organizer admin only their own. Only the fields you provide "
+                    + "are changed; omit the rest. Resolve the organization id from its name with search_organizations, "
+                    + "or from get_my_profile for your own organization; never ask the user for a numeric id. Returns "
+                    + "the updated organization.")
+    public OrganizationResponse updateOrganization(
+            @ToolParam(description = "The id of the organization to update. Resolve it with search_organizations or get_my_profile") Long organizationId,
+            @ToolParam(description = "The fields to change; unspecified fields are left as they are") UpdateOrganizationRequest request) {
+
+        User currentUser = McpToolSupport.requireCurrentUser();
+        McpToolSupport.validate(validator, request);
+
+        log.info("MCP update_organization - org {}, by {}", organizationId, currentUser.getUsername());
+        return organizationService.updateOrganization(organizationId, request, currentUser);
     }
 }

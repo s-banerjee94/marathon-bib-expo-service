@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
 import com.timekeeper.bibexpo.model.dto.request.CreateParticipantRequest;
+import com.timekeeper.bibexpo.model.dto.request.UpdateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantResponse;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -61,6 +62,25 @@ public class ParticipantMcpTools implements McpToolGroup {
         log.info("MCP create_participant - bib '{}', event {}, by {}",
                 request.getBibNumber(), eventId, currentUser.getUsername());
         return participantService.createParticipant(eventId, request, currentUser);
+    }
+
+    @Tool(name = "update_participant",
+            description = "Update one participant of an event. This writes data. Runs as the signed-in user and is "
+                    + "limited to events that user may manage. The participant is identified by their current bib "
+                    + "number; resolve it with search_participants first. Only the fields you provide are changed; omit "
+                    + "the rest — including the bib number itself, which may be changed when the new one is free. Resolve "
+                    + "any new race or category with list_event_races and list_race_categories; never ask the user for a "
+                    + "numeric id. Returns the updated participant.")
+    public ParticipantResponse updateParticipant(
+            @ToolParam(description = "The id of the event the participant belongs to. Resolve it from the event name with search_events") Long eventId,
+            @ToolParam(description = "The participant's current bib number. Resolve it with search_participants") String bibNumber,
+            @ToolParam(description = "The fields to change; unspecified fields are left as they are") UpdateParticipantRequest request) {
+
+        User currentUser = McpToolSupport.requireCurrentUser();
+        McpToolSupport.validate(validator, request);
+
+        log.info("MCP update_participant - event {}, bib '{}', by {}", eventId, bibNumber, currentUser.getUsername());
+        return participantService.updateParticipant(eventId, bibNumber, request, currentUser);
     }
 
     private int clampLimit(Integer limit) {

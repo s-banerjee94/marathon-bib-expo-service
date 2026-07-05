@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
 import com.timekeeper.bibexpo.model.dto.request.CreateCategoryRequest;
+import com.timekeeper.bibexpo.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.response.CategoryResponse;
 import com.timekeeper.bibexpo.model.entity.Gender;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -53,5 +54,24 @@ public class CategoryMcpTools implements McpToolGroup {
         log.info("MCP create_category - name '{}', event {}, race {}, by {}",
                 request.getCategoryName(), eventId, raceId, currentUser.getUsername());
         return categoryService.createCategory(eventId, raceId, request, currentUser);
+    }
+
+    @Tool(name = "update_category",
+            description = "Update an existing category under a race. This writes data. Runs as the signed-in user "
+                    + "and is limited to events that user may manage. Only the fields you provide are changed; omit the "
+                    + "rest. Resolve the event, race and category from their names with search_events, list_event_races "
+                    + "and list_race_categories; never ask the user for a numeric id. Returns the updated category.")
+    public CategoryResponse updateCategory(
+            @ToolParam(description = "The id of the event the race belongs to. Resolve it from the event name with search_events") Long eventId,
+            @ToolParam(description = "The id of the race the category belongs to. Resolve it from the race name with list_event_races") Long raceId,
+            @ToolParam(description = "The id of the category to update. Resolve it from the category name with list_race_categories") Long categoryId,
+            @ToolParam(description = "The fields to change; unspecified fields are left as they are") UpdateCategoryRequest request) {
+
+        User currentUser = McpToolSupport.requireCurrentUser();
+        McpToolSupport.validate(validator, request);
+
+        log.info("MCP update_category - event {}, race {}, category {}, by {}",
+                eventId, raceId, categoryId, currentUser.getUsername());
+        return categoryService.updateCategory(eventId, raceId, categoryId, request, currentUser);
     }
 }
