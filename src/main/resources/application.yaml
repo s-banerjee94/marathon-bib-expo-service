@@ -110,10 +110,8 @@ logging:
     com.timekeeper.bibexpo.security: DEBUG
     com.timekeeper.bibexpo.service.impl.JwtServiceImpl: DEBUG
 
-# Application Statistics and Participant Access Configuration
+# Participant Access Configuration
 app:
-  statistics:
-    stale-threshold-minutes: ${STATS_STALE_THRESHOLD_MINUTES:15}
   participant-access:
     base-url: ${PARTICIPANT_ACCESS_BASE_URL:http://localhost:8080}
     qr-secret: ${PARTICIPANT_ACCESS_QR_SECRET:default-qr-secret-change-in-production}

@@ -1,14 +1,8 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
-import com.timekeeper.bibexpo.model.dto.response.EventStatisticsResponse;
-import com.timekeeper.bibexpo.model.dto.response.OrganizationStatisticsResponse;
-import com.timekeeper.bibexpo.model.dto.response.UserStatisticsResponse;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.EventActivityRange;
-import com.timekeeper.bibexpo.service.AppStatisticsService;
 import com.timekeeper.bibexpo.service.dashboard.EventDashboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +16,6 @@ import org.springframework.stereotype.Component;
 public class ReportingMcpTools implements McpToolGroup {
 
     private final EventDashboardService eventDashboardService;
-    private final AppStatisticsService appStatisticsService;
 
     @Tool(name = "get_event_dashboard",
             description = "Get the reporting dashboard for one event: total registered participants, how many bibs "
@@ -40,39 +33,5 @@ public class ReportingMcpTools implements McpToolGroup {
 
         log.info("MCP get_event_dashboard - event {}, range {}, by {}", eventId, window, currentUser.getUsername());
         return eventDashboardService.loadDashboard(eventId, window, currentUser);
-    }
-
-    @Tool(name = "get_event_statistics",
-            description = "Get an overview of events across the signed-in user's scope: the total number of events, "
-                    + "how many are upcoming, and a count by status (DRAFT, PUBLISHED, CANCELLED, COMPLETED). ROOT and "
-                    + "ADMIN see the whole platform; organizer users see only their own organization. Read-only. Use "
-                    + "this for 'how many events do we have' style questions, not for a single event's details.")
-    public EventStatisticsResponse getEventStatistics() {
-        User currentUser = McpToolSupport.requireCurrentUser();
-        log.info("MCP get_event_statistics - by {}", currentUser.getUsername());
-        return appStatisticsService.getEventStatistics(currentUser);
-    }
-
-    @Tool(name = "get_user_statistics",
-            description = "Get an overview of user accounts across the signed-in user's scope: the total number of "
-                    + "users, how many are active or inactive, and a count by role. ROOT and ADMIN see the whole "
-                    + "platform; organizer users see only their own organization. Read-only.")
-    public UserStatisticsResponse getUserStatistics() {
-        User currentUser = McpToolSupport.requireCurrentUser();
-        log.info("MCP get_user_statistics - by {}", currentUser.getUsername());
-        return appStatisticsService.getUserStatistics(currentUser);
-    }
-
-    @Tool(name = "get_organization_statistics",
-            description = "Get a platform-wide overview of organizations: the total number and a breakdown by status. "
-                    + "Only ROOT and ADMIN may use this. Read-only.")
-    public OrganizationStatisticsResponse getOrganizationStatistics() {
-        User currentUser = McpToolSupport.requireCurrentUser();
-        if (currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) {
-            throw new UnauthorizedAccessException("You are not allowed to view organization statistics.");
-        }
-
-        log.info("MCP get_organization_statistics - by {}", currentUser.getUsername());
-        return appStatisticsService.getOrganizationStatistics(currentUser);
     }
 }

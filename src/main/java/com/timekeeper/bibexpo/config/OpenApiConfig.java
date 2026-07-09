@@ -123,34 +123,29 @@ public class OpenApiConfig {
     }
 
     @Bean
-    public GroupedOpenApi statisticsDoc() {
-        return group("11-statistics", "App Statistics", "/api/statistics/**");
-    }
-
-    @Bean
     public GroupedOpenApi dashboardDoc() {
-        return group("12-dashboard", "Dashboard", "/api/dashboard/**", "/api/events/*/dashboard");
+        return group("11-dashboard", "Dashboard", "/api/dashboard/**", "/api/events/*/dashboard");
     }
 
     @Bean
     public GroupedOpenApi auditLogsDoc() {
-        return group("13-audit-logs", "Audit Logs", "/api/audit-logs/**");
+        return group("12-audit-logs", "Audit Logs", "/api/audit-logs/**");
     }
 
     @Bean
     public GroupedOpenApi notificationsDoc() {
-        return group("14-notifications", "Notifications", "/api/notifications/**");
+        return group("13-notifications", "Notifications", "/api/notifications/**");
     }
 
     @Bean
     public GroupedOpenApi systemMessagingDoc() {
-        return group("15-system-messaging", "System Messaging (Root)",
+        return group("14-system-messaging", "System Messaging (Root)",
                 "/api/system/messaging-providers/**", "/api/system/message-templates/**");
     }
 
     @Bean
     public GroupedOpenApi devOperationsDoc() {
-        return group("16-dev-operations", "Dev Operations (Dev Profile Only)", "/api/dev/**");
+        return group("15-dev-operations", "Dev Operations (Dev Profile Only)", "/api/dev/**");
     }
 
     // ---- helpers ----
