@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
 import com.timekeeper.bibexpo.model.dto.request.CreateRaceRequest;
+import com.timekeeper.bibexpo.model.dto.request.UpdateRaceRequest;
 import com.timekeeper.bibexpo.model.dto.response.RaceResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.RaceService;
@@ -34,8 +35,8 @@ public class RaceMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_race",
-            description = "Create a new race under an event. This writes data, so only call it after the user has "
-                    + "confirmed the details. Runs as the signed-in user and is limited to events that user may manage. "
+            description = "Create a new race under an event. This writes data. Runs as the signed-in user and is "
+                    + "limited to events that user may manage. "
                     + "Resolve the event from its name with search_events; never ask the user for a numeric id. "
                     + "Returns the created race.")
     public RaceResponse createRace(
@@ -48,5 +49,22 @@ public class RaceMcpTools implements McpToolGroup {
         log.info("MCP create_race - name '{}', event {}, by {}",
                 request.getRaceName(), eventId, currentUser.getUsername());
         return raceService.createRace(eventId, request, currentUser);
+    }
+
+    @Tool(name = "update_race",
+            description = "Update an existing race under an event. This writes data. Runs as the signed-in user and "
+                    + "is limited to events that user may manage. Only the fields you provide are changed; omit the "
+                    + "rest. Resolve the event and race from their names with search_events and list_event_races; never "
+                    + "ask the user for a numeric id. Returns the updated race.")
+    public RaceResponse updateRace(
+            @ToolParam(description = "The id of the event the race belongs to. Resolve it from the event name with search_events") Long eventId,
+            @ToolParam(description = "The id of the race to update. Resolve it from the race name with list_event_races") Long raceId,
+            @ToolParam(description = "The fields to change; unspecified fields are left as they are") UpdateRaceRequest request) {
+
+        User currentUser = McpToolSupport.requireCurrentUser();
+        McpToolSupport.validate(validator, request);
+
+        log.info("MCP update_race - event {}, race {}, by {}", eventId, raceId, currentUser.getUsername());
+        return raceService.updateRace(eventId, raceId, request, currentUser);
     }
 }

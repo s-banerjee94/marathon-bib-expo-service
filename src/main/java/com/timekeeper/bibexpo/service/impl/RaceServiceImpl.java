@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.exception.InvalidUserDataException;
 import com.timekeeper.bibexpo.exception.RaceAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.RaceDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.RaceNotFoundException;
@@ -23,6 +24,7 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.RaceService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.util.EventDateTimeUtil;
 import com.timekeeper.bibexpo.util.NameNormalizer;
 import com.timekeeper.bibexpo.util.TextUtils;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -72,7 +76,7 @@ public class RaceServiceImpl implements RaceService {
         Race race = Race.builder()
                 .raceName(raceName)
                 .raceDescription(request.getRaceDescription())
-                .reportingTime(request.getReportingTime())
+                .reportingTime(resolveReportingInstant(event, request.getReportingDate(), request.getReportingTime()))
                 .event(event)
                 .deleted(false)
                 .build();
@@ -116,7 +120,10 @@ public class RaceServiceImpl implements RaceService {
         }
 
         TextUtils.applyIfSent(request.getRaceDescription(), race::setRaceDescription);
-        TextUtils.applyIfSent(request.getReportingTime(), race::setReportingTime);
+        Instant reportingInstant = resolveReportingInstant(event, request.getReportingDate(), request.getReportingTime());
+        if (reportingInstant != null) {
+            race.setReportingTime(reportingInstant);
+        }
 
         Race updatedRace = raceRepository.save(race);
         nameResolver.evict(eventId);
@@ -220,5 +227,19 @@ public class RaceServiceImpl implements RaceService {
 
         return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)
                 .orElseThrow(RaceNotFoundException::new);
+    }
+
+    private Instant resolveReportingInstant(Event event, String date, String time) {
+        if (date == null && time == null) {
+            return null;
+        }
+        if (date == null || time == null) {
+            throw new InvalidUserDataException("Provide both the reporting date and time, or neither.");
+        }
+        Instant reporting = EventDateTimeUtil.toInstant(date, time, EventDateTimeUtil.zone(event.getTimezone()));
+        if (reporting.isBefore(Instant.now().plus(Duration.ofHours(1)))) {
+            throw new InvalidUserDataException("The reporting time must be at least one hour from now.");
+        }
+        return reporting;
     }
 }

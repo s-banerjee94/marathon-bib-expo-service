@@ -3,9 +3,13 @@ package com.timekeeper.bibexpo.config;
 import com.timekeeper.bibexpo.security.JwtAccessDeniedHandler;
 import com.timekeeper.bibexpo.security.JwtAuthenticationEntryPoint;
 import com.timekeeper.bibexpo.security.JwtAuthenticationFilter;
+import com.timekeeper.bibexpo.security.McpTokenAuthenticationFilter;
+import com.timekeeper.bibexpo.service.JwtService;
+import com.timekeeper.bibexpo.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -32,6 +36,8 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final JwtService jwtService;
+    private final SessionService sessionService;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -52,6 +58,30 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(1)
+    public SecurityFilterChain mcpFilterChain(HttpSecurity http) {
+        http
+                .securityMatcher("/sse", "/mcp/message")
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler(jwtAccessDeniedHandler)
+                )
+                .addFilterBefore(
+                        new McpTokenAuthenticationFilter(jwtService, userDetailsService, sessionService),
+                        UsernamePasswordAuthenticationFilter.class
+                );
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http)  {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))

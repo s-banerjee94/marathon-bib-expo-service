@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
+import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -53,8 +54,8 @@ public class EventMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_event",
-            description = "Create a new event under an organization. This writes data, so only call it after the "
-                    + "user has confirmed the details. Runs as the signed-in user: ROOT and ADMIN can create events "
+            description = "Create a new event under an organization. This writes data. Runs as the signed-in "
+                    + "user: ROOT and ADMIN can create events "
                     + "for any organization, organizer admins and users only for their own. The event starts in DRAFT. "
                     + "Resolve the organization from its name with search_organizations; never ask the user for a "
                     + "numeric id. Dates are yyyy-MM-dd and times are 24-hour HH:mm in the event timezone. "
@@ -68,5 +69,21 @@ public class EventMcpTools implements McpToolGroup {
         log.info("MCP create_event - name '{}', org {}, by {}",
                 request.getEventName(), request.getOrganizationId(), currentUser.getUsername());
         return eventService.createEvent(request, currentUser);
+    }
+
+    @Tool(name = "update_event",
+            description = "Update an existing event. This writes data. Runs as the signed-in user and is limited to "
+                    + "events that user may manage. Only the fields you provide are changed; omit the rest. Resolve the "
+                    + "event from its name with search_events; never ask the user for a numeric id. Dates are yyyy-MM-dd "
+                    + "and times are 24-hour HH:mm in the event timezone. Returns the updated event.")
+    public EventResponse updateEvent(
+            @ToolParam(description = "The id of the event to update. Resolve it from the event name with search_events") Long eventId,
+            @ToolParam(description = "The fields to change; unspecified fields are left as they are") UpdateEventRequest request) {
+
+        User currentUser = McpToolSupport.requireCurrentUser();
+        McpToolSupport.validate(validator, request);
+
+        log.info("MCP update_event - event {}, by {}", eventId, currentUser.getUsername());
+        return eventService.updateEvent(eventId, request, currentUser);
     }
 }

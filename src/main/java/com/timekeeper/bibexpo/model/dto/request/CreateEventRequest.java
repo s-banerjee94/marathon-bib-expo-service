@@ -16,7 +16,7 @@ public class CreateEventRequest {
 
     @NotBlank(message = "Event name is required")
     @Size(min = 2, max = 200, message = "Event name must be between 2 and 200 characters")
-    @Schema(description = "Event name", example = "Mumbai Marathon 2024")
+    @Schema(description = "Event name", example = "Mumbai City Marathon")
     private String eventName;
 
     @Schema(description = "Event description", example = "Annual marathon event in Mumbai with multiple race categories", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
@@ -27,19 +27,19 @@ public class CreateEventRequest {
     private String timezone;
 
     @NotBlank(message = "Event start date is required")
-    @Schema(description = "Event start date in yyyy-MM-dd format", example = "2026-10-15")
+    @Schema(description = "Event start date in yyyy-MM-dd format", example = "2026-10-24")
     private String eventStartDate;
 
     @NotBlank(message = "Event start time is required")
-    @Schema(description = "Event start time in HH:mm format", example = "06:00")
+    @Schema(description = "Event start time in HH:mm format", example = "09:00")
     private String eventStartTime;
 
     @NotBlank(message = "Event end date is required")
-    @Schema(description = "Event end date in yyyy-MM-dd format", example = "2026-10-15")
+    @Schema(description = "Event end date in yyyy-MM-dd format", example = "2026-10-25")
     private String eventEndDate;
 
     @NotBlank(message = "Event end time is required")
-    @Schema(description = "Event end time in HH:mm format", example = "13:00")
+    @Schema(description = "Event end time in HH:mm format", example = "18:00")
     private String eventEndTime;
 
     @NotBlank(message = "Venue name is required")

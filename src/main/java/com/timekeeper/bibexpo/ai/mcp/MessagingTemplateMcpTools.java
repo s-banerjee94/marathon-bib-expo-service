@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.ai.mcp;
 
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateWhatsAppTemplateRequest;
+import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateSmsTemplateRequest;
+import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateWhatsAppTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsTemplateResponse;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.WhatsAppTemplateResponse;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsTemplateService;
@@ -41,8 +43,8 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_sms_template",
-            description = "Create a reusable SMS template for an event. This writes data, so only call it after the "
-                    + "user has confirmed the details. Runs as the signed-in user and is limited to events that user "
+            description = "Create a reusable SMS template for an event. This writes data. Runs as the signed-in "
+                    + "user and is limited to events that user "
                     + "may manage. Resolve the event from its name with search_events; never ask the user for a numeric "
                     + "id. Returns the created template.")
     public SmsTemplateResponse createSmsTemplate(
@@ -55,6 +57,24 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
         log.info("MCP create_sms_template - name '{}', event {}, by {}",
                 request.getName(), eventId, currentUser.getUsername());
         return smsTemplateService.createSmsTemplate(eventId, request, currentUser);
+    }
+
+    @Tool(name = "update_sms_template",
+            description = "Update an event's SMS template. This writes data. Runs as the signed-in user and is "
+                    + "limited to events that user may manage. Only the fields you provide are changed; omit the rest. "
+                    + "Resolve the event from its name with search_events and the template from its name with "
+                    + "search_sms_templates; never ask the user for a numeric id. Returns the updated template.")
+    public SmsTemplateResponse updateSmsTemplate(
+            @ToolParam(description = "The id of the event the template belongs to. Resolve it from the event name with search_events") Long eventId,
+            @ToolParam(description = "The id of the template to update. Resolve it from the template name with search_sms_templates") Long templateId,
+            @ToolParam(description = "The fields to change; unspecified fields are left as they are") UpdateSmsTemplateRequest request) {
+
+        User currentUser = McpToolSupport.requireCurrentUser();
+        McpToolSupport.validate(validator, request);
+
+        log.info("MCP update_sms_template - template {}, event {}, by {}",
+                templateId, eventId, currentUser.getUsername());
+        return smsTemplateService.updateSmsTemplate(eventId, templateId, request, currentUser);
     }
 
     @Tool(name = "search_whatsapp_templates",
@@ -73,8 +93,8 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
     }
 
     @Tool(name = "create_whatsapp_template",
-            description = "Register an approved Twilio WhatsApp Content Template for an event. This writes data, so "
-                    + "only call it after the user has confirmed the details. The Content SID must already be approved "
+            description = "Register an approved Twilio WhatsApp Content Template for an event. This writes data. "
+                    + "The Content SID must already be approved "
                     + "on Twilio. Runs as the signed-in user and is limited to events that user may manage. Resolve the "
                     + "event from its name with search_events; never ask the user for a numeric id. Returns the created template.")
     public WhatsAppTemplateResponse createWhatsAppTemplate(
@@ -87,5 +107,24 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
         log.info("MCP create_whatsapp_template - name '{}', event {}, by {}",
                 request.getName(), eventId, currentUser.getUsername());
         return whatsAppTemplateService.createTemplate(eventId, request, currentUser);
+    }
+
+    @Tool(name = "update_whatsapp_template",
+            description = "Update an event's WhatsApp template. This writes data. Runs as the signed-in user and is "
+                    + "limited to events that user may manage. Only the fields you provide are changed; omit the rest. "
+                    + "Any Content SID you set must already be approved on Twilio. Resolve the event from its name with "
+                    + "search_events and the template from its name with search_whatsapp_templates; never ask the user "
+                    + "for a numeric id. Returns the updated template.")
+    public WhatsAppTemplateResponse updateWhatsAppTemplate(
+            @ToolParam(description = "The id of the event the template belongs to. Resolve it from the event name with search_events") Long eventId,
+            @ToolParam(description = "The id of the template to update. Resolve it from the template name with search_whatsapp_templates") Long templateId,
+            @ToolParam(description = "The fields to change; unspecified fields are left as they are") UpdateWhatsAppTemplateRequest request) {
+
+        User currentUser = McpToolSupport.requireCurrentUser();
+        McpToolSupport.validate(validator, request);
+
+        log.info("MCP update_whatsapp_template - template {}, event {}, by {}",
+                templateId, eventId, currentUser.getUsername());
+        return whatsAppTemplateService.updateTemplate(eventId, templateId, request, currentUser);
     }
 }

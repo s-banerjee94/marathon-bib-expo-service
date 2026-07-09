@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.model.dto.response;
 
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
+import com.timekeeper.bibexpo.util.EventDateTimeUtil;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,8 +11,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 
 @Data
 @NoArgsConstructor
@@ -23,7 +22,7 @@ public class EventResponse {
     @Schema(description = "Event ID", example = "1")
     private Long id;
 
-    @Schema(description = "Event name", example = "Mumbai Marathon 2024")
+    @Schema(description = "Event name", example = "Mumbai City Marathon")
     private String eventName;
 
     @Schema(description = "Event description", example = "Annual marathon event in Mumbai with multiple race categories")
@@ -36,16 +35,16 @@ public class EventResponse {
     @Schema(description = "IANA timezone ID for the event location", example = "Asia/Kolkata")
     private String timezone;
 
-    @Schema(description = "Event start date in event timezone (yyyy-MM-dd)", example = "2026-10-15")
+    @Schema(description = "Event start date in event timezone (yyyy-MM-dd)", example = "2026-10-24")
     private String eventStartDate;
 
-    @Schema(description = "Event start time in event timezone (HH:mm)", example = "06:00")
+    @Schema(description = "Event start time in event timezone (HH:mm)", example = "09:00")
     private String eventStartTime;
 
-    @Schema(description = "Event end date in event timezone (yyyy-MM-dd)", example = "2026-10-15")
+    @Schema(description = "Event end date in event timezone (yyyy-MM-dd)", example = "2026-10-25")
     private String eventEndDate;
 
-    @Schema(description = "Event end time in event timezone (HH:mm)", example = "13:00")
+    @Schema(description = "Event end time in event timezone (HH:mm)", example = "18:00")
     private String eventEndTime;
 
     @Schema(description = "Venue name", example = "Bandra Kurla Complex")
@@ -99,8 +98,6 @@ public class EventResponse {
     @Schema(description = "Last modified by username", example = "admin")
     private String lastModifiedBy;
 
-    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
-
     /**
      * Factory method to create EventResponse from Event entity
      */
@@ -109,14 +106,12 @@ public class EventResponse {
         if (event.getTimezone() != null) {
             ZoneId zone = ZoneId.of(event.getTimezone());
             if (event.getEventStartDate() != null) {
-                ZonedDateTime zStart = event.getEventStartDate().atZone(zone);
-                startDate = zStart.toLocalDate().toString();
-                startTime = zStart.format(TIME_FMT);
+                startDate = EventDateTimeUtil.dateOf(event.getEventStartDate(), zone);
+                startTime = EventDateTimeUtil.timeOf(event.getEventStartDate(), zone);
             }
             if (event.getEventEndDate() != null) {
-                ZonedDateTime zEnd = event.getEventEndDate().atZone(zone);
-                endDate = zEnd.toLocalDate().toString();
-                endTime = zEnd.format(TIME_FMT);
+                endDate = EventDateTimeUtil.dateOf(event.getEventEndDate(), zone);
+                endTime = EventDateTimeUtil.timeOf(event.getEventEndDate(), zone);
             }
         }
         return EventResponse.builder()
