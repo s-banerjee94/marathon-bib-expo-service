@@ -46,6 +46,17 @@ public class AsyncConfig {
         return executor;
     }
 
+    @Bean(name = "passwordResetTaskExecutor")
+    public Executor passwordResetTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("password-reset-");
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "auditTaskExecutor")
     public Executor auditTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

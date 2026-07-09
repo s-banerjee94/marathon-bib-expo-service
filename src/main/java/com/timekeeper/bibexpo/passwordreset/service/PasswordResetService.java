@@ -36,10 +36,11 @@ public interface PasswordResetService {
     PasswordResetLinkResponse issueForUser(Long userId, IssueResetLinkRequest request, String currentUsername);
 
     /**
-     * Public forgot-password: if the identifier matches an eligible account, issue a reset link and
-     * deliver it to that account's own registered phone. Always returns silently regardless of whether
-     * a match was found, so account existence is never disclosed. Not audited (the requester is
-     * unauthenticated); the eventual completion is what gets audited.
+     * Public forgot-password: if the identifier matches an eligible (enabled, unlocked) account, issue
+     * a reset link and deliver it to that account's own registered phone. Runs asynchronously and
+     * returns immediately, so the endpoint responds in constant time and never discloses — by outcome
+     * or by timing — whether an account exists. Not audited (the requester is unauthenticated); the
+     * eventual completion is what gets audited.
      *
      * @param request the account identifier (username, email, or phone)
      */

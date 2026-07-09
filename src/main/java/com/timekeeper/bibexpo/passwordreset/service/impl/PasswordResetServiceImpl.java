@@ -27,6 +27,7 @@ import com.timekeeper.bibexpo.service.audit.AuditPublisher;
 import com.timekeeper.bibexpo.service.cache.AuthUserCache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,8 +89,11 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Async("passwordResetTaskExecutor")
     public void requestReset(ForgotPasswordRequest request) {
+        // Runs off the request thread so the endpoint responds in constant time whether or not an
+        // account matched — otherwise the extra work of sending a link would leak, by response time,
+        // that an account exists.
         Optional<User> match = findByIdentifier(request.getIdentifier());
         if (match.isEmpty()) {
             log.info("Forgot-password request did not match any account");
