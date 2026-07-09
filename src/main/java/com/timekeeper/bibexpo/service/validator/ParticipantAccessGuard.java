@@ -1,12 +1,14 @@
 package com.timekeeper.bibexpo.service.validator;
 
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.exception.EventOperationNotAllowedException;
 import com.timekeeper.bibexpo.exception.ParticipantDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.ParticipantModificationNotAllowedException;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.service.EventBillingGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +26,7 @@ public class ParticipantAccessGuard {
 
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
+    private final EventBillingGuard billingGuard;
 
     /**
      * Read or list access: the caller's organization must own the event and the event must be available.
@@ -46,6 +49,7 @@ public class ParticipantAccessGuard {
     public void forWrite(Long eventId, User currentUser) {
         Event event = findEvent(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        requireNotBillFinalized(event);
         requireNotFinal(event);
     }
 
@@ -59,12 +63,20 @@ public class ParticipantAccessGuard {
     public Event forDelete(Long eventId, User currentUser) {
         Event event = findEvent(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        requireNotBillFinalized(event);
         requireDraft(event);
         return event;
     }
 
     private Event findEvent(Long eventId) {
         return eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+    }
+
+    private void requireNotBillFinalized(Event event) {
+        if (billingGuard.hasFinalInvoice(event.getId())) {
+            throw new EventOperationNotAllowedException(
+                    "You cannot make changes once the event bill has been finalized.");
+        }
     }
 
     private void requireDraft(Event event) {

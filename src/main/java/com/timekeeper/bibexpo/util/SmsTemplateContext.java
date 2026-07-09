@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import lombok.Getter;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
@@ -11,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 public class SmsTemplateContext {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy");
+    private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy hh:mm a");
 
     // Participant fields
     private final String fullName;
@@ -28,7 +30,11 @@ public class SmsTemplateContext {
     private final String eventEndDate;
     private final String eventCity;
 
-    public SmsTemplateContext(ParticipantDDB participant, Event event, String raceName, String categoryName) {
+    // Race fields
+    private final String reportingTime;
+
+    public SmsTemplateContext(ParticipantDDB participant, Event event, String raceName, String categoryName,
+                              Instant reportingTime) {
         this.fullName = participant.getFullName();
         this.bibNumber = participant.getBibNumber();
         this.raceName = raceName;
@@ -45,5 +51,7 @@ public class SmsTemplateContext {
         this.eventEndDate = event.getEventEndDate() != null
                 ? event.getEventEndDate().atZone(zone).format(DATE_FORMATTER) : null;
         this.eventCity = event.getCity();
+        this.reportingTime = reportingTime != null
+                ? reportingTime.atZone(zone).format(DATETIME_FORMATTER) : null;
     }
 }

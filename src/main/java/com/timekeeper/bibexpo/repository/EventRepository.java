@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.repository;
+    package com.timekeeper.bibexpo.repository;
 
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
@@ -55,4 +55,39 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
     List<Event> findTop4ByOrganizationIdAndStatusOrderByEventStartDateAsc(Long orgId, EventStatus status);
 
     List<Event> findTop10ByOrganizationIdOrderByCreatedAtDesc(Long orgId);
+
+    // --- Platform (global) dashboard queries ---
+
+    @Query("SELECT COUNT(e) FROM Event e WHERE (:from IS NULL OR e.eventStartDate >= :from) AND (:to IS NULL OR e.eventStartDate <= :to)")
+    long countByRange(@Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("SELECT COUNT(e) FROM Event e WHERE e.status IN (com.timekeeper.bibexpo.model.entity.EventStatus.DRAFT, com.timekeeper.bibexpo.model.entity.EventStatus.PUBLISHED) AND (:from IS NULL OR e.eventStartDate >= :from) AND (:to IS NULL OR e.eventStartDate <= :to)")
+    long countActiveByRange(@Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("SELECT e.status, COUNT(e) FROM Event e WHERE (:from IS NULL OR e.eventStartDate >= :from) AND (:to IS NULL OR e.eventStartDate <= :to) GROUP BY e.status")
+    List<Object[]> countGroupByStatusForRange(@Param("from") Instant from, @Param("to") Instant to);
+
+    @Query(value = "SELECT COUNT(DISTINCT LOWER(TRIM(city))) FROM events WHERE status != 'CANCELLED' AND city IS NOT NULL AND city != '' AND (:from IS NULL OR event_start_date >= :from) AND (:to IS NULL OR event_start_date <= :to)", nativeQuery = true)
+    long countDistinctCitiesForRange(@Param("from") Instant from, @Param("to") Instant to);
+
+    @Query(value = "SELECT MAX(city), LOWER(TRIM(city)) AS city_key, COUNT(*) AS cnt FROM events WHERE status != 'CANCELLED' AND city IS NOT NULL AND city != '' AND (:from IS NULL OR event_start_date >= :from) AND (:to IS NULL OR event_start_date <= :to) GROUP BY city_key ORDER BY cnt DESC, city_key ASC LIMIT :topN", nativeQuery = true)
+    List<Object[]> findTopCitiesForRange(@Param("from") Instant from, @Param("to") Instant to, @Param("topN") int topN);
+
+    List<Event> findTop4ByStatusAndEventStartDateGreaterThanOrderByEventStartDateAsc(EventStatus status, Instant now);
+
+    /** Top organizations by event count, as (organizationId, eventCount) rows, descending. */
+    @Query(value = "SELECT e.organization_id, COUNT(*) AS cnt FROM events e GROUP BY e.organization_id ORDER BY cnt DESC LIMIT :topN", nativeQuery = true)
+    List<Object[]> findTopOrganizationIdsByEventCount(@Param("topN") int topN);
+
+    // --- Trend backfill / live cumulative counts ---
+
+    long countByCreatedAtLessThanEqual(Instant asOf);
+
+    long countByStatusAndCreatedAtLessThanEqual(EventStatus status, Instant asOf);
+
+    @Query(value = "SELECT COUNT(DISTINCT LOWER(TRIM(city))) FROM events WHERE status != 'CANCELLED' AND city IS NOT NULL AND city != '' AND created_at <= :asOf", nativeQuery = true)
+    long countDistinctCitiesAsOf(@Param("asOf") Instant asOf);
+
+    @Query(value = "SELECT COUNT(DISTINCT LOWER(TRIM(city))) FROM events WHERE status != 'CANCELLED' AND city IS NOT NULL AND city != ''", nativeQuery = true)
+    long countDistinctCities();
 }

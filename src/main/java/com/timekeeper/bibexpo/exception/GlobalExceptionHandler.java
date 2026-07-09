@@ -1,4 +1,10 @@
 package com.timekeeper.bibexpo.exception;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateAlreadyExistsException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsCampaignException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignAlreadyActiveException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignNotFoundException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsTemplateException;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -13,8 +19,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
-import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -31,7 +35,36 @@ public class GlobalExceptionHandler {
     public static final String FORBIDDEN = "Forbidden";
     public static final String NOT_FOUND = "Not Found";
     public static final String CONFLICT = "Conflict";
+    public static final String UNPROCESSABLE = "Unprocessable Entity";
     public static final String METHOD_NOT_ALLOWED = "Method Not Allowed";
+
+    @ExceptionHandler(EventOperationNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleEventOperationNotAllowed(
+            EventOperationNotAllowedException ex, WebRequest request) {
+        log.warn("Event operation not allowed: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(422)
+                .error(UNPROCESSABLE)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(422).body(error);
+    }
+
+    @ExceptionHandler(EventLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleEventLimitExceeded(
+            EventLimitExceededException ex, WebRequest request) {
+        log.warn("Event resource limit exceeded: {}", ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(Instant.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error(CONFLICT)
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
 
     @ExceptionHandler(UserLimitReductionException.class)
     public ResponseEntity<ErrorResponse> handleUserLimitReduction(
@@ -730,19 +763,6 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-    }
-
-    @ExceptionHandler(AsyncRequestTimeoutException.class)
-    public ResponseEntity<Void> handleAsyncTimeout(AsyncRequestTimeoutException ex) {
-        // SSE connection timed out — response already committed, nothing to write
-        return null;
-    }
-
-    @ExceptionHandler(AsyncRequestNotUsableException.class)
-    public ResponseEntity<Void> handleAsyncNotUsable(AsyncRequestNotUsableException ex) {
-        // SSE client disconnected mid-stream — response is no longer writable, nothing to do
-        log.debug("SSE client disconnected: {}", ex.getMessage());
-        return null;
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

@@ -1,8 +1,10 @@
 package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.InvalidFileException;
 import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.exception.UserLimitReductionException;
@@ -17,12 +19,17 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.SubscriptionTier;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
+import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.OrganizationService;
 import com.timekeeper.bibexpo.service.StorageService;
+import com.timekeeper.bibexpo.service.UserService;
+import com.timekeeper.bibexpo.service.cache.AuthUserCache;
+import com.timekeeper.bibexpo.service.cache.OrganizationCache;
 import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +40,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,17 +54,31 @@ import java.util.stream.Collectors;
 public class OrganizationServiceImpl implements OrganizationService {
 
     public static final String THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST = "The organization you requested does not exist.";
+
+    // Legacy stored tier value tolerated as baseline; current tiers are in SubscriptionTier.
+    private static final String LEGACY_FREE_TIER = "FREE";
+    private static final String STATUS_ACTIVE = "ACTIVE";
+    // Reserved for the automatic expiry job (deferred): a lapsed term flips ACTIVE -> EXPIRED,
+    // then the organization falls back to the PAY_AS_YOU_GO baseline.
+    private static final String STATUS_EXPIRED = "EXPIRED";
+    private static final String STATUS_FREE = "FREE";
+    private static final int SUBSCRIPTION_TERM_YEARS = 1;
+
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
     private final UserRepository userRepository;
+    private final EventRepository eventRepository;
+    private final UserService userService;
     private final StorageService storageService;
+    private final OrganizationCache organizationCache;
+    private final AuthUserCache authUserCache;
 
     @Override
     @Transactional(readOnly = true)
     public Page<OrganizationResponse> getAllOrganizations(
-            Boolean enabled, Boolean deleted, String search, Pageable pageable, User currentUser) {
-        log.info("Fetching all organizations with filters - enabled: {}, deleted: {}, search: {}, user: {}",
-                enabled, deleted, search, currentUser.getUsername());
+            Boolean enabled, String search, Pageable pageable, User currentUser) {
+        log.info("Fetching all organizations with filters - enabled: {}, search: {}, user: {}",
+                enabled, search, currentUser.getUsername());
 
         // Only ROOT and ADMIN can access this method (enforced by @PreAuthorize in controller)
         // But we'll add an additional check here for extra security
@@ -66,7 +88,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
 
         // Build dynamic specification for filtering
-        Specification<Organization> spec = buildOrganizationSpecification(enabled, deleted, search);
+        Specification<Organization> spec = buildOrganizationSpecification(enabled, search);
 
         // Fetch organizations with pagination
         Page<Organization> organizationsPage = organizationRepository.findAll(spec, pageable);
@@ -94,21 +116,13 @@ public class OrganizationServiceImpl implements OrganizationService {
      * Build dynamic specification for filtering organizations
      */
     private Specification<Organization> buildOrganizationSpecification(
-            Boolean enabled, Boolean deleted, String search) {
+            Boolean enabled, String search) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             // Filter by enabled status if provided
             if (enabled != null) {
                 predicates.add(criteriaBuilder.equal(root.get("enabled"), enabled));
-            }
-
-            // Filter by deleted status if provided
-            if (deleted != null) {
-                predicates.add(criteriaBuilder.equal(root.get("deleted"), deleted));
-            } else {
-                // By default, exclude deleted organizations unless explicitly requested
-                predicates.add(criteriaBuilder.equal(root.get("deleted"), false));
             }
 
             // Multi-field search across organizerName, email, and phoneNumber
@@ -150,28 +164,28 @@ public class OrganizationServiceImpl implements OrganizationService {
         log.info("Creating organization with email: {}", request.getEmail());
 
         // Check if organization with email already exists
-        if (organizationRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
+        if (organizationRepository.existsByEmail(request.getEmail())) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this email already exists."
             );
         }
 
         // Check if organization with name already exists
-        if (organizationRepository.existsByOrganizerNameAndDeletedFalse(request.getOrganizerName())) {
+        if (organizationRepository.existsByOrganizerName(request.getOrganizerName())) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this name already exists."
             );
         }
 
         // Check if organization with phone number already exists (if provided)
-        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank() && organizationRepository.existsByPhoneNumberAndDeletedFalse(request.getPhoneNumber())) {
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank() && organizationRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this phone number already exists."
             );
         }
 
         // Check if organization with taxId already exists (if taxId is provided)
-        if (request.getTaxId() != null && !request.getTaxId().isBlank() && organizationRepository.existsByTaxIdAndDeletedFalse(request.getTaxId())) {
+        if (request.getTaxId() != null && !request.getTaxId().isBlank() && organizationRepository.existsByTaxId(request.getTaxId())) {
                 throw new OrganizationAlreadyExistsException(
                         "An organization with this tax ID already exists."
                 );
@@ -193,10 +207,11 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .registrationNumber(request.getRegistrationNumber())
                 .subscriptionTier(TextUtils.trimToNull(request.getSubscriptionTier()))
                 .billingEmail(TextUtils.trimToNull(request.getBillingEmail()))
-                .subscriptionStatus("ACTIVE")
                 .enabled(true)
-                .deleted(false)
                 .build();
+
+        // New organizations start from no prior subscription, so a paid tier opens a fresh term.
+        reconcileSubscriptionState(organization, null);
 
         // Save the organization
         Organization savedOrganization = organizationRepository.save(organization);
@@ -218,7 +233,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, User currentUser) {
         log.info("Updating organization with ID: {} by user: {}", id, currentUser.getUsername());
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
+        Organization organization = organizationRepository.findById(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
                         THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
                 ));
@@ -236,6 +251,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Organization updatedOrganization = organizationRepository.save(organization);
         OrganizationLimit updatedLimit = organizationLimitRepository.save(limit);
+        organizationCache.evict(updatedOrganization.getId());
         log.info("Successfully updated organization with ID: {}", updatedOrganization.getId());
 
         return buildResponse(updatedOrganization, updatedLimit);
@@ -247,7 +263,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse toggleOrganizationStatus(Long id, Boolean enabled) {
         log.info("Toggling organization status for ID: {} to enabled={}", id, enabled);
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
+        Organization organization = organizationRepository.findById(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
                         THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
                 ));
@@ -255,6 +271,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         // Update organization's enabled status
         organization.setEnabled(enabled);
         Organization updatedOrganization = organizationRepository.save(organization);
+        organizationCache.evict(updatedOrganization.getId());
 
         // Cascading behavior: Only disable users when organization is being disabled
         if (Boolean.FALSE.equals(enabled)) {
@@ -270,6 +287,8 @@ public class OrganizationServiceImpl implements OrganizationService {
                 });
 
                 userRepository.saveAll(organizationUsers);
+                // Drop the disabled users from the auth cache so they cannot keep authenticating.
+                organizationUsers.forEach(user -> authUserCache.evict(user.getUsername()));
                 log.info("Successfully disabled all users for organization ID: {}", id);
             } else {
                 log.info("No users found for organization ID: {}", id);
@@ -285,6 +304,37 @@ public class OrganizationServiceImpl implements OrganizationService {
         return toResponse(updatedOrganization);
     }
 
+    @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.DELETE)
+    @Override
+    @Transactional
+    public void deleteOrganization(Long id, User currentUser) {
+        log.info("Deleting organization with ID: {} by user: {}", id, currentUser.getUsername());
+
+        Organization organization = organizationRepository.findById(id)
+                .orElseThrow(() -> new OrganizationNotFoundException(
+                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
+
+        if (eventRepository.countByOrganizationId(id) > 0) {
+            throw new OrganizationDeletionNotAllowedException(
+                    "You cannot delete this organization while it still has events. Delete them first.");
+        }
+
+        AuditContextHolder.setEntityLabel(organization.getOrganizerName());
+        AuditContextHolder.setOrganizationId(organization.getId());
+
+        String logoKey = organization.getLogoKey();
+        userService.purgeUsersForOrganization(id);
+
+        // The organization_limits row shares the organization's PK via an FK with no cascade, so it
+        // must be removed (and flushed) before the organization itself to avoid a constraint violation.
+        organizationLimitRepository.deleteById(id);
+        organizationLimitRepository.flush();
+        organizationRepository.delete(organization);
+        organizationCache.evict(id);
+        deleteQuietly(logoKey);
+        log.info("Successfully deleted organization with ID: {} by user: {}", id, currentUser.getUsername());
+    }
+
     private void validateUpdateAuthorization(User currentUser, Long organizationId) {
         if (currentUser.getRole() == UserRole.ORGANIZER_ADMIN && (currentUser.getOrganization() == null ||
                     !currentUser.getOrganization().getId().equals(organizationId))) {
@@ -295,7 +345,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void validateEmailUniqueness(String newEmail, String currentEmail) {
-        if (newEmail != null && !newEmail.isBlank() && !newEmail.equals(currentEmail) && organizationRepository.existsByEmailAndDeletedFalse(newEmail)) {
+        if (newEmail != null && !newEmail.isBlank() && !newEmail.equals(currentEmail) && organizationRepository.existsByEmail(newEmail)) {
                 throw new OrganizationAlreadyExistsException(
                         "An organization with this email already exists."
                 );
@@ -304,7 +354,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void validateTaxIdUniqueness(String newTaxId, String currentTaxId) {
-        if (newTaxId != null && !newTaxId.isBlank() && !newTaxId.equals(currentTaxId) && organizationRepository.existsByTaxIdAndDeletedFalse(newTaxId)) {
+        if (newTaxId != null && !newTaxId.isBlank() && !newTaxId.equals(currentTaxId) && organizationRepository.existsByTaxId(newTaxId)) {
                 throw new OrganizationAlreadyExistsException(
                         "An organization with this tax ID already exists."
                 );
@@ -313,7 +363,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void validateOrganizerNameUniqueness(String newName, String currentName) {
-        if (newName != null && !newName.isBlank() && !newName.equals(currentName) && organizationRepository.existsByOrganizerNameAndDeletedFalse(newName)) {
+        if (newName != null && !newName.isBlank() && !newName.equals(currentName) && organizationRepository.existsByOrganizerName(newName)) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this name already exists."
             );
@@ -321,7 +371,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void validatePhoneNumberUniqueness(String newPhone, String currentPhone) {
-        if (newPhone != null && !newPhone.isBlank() && !newPhone.equals(currentPhone) && organizationRepository.existsByPhoneNumberAndDeletedFalse(newPhone)) {
+        if (newPhone != null && !newPhone.isBlank() && !newPhone.equals(currentPhone) && organizationRepository.existsByPhoneNumber(newPhone)) {
             throw new OrganizationAlreadyExistsException(
                     "An organization with this phone number already exists."
             );
@@ -394,8 +444,45 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     private void updateSubscriptionInfo(Organization organization, UpdateOrganizationRequest request) {
+        String previousTier = organization.getSubscriptionTier();
         TextUtils.applyIfSent(request.getSubscriptionTier(), organization::setSubscriptionTier);
         TextUtils.applyIfSent(request.getBillingEmail(), organization::setBillingEmail);
+        reconcileSubscriptionState(organization, previousTier);
+    }
+
+    /**
+     * Derives subscription status and term dates from the organization's tier. PAY_AS_YOU_GO is the
+     * baseline (a null/blank tier is normalized to it): status FREE, no term dates, no committed
+     * subscription. PREMIUM or PARTNER is a committed subscription; opening one from the baseline (or
+     * with no term recorded yet) activates a one-year term from now. An unchanged subscription tier
+     * keeps its current status — including EXPIRED set by the expiry job — and term, so unrelated
+     * edits never silently reactivate a lapsed subscription. When a PREMIUM/PARTNER term lapses the
+     * organization falls back to PAY_AS_YOU_GO (manually now; via the deferred expiry job later).
+     *
+     * @param organization the organization being reconciled, mutated in place
+     * @param previousTier  the tier held before this change
+     */
+    private void reconcileSubscriptionState(Organization organization, String previousTier) {
+        if (isBaselineTier(organization.getSubscriptionTier())) {
+            organization.setSubscriptionTier(SubscriptionTier.PAY_AS_YOU_GO.name());
+            organization.setSubscriptionStatus(STATUS_FREE);
+            organization.setSubscriptionStartDate(null);
+            organization.setSubscriptionEndDate(null);
+            return;
+        }
+        if (isBaselineTier(previousTier) || organization.getSubscriptionStartDate() == null) {
+            organization.setSubscriptionStatus(STATUS_ACTIVE);
+            LocalDateTime start = LocalDateTime.now();
+            organization.setSubscriptionStartDate(start);
+            organization.setSubscriptionEndDate(start.plusYears(SUBSCRIPTION_TERM_YEARS));
+        }
+    }
+
+    /** Baseline (no committed subscription): PAY_AS_YOU_GO, no tier (null/blank), or legacy "FREE". */
+    private boolean isBaselineTier(String tier) {
+        return tier == null || tier.isBlank()
+                || SubscriptionTier.PAY_AS_YOU_GO.name().equalsIgnoreCase(tier.trim())
+                || LEGACY_FREE_TIER.equalsIgnoreCase(tier.trim());
     }
 
     private boolean hasText(String value) {
@@ -407,10 +494,10 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse getOrganizationById(Long id, User currentUser) {
         log.info("Fetching organization by ID: {} for user: {}", id, currentUser.getUsername());
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new OrganizationNotFoundException(
-                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
-                ));
+        Organization organization = organizationCache.findActiveById(id);
+        if (organization == null) {
+            throw new OrganizationNotFoundException(THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST);
+        }
 
         if ((currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) &&
                 (currentUser.getOrganization() == null || !currentUser.getOrganization().getId().equals(id))) {
@@ -435,9 +522,10 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Long organizationId = currentUser.getOrganization().getId();
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(organizationId)
-                .orElseThrow(() -> new OrganizationNotFoundException(
-                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
+        Organization organization = organizationCache.findActiveById(organizationId);
+        if (organization == null) {
+            throw new OrganizationNotFoundException(THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST);
+        }
 
         log.info("Successfully retrieved organization with ID: {} for user: {}",
                 organizationId, currentUser.getUsername());
@@ -521,6 +609,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         String previousKey = organization.getLogoKey();
         organization.setLogoKey(objectKey);
         Organization saved = organizationRepository.saveAndFlush(organization);
+        organizationCache.evict(saved.getId());
         if (previousKey != null && !previousKey.equals(objectKey)) {
             deleteQuietly(previousKey);
         }
@@ -538,13 +627,14 @@ public class OrganizationServiceImpl implements OrganizationService {
         String previousKey = organization.getLogoKey();
         organization.setLogoKey(null);
         Organization saved = organizationRepository.saveAndFlush(organization);
+        organizationCache.evict(saved.getId());
         deleteQuietly(previousKey);
         log.info("Successfully removed logo for organization ID: {}", id);
         return toResponse(saved);
     }
 
     private Organization getActiveOrganizationOrThrow(Long id) {
-        return organizationRepository.findByIdAndDeletedFalse(id)
+        return organizationRepository.findById(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
                         THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
     }

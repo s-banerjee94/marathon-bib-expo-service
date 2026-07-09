@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.service;
 
+import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
@@ -32,9 +33,44 @@ public interface UserService {
     UserResponse createUser(CreateUserRequest request, String currentUsername);
 
     /**
+     * Validate that {@code currentUsername} is allowed to create a user with the given role
+     * and organization, applying the same hierarchy, ROOT guard, organization-scoping, and
+     * organization existence/enabled checks as {@link #createUser}. Performs no writes.
+     *
+     * <p>Used to authorize an invite before it is issued, so an invitee can never receive a
+     * link for a role or organization the inviter could not have created directly.
+     *
+     * @param role the role the invited user would be created with
+     * @param organizationId the target organization (required for organization-scoped roles)
+     * @param eventId the target event (required for DISTRIBUTOR; must belong to the organization and not have ended)
+     * @param currentUsername the username of the user issuing the invite
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the role is not creatable by the caller
+     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the organization is required but missing or disabled, or the event is required but missing or has ended
+     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
+     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
+     */
+    void assertCanCreateUser(UserRole role, Long organizationId, Long eventId, String currentUsername);
+
+    /**
+     * Create a user from an accepted invite. Authorization is intentionally skipped here
+     * because it was already enforced by {@link #assertCanCreateUser} when the invite was
+     * issued; the role and organization on the request are the invitation's trusted values.
+     * All payload validation, uniqueness, organization, and limit checks of {@link #createUser}
+     * still apply.
+     *
+     * @param request the user creation request carrying the invitee's details plus the invitation's role/organization
+     * @return the created user response
+     * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if username, email, or phone already exists
+     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if validation fails or limits exceeded
+     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization no longer exists
+     */
+    UserResponse createInvitedUser(CreateUserRequest request);
+
+    /**
      * Update an existing user's profile.
-     * Only basic profile fields can be updated: password, email, fullName, phoneNumber.
-     * Administrative fields (role, organization, account status) require separate admin operations.
+     * Only basic profile fields can be updated: email, fullName, phoneNumber.
+     * The password is changed through {@link #changeOwnPassword} or the password-reset flow;
+     * administrative fields (role, organization, account status) require separate admin operations.
      *
      * Permission hierarchy:
      * - ROOT can update: any user
@@ -55,6 +91,52 @@ public interface UserService {
     UserResponse updateUser(Long userId, UpdateUserRequest request, String currentUsername);
 
     /**
+     * Change the signed-in user's own password. The current password is verified before the new
+     * one is stored, and the new password must differ from the current one. No audit event is
+     * recorded for a self-service change.
+     *
+     * @param currentUsername the username of the signed-in user changing their password
+     * @param request         the current and new passwords
+     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the current password is wrong,
+     *         or the new password matches the current one
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the current user no longer exists
+     */
+    void changeOwnPassword(String currentUsername, ChangePasswordRequest request);
+
+    /**
+     * Assert that {@code currentUsername} is allowed to manage (update) the target user, applying
+     * the same permission hierarchy as {@link #updateUser}. Performs no writes.
+     *
+     * <p>Used to authorize an administrator-initiated password reset link before it is issued, so a
+     * reset can only ever be issued for a user the caller could otherwise have updated.
+     *
+     * @param userId          the target user to be managed
+     * @param currentUsername the username of the user performing the action
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the target user does not exist
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     */
+    void assertCanUpdateUser(Long userId, String currentUsername);
+
+    /**
+     * Reassign a distributor to a different event within its own organization.
+     *
+     * <p>Only ROOT, ADMIN, ORGANIZER_ADMIN, and ORGANIZER_USER may reassign; the two
+     * organization-scoped roles are limited to distributors in their own organization. The
+     * target must be a DISTRIBUTOR, and the new event must belong to the distributor's
+     * organization and must not have ended.
+     *
+     * @param userId the distributor to reassign
+     * @param eventId the new event to bind the distributor to
+     * @param currentUsername the username of the user performing the reassignment
+     * @return the updated user response
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist
+     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the target is not a distributor, or the event is missing or has ended
+     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     */
+    UserResponse reassignDistributorEvent(Long userId, Long eventId, String currentUsername);
+
+    /**
      * Toggle the enabled status of a user.
      * This is an administrative operation to enable/disable user accounts.
      *
@@ -73,18 +155,53 @@ public interface UserService {
     UserResponse toggleUserEnabled(Long userId, String currentUsername);
 
     /**
+     * Toggle the locked status of a user account (flips accountNonLocked).
+     * A locked account cannot log in. Restricted to platform administrators.
+     *
+     * Permission hierarchy:
+     * - ROOT can lock/unlock: any user
+     * - ADMIN can lock/unlock: any user
+     *
+     * @param userId the ID of the user to toggle
+     * @param currentUsername the username of the user performing the toggle
+     * @return the updated user response
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
+     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to toggle target user
+     */
+    UserResponse toggleUserLocked(Long userId, String currentUsername);
+
+    /**
      * Get a single user by ID.
      * Permission hierarchy:
      * - ROOT and ADMIN: Can get any user
      * - ORG_ADMIN, ORG_USER, DISTRIBUTOR: Can get users in their organization only
      *
+     * A target the caller is not permitted to view is reported as not found, so a user's
+     * existence is not disclosed across organizations or privilege levels.
+     *
      * @param userId the ID of the user to retrieve
      * @param currentUsername the username of the user making the request
      * @return the user response
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found or archived
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to view target user
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist, is archived, or is not visible to the caller
      */
     UserResponse getUserById(Long userId, String currentUsername);
+
+    /**
+     * Get a single user by username.
+     * Permission hierarchy:
+     * - ROOT and ADMIN: Can get any user
+     * - ORG_ADMIN, ORG_USER: Can get users in their organization only
+     *
+     * A target the caller is not permitted to view is reported as not found, so a username
+     * belonging to a privileged or cross-organization account cannot be distinguished from
+     * a username that does not exist.
+     *
+     * @param username the username of the user to retrieve
+     * @param currentUsername the username of the user making the request
+     * @return the user response
+     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist, is archived, or is not visible to the caller
+     */
+    UserResponse getUserByUsername(String username, String currentUsername);
 
     /**
      * Get users with role-based scoping.
@@ -93,6 +210,7 @@ public interface UserService {
      *
      * @param role optional role filter
      * @param organizationId optional organization filter (ROOT/ADMIN only)
+     * @param eventId optional event filter (matches distributors assigned to that event)
      * @param enabled optional enabled status filter
      * @param search optional search term (searches username, email, fullName)
      * @param pageable pagination parameters
@@ -100,7 +218,7 @@ public interface UserService {
      * @return page of user responses matching filters
      * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission
      */
-    Page<UserResponse> getUsers(UserRole role, Long organizationId, Boolean enabled,
+    Page<UserResponse> getUsers(UserRole role, Long organizationId, Long eventId, Boolean enabled,
                                 String search, Pageable pageable,
                                 String currentUsername);
 
@@ -135,6 +253,17 @@ public interface UserService {
      *         or target user is ROOT
      */
     void deleteUser(Long userId, String currentUsername);
+
+    /**
+     * Permanently delete every user of an organization, with no archival. For each user the
+     * notifications and profile picture are removed and the auth cache is evicted; any archived
+     * user records for the organization are dropped too. Intended for organization deletion,
+     * where retaining user records has no value.
+     *
+     * @param organizationId the organization whose users are being purged
+     * @return the number of live users deleted
+     */
+    int purgeUsersForOrganization(Long organizationId);
 
     /**
      * Create a presigned S3 upload URL for a user's profile picture. The caller must

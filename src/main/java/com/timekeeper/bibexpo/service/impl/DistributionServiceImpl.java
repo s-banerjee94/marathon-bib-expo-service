@@ -17,13 +17,14 @@ import com.timekeeper.bibexpo.repository.dynamodb.DistributionLogDDBRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.DistributionService;
 import com.timekeeper.bibexpo.service.EventStatsService;
-import com.timekeeper.bibexpo.service.SmsSendService;
-import com.timekeeper.bibexpo.whatsapp.service.WhatsAppSendService;
+import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventSmsService;
+import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventWhatsAppService;
 import com.timekeeper.bibexpo.service.util.DistributionConstants;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.DistributionValidator;
+import com.timekeeper.bibexpo.util.EventTimeUtil;
 import com.timekeeper.bibexpo.util.TextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,8 +51,8 @@ public class DistributionServiceImpl implements DistributionService {
     private final DistributionLogDDBRepository logRepository;
     private final DynamoDBPaginationCodec paginationCodec;
     private final DistributionValidator validator;
-    private final SmsSendService smsSendService;
-    private final WhatsAppSendService whatsAppSendService;
+    private final ParticipantEventSmsService participantEventSmsService;
+    private final ParticipantEventWhatsAppService participantEventWhatsAppService;
     private final EventStatsService eventStatsService;
     private final RaceCategoryNameResolver nameResolver;
 
@@ -112,7 +113,7 @@ public class DistributionServiceImpl implements DistributionService {
         }
 
         participantRepository.save(participant);
-        eventStatsService.onBibCollected(participant, goodiesDistributed);
+        eventStatsService.onBibCollected(participant, goodiesDistributed, EventTimeUtil.zoneOf(event.getTimezone()));
         markDistributionStarted(event);
 
         logDistributionAction(String.valueOf(eventId), bibNumber, now,
@@ -122,8 +123,8 @@ public class DistributionServiceImpl implements DistributionService {
         log.info("Bib {} collected for event {} by collector {} ({}), distributed by staff {}",
                 bibNumber, eventId, collectorName, collectorPhone, distributedBy);
 
-        smsSendService.sendBibCollectedSms(event, participant);
-        whatsAppSendService.sendBibCollectedWhatsApp(event, participant);
+        participantEventSmsService.sendBibCollectedSms(event, participant);
+        participantEventWhatsAppService.sendBibCollectedWhatsApp(event, participant);
 
         return BibDistributionResponse.builder()
                 .success(true)
@@ -164,7 +165,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedBy(currentUser.getUsername());
 
         participantRepository.save(participant);
-        eventStatsService.onBibUndone(beforeSnapshot);
+        eventStatsService.onBibUndone(beforeSnapshot, EventTimeUtil.zoneOf(event.getTimezone()));
 
         logDistributionAction(String.valueOf(eventId), bibNumber, now,
                 DistributionConstants.ACTION_BIB_UNDONE,

@@ -33,9 +33,12 @@ cors:
 # cookie-secure=true  -> cookies only over HTTPS (nginx provides it).
 # cookie-domain=.example.com -> shared parent so the Amplify frontend's JS can
 #   read the csrfToken cookie issued by api.example.com (the double-submit point).
-# secret has NO default here on purpose: prod must supply JWT_SECRET via env.
+# RS256 keys have NO default here on purpose: prod must supply both file: locations
+# via env (e.g. file:/opt/bibexpo/keys/jwt-private.pem). The private key is a secret;
+# the public key may be shared with the Python agent for verify-only use.
 jwt:
-  secret:        ${JWT_SECRET}
+  private-key-location: ${JWT_PRIVATE_KEY_LOCATION}
+  public-key-location:  ${JWT_PUBLIC_KEY_LOCATION}
   cookie-secure: ${JWT_COOKIE_SECURE:true}
   cookie-domain: ${JWT_COOKIE_DOMAIN:.example.com}
 
@@ -45,6 +48,16 @@ app:
   participant-access:
     base-url:  ${PARTICIPANT_ACCESS_BASE_URL:https://api.example.com}
     qr-secret: ${PARTICIPANT_ACCESS_QR_SECRET}
+  # Invite links open the account-creation form on the frontend, so this is the frontend origin.
+  invite:
+    base-url:    ${INVITE_BASE_URL:https://example.com}
+    accept-path: ${INVITE_ACCEPT_PATH:/accept-invite}
+    ttl-minutes: ${INVITE_TTL_MINUTES:5}
+  # Reset links open the set-new-password form on the frontend, so this is the frontend origin.
+  password-reset:
+    base-url:    ${PASSWORD_RESET_BASE_URL:https://example.com}
+    reset-path:  ${PASSWORD_RESET_PATH:/reset-password}
+    ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:10}
 
 # --- Datasource -------------------------------------------------------------
 # Host/credentials come from env in production. DB_PASSWORD has no default so a
@@ -80,4 +93,3 @@ logging:
   level:
     com.timekeeper.bibexpo.security: INFO
     com.timekeeper.bibexpo.service.impl.JwtServiceImpl: INFO
-    com.timekeeper.bibexpo.service.SseEmitterRegistry: INFO

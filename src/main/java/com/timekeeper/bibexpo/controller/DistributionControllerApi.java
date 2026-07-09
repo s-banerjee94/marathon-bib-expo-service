@@ -255,14 +255,14 @@ public interface DistributionControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/logs")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get paginated distribution event logs for an event",
             description = """
                     Retrieve paginated distribution event logs for an event. \
                     Logs include bib collection, bib undo, goodies distribution, and goodies undo actions. \
                     Uses token-based pagination with limit and lastEvaluatedKey for efficient DynamoDB querying. \
-                    Only accessible by ROOT, ADMIN, and ORGANIZER_ADMIN roles."""
+                    Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN, and ORGANIZER_USER roles."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -283,7 +283,7 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - only ROOT, ADMIN, ORGANIZER_ADMIN can access logs",
+                    description = "Access forbidden - only ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER can access logs",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -300,13 +300,13 @@ public interface DistributionControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/logs/{bibNumber}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get distribution event logs for a specific participant",
             description = """
                     Retrieve all distribution event logs for a specific participant by bib number. \
                     Returns logs for bib collection, bib undo, goodies distribution, and goodies undo actions for this participant. \
-                    Only accessible by ROOT, ADMIN, and ORGANIZER_ADMIN roles."""
+                    Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN, and ORGANIZER_USER roles."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -327,7 +327,7 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - only ROOT, ADMIN, ORGANIZER_ADMIN can access logs",
+                    description = "Access forbidden - only ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER can access logs",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -427,7 +427,7 @@ public interface DistributionControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/logs/lookup")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Lookup distribution logs using LSI (cost-efficient prefix search)",
             description = """

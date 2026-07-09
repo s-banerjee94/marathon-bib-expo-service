@@ -38,7 +38,7 @@ public class OrganizationUsageReconciler implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        List<Organization> organizations = organizationRepository.findByDeletedFalse();
+        List<Organization> organizations = organizationRepository.findAll();
         int corrected = 0;
 
         for (Organization org : organizations) {

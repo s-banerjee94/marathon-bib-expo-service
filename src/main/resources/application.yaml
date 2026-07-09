@@ -10,7 +10,7 @@ spring:
       enabled: false
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:192.168.0.111}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo_test}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+    url: jdbc:mysql://${DB_HOST:192.168.0.111}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -41,6 +41,13 @@ spring:
     type: ${CACHE_TYPE:caffeine}
     caffeine:
       spec: maximumSize=10000,expireAfterWrite=60s
+
+  ai:
+    mcp:
+      server:
+        name: marathon-bib-expo-mcp
+        version: 0.0.1
+        instructions: "Tools to manage marathon bib expo events, participants, users and organizations. All tools run as the authenticated user and respect the same role-based access as the REST API."
 
 management:
   endpoints:
@@ -81,8 +88,14 @@ root:
   password: ${ROOT_PASSWORD:root}
 
 # JWT Configuration
+# RS256 (asymmetric): Spring signs with the PRIVATE key and verifies with the PUBLIC key. The
+# public key is also handed to the Python agent so it can verify tokens without being able to mint
+# them. Local defaults point at a gitignored dev keypair under keys/ (generate with openssl); prod
+# supplies file: locations via env (see application-prod.yaml). The private key is a secret — never
+# commit it.
 jwt:
-  secret: ${JWT_SECRET:default-secret-key-for-development-only-please-change-in-production-this-should-be-at-least-256-bits}
+  private-key-location: ${JWT_PRIVATE_KEY_LOCATION:file:keys/jwt-private-dev.pem}
+  public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:keys/jwt-public-dev.pem}
   issuer: marathon-bib-expo-service
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000}      # 15 minutes
   refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000} # 7 days
@@ -96,21 +109,25 @@ logging:
     org.springframework.web.servlet.handler.HandlerMappingIntrospector: ERROR
     com.timekeeper.bibexpo.security: DEBUG
     com.timekeeper.bibexpo.service.impl.JwtServiceImpl: DEBUG
-    com.timekeeper.bibexpo.service.SseEmitterRegistry: DEBUG
 
 # Application Statistics and Participant Access Configuration
 app:
   statistics:
     stale-threshold-minutes: ${STATS_STALE_THRESHOLD_MINUTES:15}
   participant-access:
-    base-url: ${PARTICIPANT_ACCESS_BASE_URL:https://localhost:8080}
+    base-url: ${PARTICIPANT_ACCESS_BASE_URL:http://localhost:8080}
     qr-secret: ${PARTICIPANT_ACCESS_QR_SECRET:default-qr-secret-change-in-production}
-
-# Dashboard backfill — flip enabled to true once to seed org_daily_stats history, then set back to false
-dashboard:
-  backfill:
-    enabled: ${DASHBOARD_BACKFILL_ENABLED:false}
-    days: ${DASHBOARD_BACKFILL_DAYS:90}
+  invite:
+    base-url: ${INVITE_BASE_URL:http://192.168.0.107:4200}
+    accept-path: ${INVITE_ACCEPT_PATH:/accept-invite}
+    ttl-minutes: ${INVITE_TTL_MINUTES:5}
+  password-reset:
+    base-url: ${PASSWORD_RESET_BASE_URL:http://192.168.0.110:4200}
+    reset-path: ${PASSWORD_RESET_PATH:/reset-password}
+    ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:10}
+  # AES key that encrypts the root-managed provider secrets (API keys, passwords) at rest.
+  system-messaging:
+    secret-key: ${SYSTEM_MESSAGING_SECRET_KEY:dev-only-system-messaging-key-change-in-production}
 
 # Batch import tuning
 batch:
@@ -119,30 +136,24 @@ batch:
     sweeper-interval-ms: ${BATCH_IMPORT_SWEEPER_INTERVAL_MS:900000}
     sweeper-initial-delay-ms: ${BATCH_IMPORT_SWEEPER_INITIAL_DELAY_MS:300000}
 
-# SMS Configuration
+# Messaging — set true in dev/test to stub ALL outbound provider calls (logs the request, never sends)
+messaging:
+  stub-enabled: ${MESSAGING_STUB_ENABLED:true}
+
+# SMS campaign scheduler — the provider connection (endpoint, auth, body) is configured in the DB
+# via /api/system/campaign-providers (root) and /api/organizations/{id}/campaign-providers (org override)
 sms:
   scheduler:
     send-delay-ms: ${SMS_SCHEDULER_SEND_DELAY_MS:10}
     max-retry-count: ${SMS_SCHEDULER_MAX_RETRY_COUNT:2}
-    stuck-threshold-minutes: ${SMS_SCHEDULER_STUCK_THRESHOLD_MINUTES:10}
-  api:
-    url: ${SMS_API_URL:https://sms.bluwaves.in/sendsms/dlrstatus.php}
-    username: ${SMS_API_USERNAME:}
-    password: ${SMS_API_PASSWORD:}
-    sender: ${SMS_API_SENDER:}
+    stuck-threshold-minutes: ${SMS_SCHEDULER_STUCK_THRESHOLD_MINUTES:20}
 
-# WhatsApp Configuration (via Twilio) — application-default sender; per-org overrides live in the DB
+# WhatsApp campaign scheduler — the provider connection is configured in the DB (see campaign-providers)
 whatsapp:
-  token-enc-key: ${WHATSAPP_TOKEN_ENC_KEY:dev-only-token-enc-key-change-in-production}  # AES key source for org auth tokens at rest
-  api:
-    url: ${WHATSAPP_API_URL:https://api.twilio.com}
-    account-sid: ${TWILIO_ACCOUNT_SID:}
-    auth-token: ${TWILIO_AUTH_TOKEN:}
-    from-number: ${TWILIO_WHATSAPP_FROM:+14155238886}                                 # platform WhatsApp sender, e.g. whatsapp:+14155238886
   scheduler:
-    send-delay-ms: ${WHATSAPP_SCHEDULER_SEND_DELAY_MS:250}
+    send-delay-ms: ${WHATSAPP_SCHEDULER_SEND_DELAY_MS:10}
     max-retry-count: ${WHATSAPP_SCHEDULER_MAX_RETRY_COUNT:2}
-    stuck-threshold-minutes: ${WHATSAPP_SCHEDULER_STUCK_THRESHOLD_MINUTES:10}
+    stuck-threshold-minutes: ${WHATSAPP_SCHEDULER_STUCK_THRESHOLD_MINUTES:20}
 
 # AWS Configuration
 aws:

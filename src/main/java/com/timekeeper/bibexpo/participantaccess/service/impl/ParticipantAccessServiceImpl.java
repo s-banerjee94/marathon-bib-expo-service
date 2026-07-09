@@ -3,7 +3,10 @@ package com.timekeeper.bibexpo.participantaccess.service.impl;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.InvalidQrCodeException;
 import com.timekeeper.bibexpo.model.dto.audit.AuditEvent;
+import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
+import com.timekeeper.bibexpo.model.enums.NotificationAudience;
+import com.timekeeper.bibexpo.model.enums.NotificationType;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -11,7 +14,6 @@ import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.service.audit.AuditPublisher;
 import com.timekeeper.bibexpo.participantaccess.model.dto.response.ParticipantVerificationResponse;
-import com.timekeeper.bibexpo.participantaccess.model.dto.response.ShortUrlGenerationResponse;
 import com.timekeeper.bibexpo.participantaccess.model.dynamodb.ShortUrlDDB;
 import com.timekeeper.bibexpo.participantaccess.repository.ShortUrlDDBRepository;
 import com.timekeeper.bibexpo.participantaccess.service.ParticipantAccessService;
@@ -21,7 +23,7 @@ import com.timekeeper.bibexpo.participantaccess.util.ShortCodeGenerator;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.EventService;
-import com.timekeeper.bibexpo.service.SseEmitterRegistry;
+import com.timekeeper.bibexpo.service.NotificationService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
@@ -47,13 +49,12 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     private final ShortCodeGenerator shortCodeGenerator;
     private final QrTokenCodec qrTokenCodec;
     private final QrImageGenerator qrImageGenerator;
-    private final SseEmitterRegistry sseEmitterRegistry;
+    private final NotificationService notificationService;
     private final AuditPublisher auditPublisher;
     private final RaceCategoryNameResolver nameResolver;
 
     private static final int MAX_CODE_ATTEMPTS = 5;
     private static final int SHORT_URL_TTL_DAYS_AFTER_EVENT_END = 3;
-    private static final String SSE_EVENT_COMPLETED = "short-urls:completed";
 
     @Override
     @Async("participantAccessTaskExecutor")
@@ -88,10 +89,15 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
 
         publishGenerationAudit(event, currentUser);
 
-        sseEmitterRegistry.send(currentUser.getId(), SSE_EVENT_COMPLETED, ShortUrlGenerationResponse.builder()
-                .total(total)
-                .generated(generated)
-                .skipped(skipped)
+        notificationService.notify(NotifyRequest.builder()
+                .audience(NotificationAudience.USER)
+                .targetUserId(currentUser.getId())
+                .type(NotificationType.SHORT_URLS_COMPLETED)
+                .title("Verification Links Ready")
+                .message(String.format("Verification links generated for \"%s\": %d new, %d already had one (%d total).",
+                        event.getEventName(), generated, skipped, total))
+                .entityType("EVENT")
+                .entityId(String.valueOf(event.getId()))
                 .build());
     }
 

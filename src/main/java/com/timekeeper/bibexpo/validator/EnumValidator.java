@@ -27,7 +27,7 @@ public class EnumValidator implements ConstraintValidator<ValidEnum, String> {
 
         context.disableDefaultConstraintViolation();
         context.buildConstraintViolationWithTemplate(
-                "Invalid value '" + value
+                "Invalid value '" + value + "'. Allowed values: " + String.join(", ", allowedValues) + "."
         ).addConstraintViolation();
         return false;
     }

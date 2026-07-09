@@ -46,6 +46,17 @@ public class AsyncConfig {
         return executor;
     }
 
+    @Bean(name = "passwordResetTaskExecutor")
+    public Executor passwordResetTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("password-reset-");
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "auditTaskExecutor")
     public Executor auditTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -57,13 +68,13 @@ public class AsyncConfig {
         return executor;
     }
 
-    @Bean(name = "dashboardTaskExecutor")
-    public Executor dashboardTaskExecutor() {
+    @Bean(name = "notificationTaskExecutor")
+    public Executor notificationTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(20);
-        executor.setThreadNamePrefix("dashboard-");
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("notification-");
         executor.initialize();
         return executor;
     }

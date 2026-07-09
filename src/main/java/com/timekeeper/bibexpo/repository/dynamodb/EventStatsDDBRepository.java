@@ -119,6 +119,12 @@ public class EventStatsDDBRepository {
         }
     }
 
+    public long getTotalParticipantCount(String eventId) {
+        Key key = Key.builder().partitionValue(eventId).sortValue("TOTAL").build();
+        EventStatsDDB row = getTable().getItem(key);
+        return row != null && row.getCount() != null ? row.getCount() : 0L;
+    }
+
     public List<EventStatsDDB> queryAll(String eventId) {
         QueryConditional queryConditional = QueryConditional.keyEqualTo(
                 Key.builder().partitionValue(eventId).build()

@@ -72,9 +72,11 @@ application-local.yaml
 *.pem
 *.key
 *.crt
+/keys/
 
 CLAUDE.md
 .claude
 AGENTS.md
 http api call
 plan
+system-templates

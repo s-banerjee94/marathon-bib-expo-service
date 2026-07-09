@@ -8,6 +8,7 @@ public class BatchValidationException extends RuntimeException {
 
     public static final String TYPE_VALIDATION = "VALIDATION_ERROR";
     public static final String TYPE_PROCESSING = "PROCESSING_ERROR";
+    public static final String TYPE_LIMIT_EXCEEDED = "LIMIT_EXCEEDED";
 
     private final List<ValidationError> validationErrors;
     private final String errorType;

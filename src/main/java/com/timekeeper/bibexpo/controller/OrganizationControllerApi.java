@@ -62,8 +62,6 @@ public interface OrganizationControllerApi {
     ResponseEntity<PageableResponse<OrganizationResponse>> getAllOrganizations(
             @Parameter(description = "Filter by enabled status (true/false)")
             @RequestParam(required = false) Boolean enabled,
-            @Parameter(description = "Filter by deleted status (true/false)")
-            @RequestParam(required = false) Boolean deleted,
             @Parameter(description = "Search across organizer name, email, and phone number (partial match, case-insensitive)")
             @RequestParam(required = false) String search,
             @Parameter(description = "Pagination parameters")
@@ -221,6 +219,31 @@ public interface OrganizationControllerApi {
                     )
             )
             @RequestBody Boolean enabled);
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
+    @Operation(
+            summary = "Delete an organization",
+            description = """
+                    Permanently deletes an organization together with all of its users. Allowed only when \
+                    the organization has no events (no events means no bills), so nothing of record-keeping \
+                    value is lost. Only accessible by ROOT or ADMIN users."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Organization deleted successfully"),
+            @ApiResponse(responseCode = "400", description = "Organization still has events and cannot be deleted",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - requires ROOT or ADMIN",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<Void> deleteOrganization(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")

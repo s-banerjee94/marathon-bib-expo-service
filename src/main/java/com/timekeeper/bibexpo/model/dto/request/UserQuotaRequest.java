@@ -16,15 +16,15 @@ import lombok.NoArgsConstructor;
 public class UserQuotaRequest {
 
     @Valid
-    @Schema(description = "Organizer administrator cap")
+    @Schema(description = "Organizer administrator cap", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private RoleQuotaRequest admins;
 
     @Valid
-    @Schema(description = "Organizer user cap")
+    @Schema(description = "Organizer user cap", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private RoleQuotaRequest organizerUsers;
 
     @Valid
-    @Schema(description = "Distributor cap")
+    @Schema(description = "Distributor cap", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private RoleQuotaRequest distributors;
 
     @Data
@@ -35,7 +35,7 @@ public class UserQuotaRequest {
     public static class RoleQuotaRequest {
 
         @Min(value = 1, message = "Maximum must be at least 1")
-        @Schema(description = "Maximum number allowed", example = "3")
+        @Schema(description = "Maximum number allowed", example = "3", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         private Integer max;
     }
 }

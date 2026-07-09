@@ -74,18 +74,16 @@ public class User implements UserDetails {
     @JoinColumn(name = "organization_id", foreignKey = @ForeignKey(name = "fk_user_organization"))
     private Organization organization;
 
+    // Event relationship - a DISTRIBUTOR is scoped to exactly one event within its
+    // organization and may act only on that event. NULL for every other role.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", foreignKey = @ForeignKey(name = "fk_user_event"))
+    private Event event;
+
     // UserDetails properties
     @Builder.Default
     @Column(nullable = false)
-    private Boolean accountNonExpired = true;
-
-    @Builder.Default
-    @Column(nullable = false)
     private Boolean accountNonLocked = true;
-
-    @Builder.Default
-    @Column(nullable = false)
-    private Boolean credentialsNonExpired = true;
 
     @Builder.Default
     @Column(nullable = false)
@@ -118,18 +116,8 @@ public class User implements UserDetails {
     }
 
     @Override
-    public boolean isAccountNonExpired() {
-        return Boolean.TRUE.equals(accountNonExpired);
-    }
-
-    @Override
     public boolean isAccountNonLocked() {
         return Boolean.TRUE.equals(accountNonLocked);
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return Boolean.TRUE.equals(credentialsNonExpired);
     }
 
 }

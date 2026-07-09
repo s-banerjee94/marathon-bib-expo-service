@@ -1,8 +1,10 @@
 package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
+import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
+import com.timekeeper.bibexpo.model.dto.request.ReassignDistributorEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
@@ -42,9 +44,33 @@ public class UserController implements UserControllerApi {
     }
 
     @Override
+    public ResponseEntity<Void> changeOwnPassword(ChangePasswordRequest request, User currentUser) {
+        log.info("Request to change own password by: {}", currentUser.getUsername());
+        userService.changeOwnPassword(currentUser.getUsername(), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> reassignDistributorEvent(
+            Long userId, ReassignDistributorEventRequest request, User currentUser) {
+        log.info("Request to reassign distributor ID: {} to event ID: {} by: {}",
+                userId, request.getEventId(), currentUser.getUsername());
+        UserResponse response = userService.reassignDistributorEvent(
+                userId, request.getEventId(), currentUser.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
     public ResponseEntity<UserResponse> toggleUserEnabled(Long userId, User currentUser) {
         log.info("Request to toggle enabled status for user ID: {} by: {}", userId, currentUser.getUsername());
         UserResponse response = userService.toggleUserEnabled(userId, currentUser.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> toggleUserLocked(Long userId, User currentUser) {
+        log.info("Request to toggle locked status for user ID: {} by: {}", userId, currentUser.getUsername());
+        UserResponse response = userService.toggleUserLocked(userId, currentUser.getUsername());
         return ResponseEntity.ok(response);
     }
 
@@ -56,12 +82,19 @@ public class UserController implements UserControllerApi {
     }
 
     @Override
+    public ResponseEntity<UserResponse> getUserByUsername(String username, User currentUser) {
+        log.info("Request to get user by username: {} by: {}", username, currentUser.getUsername());
+        UserResponse response = userService.getUserByUsername(username, currentUser.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @Override
     public ResponseEntity<PageableResponse<UserResponse>> getUsers(UserRole role, Long organizationId,
-                                                                    Boolean enabled, String search,
+                                                                    Long eventId, Boolean enabled, String search,
                                                                     Pageable pageable, User currentUser) {
         log.info("Request to get users by: {}", currentUser.getUsername());
         return ResponseEntity.ok(PageableResponse.of(
-                userService.getUsers(role, organizationId, enabled, search, pageable,
+                userService.getUsers(role, organizationId, eventId, enabled, search, pageable,
                         currentUser.getUsername())));
     }
 

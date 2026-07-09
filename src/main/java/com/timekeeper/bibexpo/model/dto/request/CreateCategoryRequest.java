@@ -21,6 +21,6 @@ public class CreateCategoryRequest {
     private String categoryName;
 
     @Size(max = 1000, message = "Description must not exceed 1000 characters")
-    @Schema(description = "Category description", example = "Male participants aged 18 to 34 years")
+    @Schema(description = "Category description", example = "Male participants aged 18 to 34 years", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String description;
 }

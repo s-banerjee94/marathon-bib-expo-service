@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.*;
+import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
@@ -14,15 +15,26 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.NotificationAudience;
+import com.timekeeper.bibexpo.model.enums.NotificationType;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.model.event.EventStatusChangedEvent;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
+import com.timekeeper.bibexpo.messaging.campaign.repository.SmsTemplateRepository;
+import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
+import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppTemplateRepository;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.EventBillingGuard;
 import com.timekeeper.bibexpo.service.EventService;
+import com.timekeeper.bibexpo.service.NotificationService;
 import com.timekeeper.bibexpo.service.StorageService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventStatusTransitionValidator;
+import com.timekeeper.bibexpo.util.EventDateTimeUtil;
 import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -33,14 +45,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.DateTimeException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -51,11 +63,19 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepository;
     private final OrganizationRepository organizationRepository;
+    private final EventLimitRepository eventLimitRepository;
+    private final RaceRepository raceRepository;
+    private final SmsTemplateRepository smsTemplateRepository;
+    private final SmsCampaignRepository smsCampaignRepository;
+    private final WhatsAppTemplateRepository whatsAppTemplateRepository;
+    private final WhatsAppCampaignRepository whatsAppCampaignRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventStatusTransitionValidator statusTransitionValidator;
     private final EventBillingGuard eventBillingGuard;
     private final StorageService storageService;
+    private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
     /**
      * Map an event to a response, presigning a short-lived URL for its logo so the
@@ -76,6 +96,16 @@ public class EventServiceImpl implements EventService {
         }
     }
 
+    private int countGoodiesItems(String goodiesJson) {
+        if (goodiesJson == null || goodiesJson.isBlank()) return 0;
+        try {
+            JsonNode node = objectMapper.readTree(goodiesJson);
+            return node.size();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
     @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.CREATE)
     @Override
     @Transactional
@@ -83,7 +113,7 @@ public class EventServiceImpl implements EventService {
         log.info("Creating event: {} for organization ID: {} by user: {}",
                 request.getEventName(), request.getOrganizationId(), currentUser.getUsername());
 
-        Organization organization = organizationRepository.findByIdAndDeletedFalse(request.getOrganizationId())
+        Organization organization = organizationRepository.findById(request.getOrganizationId())
                 .orElseThrow(OrganizationNotFoundException::new);
 
         validateUserAuthorization(currentUser, organization);
@@ -94,16 +124,23 @@ public class EventServiceImpl implements EventService {
                     "An event with this name already exists for this organization.");
         }
 
-        ZoneId zone = validateTimezone(request.getTimezone());
+        ZoneId zone = EventDateTimeUtil.zone(request.getTimezone());
 
-        Instant startInstant = parseToInstant(request.getEventStartDate(), request.getEventStartTime(), zone);
-        Instant endInstant = parseToInstant(request.getEventEndDate(), request.getEventEndTime(), zone);
+        Instant startInstant = EventDateTimeUtil.toInstant(request.getEventStartDate(), request.getEventStartTime(), zone);
+        Instant endInstant = EventDateTimeUtil.toInstant(request.getEventEndDate(), request.getEventEndTime(), zone);
 
         if (!startInstant.isAfter(Instant.now())) {
             throw new InvalidUserDataException("Event start date must be in the future.");
         }
         if (!endInstant.isAfter(startInstant)) {
             throw new InvalidUserDataException("Event end date must be after the start date.");
+        }
+
+        int goodiesCount = countGoodiesItems(request.getEventGoodies());
+        EventLimit defaultLimits = EventLimit.builder().build();
+        if (goodiesCount > defaultLimits.getMaxGoodies()) {
+            throw new EventLimitExceededException(
+                    "You have exceeded the maximum number of goodies allowed for this event.");
         }
 
         Event event = Event.builder()
@@ -127,10 +164,30 @@ public class EventServiceImpl implements EventService {
                 .build();
 
         Event savedEvent = eventRepository.save(event);
+        eventLimitRepository.save(EventLimit.builder().event(savedEvent).build());
         log.info("Successfully created event with ID: {} by user: {}",
                 savedEvent.getId(), currentUser.getUsername());
 
+        notifyEventCreated(savedEvent, currentUser);
+
         return toResponse(savedEvent);
+    }
+
+    /** Alert the application owners (ROOT + ADMIN) when an organizer creates an event. */
+    private void notifyEventCreated(Event event, User actor) {
+        if (actor.getRole() != UserRole.ORGANIZER_ADMIN && actor.getRole() != UserRole.ORGANIZER_USER) {
+            return;
+        }
+        publishAfterCommit(NotifyRequest.builder()
+                .audience(NotificationAudience.PLATFORM_ADMINS)
+                .type(NotificationType.EVENT_CREATED)
+                .title("New Event Created")
+                .message(String.format("%s created a new event \"%s\"%s.",
+                        actor.getUsername(), event.getEventName(), orgSuffix(event)))
+                .entityType("EVENT")
+                .entityId(String.valueOf(event.getId()))
+                .actor(actor)
+                .build());
     }
 
     @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.UPDATE)
@@ -160,6 +217,15 @@ public class EventServiceImpl implements EventService {
         TextUtils.applyIfSent(request.getCountry(), event::setCountry);
         TextUtils.applyIfSent(request.getLatitude(), event::setLatitude);
         TextUtils.applyIfSent(request.getLongitude(), event::setLongitude);
+        if (request.getEventGoodies() != null) {
+            int goodiesCount = countGoodiesItems(request.getEventGoodies());
+            EventLimit limits = eventLimitRepository.findByEventId(event.getId())
+                    .orElseGet(() -> EventLimit.builder().build());
+            if (goodiesCount > limits.getMaxGoodies()) {
+                throw new EventLimitExceededException(
+                        "You have exceeded the maximum number of goodies allowed for this event.");
+            }
+        }
         TextUtils.applyIfSent(request.getEventGoodies(), event::setEventGoodies);
 
         Event updatedEvent = eventRepository.save(event);
@@ -188,7 +254,7 @@ public class EventServiceImpl implements EventService {
         if (event.getStatus() == EventStatus.PUBLISHED || event.getStatus() == EventStatus.COMPLETED) {
             throw new InvalidUserDataException("Timezone cannot be changed after the event is published.");
         }
-        validateTimezone(request.getTimezone());
+        EventDateTimeUtil.zone(request.getTimezone());
         event.setTimezone(request.getTimezone());
     }
 
@@ -230,7 +296,7 @@ public class EventServiceImpl implements EventService {
             throw new InvalidUserDataException(
                     "Both event " + fieldLabel + " date and time must be provided together.");
         }
-        return parseToInstant(date, time, effectiveZone);
+        return EventDateTimeUtil.toInstant(date, time, effectiveZone);
     }
 
     @Override
@@ -270,6 +336,13 @@ public class EventServiceImpl implements EventService {
         Long organizationId = currentUser.getOrganization().getId();
 
         Specification<Event> spec = buildEventSpecification(organizationId, status, search);
+        // A distributor is bound to a single event, so its listing is narrowed to that event only
+        // (and is empty if it has none).
+        if (currentUser.getRole() == UserRole.DISTRIBUTOR) {
+            Long assignedEventId = currentUser.getEvent() != null ? currentUser.getEvent().getId() : null;
+            spec = spec.and((root, query, cb) ->
+                    assignedEventId == null ? cb.disjunction() : cb.equal(root.get("id"), assignedEventId));
+        }
 
         Page<Event> eventsPage = eventRepository.findAll(spec, pageable);
 
@@ -345,7 +418,69 @@ public class EventServiceImpl implements EventService {
 
         eventPublisher.publishEvent(new EventStatusChangedEvent(updatedEvent.getId(), updatedEvent.getStatus()));
 
+        if (status != current) {
+            notifyEventStatusChange(updatedEvent, status, currentUser);
+        }
+
         return toResponse(updatedEvent);
+    }
+
+    /**
+     * PUBLISHED/COMPLETED concern the application owners (ROOT + ADMIN); CANCELLED concerns the
+     * organization's own staff. A move back to DRAFT raises nothing.
+     */
+    private void notifyEventStatusChange(Event event, EventStatus status, User actor) {
+        NotifyRequest.NotifyRequestBuilder builder = NotifyRequest.builder()
+                .entityType("EVENT")
+                .entityId(String.valueOf(event.getId()))
+                .actor(actor);
+
+        switch (status) {
+            case PUBLISHED -> builder
+                    .audience(NotificationAudience.PLATFORM_ADMINS)
+                    .type(NotificationType.EVENT_PUBLISHED)
+                    .title("Event Published")
+                    .message(String.format("Event \"%s\"%s is now published.", event.getEventName(), orgSuffix(event)));
+            case COMPLETED -> builder
+                    .audience(NotificationAudience.PLATFORM_ADMINS)
+                    .type(NotificationType.EVENT_COMPLETED)
+                    .title("Event Completed")
+                    .message(String.format("Event \"%s\"%s has been marked completed.", event.getEventName(), orgSuffix(event)));
+            case CANCELLED -> builder
+                    .audience(NotificationAudience.ORGANIZATION_STAFF)
+                    .organizationId(event.getOrganization() != null ? event.getOrganization().getId() : null)
+                    .type(NotificationType.EVENT_CANCELLED)
+                    .title("Event Cancelled")
+                    .message(String.format("Event \"%s\" has been cancelled.", event.getEventName()));
+            default -> {
+                return;
+            }
+        }
+        publishAfterCommit(builder.build());
+    }
+
+    /**
+     * Defers the send until the surrounding transaction commits, so a rolled-back create/update never
+     * produces a notification. The request is built by the caller while the JPA session is open (lazy
+     * fields are safe to read); only the send is postponed. {@link NotificationService#notify} is
+     * itself non-blocking, so this adds no latency to the request.
+     */
+    private void publishAfterCommit(NotifyRequest request) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    notificationService.notify(request);
+                }
+            });
+        } else {
+            notificationService.notify(request);
+        }
+    }
+
+    /** " (Org Name)" when the event's organization is known, else empty — for notification messages. */
+    private String orgSuffix(Event event) {
+        return event.getOrganization() != null ? " (" + event.getOrganization().getOrganizerName() + ")" : "";
     }
 
     @Override
@@ -375,19 +510,38 @@ public class EventServiceImpl implements EventService {
                     "Only events in DRAFT or CANCELLED status can be deleted.");
         }
 
-        // TODO: Check if participant list is empty once participant feature is fully implemented
-        // if (!event.getParticipants().isEmpty()) {
-        //     throw new EventDeletionNotAllowedException(
-        //             "Event cannot be deleted because it has registered participants");
-        // }
+        requireEmptyForDeletion(id);
 
         AuditContextHolder.setEntityLabel(event.getEventName());
         AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         String logoKey = event.getLogoObjectKey();
+        // The event_limits row carries an FK to the event with no cascade, so it must be removed
+        // (and flushed) before the event itself to avoid a constraint violation.
+        eventLimitRepository.deleteById(id);
+        eventLimitRepository.flush();
         eventRepository.delete(event);
         deleteQuietly(logoKey);
         log.info("Successfully deleted event with ID: {} by user: {}", id, currentUser.getUsername());
+    }
+
+    /**
+     * An event is only deletable once it is empty. Blocking on races transitively guarantees no
+     * categories or participants, since neither can exist without a race above it.
+     */
+    private void requireEmptyForDeletion(Long eventId) {
+        rejectIfPresent(raceRepository.countByEventIdAndDeletedFalse(eventId), "races");
+        rejectIfPresent(smsTemplateRepository.countByEventId(eventId), "SMS templates");
+        rejectIfPresent(whatsAppTemplateRepository.countByEventId(eventId), "WhatsApp templates");
+        rejectIfPresent(smsCampaignRepository.countByEventId(eventId), "SMS campaigns");
+        rejectIfPresent(whatsAppCampaignRepository.countByEventId(eventId), "WhatsApp campaigns");
+    }
+
+    private void rejectIfPresent(long count, String content) {
+        if (count > 0) {
+            throw new EventDeletionNotAllowedException(
+                    "You cannot delete this event while it still has " + content + ". Delete them first.");
+        }
     }
 
     private Specification<Event> buildEventSpecification(
@@ -457,22 +611,6 @@ public class EventServiceImpl implements EventService {
         }
 
         throw new UnauthorizedAccessException("You are not allowed to create events.");
-    }
-
-    private ZoneId validateTimezone(String timezone) {
-        try {
-            return ZoneId.of(timezone);
-        } catch (DateTimeException e) {
-            throw new InvalidUserDataException("Invalid timezone. Use a valid IANA timezone ID such as 'Asia/Kolkata' or 'Europe/London'.");
-        }
-    }
-
-    private Instant parseToInstant(String date, String time, ZoneId zone) {
-        try {
-            return ZonedDateTime.of(LocalDate.parse(date), LocalTime.parse(time), zone).toInstant();
-        } catch (DateTimeParseException e) {
-            throw new InvalidUserDataException("Invalid date or time format. Use yyyy-MM-dd and HH:mm.");
-        }
     }
 
     @Override

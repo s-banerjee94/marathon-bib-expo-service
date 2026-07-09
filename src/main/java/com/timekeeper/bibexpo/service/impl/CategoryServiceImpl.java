@@ -3,17 +3,22 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.*;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.EventOperation;
+import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.response.CategoryResponse;
 import com.timekeeper.bibexpo.model.entity.*;
 import com.timekeeper.bibexpo.repository.CategoryRepository;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.CategoryService;
 import com.timekeeper.bibexpo.service.ParticipantService;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.util.NameNormalizer;
 import com.timekeeper.bibexpo.util.TextUtils;
@@ -33,18 +38,27 @@ public class CategoryServiceImpl implements CategoryService {
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
     private final ParticipantService participantService;
+    private final EventLimitRepository eventLimitRepository;
+    private final EventOperationGuard eventOperationGuard;
+    private final RaceCategoryNameResolver nameResolver;
 
     public CategoryServiceImpl(
             CategoryRepository categoryRepository,
             RaceRepository raceRepository,
             EventRepository eventRepository,
             EventAccessValidator eventAccessValidator,
-            @Lazy ParticipantService participantService) {
+            @Lazy ParticipantService participantService,
+            EventLimitRepository eventLimitRepository,
+            EventOperationGuard eventOperationGuard,
+            RaceCategoryNameResolver nameResolver) {
         this.categoryRepository = categoryRepository;
         this.raceRepository = raceRepository;
         this.eventRepository = eventRepository;
         this.eventAccessValidator = eventAccessValidator;
         this.participantService = participantService;
+        this.eventLimitRepository = eventLimitRepository;
+        this.eventOperationGuard = eventOperationGuard;
+        this.nameResolver = nameResolver;
     }
 
     @Auditable(entityType = AuditEntityType.CATEGORY, action = AuditAction.CREATE)
@@ -55,6 +69,13 @@ public class CategoryServiceImpl implements CategoryService {
                 request.getCategoryName(), raceId, eventId, currentUser.getUsername());
 
         Race race = validateRaceAndEvent(eventId, raceId, currentUser);
+        eventOperationGuard.requireAllowed(race.getEvent(), EventOperation.CATEGORY_WRITE);
+
+        EventLimit limits = eventLimitRepository.findByEventId(eventId)
+                .orElseGet(() -> EventLimit.builder().build());
+        if (categoryRepository.countByRaceId(raceId) >= limits.getMaxCategoriesPerRace()) {
+            throw new EventLimitExceededException("You have reached the maximum number of categories allowed for this race.");
+        }
 
         String categoryName = NameNormalizer.toStoredName(request.getCategoryName());
         if (categoryRepository.existsByCategoryNameAndRaceId(categoryName, raceId)) {
@@ -69,6 +90,7 @@ public class CategoryServiceImpl implements CategoryService {
                 .build();
 
         Category savedCategory = categoryRepository.save(category);
+        nameResolver.evict(eventId);
         log.info("Successfully created category with ID: {} by user: {}",
                 savedCategory.getId(), currentUser.getUsername());
 
@@ -83,7 +105,8 @@ public class CategoryServiceImpl implements CategoryService {
         log.info("Updating category with ID: {} for race ID: {} in event ID: {} by user: {}",
                 categoryId, raceId, eventId, currentUser.getUsername());
 
-        validateRaceAndEvent(eventId, raceId, currentUser);
+        Race updateRace = validateRaceAndEvent(eventId, raceId, currentUser);
+        eventOperationGuard.requireAllowed(updateRace.getEvent(), EventOperation.CATEGORY_WRITE);
 
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(CategoryNotFoundException::new);
@@ -105,6 +128,7 @@ public class CategoryServiceImpl implements CategoryService {
         TextUtils.applyIfSent(request.getDescription(), category::setDescription);
 
         Category updatedCategory = categoryRepository.save(category);
+        nameResolver.evict(eventId);
 
         log.info("Successfully updated category with ID: {} by user: {}",
                 updatedCategory.getId(), currentUser.getUsername());
@@ -161,6 +185,7 @@ public class CategoryServiceImpl implements CategoryService {
                 categoryId, raceId, eventId, currentUser.getUsername());
 
         Race race = validateRaceAndEvent(eventId, raceId, currentUser);
+        eventOperationGuard.requireAllowed(race.getEvent(), EventOperation.CATEGORY_WRITE);
 
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(CategoryNotFoundException::new);
@@ -182,6 +207,7 @@ public class CategoryServiceImpl implements CategoryService {
         AuditContextHolder.setOrganizationId(orgId);
 
         categoryRepository.delete(category);
+        nameResolver.evict(eventId);
         log.info("Successfully deleted category with ID: {} by user: {}",
                 categoryId, currentUser.getUsername());
     }

@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.exception.InvalidUserDataException;
 import com.timekeeper.bibexpo.exception.RaceAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.RaceDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.RaceNotFoundException;
@@ -14,9 +15,16 @@ import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.model.enums.EventOperation;
+import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.exception.EventLimitExceededException;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.RaceService;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.util.EventDateTimeUtil;
 import com.timekeeper.bibexpo.util.NameNormalizer;
 import com.timekeeper.bibexpo.util.TextUtils;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +32,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -34,6 +44,9 @@ public class RaceServiceImpl implements RaceService {
     private final RaceRepository raceRepository;
     private final EventRepository eventRepository;
     private final com.timekeeper.bibexpo.service.validator.EventAccessValidator eventAccessValidator;
+    private final EventLimitRepository eventLimitRepository;
+    private final EventOperationGuard eventOperationGuard;
+    private final RaceCategoryNameResolver nameResolver;
 
     @Auditable(entityType = AuditEntityType.RACE, action = AuditAction.CREATE)
     @Override
@@ -46,6 +59,13 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(EventNotFoundException::new);
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        eventOperationGuard.requireAllowed(event, EventOperation.RACE_WRITE);
+
+        EventLimit limits = eventLimitRepository.findByEventId(eventId)
+                .orElseGet(() -> EventLimit.builder().build());
+        if (raceRepository.countByEventIdAndDeletedFalse(eventId) >= limits.getMaxRaces()) {
+            throw new EventLimitExceededException("You have reached the maximum number of races allowed for this event.");
+        }
 
         String raceName = NameNormalizer.toStoredName(request.getRaceName());
         if (raceRepository.existsByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)) {
@@ -56,11 +76,13 @@ public class RaceServiceImpl implements RaceService {
         Race race = Race.builder()
                 .raceName(raceName)
                 .raceDescription(request.getRaceDescription())
+                .reportingTime(resolveReportingInstant(event, request.getReportingDate(), request.getReportingTime()))
                 .event(event)
                 .deleted(false)
                 .build();
 
         Race savedRace = raceRepository.save(race);
+        nameResolver.evict(eventId);
         log.info("Successfully created race with ID: {} by user: {}",
                 savedRace.getId(), currentUser.getUsername());
 
@@ -78,6 +100,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(EventNotFoundException::new);
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        eventOperationGuard.requireAllowed(event, EventOperation.RACE_WRITE);
 
         Race race = raceRepository.findByIdAndDeletedFalse(raceId)
                 .orElseThrow(RaceNotFoundException::new);
@@ -97,8 +120,13 @@ public class RaceServiceImpl implements RaceService {
         }
 
         TextUtils.applyIfSent(request.getRaceDescription(), race::setRaceDescription);
+        Instant reportingInstant = resolveReportingInstant(event, request.getReportingDate(), request.getReportingTime());
+        if (reportingInstant != null) {
+            race.setReportingTime(reportingInstant);
+        }
 
         Race updatedRace = raceRepository.save(race);
+        nameResolver.evict(eventId);
 
         log.info("Successfully updated race with ID: {} by user: {}",
                 updatedRace.getId(), currentUser.getUsername());
@@ -163,6 +191,7 @@ public class RaceServiceImpl implements RaceService {
                 .orElseThrow(EventNotFoundException::new);
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        eventOperationGuard.requireAllowed(event, EventOperation.RACE_WRITE);
 
         Race race = raceRepository.findById(raceId)
                 .orElseThrow(RaceNotFoundException::new);
@@ -180,6 +209,7 @@ public class RaceServiceImpl implements RaceService {
         AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         raceRepository.delete(race);
+        nameResolver.evict(eventId);
         log.info("Successfully deleted race with ID: {} by user: {}",
                 raceId, currentUser.getUsername());
     }
@@ -197,5 +227,19 @@ public class RaceServiceImpl implements RaceService {
 
         return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)
                 .orElseThrow(RaceNotFoundException::new);
+    }
+
+    private Instant resolveReportingInstant(Event event, String date, String time) {
+        if (date == null && time == null) {
+            return null;
+        }
+        if (date == null || time == null) {
+            throw new InvalidUserDataException("Provide both the reporting date and time, or neither.");
+        }
+        Instant reporting = EventDateTimeUtil.toInstant(date, time, EventDateTimeUtil.zone(event.getTimezone()));
+        if (reporting.isBefore(Instant.now().plus(Duration.ofHours(1)))) {
+            throw new InvalidUserDataException("The reporting time must be at least one hour from now.");
+        }
+        return reporting;
     }
 }

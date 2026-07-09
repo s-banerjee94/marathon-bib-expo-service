@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 @Tag(name = "Public Participant Verification", description = "Public endpoint for participants to verify their details via short link — no authentication required")
-@RequestMapping("/s")
+@RequestMapping("/api/public/short-links")
 public interface PublicVerificationControllerApi {
 
     @GetMapping("/{shortCode}")

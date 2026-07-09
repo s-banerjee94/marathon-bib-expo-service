@@ -1,0 +1,90 @@
+package com.timekeeper.bibexpo.messaging.campaign.model.entity;
+import com.timekeeper.bibexpo.model.entity.Event;
+
+import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
+import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTargetFilter;
+import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "sms_campaigns",
+        indexes = {
+                @Index(name = "idx_sms_campaign_event", columnList = "event_id"),
+                @Index(name = "idx_sms_campaign_trigger_type", columnList = "trigger_type"),
+                @Index(name = "idx_sms_campaign_status", columnList = "status"),
+                @Index(name = "idx_sms_campaign_scheduled_at", columnList = "scheduled_at")
+        })
+@EntityListeners(AuditingEntityListener.class)
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class SmsCampaign {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 100)
+    private String name;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", nullable = false, foreignKey = @ForeignKey(name = "fk_sms_campaign_event"))
+    private Event event;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sms_template_id", nullable = false, foreignKey = @ForeignKey(name = "fk_sms_campaign_template"))
+    private SmsTemplate smsTemplate;
+
+    // Denormalised from the event so the async sender can resolve the campaign provider without a lazy load
+    @Column(name = "organization_id")
+    private Long organizationId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "trigger_type", length = 30)
+    private CampaignTriggerType triggerType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "target_filter", length = 30)
+    private CampaignTargetFilter targetFilter;
+
+    @Column(name = "scheduled_at")
+    private Instant scheduledAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private CampaignStatus status = CampaignStatus.DRAFT;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer sentCount = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer retryCount = 0;
+
+    @CreatedDate
+    @Column(updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedDate
+    private Instant updatedAt;
+
+    @CreatedBy
+    private String createdBy;
+
+    @LastModifiedBy
+    private String lastModifiedBy;
+}

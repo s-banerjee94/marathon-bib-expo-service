@@ -2,8 +2,10 @@ package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
+import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
+import com.timekeeper.bibexpo.model.dto.request.ReassignDistributorEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
@@ -49,6 +51,8 @@ public interface UserControllerApi {
                     ORGANIZER_ADMIN can create: ORGANIZER_USER, DISTRIBUTOR (own organization only). \
                     ORGANIZER_USER can create: DISTRIBUTOR (own organization only). \
                     Cannot create ROOT (system-initialized only). \
+                    A DISTRIBUTOR additionally requires an eventId; the event must belong to the same \
+                    organization and must not be completed or cancelled. \
                     Organization user limits (administrators, organizer users, distributors) are enforced."""
     )
     @ApiResponses(value = {
@@ -62,7 +66,8 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid request data, validation failed, or organization limit exceeded",
+                    description = "Invalid request data, validation failed, organization limit exceeded, "
+                            + "missing event for a distributor, or the event is completed or cancelled",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -80,7 +85,8 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Organization not found (when organizationId is provided)",
+                    description = "Organization not found (when organizationId is provided), "
+                            + "or event not found / outside the organization (for a distributor)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -175,6 +181,63 @@ public interface UserControllerApi {
     );
 
     @Operation(
+            summary = "Reassign a distributor to a different event",
+            description = """
+                    Moves a distributor to another event within its own organization. \
+                    Only DISTRIBUTOR accounts can be reassigned; the target event must belong to the \
+                    distributor's organization and must not be completed or cancelled. \
+                    Permission hierarchy: \
+                    ROOT and ADMIN can reassign any distributor. \
+                    ORG_ADMIN and ORG_USER can reassign distributors in their own organization only."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Distributor reassigned successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Target is not a distributor, or the event is missing or has ended",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - Insufficient permissions to reassign this distributor",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User or event not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    @PatchMapping("/{userId}/event")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<UserResponse> reassignDistributorEvent(
+            @Parameter(description = "Distributor user ID", required = true)
+            @PathVariable Long userId,
+
+            @Parameter(description = "Reassignment request", required = true)
+            @Valid @RequestBody ReassignDistributorEventRequest request,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
             summary = "Toggle user enabled status",
             description = """
                     Toggles the enabled/disabled status of a user account. \
@@ -222,13 +285,125 @@ public interface UserControllerApi {
     );
 
     @Operation(
+            summary = "Toggle user locked status",
+            description = """
+                    Toggles the locked/unlocked status of a user account (flips accountNonLocked). \
+                    A locked account cannot log in. This is a platform-administrator operation. \
+                    Permission hierarchy: \
+                    ROOT can lock/unlock any user. \
+                    ADMIN can lock/unlock any user."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "User locked status toggled successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - Insufficient permissions to lock or unlock users",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    @PatchMapping("/{userId}/toggle-locked")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
+    ResponseEntity<UserResponse> toggleUserLocked(
+            @Parameter(description = "User ID", required = true)
+            @PathVariable Long userId,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
+            summary = "Change your own password",
+            description = """
+                    Changes the signed-in user's own password. The current password must be supplied \
+                    and is verified before the new one is stored, and the new password must differ from \
+                    the current one. Available to every authenticated role, only for the caller's own account."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Password changed successfully"),
+            @ApiResponse(responseCode = "400", description = "Current password incorrect, or new password invalid or unchanged",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized - user is not authenticated",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PutMapping("/me/password")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    ResponseEntity<Void> changeOwnPassword(
+            @Parameter(description = "Current and new password", required = true)
+            @Valid @RequestBody ChangePasswordRequest request,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
             summary = "Get user by ID",
             description = """
                     Retrieves a single user by their ID. \
                     Permission hierarchy: \
                     ROOT and ADMIN can get any user. \
                     ORG_ADMIN, ORG_USER, and DISTRIBUTOR can only get users in their organization. \
-                    Archived users return 404 Not Found."""
+                    A user that does not exist, is archived, or is not visible to the caller \
+                    all return 404 Not Found, so account existence is not disclosed across \
+                    organizations or privilege levels."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "User retrieved successfully",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = UserResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "User not found, archived, or not visible to the caller",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    @GetMapping("/{userId}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    ResponseEntity<UserResponse> getUserById(
+            @Parameter(description = "User ID", required = true)
+            @PathVariable Long userId,
+
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(
+            summary = "Get user by username",
+            description = """
+                    Retrieves a single user by their username. \
+                    Permission hierarchy: \
+                    ROOT and ADMIN can get any user. \
+                    ORG_ADMIN and ORG_USER can only get users in their organization. \
+                    A username that does not exist, is archived, or is not visible to the caller \
+                    all return 404 Not Found, so account existence is not disclosed across \
+                    organizations or privilege levels."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -241,7 +416,7 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Forbidden - Insufficient permissions to view this user",
+                    description = "Forbidden - Caller's role is not permitted to use this endpoint",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -249,18 +424,18 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "User not found or archived",
+                    description = "User not found, archived, or not visible to the caller",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
                     )
             )
     })
-    @GetMapping("/{userId}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
-    ResponseEntity<UserResponse> getUserById(
-            @Parameter(description = "User ID", required = true)
-            @PathVariable Long userId,
+    @GetMapping("/by-username/{username}")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<UserResponse> getUserByUsername(
+            @Parameter(description = "Username", required = true)
+            @PathVariable String username,
 
             @Parameter(hidden = true)
             @AuthenticationPrincipal User currentUser
@@ -300,6 +475,9 @@ public interface UserControllerApi {
 
             @Parameter(description = "Filter by organization ID (ROOT/ADMIN only)")
             @RequestParam(required = false) Long organizationId,
+
+            @Parameter(description = "Filter by assigned event ID (matches distributors for that event)")
+            @RequestParam(required = false) Long eventId,
 
             @Parameter(description = "Filter by enabled status")
             @RequestParam(required = false) Boolean enabled,

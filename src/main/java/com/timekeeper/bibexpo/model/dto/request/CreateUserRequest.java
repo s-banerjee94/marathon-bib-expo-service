@@ -37,7 +37,7 @@ public class CreateUserRequest {
 
     @Email(message = "Email must be valid")
     @Size(max = 100, message = "Email must not exceed 100 characters")
-    @Schema(description = "Email address (required for ADMIN, ORG_ADMIN, ORG_USER; optional for DISTRIBUTOR)", example = "john.doe@example.com")
+    @Schema(description = "Email address (required for ADMIN, ORG_ADMIN, ORG_USER; optional for DISTRIBUTOR)", example = "john.doe@example.com", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String email;
 
     @NotBlank(message = "Full name is required")
@@ -46,7 +46,7 @@ public class CreateUserRequest {
     private String fullName;
 
     @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
-    @Schema(description = "Phone number (required for ADMIN, ORG_ADMIN, ORG_USER; optional for DISTRIBUTOR), 10-digit Indian format", example = "9876543210")
+    @Schema(description = "Phone number (required for ADMIN, ORG_ADMIN, ORG_USER; optional for DISTRIBUTOR), 10-digit Indian format", example = "9876543210", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String phoneNumber;
 
     @NotNull(message = "Role is required")
@@ -56,22 +56,10 @@ public class CreateUserRequest {
             allowableValues = {"ADMIN", "ORGANIZER_ADMIN", "ORGANIZER_USER", "DISTRIBUTOR"})
     private String role;
 
-    @Schema(description = "Organization ID (required for ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR)", example = "1")
+    @Schema(description = "Organization ID (required for ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR)", example = "1", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Long organizationId;
 
-    @Builder.Default
-    @Schema(description = "Whether the account is enabled", example = "true", defaultValue = "true")
-    private Boolean enabled = true;
+    @Schema(description = "Event ID the distributor is assigned to (required for DISTRIBUTOR; ignored for other roles)", example = "10", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private Long eventId;
 
-    @Builder.Default
-    @Schema(description = "Whether the account is non-expired", example = "true", defaultValue = "true")
-    private Boolean accountNonExpired = true;
-
-    @Builder.Default
-    @Schema(description = "Whether the account is non-locked", example = "true", defaultValue = "true")
-    private Boolean accountNonLocked = true;
-
-    @Builder.Default
-    @Schema(description = "Whether the credentials are non-expired", example = "true", defaultValue = "true")
-    private Boolean credentialsNonExpired = true;
 }
