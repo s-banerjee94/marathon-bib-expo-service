@@ -11,6 +11,7 @@ import com.timekeeper.bibexpo.model.entity.*;
 import com.timekeeper.bibexpo.model.enums.SearchType;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
+import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.CategoryService;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.ParticipantService;
@@ -30,7 +31,6 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
-import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.*;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
@@ -45,6 +45,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     public static final String FAILED_TO_DECODE_PAGINATION_KEY = "Failed to decode pagination key";
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final ParticipantDDBRepository participantRepository;
     private final RaceService raceService;
     private final CategoryService categoryService;
     private final ParticipantAccessGuard accessGuard;
@@ -61,10 +62,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @PostConstruct
     public void init() {
-        this.participantTable = dynamoDbEnhancedClient.table(
-                "marathon-participants",
-                TableSchema.fromBean(ParticipantDDB.class)
-        );
+        this.participantTable = participantRepository.getTable();
     }
 
     @Override

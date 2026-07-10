@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.controller;
 
+import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -29,7 +30,7 @@ import java.util.Map;
 @Tag(name = "Dev Operations", description = "Development-only endpoints for testing and data management (only available in dev profile)")
 public class DevOpsController {
 
-    private static final String PARTICIPANTS_TABLE = "marathon-participants";
+    private static final String PARTICIPANTS_TABLE = ParticipantDDBRepository.TABLE_NAME;
     private static final String DISTRIBUTION_LOGS_TABLE = "marathon-distribution-logs";
     private static final String IMPORT_ERRORS_TABLE = "marathon-import-errors";
     public static final String DELETED_COUNT = "deletedCount";

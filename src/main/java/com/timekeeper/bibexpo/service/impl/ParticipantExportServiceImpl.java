@@ -4,21 +4,18 @@ import com.timekeeper.bibexpo.exception.CsvImportException;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ExportField;
+import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.ParticipantExportService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.ParticipantAccessGuard;
 import com.timekeeper.bibexpo.util.TextUtils;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
-import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
-import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 
 import java.io.ByteArrayOutputStream;
@@ -36,19 +33,9 @@ import java.util.Set;
 @Slf4j
 public class ParticipantExportServiceImpl implements ParticipantExportService {
 
-    private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final ParticipantDDBRepository participantRepository;
     private final ParticipantAccessGuard accessGuard;
     private final RaceCategoryNameResolver nameResolver;
-
-    private DynamoDbTable<ParticipantDDB> participantTable;
-
-    @PostConstruct
-    public void init() {
-        this.participantTable = dynamoDbEnhancedClient.table(
-                "marathon-participants",
-                TableSchema.fromBean(ParticipantDDB.class)
-        );
-    }
 
     @Override
     public byte[] exportParticipantsToCsv(Long eventId, List<ExportField> fields, User currentUser) {
@@ -60,7 +47,7 @@ public class ParticipantExportServiceImpl implements ParticipantExportService {
                 Key.builder().partitionValue(eventId.toString()).build()
         );
 
-        List<ParticipantDDB> allParticipants = participantTable.query(queryConditional).stream()
+        List<ParticipantDDB> allParticipants = participantRepository.getTable().query(queryConditional).stream()
                 .flatMap(page -> page.items().stream())
                 .toList();
 
