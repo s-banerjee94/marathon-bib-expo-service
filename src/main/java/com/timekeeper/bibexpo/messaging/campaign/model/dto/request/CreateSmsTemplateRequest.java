@@ -22,9 +22,9 @@ public class CreateSmsTemplateRequest {
     private String name;
 
     @NotBlank(message = "SMS Template ID (DLT ID) is required")
-    @Size(min = 20, max = 200, message = "SMS Template ID must be between 20 and 200 characters")
+    @Size(min = 19, max = 200, message = "SMS Template ID must be between 19 and 200 characters")
     @Pattern(regexp = "^[0-9]+$", message = "SMS Template ID must contain only digits")
-    @Schema(description = "DLT Template ID from telecom provider", example = "11071612345678901234")
+    @Schema(description = "DLT Template ID from telecom provider", example = "1107161234567890123")
     private String smsTemplateId;
 
     @NotBlank(message = "Template text is required")
