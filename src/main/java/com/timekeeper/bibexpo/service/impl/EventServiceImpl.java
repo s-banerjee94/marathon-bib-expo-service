@@ -20,15 +20,12 @@ import com.timekeeper.bibexpo.model.enums.NotificationType;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.model.event.EventStatusChangedEvent;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
-import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
-import com.timekeeper.bibexpo.messaging.campaign.repository.SmsTemplateRepository;
-import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
-import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppTemplateRepository;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.EventBillingGuard;
+import com.timekeeper.bibexpo.service.EventDeletionGuard;
 import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.NotificationService;
 import com.timekeeper.bibexpo.service.StorageService;
@@ -65,13 +62,10 @@ public class EventServiceImpl implements EventService {
     private final OrganizationRepository organizationRepository;
     private final EventLimitRepository eventLimitRepository;
     private final RaceRepository raceRepository;
-    private final SmsTemplateRepository smsTemplateRepository;
-    private final SmsCampaignRepository smsCampaignRepository;
-    private final WhatsAppTemplateRepository whatsAppTemplateRepository;
-    private final WhatsAppCampaignRepository whatsAppCampaignRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventStatusTransitionValidator statusTransitionValidator;
     private final EventBillingGuard eventBillingGuard;
+    private final List<EventDeletionGuard> eventDeletionGuards;
     private final StorageService storageService;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
@@ -527,21 +521,21 @@ public class EventServiceImpl implements EventService {
 
     /**
      * An event is only deletable once it is empty. Blocking on races transitively guarantees no
-     * categories or participants, since neither can exist without a race above it.
+     * categories or participants, since neither can exist without a race above it. Outer slices
+     * contribute their own emptiness checks through {@link EventDeletionGuard}.
      */
     private void requireEmptyForDeletion(Long eventId) {
-        rejectIfPresent(raceRepository.countByEventIdAndDeletedFalse(eventId), "races");
-        rejectIfPresent(smsTemplateRepository.countByEventId(eventId), "SMS templates");
-        rejectIfPresent(whatsAppTemplateRepository.countByEventId(eventId), "WhatsApp templates");
-        rejectIfPresent(smsCampaignRepository.countByEventId(eventId), "SMS campaigns");
-        rejectIfPresent(whatsAppCampaignRepository.countByEventId(eventId), "WhatsApp campaigns");
+        if (raceRepository.countByEventIdAndDeletedFalse(eventId) > 0) {
+            rejectDeletionFor("races");
+        }
+        for (EventDeletionGuard guard : eventDeletionGuards) {
+            guard.findBlockingContent(eventId).ifPresent(this::rejectDeletionFor);
+        }
     }
 
-    private void rejectIfPresent(long count, String content) {
-        if (count > 0) {
-            throw new EventDeletionNotAllowedException(
-                    "You cannot delete this event while it still has " + content + ". Delete them first.");
-        }
+    private void rejectDeletionFor(String content) {
+        throw new EventDeletionNotAllowedException(
+                "You cannot delete this event while it still has " + content + ". Delete them first.");
     }
 
     private Specification<Event> buildEventSpecification(
