@@ -1,8 +1,8 @@
-package com.timekeeper.bibexpo.model.dto.notification;
+package com.timekeeper.bibexpo.notification.model.dto;
 
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.NotificationAudience;
-import com.timekeeper.bibexpo.model.enums.NotificationType;
+import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
+import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
 import lombok.Builder;
 import lombok.Data;
 

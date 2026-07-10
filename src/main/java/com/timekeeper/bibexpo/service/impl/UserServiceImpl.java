@@ -29,7 +29,7 @@ import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.service.NotificationService;
+import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.service.UserService;
 import com.timekeeper.bibexpo.service.cache.AuthUserCache;
 import jakarta.persistence.criteria.Predicate;

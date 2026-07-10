@@ -1,16 +1,16 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.notification.service.impl;
 
 import com.timekeeper.bibexpo.config.CacheConfig;
 import com.timekeeper.bibexpo.exception.InvalidUserDataException;
-import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
-import com.timekeeper.bibexpo.model.dto.response.NotificationListResponse;
-import com.timekeeper.bibexpo.model.dto.response.NotificationResponse;
-import com.timekeeper.bibexpo.model.dynamodb.NotificationDDB;
+import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
+import com.timekeeper.bibexpo.notification.model.dto.response.NotificationListResponse;
+import com.timekeeper.bibexpo.notification.model.dto.response.NotificationResponse;
+import com.timekeeper.bibexpo.notification.model.dynamodb.NotificationDDB;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.repository.dynamodb.NotificationDDBRepository;
-import com.timekeeper.bibexpo.service.NotificationService;
+import com.timekeeper.bibexpo.notification.repository.NotificationDDBRepository;
+import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
-import com.timekeeper.bibexpo.service.util.NotificationRecipientResolver;
+import com.timekeeper.bibexpo.notification.service.util.NotificationRecipientResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;

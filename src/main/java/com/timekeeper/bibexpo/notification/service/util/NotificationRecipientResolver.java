@@ -1,6 +1,6 @@
-package com.timekeeper.bibexpo.service.util;
+package com.timekeeper.bibexpo.notification.service.util;
 
-import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
+import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.UserRepository;

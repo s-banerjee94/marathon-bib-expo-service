@@ -1,7 +1,7 @@
-package com.timekeeper.bibexpo.controller;
+package com.timekeeper.bibexpo.notification.controller;
 
 import com.timekeeper.bibexpo.exception.ErrorResponse;
-import com.timekeeper.bibexpo.model.dto.response.NotificationListResponse;
+import com.timekeeper.bibexpo.notification.model.dto.response.NotificationListResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

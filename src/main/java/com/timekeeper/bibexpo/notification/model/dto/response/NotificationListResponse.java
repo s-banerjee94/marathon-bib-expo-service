@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.dto.response;
+package com.timekeeper.bibexpo.notification.model.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;

@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.enums;
+package com.timekeeper.bibexpo.notification.model.enums;
 
 /**
  * Who a notification is sent to. The resolver turns each value into a concrete list of recipient

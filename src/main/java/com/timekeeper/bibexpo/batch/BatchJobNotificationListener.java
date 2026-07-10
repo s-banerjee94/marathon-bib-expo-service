@@ -1,15 +1,15 @@
 package com.timekeeper.bibexpo.batch;
 
 import tools.jackson.databind.ObjectMapper;
-import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
+import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.model.dto.response.ErrorSummary;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLatestImport;
 import com.timekeeper.bibexpo.model.entity.ImportJob;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ImportMode;
-import com.timekeeper.bibexpo.model.enums.NotificationAudience;
-import com.timekeeper.bibexpo.model.enums.NotificationType;
+import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
+import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.repository.EventLatestImportRepository;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
@@ -18,7 +18,7 @@ import com.timekeeper.bibexpo.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.EventStatsService;
-import com.timekeeper.bibexpo.service.NotificationService;
+import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

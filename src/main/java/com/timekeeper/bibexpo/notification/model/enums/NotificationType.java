@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.enums;
+package com.timekeeper.bibexpo.notification.model.enums;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
