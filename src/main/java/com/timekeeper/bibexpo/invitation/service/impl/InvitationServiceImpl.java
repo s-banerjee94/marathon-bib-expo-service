@@ -52,7 +52,7 @@ public class InvitationServiceImpl implements InvitationService {
     @Override
     public InvitationLinkResponse createInvitation(CreateInvitationRequest request, CurrentActor actor) {
         UserRole role = UserRole.valueOf(request.getRole());
-        userService.assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), actor.username());
+        userService.assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), actor);
 
         Set<MessageChannel> channels = request.getDeliveryChannels() == null ? Set.of() : request.getDeliveryChannels();
         if (requiresPhone(channels) && isBlank(request.getRecipientPhone())) {

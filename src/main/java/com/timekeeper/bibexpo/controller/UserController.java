@@ -11,6 +11,7 @@ import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.security.CurrentActor;
 import com.timekeeper.bibexpo.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,21 +33,21 @@ public class UserController implements UserControllerApi {
     @Override
     public ResponseEntity<UserResponse> createUser(CreateUserRequest request, User currentUser) {
         log.info("Request to create user: {} by: {}", request.getUsername(), currentUser.getUsername());
-        UserResponse response = userService.createUser(request, currentUser.getUsername());
+        UserResponse response = userService.createUser(request, CurrentActor.from(currentUser));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Override
     public ResponseEntity<UserResponse> updateUser(Long userId, UpdateUserRequest request, User currentUser) {
         log.info("Request to update user ID: {} by: {}", userId, currentUser.getUsername());
-        UserResponse response = userService.updateUser(userId, request, currentUser.getUsername());
+        UserResponse response = userService.updateUser(userId, request, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<Void> changeOwnPassword(ChangePasswordRequest request, User currentUser) {
         log.info("Request to change own password by: {}", currentUser.getUsername());
-        userService.changeOwnPassword(currentUser.getUsername(), request);
+        userService.changeOwnPassword(CurrentActor.from(currentUser), request);
         return ResponseEntity.noContent().build();
     }
 
@@ -56,35 +57,35 @@ public class UserController implements UserControllerApi {
         log.info("Request to reassign distributor ID: {} to event ID: {} by: {}",
                 userId, request.getEventId(), currentUser.getUsername());
         UserResponse response = userService.reassignDistributorEvent(
-                userId, request.getEventId(), currentUser.getUsername());
+                userId, request.getEventId(), CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<UserResponse> toggleUserEnabled(Long userId, User currentUser) {
         log.info("Request to toggle enabled status for user ID: {} by: {}", userId, currentUser.getUsername());
-        UserResponse response = userService.toggleUserEnabled(userId, currentUser.getUsername());
+        UserResponse response = userService.toggleUserEnabled(userId, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<UserResponse> toggleUserLocked(Long userId, User currentUser) {
         log.info("Request to toggle locked status for user ID: {} by: {}", userId, currentUser.getUsername());
-        UserResponse response = userService.toggleUserLocked(userId, currentUser.getUsername());
+        UserResponse response = userService.toggleUserLocked(userId, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<UserResponse> getUserById(Long userId, User currentUser) {
         log.info("Request to get user ID: {} by: {}", userId, currentUser.getUsername());
-        UserResponse response = userService.getUserById(userId, currentUser.getUsername());
+        UserResponse response = userService.getUserById(userId, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<UserResponse> getUserByUsername(String username, User currentUser) {
         log.info("Request to get user by username: {} by: {}", username, currentUser.getUsername());
-        UserResponse response = userService.getUserByUsername(username, currentUser.getUsername());
+        UserResponse response = userService.getUserByUsername(username, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
@@ -95,20 +96,20 @@ public class UserController implements UserControllerApi {
         log.info("Request to get users by: {}", currentUser.getUsername());
         return ResponseEntity.ok(PageableResponse.of(
                 userService.getUsers(role, organizationId, eventId, enabled, search, pageable,
-                        currentUser.getUsername())));
+                        CurrentActor.from(currentUser))));
     }
 
     @Override
     public ResponseEntity<UserResponse> getCurrentUser(User currentUser) {
         log.info("Request to get current user profile: {}", currentUser.getUsername());
-        UserResponse response = userService.getCurrentUser(currentUser.getUsername());
+        UserResponse response = userService.getCurrentUser(CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<Void> deleteUser(Long userId, User currentUser) {
         log.info("Request to archive user ID: {} by: {}", userId, currentUser.getUsername());
-        userService.deleteUser(userId, currentUser.getUsername());
+        userService.deleteUser(userId, CurrentActor.from(currentUser));
         return ResponseEntity.noContent().build();
     }
 
@@ -117,7 +118,7 @@ public class UserController implements UserControllerApi {
             Long userId, PresignUploadRequest request, User currentUser) {
         log.info("Request profile-picture upload URL for user ID: {} by: {}", userId, currentUser.getUsername());
         PresignUploadResponse response = userService.createProfilePictureUploadUrl(
-                userId, request.getContentType(), currentUser.getUsername());
+                userId, request.getContentType(), CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
@@ -126,14 +127,14 @@ public class UserController implements UserControllerApi {
             Long userId, AttachUploadRequest request, User currentUser) {
         log.info("Request to attach profile picture for user ID: {} by: {}", userId, currentUser.getUsername());
         UserResponse response = userService.attachProfilePicture(
-                userId, request.getObjectKey(), currentUser.getUsername());
+                userId, request.getObjectKey(), CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<UserResponse> removeProfilePicture(Long userId, User currentUser) {
         log.info("Request to remove profile picture for user ID: {} by: {}", userId, currentUser.getUsername());
-        UserResponse response = userService.removeProfilePicture(userId, currentUser.getUsername());
+        UserResponse response = userService.removeProfilePicture(userId, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 }

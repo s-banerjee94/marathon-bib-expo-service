@@ -63,7 +63,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     public PasswordResetLinkResponse issueForUser(Long userId, IssueResetLinkRequest request, CurrentActor actor) {
         log.info("Password reset link requested for user ID: {} by: {}", userId, actor.username());
 
-        userService.assertCanUpdateUser(userId, actor.username());
+        userService.assertCanUpdateUser(userId, actor);
         User target = fetchUser(userId);
 
         // A signed-in user must not mint a reset link for their own account: that would bypass the
