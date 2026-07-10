@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.validator;
+package com.timekeeper.bibexpo.batch;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

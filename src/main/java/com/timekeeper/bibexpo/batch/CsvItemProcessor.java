@@ -13,8 +13,6 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.util.CsvRow;
-import com.timekeeper.bibexpo.validator.CsvRowValidator;
-import com.timekeeper.bibexpo.validator.ValidationError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.configuration.annotation.StepScope;

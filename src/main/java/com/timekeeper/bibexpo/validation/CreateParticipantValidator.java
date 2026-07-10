@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.validator;
+package com.timekeeper.bibexpo.validation;
 
 import com.timekeeper.bibexpo.model.dto.request.CreateParticipantRequest;
 import jakarta.validation.ConstraintValidator;

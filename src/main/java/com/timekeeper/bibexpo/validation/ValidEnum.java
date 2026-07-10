@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.validator;
+package com.timekeeper.bibexpo.validation;
 
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;

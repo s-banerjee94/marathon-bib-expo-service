@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.batch;
 
-import com.timekeeper.bibexpo.validator.ValidationError;
 
 import java.util.List;
 
