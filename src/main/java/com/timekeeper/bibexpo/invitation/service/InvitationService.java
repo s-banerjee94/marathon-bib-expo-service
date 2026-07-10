@@ -21,7 +21,7 @@ public interface InvitationService {
      * @param request the role and (where applicable) organization the invite is fixed to
      * @param actor the authenticated user issuing the invite
      * @return the link to share with the invitee
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller cannot create that role
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller cannot create that role
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the organization is required but missing or disabled
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
      */

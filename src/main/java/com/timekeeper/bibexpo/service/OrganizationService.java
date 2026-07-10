@@ -65,7 +65,7 @@ public interface OrganizationService {
      * @param currentUser The authenticated user
      * @return Organization response
      * @throws OrganizationNotFoundException if not found or deleted
-     * @throws UnauthorizedAccessException if user lacks permission
+     * @throws AccessForbiddenException if user lacks permission
      */
     OrganizationResponse getOrganizationById(Long id, User currentUser);
 
@@ -73,7 +73,7 @@ public interface OrganizationService {
      * Get current user's organization
      * @param currentUser The authenticated user
      * @return Organization response
-     * @throws UnauthorizedAccessException if user has no organization
+     * @throws AccessForbiddenException if user has no organization
      */
     OrganizationResponse getCurrentUserOrganization(User currentUser);
 
@@ -85,7 +85,7 @@ public interface OrganizationService {
      * @param currentUser The authenticated user
      * @return the presigned upload URL plus the object key to attach afterwards
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller lacks permission
      * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the content type is not allowed
      */
     PresignUploadResponse createLogoUploadUrl(Long id, String contentType, User currentUser);
@@ -99,7 +99,7 @@ public interface OrganizationService {
      * @param currentUser The authenticated user
      * @return the updated organization response (with a fresh presigned logo URL)
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller lacks permission
      * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the key is invalid or the object is missing
      */
     OrganizationResponse attachLogo(Long id, String objectKey, User currentUser);
@@ -110,7 +110,7 @@ public interface OrganizationService {
      * @param currentUser The authenticated user
      * @return the updated organization response
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller lacks permission
      */
     OrganizationResponse removeLogo(Long id, User currentUser);
 }

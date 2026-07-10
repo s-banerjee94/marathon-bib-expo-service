@@ -2,8 +2,8 @@ package com.timekeeper.bibexpo.exception;
 
 import org.springframework.http.HttpStatus;
 
-public class UnauthorizedAccessException extends ApiException {
-    public UnauthorizedAccessException(String message) {
+public class AccessForbiddenException extends ApiException {
+    public AccessForbiddenException(String message) {
         super(HttpStatus.FORBIDDEN, message);
     }
 }

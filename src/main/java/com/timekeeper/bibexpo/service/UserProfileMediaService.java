@@ -20,7 +20,7 @@ public interface UserProfileMediaService {
      * @param actor       the authenticated user making the request
      * @return the presigned upload URL plus the object key to attach afterwards
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException  if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException  if the caller lacks permission
      * @throws com.timekeeper.bibexpo.exception.InvalidFileException         if the content type is not allowed
      */
     PresignUploadResponse createProfilePictureUploadUrl(Long userId, String contentType, CurrentActor actor);
@@ -35,7 +35,7 @@ public interface UserProfileMediaService {
      * @param actor     the authenticated user making the request
      * @return the updated user response (with a fresh presigned picture URL)
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException  if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException  if the caller lacks permission
      * @throws com.timekeeper.bibexpo.exception.InvalidFileException         if the key is invalid or the object is missing
      */
     UserResponse attachProfilePicture(Long userId, String objectKey, CurrentActor actor);
@@ -47,7 +47,7 @@ public interface UserProfileMediaService {
      * @param actor  the authenticated user making the request
      * @return the updated user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException  if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException  if the caller lacks permission
      */
     UserResponse removeProfilePicture(Long userId, CurrentActor actor);
 

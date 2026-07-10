@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
@@ -39,7 +39,7 @@ public class OrganizationMcpTools implements McpToolGroup {
 
         User currentUser = McpToolSupport.requireCurrentUser();
         if (currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) {
-            throw new UnauthorizedAccessException("You are not allowed to view organizations.");
+            throw new AccessForbiddenException("You are not allowed to view organizations.");
         }
 
         String search = McpToolSupport.normalizeSearch(query);
@@ -58,7 +58,7 @@ public class OrganizationMcpTools implements McpToolGroup {
 
         User currentUser = McpToolSupport.requireCurrentUser();
         if (currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) {
-            throw new UnauthorizedAccessException("You are not allowed to create organizations.");
+            throw new AccessForbiddenException("You are not allowed to create organizations.");
         }
 
         McpToolSupport.validate(validator, request);

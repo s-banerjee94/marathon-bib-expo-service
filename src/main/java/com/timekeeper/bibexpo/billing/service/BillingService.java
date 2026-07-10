@@ -23,7 +23,7 @@ public interface BillingService {
      * @param currentUser the authenticated caller (must own the event's organization)
      * @return the event's bills, newest first (empty if none)
      * @throws com.timekeeper.bibexpo.exception.EventNotFoundException     if the event does not exist or is outside the caller's organization
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller has no organization
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller has no organization
      */
     List<BillResponse> listBills(Long eventId, User currentUser);
 

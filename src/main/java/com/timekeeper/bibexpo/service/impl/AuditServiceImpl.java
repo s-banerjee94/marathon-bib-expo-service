@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.exception.InvalidUserDataException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.model.dto.audit.AuditLogQuery;
 import com.timekeeper.bibexpo.model.dto.response.AuditLogListResponse;
 import com.timekeeper.bibexpo.model.dto.response.AuditLogResponse;
@@ -87,9 +87,9 @@ public class AuditServiceImpl implements AuditService {
     private Long resolveScope(boolean globalRole, Long organizationId, User currentUser) {
         if (!globalRole) {
             User user = userRepository.findByUsernameWithOrganization(currentUser.getUsername())
-                    .orElseThrow(() -> new UnauthorizedAccessException("Your account could not be found."));
+                    .orElseThrow(() -> new AccessForbiddenException("Your account could not be found."));
             if (user.getOrganization() == null) {
-                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
+                throw new AccessForbiddenException("Your account is not assigned to an organization.");
             }
             return user.getOrganization().getId();
         }

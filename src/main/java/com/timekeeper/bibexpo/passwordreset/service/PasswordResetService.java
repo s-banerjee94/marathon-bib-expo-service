@@ -31,7 +31,7 @@ public interface PasswordResetService {
      * @param actor   the administrator issuing the link
      * @return the reset link plus any per-channel delivery outcomes
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller may not manage the user
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller may not manage the user
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the caller targets their own account
      */
     PasswordResetLinkResponse issueForUser(Long userId, IssueResetLinkRequest request, CurrentActor actor);

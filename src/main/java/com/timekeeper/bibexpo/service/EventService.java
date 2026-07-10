@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.service;
 import com.timekeeper.bibexpo.exception.EventDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.EventDisabledException;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
@@ -99,7 +99,7 @@ public interface EventService {
      * @param currentUser The authenticated user
      * @return The updated event response
      * @throws EventNotFoundException if the event does not exist
-     * @throws UnauthorizedAccessException if the user lacks permission
+     * @throws AccessForbiddenException if the user lacks permission
      */
     EventResponse changeEventStatus(Long id, EventStatus status, User currentUser);
 
@@ -125,7 +125,7 @@ public interface EventService {
      * @param currentUser The authenticated user
      * @throws EventNotFoundException if the event does not exist
      * @throws EventDeletionNotAllowedException if the event cannot be deleted (status is not DRAFT/CANCELLED or has participants)
-     * @throws UnauthorizedAccessException if the user is not authorized to delete the event
+     * @throws AccessForbiddenException if the user is not authorized to delete the event
      */
     void deleteEvent(Long id, User currentUser);
 
@@ -138,7 +138,7 @@ public interface EventService {
      * @param currentUser The authenticated user
      * @return the presigned upload URL plus the object key to attach afterwards
      * @throws EventNotFoundException if the event does not exist
-     * @throws UnauthorizedAccessException if the caller lacks permission
+     * @throws AccessForbiddenException if the caller lacks permission
      * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the content type is not allowed
      */
     PresignUploadResponse createLogoUploadUrl(Long id, String contentType, User currentUser);
@@ -152,7 +152,7 @@ public interface EventService {
      * @param currentUser The authenticated user
      * @return the updated event response (with a fresh presigned logo URL)
      * @throws EventNotFoundException if the event does not exist
-     * @throws UnauthorizedAccessException if the caller lacks permission
+     * @throws AccessForbiddenException if the caller lacks permission
      * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the key is invalid or the object is missing
      */
     EventResponse attachLogo(Long id, String objectKey, User currentUser);
@@ -163,7 +163,7 @@ public interface EventService {
      * @param currentUser The authenticated user
      * @return the updated event response
      * @throws EventNotFoundException if the event does not exist
-     * @throws UnauthorizedAccessException if the caller lacks permission
+     * @throws AccessForbiddenException if the caller lacks permission
      */
     EventResponse removeLogo(Long id, User currentUser);
 }

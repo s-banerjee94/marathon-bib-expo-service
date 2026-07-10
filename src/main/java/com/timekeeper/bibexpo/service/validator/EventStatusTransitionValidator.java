@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.service.validator;
 
 import com.timekeeper.bibexpo.exception.InvalidUserDataException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -46,7 +46,7 @@ public class EventStatusTransitionValidator {
      * @throws InvalidUserDataException    if the move is not a permitted transition, or the event can
      *                                     no longer return to draft because distribution has started
      *                                     or its start date has passed
-     * @throws UnauthorizedAccessException if a non-administrator tries to reopen a finished event
+     * @throws AccessForbiddenException if a non-administrator tries to reopen a finished event
      */
     public void validateTransition(Event event, EventStatus target, User currentUser) {
         EventStatus current = event.getStatus();
@@ -67,7 +67,7 @@ public class EventStatusTransitionValidator {
             }
         }
         if (isReopen(current, target) && !isPlatformAdmin(currentUser)) {
-            throw new UnauthorizedAccessException("You are not allowed to reopen a finished event.");
+            throw new AccessForbiddenException("You are not allowed to reopen a finished event.");
         }
     }
 

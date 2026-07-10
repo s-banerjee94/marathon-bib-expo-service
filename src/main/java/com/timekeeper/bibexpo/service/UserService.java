@@ -29,7 +29,7 @@ public interface UserService {
      * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if username or email already exists
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if validation fails or limits exceeded
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if organization is required but not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to create requested role
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission to create requested role
      */
     UserResponse createUser(CreateUserRequest request, CurrentActor actor);
 
@@ -45,7 +45,7 @@ public interface UserService {
      * @param organizationId the target organization (required for organization-scoped roles)
      * @param eventId the target event (required for DISTRIBUTOR; must belong to the organization and not have ended)
      * @param actor the authenticated user issuing the invite
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the role is not creatable by the caller
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the role is not creatable by the caller
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the organization is required but missing or disabled, or the event is required but missing or has ended
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
      * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
@@ -87,7 +87,7 @@ public interface UserService {
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
      * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if email already exists (when changing email)
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if validation fails
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to update target user
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission to update target user
      */
     UserResponse updateUser(Long userId, UpdateUserRequest request, CurrentActor actor);
 
@@ -114,7 +114,7 @@ public interface UserService {
      * @param userId          the target user to be managed
      * @param actor the authenticated user performing the action
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the target user does not exist
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller lacks permission
      */
     void assertCanUpdateUser(Long userId, CurrentActor actor);
 
@@ -133,7 +133,7 @@ public interface UserService {
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the target is not a distributor, or the event is missing or has ended
      * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller lacks permission
      */
     UserResponse reassignDistributorEvent(Long userId, Long eventId, CurrentActor actor);
 
@@ -151,7 +151,7 @@ public interface UserService {
      * @param actor the authenticated user performing the toggle
      * @return the updated user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to toggle target user
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission to toggle target user
      */
     UserResponse toggleUserEnabled(Long userId, CurrentActor actor);
 
@@ -167,7 +167,7 @@ public interface UserService {
      * @param actor the authenticated user performing the toggle
      * @return the updated user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to toggle target user
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission to toggle target user
      */
     UserResponse toggleUserLocked(Long userId, CurrentActor actor);
 
@@ -217,7 +217,7 @@ public interface UserService {
      * @param pageable pagination parameters
      * @param actor the authenticated user making the request
      * @return page of user responses matching filters
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission
      */
     Page<UserResponse> getUsers(UserRole role, Long organizationId, Long eventId, Boolean enabled,
                                 String search, Pageable pageable,
@@ -250,7 +250,7 @@ public interface UserService {
      * @param userId the id of the user to archive
      * @param actor the authenticated user performing the archive
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission
      *         or target user is ROOT
      */
     void deleteUser(Long userId, CurrentActor actor);
