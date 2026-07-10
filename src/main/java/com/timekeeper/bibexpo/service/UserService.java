@@ -265,45 +265,4 @@ public interface UserService {
      * @return the number of live users deleted
      */
     int purgeUsersForOrganization(Long organizationId);
-
-    /**
-     * Create a presigned S3 upload URL for a user's profile picture. The caller must
-     * have permission to update the target user (same rules as {@link #updateUser}).
-     *
-     * @param userId          the user whose picture is being uploaded
-     * @param contentType     MIME type of the file (validated against allowed image types)
-     * @param actor the authenticated user making the request
-     * @return the presigned upload URL plus the object key to attach afterwards
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException  if the caller lacks permission
-     * @throws com.timekeeper.bibexpo.exception.InvalidFileException         if the content type is not allowed
-     */
-    com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse createProfilePictureUploadUrl(
-            Long userId, String contentType, CurrentActor actor);
-
-    /**
-     * Attach a previously uploaded object as the user's profile picture. Verifies the
-     * key belongs to the user and that the object exists in S3, then replaces any
-     * previous picture (the old object is deleted).
-     *
-     * @param userId          the user whose picture is being set
-     * @param objectKey       the object key returned by the presign step
-     * @param actor the authenticated user making the request
-     * @return the updated user response (with a fresh presigned picture URL)
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException  if the caller lacks permission
-     * @throws com.timekeeper.bibexpo.exception.InvalidFileException         if the key is invalid or the object is missing
-     */
-    UserResponse attachProfilePicture(Long userId, String objectKey, CurrentActor actor);
-
-    /**
-     * Remove the user's profile picture, deleting the object from S3.
-     *
-     * @param userId          the user whose picture is being removed
-     * @param actor the authenticated user making the request
-     * @return the updated user response
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException  if the caller lacks permission
-     */
-    UserResponse removeProfilePicture(Long userId, CurrentActor actor);
 }

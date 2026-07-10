@@ -12,6 +12,7 @@ import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.security.CurrentActor;
+import com.timekeeper.bibexpo.service.UserProfileMediaService;
 import com.timekeeper.bibexpo.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController implements UserControllerApi {
 
     private final UserService userService;
+    private final UserProfileMediaService profileMediaService;
 
     @Override
     public ResponseEntity<UserResponse> createUser(CreateUserRequest request, User currentUser) {
@@ -117,7 +119,7 @@ public class UserController implements UserControllerApi {
     public ResponseEntity<PresignUploadResponse> createProfilePictureUploadUrl(
             Long userId, PresignUploadRequest request, User currentUser) {
         log.info("Request profile-picture upload URL for user ID: {} by: {}", userId, currentUser.getUsername());
-        PresignUploadResponse response = userService.createProfilePictureUploadUrl(
+        PresignUploadResponse response = profileMediaService.createProfilePictureUploadUrl(
                 userId, request.getContentType(), CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
@@ -126,7 +128,7 @@ public class UserController implements UserControllerApi {
     public ResponseEntity<UserResponse> attachProfilePicture(
             Long userId, AttachUploadRequest request, User currentUser) {
         log.info("Request to attach profile picture for user ID: {} by: {}", userId, currentUser.getUsername());
-        UserResponse response = userService.attachProfilePicture(
+        UserResponse response = profileMediaService.attachProfilePicture(
                 userId, request.getObjectKey(), CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
@@ -134,7 +136,7 @@ public class UserController implements UserControllerApi {
     @Override
     public ResponseEntity<UserResponse> removeProfilePicture(Long userId, User currentUser) {
         log.info("Request to remove profile picture for user ID: {} by: {}", userId, currentUser.getUsername());
-        UserResponse response = userService.removeProfilePicture(userId, CurrentActor.from(currentUser));
+        UserResponse response = profileMediaService.removeProfilePicture(userId, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 }
