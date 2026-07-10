@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
         Request payload for creating a WhatsApp campaign. \
         If triggerType is omitted the campaign is saved as DRAFT. \
         If triggerType is present the campaign is armed and moves directly to ACTIVE.""")
-public class CreateWhatsAppCampaignRequest {
+public class CreateWhatsAppCampaignRequest implements CampaignWriteRequest {
 
     @NotBlank(message = "Campaign name is required.")
     @Size(max = 100, message = "Campaign name must not exceed 100 characters.")

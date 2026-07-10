@@ -29,7 +29,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class WhatsAppCampaign {
+public class WhatsAppCampaign implements CampaignEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

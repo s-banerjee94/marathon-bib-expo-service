@@ -30,7 +30,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SmsCampaign {
+public class SmsCampaign implements CampaignEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

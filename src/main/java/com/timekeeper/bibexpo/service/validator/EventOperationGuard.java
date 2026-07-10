@@ -37,7 +37,7 @@ public class EventOperationGuard {
         }
 
         if (status == EventStatus.COMPLETED) {
-            if (operation != EventOperation.SMS_TEMPLATE_WRITE && operation != EventOperation.CAMPAIGN_WRITE) {
+            if (operation != EventOperation.TEMPLATE_WRITE && operation != EventOperation.CAMPAIGN_WRITE) {
                 throw new EventOperationNotAllowedException(
                         "You cannot make changes once the event is completed.");
             }

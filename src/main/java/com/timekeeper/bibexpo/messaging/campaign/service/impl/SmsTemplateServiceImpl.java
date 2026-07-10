@@ -1,55 +1,58 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
-import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
-import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsTemplateException;
-import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateAlreadyExistsException;
 
 import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.aspect.AuditContextHolder;
-import com.timekeeper.bibexpo.exception.*;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.exception.EventLimitExceededException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsTemplateException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateAlreadyExistsException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsTemplateResponse;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.SmsTemplate;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
-import com.timekeeper.bibexpo.model.enums.EventOperation;
-import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.repository.EventLimitRepository;
-import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsTemplateRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsTemplateService;
+import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.AuditAction;
+import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.repository.EventLimitRepository;
+import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.util.SmsTemplateContext;
 import com.timekeeper.bibexpo.util.SmsTemplateParser;
 import com.timekeeper.bibexpo.util.TextUtils;
+import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.jpa.domain.Specification;
+import jakarta.persistence.criteria.Root;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 
-
-
 @Service
-@RequiredArgsConstructor
-@Slf4j
-public class SmsTemplateServiceImpl implements SmsTemplateService {
+public class SmsTemplateServiceImpl
+        extends AbstractTemplateService<SmsTemplate, SmsTemplateResponse>
+        implements SmsTemplateService {
 
     private final SmsTemplateRepository smsTemplateRepository;
     private final SmsCampaignRepository smsCampaignRepository;
-    private final EventRepository eventRepository;
-    private final EventAccessValidator eventAccessValidator;
     private final EventLimitRepository eventLimitRepository;
-    private final EventOperationGuard eventOperationGuard;
+
+    public SmsTemplateServiceImpl(SmsTemplateRepository smsTemplateRepository,
+                                  SmsCampaignRepository smsCampaignRepository,
+                                  EventRepository eventRepository,
+                                  EventAccessValidator eventAccessValidator,
+                                  EventLimitRepository eventLimitRepository,
+                                  EventOperationGuard eventOperationGuard) {
+        super("SMS", smsTemplateRepository, eventRepository, eventAccessValidator, eventOperationGuard);
+        this.smsTemplateRepository = smsTemplateRepository;
+        this.smsCampaignRepository = smsCampaignRepository;
+        this.eventLimitRepository = eventLimitRepository;
+    }
 
     @Auditable(entityType = AuditEntityType.SMS_TEMPLATE, action = AuditAction.CREATE)
     @Override
@@ -58,7 +61,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
         log.info("Creating SMS template for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = validateEventAccess(eventId, currentUser);
-        eventOperationGuard.requireAllowed(event, EventOperation.SMS_TEMPLATE_WRITE);
+        requireTemplateWriteAllowed(event);
 
         EventLimit limits = eventLimitRepository.findByEventId(eventId)
                 .orElseGet(() -> EventLimit.builder().build());
@@ -96,7 +99,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
                 templateId, eventId, currentUser.getUsername());
 
         Event updateEvent = validateEventAccess(eventId, currentUser);
-        eventOperationGuard.requireAllowed(updateEvent, EventOperation.SMS_TEMPLATE_WRITE);
+        requireTemplateWriteAllowed(updateEvent);
 
         SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
 
@@ -136,36 +139,7 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
     @Override
     @Transactional(readOnly = true)
     public List<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, User currentUser) {
-        log.info("Fetching SMS templates for event ID: {} search: {} by user: {}",
-                eventId, search, currentUser.getUsername());
-
-        validateEventAccess(eventId, currentUser);
-
-        Specification<SmsTemplate> spec = buildSmsTemplateSpecification(eventId, search);
-        List<SmsTemplate> templates = smsTemplateRepository.findAll(spec);
-
-        log.info("Successfully fetched {} SMS templates for event ID: {} by user: {}",
-                templates.size(), eventId, currentUser.getUsername());
-
-        return templates.stream().map(SmsTemplateResponse::fromEntity).toList();
-    }
-
-    private Specification<SmsTemplate> buildSmsTemplateSpecification(Long eventId, String search) {
-        return (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            predicates.add(cb.equal(root.get("event").get("id"), eventId));
-
-            if (search != null && !search.isBlank()) {
-                String pattern = "%" + search.toLowerCase() + "%";
-                predicates.add(cb.or(
-                        cb.like(root.get("name"), pattern),
-                        cb.like(root.get("smsTemplateId"), "%" + search + "%")
-                ));
-            }
-
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+        return doList(eventId, search, currentUser);
     }
 
     @Override
@@ -205,37 +179,38 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
     @Override
     @Transactional
     public void deleteSmsTemplate(Long eventId, Long templateId, User currentUser) {
-        log.info("Deleting SMS template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
+        doDelete(eventId, templateId, currentUser);
+    }
 
-        Event event = validateEventAccess(eventId, currentUser);
-        eventOperationGuard.requireAllowed(event, EventOperation.SMS_TEMPLATE_WRITE);
+    @Override
+    protected RuntimeException templateNotFound() {
+        return new SmsTemplateNotFoundException();
+    }
 
-        SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
+    @Override
+    protected Predicate eventPredicate(Root<SmsTemplate> root, CriteriaBuilder cb, Long eventId) {
+        return cb.equal(root.get("event").get("id"), eventId);
+    }
 
-        if (smsCampaignRepository.existsBySmsTemplateId(smsTemplate.getId())) {
+    @Override
+    protected Predicate searchPredicate(Root<SmsTemplate> root, CriteriaBuilder cb, String search) {
+        String pattern = "%" + search.toLowerCase() + "%";
+        return cb.or(
+                cb.like(root.get("name"), pattern),
+                cb.like(root.get("smsTemplateId"), "%" + search + "%")
+        );
+    }
+
+    @Override
+    protected void assertTemplateDeletable(SmsTemplate template) {
+        if (smsCampaignRepository.existsBySmsTemplateId(template.getId())) {
             throw new InvalidSmsTemplateException("This template is used by one or more campaigns and cannot be deleted.");
         }
-
-        AuditContextHolder.setEntityLabel(smsTemplate.getName());
-        AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
-
-        smsTemplateRepository.delete(smsTemplate);
-        log.info("Successfully deleted SMS template ID: {} by user: {}", templateId, currentUser.getUsername());
     }
 
-    private SmsTemplate findTemplateOrThrow(Long templateId, Long eventId) {
-        return smsTemplateRepository.findByIdAndEventId(templateId, eventId)
-                .orElseThrow(SmsTemplateNotFoundException::new);
-    }
-
-    private Event validateEventAccess(Long eventId, User currentUser) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
-
-        return event;
+    @Override
+    protected SmsTemplateResponse toResponse(SmsTemplate template, Event event) {
+        return SmsTemplateResponse.fromEntity(template);
     }
 
     private void validateTemplatePlaceholders(String template) {
@@ -245,5 +220,4 @@ public class SmsTemplateServiceImpl implements SmsTemplateService {
                     "Invalid placeholders in template: " + invalid + ".");
         }
     }
-
 }

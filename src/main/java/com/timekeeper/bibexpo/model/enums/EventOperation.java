@@ -7,6 +7,6 @@ public enum EventOperation {
     FULL_IMPORT,
     ADDON_IMPORT,
     DISTRIBUTION,
-    SMS_TEMPLATE_WRITE,
+    TEMPLATE_WRITE,
     CAMPAIGN_WRITE
 }
