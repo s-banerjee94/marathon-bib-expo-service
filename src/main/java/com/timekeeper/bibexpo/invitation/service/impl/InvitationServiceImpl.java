@@ -21,6 +21,7 @@ import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.security.CurrentActor;
 import com.timekeeper.bibexpo.service.UserService;
 import com.timekeeper.bibexpo.util.SmsTemplateParser;
 import com.timekeeper.bibexpo.invitation.service.InvitationService;
@@ -49,9 +50,9 @@ public class InvitationServiceImpl implements InvitationService {
     private final SystemMessageDispatcher systemMessageDispatcher;
 
     @Override
-    public InvitationLinkResponse createInvitation(CreateInvitationRequest request, String currentUsername) {
+    public InvitationLinkResponse createInvitation(CreateInvitationRequest request, CurrentActor actor) {
         UserRole role = UserRole.valueOf(request.getRole());
-        userService.assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), currentUsername);
+        userService.assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), actor.username());
 
         Set<MessageChannel> channels = request.getDeliveryChannels() == null ? Set.of() : request.getDeliveryChannels();
         if (requiresPhone(channels) && isBlank(request.getRecipientPhone())) {
@@ -63,7 +64,7 @@ public class InvitationServiceImpl implements InvitationService {
                 .role(role)
                 .organizationId(request.getOrganizationId())
                 .eventId(request.getEventId())
-                .invitedBy(currentUsername)
+                .invitedBy(actor.username())
                 .recipientPhone(request.getRecipientPhone())
                 .expiresAt(expiresAt)
                 .build());
@@ -74,7 +75,7 @@ public class InvitationServiceImpl implements InvitationService {
                 buildContext(role, request.getOrganizationId(), inviteUrl));
 
         log.info("Invite issued for role {} (org {}) by {} — channels: {}",
-                role, request.getOrganizationId(), currentUsername, channels);
+                role, request.getOrganizationId(), actor.username(), channels);
         return InvitationLinkResponse.builder()
                 .inviteUrl(inviteUrl)
                 .deliveries(deliveries)

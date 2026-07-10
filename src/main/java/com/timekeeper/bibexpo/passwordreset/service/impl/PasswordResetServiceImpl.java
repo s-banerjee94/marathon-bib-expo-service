@@ -22,6 +22,7 @@ import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetToke
 import com.timekeeper.bibexpo.passwordreset.service.PasswordResetService;
 import com.timekeeper.bibexpo.passwordreset.store.PasswordResetStore;
 import com.timekeeper.bibexpo.repository.UserRepository;
+import com.timekeeper.bibexpo.security.CurrentActor;
 import com.timekeeper.bibexpo.service.UserService;
 import com.timekeeper.bibexpo.service.audit.AuditPublisher;
 import com.timekeeper.bibexpo.service.cache.AuthUserCache;
@@ -59,29 +60,29 @@ public class PasswordResetServiceImpl implements PasswordResetService {
 
     @Override
     @Transactional(readOnly = true)
-    public PasswordResetLinkResponse issueForUser(Long userId, IssueResetLinkRequest request, String currentUsername) {
-        log.info("Password reset link requested for user ID: {} by: {}", userId, currentUsername);
+    public PasswordResetLinkResponse issueForUser(Long userId, IssueResetLinkRequest request, CurrentActor actor) {
+        log.info("Password reset link requested for user ID: {} by: {}", userId, actor.username());
 
-        userService.assertCanUpdateUser(userId, currentUsername);
+        userService.assertCanUpdateUser(userId, actor.username());
         User target = fetchUser(userId);
 
         // A signed-in user must not mint a reset link for their own account: that would bypass the
         // current-password check on change-password and let a hijacked session take the account over.
         // Self-service goes through change-password (needs the current password) or forgot-password
         // (link delivered to the account's own phone).
-        if (target.getUsername().equals(currentUsername)) {
+        if (target.getId().equals(actor.id())) {
             throw new InvalidUserDataException(
                     "Use change password or forgot password to reset your own account.");
         }
 
-        String resetUrl = issueLink(target, currentUsername);
+        String resetUrl = issueLink(target, actor.username());
 
         Set<MessageChannel> channels = request != null && request.getDeliveryChannels() != null
                 ? request.getDeliveryChannels() : Set.of();
         List<DeliveryResult> deliveries = deliverResetLink(target, channels, resetUrl);
 
-        auditLinkIssued(currentUsername, target);
-        log.info("Password reset link issued for user ID: {} by: {} — channels: {}", userId, currentUsername, channels);
+        auditLinkIssued(actor.username(), target);
+        log.info("Password reset link issued for user ID: {} by: {} — channels: {}", userId, actor.username(), channels);
         return PasswordResetLinkResponse.builder()
                 .resetUrl(resetUrl)
                 .deliveries(deliveries)

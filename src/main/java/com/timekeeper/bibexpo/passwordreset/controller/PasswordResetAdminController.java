@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.IssueResetLinkRequest;
 import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetLinkResponse;
 import com.timekeeper.bibexpo.passwordreset.service.PasswordResetService;
+import com.timekeeper.bibexpo.security.CurrentActor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +22,7 @@ public class PasswordResetAdminController implements PasswordResetAdminControlle
             Long userId, IssueResetLinkRequest request, User currentUser) {
         log.info("Request to issue password reset link for user ID: {} by: {}", userId, currentUser.getUsername());
         PasswordResetLinkResponse response =
-                passwordResetService.issueForUser(userId, request, currentUser.getUsername());
+                passwordResetService.issueForUser(userId, request, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 }

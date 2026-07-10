@@ -8,6 +8,7 @@ import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.security.CurrentActor;
 import com.timekeeper.bibexpo.service.UserService;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
@@ -114,7 +115,7 @@ public class UserMcpTools implements McpToolGroup {
 
         log.info("MCP invite_user - role {}, channels {}, by {}",
                 request.getRole(), request.getDeliveryChannels(), currentUser.getUsername());
-        return invitationService.createInvitation(request, currentUser.getUsername());
+        return invitationService.createInvitation(request, CurrentActor.from(currentUser));
     }
 
     @Tool(name = "reassign_distributor_event",

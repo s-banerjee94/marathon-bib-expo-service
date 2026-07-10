@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.invitation.model.dto.request.CreateInvitationReque
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
 import com.timekeeper.bibexpo.invitation.service.InvitationService;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.security.CurrentActor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -20,7 +21,7 @@ public class InvitationController implements InvitationControllerApi {
     @Override
     public ResponseEntity<InvitationLinkResponse> createInvitation(CreateInvitationRequest request, User currentUser) {
         log.info("Request to issue invite for role: {} by: {}", request.getRole(), currentUser.getUsername());
-        InvitationLinkResponse response = invitationService.createInvitation(request, currentUser.getUsername());
+        InvitationLinkResponse response = invitationService.createInvitation(request, CurrentActor.from(currentUser));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
