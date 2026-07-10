@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.exception;
 
-public class InvalidUserDataException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class InvalidUserDataException extends ApiException {
     public InvalidUserDataException(String message) {
-        super(message);
+        super(HttpStatus.BAD_REQUEST, message);
     }
 }

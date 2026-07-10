@@ -5,7 +5,10 @@ import com.timekeeper.bibexpo.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportErrorListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ImportFieldResponse;
 import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.exception.ImportAlreadyRunningException;
 import com.timekeeper.bibexpo.exception.ImportNotAllowedException;
+import com.timekeeper.bibexpo.exception.ImportNotRunningException;
+import com.timekeeper.bibexpo.exception.InvalidCsvFormatException;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ImportMode;
 import com.timekeeper.bibexpo.service.BatchImportService;
@@ -84,5 +87,29 @@ public class BatchImportController implements BatchImportControllerApi {
         log.info("Import not allowed: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(ImportAlreadyRunningException.class)
+    public ResponseEntity<ErrorResponse> handleImportAlreadyRunning(
+            ImportAlreadyRunningException ex, WebRequest request) {
+        log.info("Concurrent import rejected: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(ImportNotRunningException.class)
+    public ResponseEntity<ErrorResponse> handleImportNotRunning(
+            ImportNotRunningException ex, WebRequest request) {
+        log.info("Stop rejected: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(InvalidCsvFormatException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCsvFormat(
+            InvalidCsvFormatException ex, WebRequest request) {
+        log.info("Invalid CSV format: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Invalid CSV Format", ex.getMessage(), request));
     }
 }

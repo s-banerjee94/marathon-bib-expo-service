@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.model.dto.request.CreateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.response.*;
 import com.timekeeper.bibexpo.exception.BibNumberAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.ChipNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.exception.ParticipantDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.ParticipantModificationNotAllowedException;
@@ -245,6 +246,14 @@ public class ParticipantController implements ParticipantControllerApi {
     public ResponseEntity<ErrorResponse> handleBibNumberAlreadyExists(
             BibNumberAlreadyExistsException ex, WebRequest request) {
         log.info("BIB number conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(ChipNumberAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleChipNumberAlreadyExists(
+            ChipNumberAlreadyExistsException ex, WebRequest request) {
+        log.info("Chip number conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }

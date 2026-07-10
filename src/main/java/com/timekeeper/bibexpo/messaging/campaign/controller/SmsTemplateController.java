@@ -1,5 +1,8 @@
 package com.timekeeper.bibexpo.messaging.campaign.controller;
 
+import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsTemplateException;
+import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateAlreadyExistsException;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsTemplateResponse;
@@ -13,11 +16,13 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 @RestController
 @RequestMapping("/api/events/{eventId}/sms-templates")
@@ -102,5 +107,21 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
         smsTemplateService.deleteSmsTemplate(eventId, templateId, currentUser);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @ExceptionHandler(InvalidSmsTemplateException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidSmsTemplate(
+            InvalidSmsTemplateException ex, WebRequest request) {
+        log.warn("Invalid SMS template: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(SmsTemplateAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleSmsTemplateAlreadyExists(
+            SmsTemplateAlreadyExistsException ex, WebRequest request) {
+        log.warn("SMS template conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
 }

@@ -1,5 +1,9 @@
 package com.timekeeper.bibexpo.controller;
 
+import com.timekeeper.bibexpo.exception.AccountDisabledException;
+import com.timekeeper.bibexpo.exception.CsrfValidationException;
+import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.exception.InvalidCredentialsException;
 import com.timekeeper.bibexpo.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.model.dto.response.LoginResponse;
 import com.timekeeper.bibexpo.model.dto.response.RefreshResponse;
@@ -16,12 +20,15 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -88,5 +95,27 @@ public class AuthController {
                                        HttpServletResponse httpResponse) {
         authService.logout(currentUser, httpResponse);
         return ResponseEntity.noContent().build();
+    }
+
+    // The real failure reason is logged but never returned, so credential probing learns nothing.
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex, WebRequest request) {
+        log.warn("Invalid credentials: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid username or password", request));
+    }
+
+    @ExceptionHandler(AccountDisabledException.class)
+    public ResponseEntity<ErrorResponse> handleAccountDisabled(AccountDisabledException ex, WebRequest request) {
+        log.warn("Account access rejected: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Unauthorized", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(CsrfValidationException.class)
+    public ResponseEntity<ErrorResponse> handleCsrfValidation(CsrfValidationException ex, WebRequest request) {
+        log.warn("CSRF validation failed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(HttpStatus.FORBIDDEN, "Forbidden", ex.getMessage(), request));
     }
 }

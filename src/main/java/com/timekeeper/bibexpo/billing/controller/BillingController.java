@@ -1,8 +1,6 @@
 package com.timekeeper.bibexpo.billing.controller;
 
 import com.timekeeper.bibexpo.billing.exception.BillGenerationException;
-import com.timekeeper.bibexpo.billing.exception.BillNotAllowedException;
-import com.timekeeper.bibexpo.billing.exception.BillNotFoundException;
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.billing.model.dto.request.LineItemRequest;
 import com.timekeeper.bibexpo.billing.model.dto.request.ParticipantLineRequest;
@@ -110,23 +108,8 @@ public class BillingController implements BillingControllerApi {
                 billingLineItemService.deleteLineItem(eventId, invoiceId, lineItemId, currentUser));
     }
 
-    // Billing-only exceptions are handled here rather than in the global advice, since they can
-    // only be thrown from this controller's flows. Cross-cutting ones stay in GlobalExceptionHandler.
-
-    @ExceptionHandler(BillNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleBillNotFound(BillNotFoundException ex, WebRequest request) {
-        log.warn("Bill resource not found: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
-    }
-
-    @ExceptionHandler(BillNotAllowedException.class)
-    public ResponseEntity<ErrorResponse> handleBillNotAllowed(BillNotAllowedException ex, WebRequest request) {
-        log.warn("Bill request not allowed: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
-    }
-
+    // BillGeneration is thrown only from this controller's flows; BillNotFound/BillNotAllowed are
+    // shared with the admin billing controllers and handled by the global ApiException handler.
     @ExceptionHandler(BillGenerationException.class)
     public ResponseEntity<ErrorResponse> handleBillGeneration(BillGenerationException ex, WebRequest request) {
         log.error("Bill generation failed: {}", ex.getMessage());

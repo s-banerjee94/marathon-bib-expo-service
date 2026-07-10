@@ -1,5 +1,8 @@
 package com.timekeeper.bibexpo.controller;
 
+import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.exception.EventAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.EventDeletionNotAllowedException;
 import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
@@ -18,11 +21,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 @RestController
 @RequestMapping("/api/events")
@@ -163,5 +168,21 @@ public class EventController implements EventControllerApi {
         log.info("Request to remove logo for event ID: {} by user: {}", id, currentUser.getUsername());
         EventResponse response = eventService.removeLogo(id, currentUser);
         return ResponseEntity.ok(response);
+    }
+
+    @ExceptionHandler(EventAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleEventAlreadyExists(
+            EventAlreadyExistsException ex, WebRequest request) {
+        log.warn("Event already exists: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(EventDeletionNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleEventDeletionNotAllowed(
+            EventDeletionNotAllowedException ex, WebRequest request) {
+        log.warn("Event deletion not allowed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
 }
