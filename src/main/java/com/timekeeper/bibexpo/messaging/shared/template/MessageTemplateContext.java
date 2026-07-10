@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.util;
+package com.timekeeper.bibexpo.messaging.shared.template;
 
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
@@ -9,7 +9,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 @Getter
-public class SmsTemplateContext {
+public class MessageTemplateContext {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy");
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy hh:mm a");
@@ -33,7 +33,7 @@ public class SmsTemplateContext {
     // Race fields
     private final String reportingTime;
 
-    public SmsTemplateContext(ParticipantDDB participant, Event event, String raceName, String categoryName,
+    public MessageTemplateContext(ParticipantDDB participant, Event event, String raceName, String categoryName,
                               Instant reportingTime) {
         this.fullName = participant.getFullName();
         this.bibNumber = participant.getBibNumber();

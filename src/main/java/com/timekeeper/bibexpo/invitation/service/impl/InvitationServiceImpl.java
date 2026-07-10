@@ -23,7 +23,7 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.security.CurrentActor;
 import com.timekeeper.bibexpo.service.UserService;
-import com.timekeeper.bibexpo.util.SmsTemplateParser;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
 import com.timekeeper.bibexpo.invitation.service.InvitationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

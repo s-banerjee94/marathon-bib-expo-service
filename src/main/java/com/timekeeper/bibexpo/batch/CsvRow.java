@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.util;
+package com.timekeeper.bibexpo.batch;
 
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;

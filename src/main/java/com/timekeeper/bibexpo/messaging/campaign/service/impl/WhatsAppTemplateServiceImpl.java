@@ -19,8 +19,8 @@ import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
-import com.timekeeper.bibexpo.util.SmsTemplateContext;
-import com.timekeeper.bibexpo.util.SmsTemplateParser;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
 import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
@@ -181,8 +181,8 @@ public class WhatsAppTemplateServiceImpl
         if (bodyVariables == null || bodyVariables.isEmpty()) {
             return;
         }
-        List<String> invalid = SmsTemplateParser.validatePlaceholders(
-                String.join(" ", bodyVariables), SmsTemplateContext.class);
+        List<String> invalid = MessageTemplateParser.validatePlaceholders(
+                String.join(" ", bodyVariables), MessageTemplateContext.class);
         if (!invalid.isEmpty()) {
             throw new InvalidWhatsAppTemplateException(
                     "Invalid placeholders in template variables: " + invalid + ".");

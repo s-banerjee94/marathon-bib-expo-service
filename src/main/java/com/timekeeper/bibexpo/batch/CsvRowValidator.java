@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.batch;
 
-import com.timekeeper.bibexpo.util.CsvRow;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;

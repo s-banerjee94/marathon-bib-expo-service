@@ -5,7 +5,7 @@ import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
 import com.timekeeper.bibexpo.messaging.system.model.entity.SystemMessageTemplate;
 import com.timekeeper.bibexpo.messaging.system.service.SystemMessageTemplateService;
-import com.timekeeper.bibexpo.util.SmsTemplateParser;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -72,7 +72,7 @@ public class SystemMessageDispatcher {
     }
 
     private String renderBody(String body, Object context) {
-        return (body == null || body.isBlank()) ? null : SmsTemplateParser.parse(body, context);
+        return (body == null || body.isBlank()) ? null : MessageTemplateParser.parse(body, context);
     }
 
     /** Renders the newline-separated {@code #{field}} expressions into ordered positional values. */
@@ -81,7 +81,7 @@ public class SystemMessageDispatcher {
             return List.of();
         }
         return Arrays.stream(variables.split("\n"))
-                .map(expression -> SmsTemplateParser.parse(expression, context))
+                .map(expression -> MessageTemplateParser.parse(expression, context))
                 .toList();
     }
 }

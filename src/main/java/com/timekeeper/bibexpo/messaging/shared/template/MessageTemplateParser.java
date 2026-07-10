@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.util;
+package com.timekeeper.bibexpo.messaging.shared.template;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -11,11 +11,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class SmsTemplateParser {
+public class MessageTemplateParser {
 
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("#\\{(\\w*)}");
 
-    private SmsTemplateParser() {}
+    private MessageTemplateParser() {}
 
     /**
      * Renders a template by replacing #{fieldName} placeholders with values
@@ -97,7 +97,7 @@ public class SmsTemplateParser {
             Object value = getter.invoke(obj);
             return value != null ? value.toString() : "";
         } catch (Exception e) {
-            log.warn("SMS template placeholder '{}' could not be resolved: {}", fieldName, e.getMessage());
+            log.warn("Template placeholder '{}' could not be resolved: {}", fieldName, e.getMessage());
             return "";
         }
     }

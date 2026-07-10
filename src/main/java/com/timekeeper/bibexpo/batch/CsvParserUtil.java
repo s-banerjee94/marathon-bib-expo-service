@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.util;
+package com.timekeeper.bibexpo.batch;
 
 import com.timekeeper.bibexpo.model.dto.request.ImportMappingRequest;
 import lombok.extern.slf4j.Slf4j;

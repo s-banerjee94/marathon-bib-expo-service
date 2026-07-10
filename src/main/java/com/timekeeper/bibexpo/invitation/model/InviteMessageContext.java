@@ -8,7 +8,7 @@ import lombok.ToString;
 /**
  * Variable context for invite messages. Its getters back the {@code #{role}},
  * {@code #{organizationName}} and {@code #{inviteUrl}} tokens used by the invite SMS/WhatsApp
- * templates (resolved by {@code SmsTemplateParser}).
+ * templates (resolved by {@code MessageTemplateParser}).
  */
 @Getter
 @Builder

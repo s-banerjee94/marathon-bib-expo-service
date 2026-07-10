@@ -8,7 +8,7 @@ import lombok.ToString;
 /**
  * Variable context for password-reset messages. Its getters back the {@code #{userName}} and
  * {@code #{resetUrl}} tokens used by the PASSWORD_RESET SMS/WhatsApp templates (resolved by
- * {@code SmsTemplateParser}).
+ * {@code MessageTemplateParser}).
  */
 @Getter
 @Builder

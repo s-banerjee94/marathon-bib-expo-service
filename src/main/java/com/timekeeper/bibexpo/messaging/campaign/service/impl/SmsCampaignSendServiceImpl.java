@@ -21,8 +21,8 @@ import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.Dispatc
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchRequest;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.util.SmsTemplateContext;
-import com.timekeeper.bibexpo.util.SmsTemplateParser;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -81,10 +81,10 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
                 .targetFilter(participant -> matchesFilter(participant, campaign.getTargetFilter()))
                 .sendsMapAccessor(ParticipantDDB::getSmsCampaignSends)
                 .sender(participant -> {
-                    SmsTemplateContext context = new SmsTemplateContext(participant, event,
+                    MessageTemplateContext context = new MessageTemplateContext(participant, event,
                             names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
                             names.reportingTime(participant.getRaceId()));
-                    String message = SmsTemplateParser.parse(templateText, context);
+                    String message = MessageTemplateParser.parse(templateText, context);
                     messagingProviderClient.send(provider, OutboundMessage.builder()
                             .recipientPhone(participant.getPhoneNumber())
                             .templateId(dltTemplateId)

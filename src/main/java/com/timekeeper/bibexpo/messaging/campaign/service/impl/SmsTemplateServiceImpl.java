@@ -22,8 +22,8 @@ import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
-import com.timekeeper.bibexpo.util.SmsTemplateContext;
-import com.timekeeper.bibexpo.util.SmsTemplateParser;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
 import com.timekeeper.bibexpo.util.TextUtils;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
@@ -214,7 +214,7 @@ public class SmsTemplateServiceImpl
     }
 
     private void validateTemplatePlaceholders(String template) {
-        List<String> invalid = SmsTemplateParser.validatePlaceholders(template, SmsTemplateContext.class);
+        List<String> invalid = MessageTemplateParser.validatePlaceholders(template, MessageTemplateContext.class);
         if (!invalid.isEmpty()) {
             throw new InvalidSmsTemplateException(
                     "Invalid placeholders in template: " + invalid + ".");
