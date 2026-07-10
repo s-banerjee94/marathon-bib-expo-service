@@ -44,7 +44,7 @@ public class UserProfileMediaServiceImpl implements UserProfileMediaService {
         User targetUser = fetchTargetUser(userId);
         accessPolicy.validateUpdateUserAuthorization(actor, targetUser);
 
-        if (UploadCategory.PROFILE_PICTURE.ownsKey(targetUser.getId(), objectKey)) {
+        if (UploadCategory.PROFILE_PICTURE.isForeignKeyFor(targetUser.getId(), objectKey)) {
             throw new InvalidFileException("This upload does not belong to this profile.");
         }
         if (!storageService.objectExists(objectKey)) {

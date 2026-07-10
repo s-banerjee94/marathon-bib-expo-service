@@ -323,7 +323,7 @@ public class EventServiceImpl implements EventService {
                 status, search, currentUser.getUsername());
 
         if (currentUser.getOrganization() == null) {
-            throw new UnauthorizedAccessException(
+            throw new AccessForbiddenException(
                     "User does not belong to any organization");
         }
 
@@ -593,18 +593,18 @@ public class EventServiceImpl implements EventService {
 
         if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
             if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException(
+                throw new AccessForbiddenException(
                         "Your account is not assigned to an organization.");
             }
 
             if (!currentUser.getOrganization().getId().equals(organization.getId())) {
-                throw new UnauthorizedAccessException(
+                throw new AccessForbiddenException(
                         "You can only create events for your organization.");
             }
             return;
         }
 
-        throw new UnauthorizedAccessException("You are not allowed to create events.");
+        throw new AccessForbiddenException("You are not allowed to create events.");
     }
 
     @Override
@@ -620,7 +620,7 @@ public class EventServiceImpl implements EventService {
         log.info("Attaching logo for event ID: {} by user: {}", id, currentUser.getUsername());
         Event event = findAndValidateEvent(id, currentUser);
 
-        if (UploadCategory.EVENT_LOGO.ownsKey(event.getId(), objectKey)) {
+        if (UploadCategory.EVENT_LOGO.isForeignKeyFor(event.getId(), objectKey)) {
             throw new InvalidFileException("This upload does not belong to this event.");
         }
         if (!storageService.objectExists(objectKey)) {

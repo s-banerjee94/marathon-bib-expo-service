@@ -6,7 +6,7 @@ import com.timekeeper.bibexpo.exception.InvalidFileException;
 import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.exception.UserLimitReductionException;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
@@ -83,7 +83,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         // Only ROOT and ADMIN can access this method (enforced by @PreAuthorize in controller)
         // But we'll add an additional check here for extra security
         if (currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) {
-            throw new UnauthorizedAccessException(
+            throw new AccessForbiddenException(
                     "You are not allowed to view all organizations.");
         }
 
@@ -338,7 +338,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private void validateUpdateAuthorization(User currentUser, Long organizationId) {
         if (currentUser.getRole() == UserRole.ORGANIZER_ADMIN && (currentUser.getOrganization() == null ||
                     !currentUser.getOrganization().getId().equals(organizationId))) {
-                throw new UnauthorizedAccessException(
+                throw new AccessForbiddenException(
                         "You can only update your own organization.");
             }
 
@@ -501,7 +501,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         if ((currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) &&
                 (currentUser.getOrganization() == null || !currentUser.getOrganization().getId().equals(id))) {
-            throw new UnauthorizedAccessException(
+            throw new AccessForbiddenException(
                     "You can only view your own organization.");
         }
 
@@ -517,7 +517,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         log.info("Fetching organization for user: {}", currentUser.getUsername());
 
         if (currentUser.getOrganization() == null) {
-            throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
+            throw new AccessForbiddenException("Your account is not assigned to an organization.");
         }
 
         Long organizationId = currentUser.getOrganization().getId();
@@ -599,7 +599,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         Organization organization = getActiveOrganizationOrThrow(id);
         validateUpdateAuthorization(currentUser, id);
 
-        if (UploadCategory.ORGANIZATION_LOGO.ownsKey(organization.getId(), objectKey)) {
+        if (UploadCategory.ORGANIZATION_LOGO.isForeignKeyFor(organization.getId(), objectKey)) {
             throw new InvalidFileException("This upload does not belong to this organization.");
         }
         if (!storageService.objectExists(objectKey)) {

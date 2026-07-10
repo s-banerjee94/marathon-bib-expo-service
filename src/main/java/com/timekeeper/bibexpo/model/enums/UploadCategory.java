@@ -36,8 +36,8 @@ public enum UploadCategory {
         return ownerRoot + "/" + ownerId + "/" + leaf;
     }
 
-    /** Whether an object key belongs under this category for the given owner. */
-    public boolean ownsKey(long ownerId, String objectKey) {
+    /** Whether an object key does NOT belong under this category for the given owner. */
+    public boolean isForeignKeyFor(long ownerId, String objectKey) {
         return objectKey == null || !objectKey.startsWith(keyPrefix(ownerId) + "/");
     }
 
