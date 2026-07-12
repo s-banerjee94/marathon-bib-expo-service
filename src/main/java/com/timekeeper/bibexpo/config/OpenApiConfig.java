@@ -148,6 +148,11 @@ public class OpenApiConfig {
         return group("15-dev-operations", "Dev Operations (Dev Profile Only)", "/api/dev/**");
     }
 
+    @Bean
+    public GroupedOpenApi landingDemoDoc() {
+        return group("16-landing-demo", "Landing Page Live Demo (Public)", "/api/public/demo/**");
+    }
+
     // ---- helpers ----
 
     private static GroupedOpenApi group(String id, String displayName, String... pathsToMatch) {
