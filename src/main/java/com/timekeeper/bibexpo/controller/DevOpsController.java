@@ -1,9 +1,7 @@
 package com.timekeeper.bibexpo.controller;
 
-import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
+import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -30,13 +28,11 @@ import java.util.Map;
 @Tag(name = "Dev Operations", description = "Development-only endpoints for testing and data management (only available in dev profile)")
 public class DevOpsController {
 
-    private static final String PARTICIPANTS_TABLE = ParticipantDDBRepository.TABLE_NAME;
-    private static final String DISTRIBUTION_LOGS_TABLE = "marathon-distribution-logs";
-    private static final String IMPORT_ERRORS_TABLE = "marathon-import-errors";
     public static final String DELETED_COUNT = "deletedCount";
     public static final String SUCCESS = "success";
 
     private final DynamoDbClient dynamoDbClient;
+    private final DynamoDbProperties dynamoDbProperties;
 
     @DeleteMapping("/clear-participants")
     @Operation(
@@ -48,7 +44,7 @@ public class DevOpsController {
             }
     )
     public ResponseEntity<Map<String, Object>> clearParticipants() {
-        return clearDynamoDBTable(PARTICIPANTS_TABLE, "eventId", "bibNumber");
+        return clearDynamoDBTable(dynamoDbProperties.participantsTable(), "eventId", "bibNumber");
     }
 
     @DeleteMapping("/clear-distribution-logs")
@@ -61,7 +57,7 @@ public class DevOpsController {
             }
     )
     public ResponseEntity<Map<String, Object>> clearDistributionLogs() {
-        return clearDynamoDBTable(DISTRIBUTION_LOGS_TABLE, "eventId", "timestamp");
+        return clearDynamoDBTable(dynamoDbProperties.distributionLogsTable(), "eventId", "timestamp");
     }
 
     @DeleteMapping("/clear-import-errors")
@@ -74,7 +70,7 @@ public class DevOpsController {
             }
     )
     public ResponseEntity<Map<String, Object>> clearImportErrors() {
-        return clearDynamoDBTable(IMPORT_ERRORS_TABLE, "importId", "rowNumber");
+        return clearDynamoDBTable(dynamoDbProperties.importErrorsTable(), "importId", "rowNumber");
     }
 
     @DeleteMapping("/clear-all-dynamodb")
@@ -98,7 +94,7 @@ public class DevOpsController {
             ResponseEntity<Map<String, Object>> participantsResult = clearParticipants();
             if (participantsResult.getBody() != null) {
                 int count = (Integer) participantsResult.getBody().getOrDefault(DELETED_COUNT, 0);
-                tableResults.put(PARTICIPANTS_TABLE, count);
+                tableResults.put(dynamoDbProperties.participantsTable(), count);
                 totalDeleted += count;
                 allSuccess &= (Boolean) participantsResult.getBody().getOrDefault(SUCCESS, false);
             }
@@ -106,7 +102,7 @@ public class DevOpsController {
             ResponseEntity<Map<String, Object>> distributionResult = clearDistributionLogs();
             if (distributionResult.getBody() != null) {
                 int count = (Integer) distributionResult.getBody().getOrDefault(DELETED_COUNT, 0);
-                tableResults.put(DISTRIBUTION_LOGS_TABLE, count);
+                tableResults.put(dynamoDbProperties.distributionLogsTable(), count);
                 totalDeleted += count;
                 allSuccess &= (Boolean) distributionResult.getBody().getOrDefault(SUCCESS, false);
             }
@@ -114,7 +110,7 @@ public class DevOpsController {
             ResponseEntity<Map<String, Object>> importResult = clearImportErrors();
             if (importResult.getBody() != null) {
                 int count = (Integer) importResult.getBody().getOrDefault(DELETED_COUNT, 0);
-                tableResults.put(IMPORT_ERRORS_TABLE, count);
+                tableResults.put(dynamoDbProperties.importErrorsTable(), count);
                 totalDeleted += count;
                 allSuccess &= (Boolean) importResult.getBody().getOrDefault(SUCCESS, false);
             }

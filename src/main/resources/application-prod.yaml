@@ -88,8 +88,13 @@ aws:
     endpoint: ${AWS_S3_ENDPOINT:}
 
 # --- Logging ----------------------------------------------------------------
-# Quieter, non-DEBUG logging for production.
+# Adds a rolling file on top of the console; levels/patterns are inherited from
+# application.yaml (root INFO). Override the path with the LOG_FILE env var.
 logging:
-  level:
-    com.timekeeper.bibexpo.security: INFO
-    com.timekeeper.bibexpo.service.impl.JwtServiceImpl: INFO
+  file:
+    name: ${LOG_FILE:/var/log/marathon/app.log}
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 14
+      total-size-cap: 500MB

@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
+import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import lombok.RequiredArgsConstructor;
@@ -28,17 +29,16 @@ import java.util.Map;
 @Slf4j
 public class ParticipantDDBRepository {
 
-    public static final String TABLE_NAME = "marathon-participants";
-
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final DynamoDbClient dynamoDbClient;
+    private final DynamoDbProperties dynamoDbProperties;
     private volatile DynamoDbTable<ParticipantDDB> table;
 
     public DynamoDbTable<ParticipantDDB> getTable() {
         if (table == null) {
             synchronized (this) {
                 if (table == null) {
-                    table = dynamoDbEnhancedClient.table(TABLE_NAME, TableSchema.fromBean(ParticipantDDB.class));
+                    table = dynamoDbEnhancedClient.table(dynamoDbProperties.participantsTable(), TableSchema.fromBean(ParticipantDDB.class));
                 }
             }
         }
@@ -73,7 +73,7 @@ public class ParticipantDDBRepository {
      */
     public void updateVerifyShortCode(Long eventId, String bibNumber, String code) {
         dynamoDbClient.updateItem(UpdateItemRequest.builder()
-                .tableName(TABLE_NAME)
+                .tableName(dynamoDbProperties.participantsTable())
                 .key(Map.of(
                         "eventId", AttributeValue.fromS(String.valueOf(eventId)),
                         "bibNumber", AttributeValue.fromS(bibNumber)))

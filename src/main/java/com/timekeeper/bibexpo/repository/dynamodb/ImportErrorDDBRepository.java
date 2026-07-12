@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
+import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.model.dynamodb.ImportErrorDDB;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,13 +25,14 @@ import java.util.Map;
 public class ImportErrorDDBRepository {
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final DynamoDbProperties dynamoDbProperties;
     private volatile DynamoDbTable<ImportErrorDDB> table;
 
     private DynamoDbTable<ImportErrorDDB> getTable() {
         if (table == null) {
             synchronized (this) {
                 if (table == null) {
-                    table = dynamoDbEnhancedClient.table("marathon-import-errors", TableSchema.fromBean(ImportErrorDDB.class));
+                    table = dynamoDbEnhancedClient.table(dynamoDbProperties.importErrorsTable(), TableSchema.fromBean(ImportErrorDDB.class));
                 }
             }
         }

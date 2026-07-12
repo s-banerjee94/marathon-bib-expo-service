@@ -1,43 +1,31 @@
 package com.timekeeper.bibexpo.config;
 
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
+
 import java.net.URI;
 
 @Configuration
+@RequiredArgsConstructor
 public class DynamoDBConfig {
 
-    @Value("${aws.dynamodb.endpoint:}")
-    private String endpoint;
-
-    @Value("${aws.region:us-east-1}")
-    private String region;
-
-    @Value("${aws.access-key-id:test}")
-    private String accessKeyId;
-
-    @Value("${aws.secret-access-key:test}")
-    private String secretAccessKey;
+    private final AwsProperties awsProperties;
+    private final DynamoDbProperties dynamoDbProperties;
 
     @Bean
     public DynamoDbClient dynamoDbClient() {
+        String endpoint = dynamoDbProperties.getEndpoint();
         DynamoDbClientBuilder builder = DynamoDbClient.builder()
-                .region(Region.of(region));
+                .region(Region.of(awsProperties.getRegion()))
+                .credentialsProvider(awsProperties.credentialsProvider(endpoint));
 
-        if (endpoint != null && !endpoint.isEmpty()) {
-            builder.endpointOverride(URI.create(endpoint))
-                    .credentialsProvider(StaticCredentialsProvider.create(
-                            AwsBasicCredentials.create(accessKeyId, secretAccessKey)));
-        } else {
-            builder.credentialsProvider(DefaultCredentialsProvider.create());
+        if (endpoint != null && !endpoint.isBlank()) {
+            builder.endpointOverride(URI.create(endpoint));
         }
 
         return builder.build();

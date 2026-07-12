@@ -1,4 +1,7 @@
 spring:
+  profiles:
+    default: local
+
   application:
     name: marathon-bib-expo
 
@@ -106,9 +109,11 @@ jwt:
 
 logging:
   level:
-    org.springframework.web.servlet.handler.HandlerMappingIntrospector: ERROR
-    com.timekeeper.bibexpo.security: DEBUG
-    com.timekeeper.bibexpo.service.impl.JwtServiceImpl: DEBUG
+    root: INFO
+    org.springframework.web.servlet.handler.HandlerMappingIntrospector: ERROR   # silences a noisy Spring Security WARN
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd hh:mm:ss.SSS a}){faint} %clr(%-5p) %clr([%t]){faint} %clr(%logger{36}){cyan} %clr(-){faint} %msg%n"
+    file: "%d{yyyy-MM-dd hh:mm:ss.SSS a} %-5p [%t] %logger{36} - %msg%n"
 
 # Participant Access Configuration
 app:
@@ -165,7 +170,7 @@ aws:
   secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
   dynamodb:
     endpoint: ${AWS_DYNAMODB_ENDPOINT:http://192.168.0.111:4566}
-    table-name: ${AWS_DYNAMODB_TABLE_NAME:marathon-participants}
+    table-prefix: ${AWS_DYNAMODB_TABLE_PREFIX:}
   s3:
     bucket: ${AWS_S3_BUCKET:marathon-bib-expo-media}
     endpoint: ${AWS_S3_ENDPOINT:http://192.168.0.111:4566}                 # LocalStack locally; leave empty in prod to target real AWS S3

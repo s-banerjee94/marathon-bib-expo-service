@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
+import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.model.dynamodb.DistributionLogDDB;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,13 +15,14 @@ import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 public class DistributionLogDDBRepository {
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final DynamoDbProperties dynamoDbProperties;
     private volatile DynamoDbTable<DistributionLogDDB> table;
 
     public DynamoDbTable<DistributionLogDDB> getTable() {
         if (table == null) {
             synchronized (this) {
                 if (table == null) {
-                    table = dynamoDbEnhancedClient.table("marathon-distribution-logs", TableSchema.fromBean(DistributionLogDDB.class));
+                    table = dynamoDbEnhancedClient.table(dynamoDbProperties.distributionLogsTable(), TableSchema.fromBean(DistributionLogDDB.class));
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
+import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.model.dto.audit.AuditLogQuery;
 import com.timekeeper.bibexpo.model.dynamodb.AuditLogDDB;
 import lombok.RequiredArgsConstructor;
@@ -31,13 +32,14 @@ public class AuditLogDDBRepository {
     private static final String UPPER_BOUND = "￿";
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final DynamoDbProperties dynamoDbProperties;
     private volatile DynamoDbTable<AuditLogDDB> table;
 
     private DynamoDbTable<AuditLogDDB> getTable() {
         if (table == null) {
             synchronized (this) {
                 if (table == null) {
-                    table = dynamoDbEnhancedClient.table("marathon-audit-log", TableSchema.fromBean(AuditLogDDB.class));
+                    table = dynamoDbEnhancedClient.table(dynamoDbProperties.auditLogTable(), TableSchema.fromBean(AuditLogDDB.class));
                 }
             }
         }
