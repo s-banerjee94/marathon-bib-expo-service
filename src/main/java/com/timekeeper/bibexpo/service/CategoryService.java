@@ -1,5 +1,7 @@
 package com.timekeeper.bibexpo.service;
 
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
+import com.timekeeper.bibexpo.exception.CategoryNotFoundException;
 import com.timekeeper.bibexpo.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.response.CategoryResponse;
@@ -73,7 +75,7 @@ public interface CategoryService {
      * @param categoryId The category ID
      * @param currentUser The authenticated user
      * @throws CategoryNotFoundException if the category does not exist
-     * @throws UnauthorizedAccessException if the user is not authorized
+     * @throws AccessForbiddenException if the user is not authorized
      */
     void deleteCategory(Long eventId, Long raceId, Long categoryId, User currentUser);
 

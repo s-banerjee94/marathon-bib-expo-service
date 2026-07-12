@@ -6,14 +6,12 @@ import com.timekeeper.bibexpo.model.dto.request.UpdateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.response.DeleteParticipantsResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantResponse;
-import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
-import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.*;
-import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
+import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.CategoryService;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.ParticipantService;
@@ -33,17 +31,9 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
-import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.*;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVPrinter;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -55,6 +45,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     public static final String FAILED_TO_DECODE_PAGINATION_KEY = "Failed to decode pagination key";
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final ParticipantDDBRepository participantRepository;
     private final RaceService raceService;
     private final CategoryService categoryService;
     private final ParticipantAccessGuard accessGuard;
@@ -71,10 +62,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @PostConstruct
     public void init() {
-        this.participantTable = dynamoDbEnhancedClient.table(
-                "marathon-participants",
-                TableSchema.fromBean(ParticipantDDB.class)
-        );
+        this.participantTable = participantRepository.getTable();
     }
 
     @Override
@@ -793,253 +781,6 @@ public class ParticipantServiceImpl implements ParticipantService {
         return value == null ? null : value.trim();
     }
 
-    @Override
-    public byte[] exportParticipantsToCsv(Long eventId, List<ExportField> fields, User currentUser) {
-        log.info("Exporting participants to CSV for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
-        accessGuard.forRead(eventId, currentUser);
-
-        QueryConditional queryConditional = QueryConditional.keyEqualTo(
-                Key.builder().partitionValue(eventId.toString()).build()
-        );
-
-        List<ParticipantDDB> allParticipants = participantTable.query(queryConditional).stream()
-                .flatMap(page -> page.items().stream())
-                .toList();
-
-        log.info("Found {} participants to export for event ID: {}", allParticipants.size(), eventId);
-
-        List<ExportField> exportFields = (fields == null || fields.isEmpty())
-                ? Arrays.asList(ExportField.values())
-                : fields;
-
-        Set<String> goodiesKeys = collectGoodiesKeys(allParticipants);
-        EventNames names = nameResolver.forEvent(eventId);
-
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             OutputStreamWriter writer = new OutputStreamWriter(baos, StandardCharsets.UTF_8);
-             CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT)) {
-
-            List<String> headers = buildCsvHeaders(exportFields, goodiesKeys);
-            csvPrinter.printRecord(headers);
-
-            for (ParticipantDDB participant : allParticipants) {
-                List<String> row = buildCsvRow(participant, exportFields, goodiesKeys, names);
-                csvPrinter.printRecord(row);
-            }
-
-            csvPrinter.flush();
-            log.info("Successfully exported {} participants to CSV for event ID: {}", allParticipants.size(), eventId);
-            return baos.toByteArray();
-
-        } catch (IOException e) {
-            log.error("Failed to generate CSV for event ID: {}", eventId, e);
-            throw new CsvImportException("Failed to generate CSV export", e);
-        }
-    }
-
-    private Set<String> collectGoodiesKeys(List<ParticipantDDB> participants) {
-        Set<String> keys = new LinkedHashSet<>();
-        for (ParticipantDDB participant : participants) {
-            if (participant.getGoodies() != null) {
-                keys.addAll(participant.getGoodies().keySet());
-            }
-        }
-        return keys;
-    }
-
-    private List<String> buildCsvHeaders(List<ExportField> fields, Set<String> goodiesKeys) {
-        List<String> headers = new ArrayList<>();
-
-        for (ExportField field : fields) {
-            if (field == ExportField.GOODIES) {
-                headers.addAll(goodiesKeys);
-            } else {
-                headers.add(getHeaderName(field));
-            }
-        }
-
-        return headers;
-    }
-
-    private String getHeaderName(ExportField field) {
-        return switch (field) {
-            case CHIP_NUMBER -> "CHIP No";
-            case BIB_NUMBER -> "BIB No";
-            case FULL_NAME -> "NAME";
-            case DATE_OF_BIRTH -> "DOB(dd-mm-yyy)";
-            case AGE -> "Age";
-            case GENDER -> "Gender";
-            case RACE_NAME -> "Race";
-            case CATEGORY_NAME -> "Category";
-            case PHONE_NUMBER -> "Phone";
-            case EMAIL -> "Email-Id";
-            case COUNTRY -> "Country";
-            case CITY -> "City";
-            case BIB_COLLECTED_AT -> "Bib Collected At";
-            case EMERGENCY_CONTACT_NAME -> "Emergency Contact Name";
-            case EMERGENCY_CONTACT_PHONE -> "Emergency Contact Phone";
-            case NOTES -> "Notes";
-            case GOODIES -> "Goodies";
-        };
-    }
-
-    private List<String> buildCsvRow(ParticipantDDB participant, List<ExportField> fields,
-                                     Set<String> goodiesKeys, EventNames names) {
-        List<String> row = new ArrayList<>();
-
-        for (ExportField field : fields) {
-            if (field == ExportField.GOODIES) {
-                for (String goodieKey : goodiesKeys) {
-                    String value = participant.getGoodies() != null
-                            ? participant.getGoodies().getOrDefault(goodieKey, "")
-                            : "";
-                    row.add(value);
-                }
-            } else {
-                row.add(getFieldValue(participant, field, names));
-            }
-        }
-
-        return row;
-    }
-
-    private String getFieldValue(ParticipantDDB participant, ExportField field, EventNames names) {
-        return switch (field) {
-            case BIB_NUMBER -> TextUtils.nullSafe(participant.getBibNumber());
-            case CHIP_NUMBER -> TextUtils.nullSafe(participant.getChipNumber());
-            case FULL_NAME -> TextUtils.nullSafe(participant.getFullName());
-            case EMAIL -> TextUtils.nullSafe(participant.getEmail());
-            case PHONE_NUMBER -> TextUtils.nullSafe(participant.getPhoneNumber());
-            case DATE_OF_BIRTH -> TextUtils.nullSafe(participant.getDateOfBirth());
-            case AGE -> participant.getAge() != null ? participant.getAge().toString() : "";
-            case GENDER -> TextUtils.nullSafe(participant.getGender());
-            case COUNTRY -> TextUtils.nullSafe(participant.getCountry());
-            case CITY -> TextUtils.nullSafe(participant.getCity());
-            case RACE_NAME -> TextUtils.nullSafe(names.raceName(participant.getRaceId()));
-            case CATEGORY_NAME -> TextUtils.nullSafe(names.categoryName(participant.getCategoryId()));
-            case BIB_COLLECTED_AT -> TextUtils.nullSafe(participant.getBibCollectedAt());
-            case EMERGENCY_CONTACT_NAME -> TextUtils.nullSafe(participant.getEmergencyContactName());
-            case EMERGENCY_CONTACT_PHONE -> TextUtils.nullSafe(participant.getEmergencyContactPhone());
-            case NOTES -> TextUtils.nullSafe(participant.getNotes());
-            case GOODIES -> "";
-        };
-    }
-
-    @Override
-    public ParticipantStatisticsResponse getParticipantStatistics(Long eventId, User currentUser) {
-        log.info("Getting participant statistics for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
-        accessGuard.forRead(eventId, currentUser);
-
-        List<EventStatsDDB> rows = eventStatsRepo.queryAll(eventId.toString());
-        if (rows.isEmpty()) {
-            log.warn("No stats counters found for event {} — call POST /participants/statistics/reconcile to backfill",
-                    eventId);
-            return emptyStatistics(eventId);
-        }
-
-        return buildStatisticsFromRows(eventId, rows, nameResolver.forEvent(eventId));
-    }
-
-    private ParticipantStatisticsResponse buildStatisticsFromRows(Long eventId, List<EventStatsDDB> rows, EventNames names) {
-        int total = 0;
-        int bibCollected = 0;
-        int male = 0;
-        int female = 0;
-        int other = 0;
-        Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap = new LinkedHashMap<>();
-        Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap = new LinkedHashMap<>();
-
-        for (EventStatsDDB row : rows) {
-            String key = row.getStatKey();
-            long count = row.getCount() != null ? row.getCount() : 0L;
-            if (count < 0) continue;
-
-            switch (key) {
-                case EventStatsServiceImpl.KEY_TOTAL -> total = (int) count;
-                case EventStatsServiceImpl.KEY_BIB_COLLECTED -> bibCollected = (int) count;
-                case EventStatsServiceImpl.GENDER_M -> male = (int) count;
-                case EventStatsServiceImpl.GENDER_F -> female = (int) count;
-                case EventStatsServiceImpl.GENDER_O -> other = (int) count;
-                default -> applyDimensionRow(key, count, raceMap, categoryMap, names);
-            }
-        }
-
-        log.info("Loaded statistics for event {} from counters: total={} bibCollected={}",
-                eventId, total, bibCollected);
-
-        return ParticipantStatisticsResponse.builder()
-                .eventId(eventId)
-                .totalParticipants(total)
-                .bibCollectedCount(bibCollected)
-                .pendingCount(Math.max(0, total - bibCollected))
-                .raceBreakdown(new ArrayList<>(raceMap.values()))
-                .categoryBreakdown(new ArrayList<>(categoryMap.values()))
-                .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
-                        .male(male)
-                        .female(female)
-                        .other(other)
-                        .build())
-                .build();
-    }
-
-    private void applyDimensionRow(
-            String key, long count,
-            Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap,
-            Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap,
-            EventNames names) {
-
-        if (key.startsWith(EventStatsServiceImpl.PREFIX_RACE)) {
-            applyRaceRow(key, count, raceMap, names);
-        } else if (key.startsWith(EventStatsServiceImpl.PREFIX_CATEGORY)) {
-            applyCategoryRow(key, count, categoryMap, names);
-        }
-    }
-
-    private void applyRaceRow(
-            String key, long count,
-            Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap,
-            EventNames names) {
-
-        boolean collected = key.endsWith(EventStatsServiceImpl.SUFFIX_COLLECTED);
-        String raceId = collected
-                ? key.substring(EventStatsServiceImpl.PREFIX_RACE.length(),
-                        key.length() - EventStatsServiceImpl.SUFFIX_COLLECTED.length())
-                : key.substring(EventStatsServiceImpl.PREFIX_RACE.length());
-
-        ParticipantStatisticsResponse.RaceStatistics rs = raceMap.computeIfAbsent(raceId,
-                k -> ParticipantStatisticsResponse.RaceStatistics.builder()
-                        .raceId(k)
-                        .raceName(names.raceName(k))
-                        .count(0)
-                        .bibCollectedCount(0)
-                        .build());
-
-        if (collected) {
-            rs.setBibCollectedCount((int) count);
-        } else {
-            rs.setCount((int) count);
-        }
-    }
-
-    private void applyCategoryRow(
-            String key, long count,
-            Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap,
-            EventNames names) {
-
-        if (key.endsWith(EventStatsServiceImpl.SUFFIX_COLLECTED)) return;
-
-        String categoryId = key.substring(EventStatsServiceImpl.PREFIX_CATEGORY.length());
-        categoryMap.computeIfAbsent(categoryId,
-                k -> ParticipantStatisticsResponse.CategoryStatistics.builder()
-                        .categoryId(k)
-                        .categoryName(names.categoryName(k))
-                        .count(0)
-                        .build())
-                .setCount((int) count);
-    }
-
     private ParticipantDDB snapshotForStats(ParticipantDDB p) {
         return ParticipantDDB.builder()
                 .eventId(p.getEventId())
@@ -1048,19 +789,6 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .categoryId(p.getCategoryId())
                 .gender(p.getGender())
                 .bibCollectedAt(p.getBibCollectedAt())
-                .build();
-    }
-
-    private ParticipantStatisticsResponse emptyStatistics(Long eventId) {
-        return ParticipantStatisticsResponse.builder()
-                .eventId(eventId)
-                .totalParticipants(0)
-                .bibCollectedCount(0)
-                .pendingCount(0)
-                .raceBreakdown(new ArrayList<>())
-                .categoryBreakdown(new ArrayList<>())
-                .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
-                        .male(0).female(0).other(0).build())
                 .build();
     }
 

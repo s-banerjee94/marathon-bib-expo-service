@@ -2,7 +2,9 @@ package com.timekeeper.bibexpo.controller;
 
 
 import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException;
+import com.timekeeper.bibexpo.exception.UserLimitReductionException;
 import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
@@ -155,5 +157,21 @@ public class OrganizationController implements OrganizationControllerApi {
         log.info("Organization deletion not allowed: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(OrganizationAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleOrganizationAlreadyExists(
+            OrganizationAlreadyExistsException ex, WebRequest request) {
+        log.info("Organization already exists: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(UserLimitReductionException.class)
+    public ResponseEntity<ErrorResponse> handleUserLimitReduction(
+            UserLimitReductionException ex, WebRequest request) {
+        log.info("User limit reduction conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
 }

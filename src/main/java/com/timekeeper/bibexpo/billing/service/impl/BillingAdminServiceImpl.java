@@ -7,7 +7,7 @@ import com.timekeeper.bibexpo.billing.config.BillingRates;
 import com.timekeeper.bibexpo.billing.exception.BillNotAllowedException;
 import com.timekeeper.bibexpo.billing.exception.BillNotFoundException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.OrganizationBillingResponse;
 import com.timekeeper.bibexpo.billing.model.entity.Invoice;
@@ -123,7 +123,7 @@ public class BillingAdminServiceImpl implements BillingAdminService {
         }
         if (currentUser.getOrganization() == null
                 || !currentUser.getOrganization().getId().equals(organizationId)) {
-            throw new UnauthorizedAccessException("You do not have access to this organization's billing.");
+            throw new AccessForbiddenException("You do not have access to this organization's billing.");
         }
     }
 

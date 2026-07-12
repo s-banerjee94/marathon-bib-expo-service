@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.exception;
 
-public class EventLimitExceededException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class EventLimitExceededException extends ApiException {
     public EventLimitExceededException(String message) {
-        super(message);
+        super(HttpStatus.CONFLICT, message);
     }
 }

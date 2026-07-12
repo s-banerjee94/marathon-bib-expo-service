@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.invitation.model.dto.request.CreateInvitationReque
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationDetailsResponse;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
+import com.timekeeper.bibexpo.security.CurrentActor;
 
 /**
  * Issues and redeems one-time, short-lived user-invite links. The role and organization are
@@ -18,13 +19,13 @@ public interface InvitationService {
      * create that role/organization is validated before the link is issued.
      *
      * @param request the role and (where applicable) organization the invite is fixed to
-     * @param currentUsername the username of the user issuing the invite
+     * @param actor the authenticated user issuing the invite
      * @return the link to share with the invitee
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller cannot create that role
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller cannot create that role
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the organization is required but missing or disabled
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
      */
-    InvitationLinkResponse createInvitation(CreateInvitationRequest request, String currentUsername);
+    InvitationLinkResponse createInvitation(CreateInvitationRequest request, CurrentActor actor);
 
     /**
      * Return the fixed role and organization of a pending invite so the accept form can render.

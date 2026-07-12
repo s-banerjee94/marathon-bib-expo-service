@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.service.validator;
 
 import com.timekeeper.bibexpo.exception.EventDisabledException;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
@@ -28,7 +28,7 @@ public class EventAccessValidator {
      * Full access required to operate on an event or any of its child resources.
      * The caller's organization must own the event and the event must be available.
      *
-     * @throws UnauthorizedAccessException if the user does not own the event
+     * @throws AccessForbiddenException if the user does not own the event
      * @throws EventDisabledException      if the event is not available
      */
     public void validateUserAuthorizationForEvent(User currentUser, Event event) {
@@ -43,7 +43,7 @@ public class EventAccessValidator {
      * Organization-scoped read access that stays available even when the event is
      * not operable (for example import history or error logs).
      *
-     * @throws UnauthorizedAccessException if the user does not own the event
+     * @throws AccessForbiddenException if the user does not own the event
      */
     public void validateUserOrganizationAccess(User currentUser, Event event) {
         if (isPlatformAdmin(currentUser)) {
@@ -101,7 +101,7 @@ public class EventAccessValidator {
 
     private void requireSameOrganization(User currentUser, Event event) {
         if (currentUser.getOrganization() == null) {
-            throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
+            throw new AccessForbiddenException("Your account is not assigned to an organization.");
         }
         // Events outside the caller's organization are reported as not found so their
         // existence is not disclosed across organizations.

@@ -1,5 +1,8 @@
 package com.timekeeper.bibexpo.controller;
 
+import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.exception.RaceAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.RaceDeletionNotAllowedException;
 import com.timekeeper.bibexpo.model.dto.request.CreateRaceRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateRaceRequest;
 import com.timekeeper.bibexpo.model.dto.response.RaceResponse;
@@ -12,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.WebRequest;
 
 import java.util.List;
 
@@ -86,5 +90,21 @@ public class RaceController implements RaceControllerApi {
         raceService.deleteRace(eventId, raceId, currentUser);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @ExceptionHandler(RaceAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleRaceAlreadyExists(
+            RaceAlreadyExistsException ex, WebRequest request) {
+        log.warn("Race already exists: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(RaceDeletionNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleRaceDeletionNotAllowed(
+            RaceDeletionNotAllowedException ex, WebRequest request) {
+        log.warn("Race deletion not allowed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
 }

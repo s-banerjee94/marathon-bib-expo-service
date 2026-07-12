@@ -11,7 +11,7 @@ import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.util.SmsTemplateContext;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppCampaign;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppTemplate;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
@@ -56,7 +56,7 @@ public class ParticipantEventWhatsAppServiceImpl implements ParticipantEventWhat
             MessagingProvider provider = campaignProviderResolver.resolve(MessageChannel.WHATSAPP, campaign.getOrganizationId());
 
             EventNames names = nameResolver.forEvent(eventId);
-            SmsTemplateContext context = new SmsTemplateContext(participant, event,
+            MessageTemplateContext context = new MessageTemplateContext(participant, event,
                     names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
                     names.reportingTime(participant.getRaceId()));
             List<String> variables = WhatsAppVariableRenderer.render(template.getBodyVariables(), context);

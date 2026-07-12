@@ -30,7 +30,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SmsTemplate implements Serializable {
+public class SmsTemplate implements TemplateEntity, Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

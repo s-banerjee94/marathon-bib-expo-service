@@ -3,21 +3,16 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.InvalidFileException;
 import com.timekeeper.bibexpo.exception.InvalidUserDataException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
 import com.timekeeper.bibexpo.exception.UserAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.UserNotFoundException;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
-import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
-import com.timekeeper.bibexpo.service.StorageService;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.Organization;
@@ -29,9 +24,13 @@ import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.service.NotificationService;
+import com.timekeeper.bibexpo.notification.service.NotificationService;
+import com.timekeeper.bibexpo.security.CurrentActor;
+import com.timekeeper.bibexpo.service.UserProfileMediaService;
 import com.timekeeper.bibexpo.service.UserService;
 import com.timekeeper.bibexpo.service.cache.AuthUserCache;
+import com.timekeeper.bibexpo.service.util.UserResponseMapper;
+import com.timekeeper.bibexpo.service.validator.UserAccessPolicy;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,11 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Implementation of UserService for user management operations
@@ -65,37 +60,28 @@ public class UserServiceImpl implements UserService {
     private final OrganizationLimitRepository organizationLimitRepository;
     private final EventRepository eventRepository;
     private final PasswordEncoder passwordEncoder;
-    private final StorageService storageService;
     private final AuthUserCache authUserCache;
-
-    /**
-     * Map a user to a response, presigning a short-lived URL for its profile picture.
-     * All read paths go through here so the stored object key is never exposed directly.
-     */
-    private UserResponse toResponse(User user) {
-        UserResponse response = UserResponse.fromEntity(user);
-        response.setProfilePictureUrl(storageService.createDownloadUrl(user.getProfilePictureKey()));
-        return response;
-    }
+    private final UserAccessPolicy accessPolicy;
+    private final UserResponseMapper responseMapper;
+    private final UserProfileMediaService profileMediaService;
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.CREATE)
     @Override
     @Transactional
-    public UserResponse createUser(CreateUserRequest request, String currentUsername) {
-        log.info("Creating user with username: {} by: {}", request.getUsername(), currentUsername);
+    public UserResponse createUser(CreateUserRequest request, CurrentActor actor) {
+        log.info("Creating user with username: {} by: {}", request.getUsername(), actor.username());
 
         UserRole role = UserRole.valueOf(request.getRole());
-        assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), currentUsername);
+        assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), actor);
 
         return provisionUser(request, role);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public void assertCanCreateUser(UserRole role, Long organizationId, Long eventId, String currentUsername) {
-        User currentUser = fetchCurrentUser(currentUsername);
-        validateRootCreationAttempt(role, currentUsername);
-        validateCreateUserAuthorization(currentUser, role, organizationId);
+    public void assertCanCreateUser(UserRole role, Long organizationId, Long eventId, CurrentActor actor) {
+        accessPolicy.validateRootCreationAttempt(role, actor.username());
+        accessPolicy.validateCreateUserAuthorization(actor, role, organizationId);
         Organization organization = fetchAndValidateOrganization(organizationId, role);
         resolveDistributorEvent(eventId, organization, role);
     }
@@ -127,22 +113,21 @@ public class UserServiceImpl implements UserService {
         User savedUser = userRepository.save(user);
 
         log.info("Successfully created user with ID: {} and role: {}", savedUser.getId(), savedUser.getRole());
-        return toResponse(savedUser);
+        return responseMapper.toResponse(savedUser);
     }
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.UPDATE)
     @Override
     @Transactional
-    public UserResponse reassignDistributorEvent(Long userId, Long eventId, String currentUsername) {
-        log.info("Reassigning distributor ID: {} to event ID: {} by: {}", userId, eventId, currentUsername);
+    public UserResponse reassignDistributorEvent(Long userId, Long eventId, CurrentActor actor) {
+        log.info("Reassigning distributor ID: {} to event ID: {} by: {}", userId, eventId, actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
         User targetUser = fetchTargetUser(userId);
 
         if (targetUser.getRole() != UserRole.DISTRIBUTOR) {
             throw new InvalidUserDataException("Only a distributor can be assigned to an event.");
         }
-        validateReassignAuthorization(currentUser, targetUser);
+        accessPolicy.validateReassignAuthorization(actor, targetUser);
 
         Event event = resolveDistributorEvent(eventId, targetUser.getOrganization(), UserRole.DISTRIBUTOR);
         targetUser.setEvent(event);
@@ -150,27 +135,12 @@ public class UserServiceImpl implements UserService {
         authUserCache.evict(saved.getUsername());
 
         log.info("Reassigned distributor ID: {} to event ID: {}", userId, eventId);
-        return toResponse(saved);
+        return responseMapper.toResponse(saved);
     }
 
     /**
-     * Authorize a distributor reassignment. ROOT and ADMIN may reassign any distributor;
-     * ORGANIZER_ADMIN and ORGANIZER_USER only distributors in their own organization.
-     */
-    private void validateReassignAuthorization(User currentUser, User targetUser) {
-        UserRole currentRole = currentUser.getRole();
-        if (currentRole == UserRole.ROOT || currentRole == UserRole.ADMIN) {
-            return;
-        }
-        if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
-            validateSameOrganization(currentUser, targetUser, "reassign");
-            return;
-        }
-        throw new UnauthorizedAccessException("You are not allowed to reassign distributors.");
-    }
-
-    /**
-     * Fetch the current user who is creating a new user
+     * Fetch the caller's own entity for the few operations that need more than the
+     * {@link CurrentActor} view (password verification, fresh own-profile read).
      */
     private User fetchCurrentUser(String currentUsername) {
         return userRepository.findByUsername(currentUsername)
@@ -178,16 +148,6 @@ public class UserServiceImpl implements UserService {
                     log.error("Current user not found: {}", currentUsername);
                     return new InvalidUserDataException("Current user not found: " + currentUsername);
                 });
-    }
-
-    /**
-     * Validate that ROOT cannot be created via API
-     */
-    private void validateRootCreationAttempt(UserRole requestedRole, String currentUsername) {
-        if (requestedRole == UserRole.ROOT) {
-            log.error("Attempt to create ROOT user by: {}", currentUsername);
-            throw new UnauthorizedAccessException("ROOT users cannot be created.");
-        }
     }
 
     /**
@@ -324,47 +284,6 @@ public class UserServiceImpl implements UserService {
                role == UserRole.ADMIN;
     }
 
-    private static final Set<UserRole> PRIVILEGED_ROLES = EnumSet.of(UserRole.ROOT, UserRole.ADMIN, UserRole.ORGANIZER_ADMIN);
-
-    private static final Map<UserRole, Set<UserRole>> CREATABLE_ROLES = new EnumMap<>(UserRole.class);
-
-    static {
-        CREATABLE_ROLES.put(UserRole.ROOT,
-                EnumSet.of(UserRole.ADMIN, UserRole.ORGANIZER_ADMIN, UserRole.ORGANIZER_USER, UserRole.DISTRIBUTOR));
-        CREATABLE_ROLES.put(UserRole.ADMIN,
-                EnumSet.of(UserRole.ORGANIZER_ADMIN, UserRole.ORGANIZER_USER, UserRole.DISTRIBUTOR));
-        CREATABLE_ROLES.put(UserRole.ORGANIZER_ADMIN,
-                EnumSet.of(UserRole.ORGANIZER_USER, UserRole.DISTRIBUTOR));
-        CREATABLE_ROLES.put(UserRole.ORGANIZER_USER,
-                EnumSet.of(UserRole.DISTRIBUTOR));
-    }
-
-    private void validateCreateUserAuthorization(User currentUser, UserRole requestedRole, Long targetOrganizationId) {
-        UserRole currentRole = currentUser.getRole();
-        Set<UserRole> allowed = CREATABLE_ROLES.getOrDefault(currentRole, EnumSet.noneOf(UserRole.class));
-
-        if (!allowed.contains(requestedRole)) {
-            log.error("User {} with role {} attempted to create {} user",
-                    currentUser.getUsername(), currentRole, requestedRole);
-            throw new UnauthorizedAccessException("You are not allowed to create users with this role.");
-        }
-
-        if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
-            if (currentUser.getOrganization() == null) {
-                log.error("{} {} has no organization assigned", currentRole, currentUser.getUsername());
-                throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
-            }
-            if (!currentUser.getOrganization().getId().equals(targetOrganizationId)) {
-                log.error("{} {} attempted to create user for org {}. Own org: {}",
-                        currentRole, currentUser.getUsername(),
-                        targetOrganizationId, currentUser.getOrganization().getId());
-                throw new UnauthorizedAccessException("You can only create users in your organization.");
-            }
-        }
-
-        log.debug("Authorization validated for {} to create role {}", currentUser.getUsername(), requestedRole);
-    }
-
     /**
      * Atomically reserves a usage slot for the new user's role on its organization.
      * The guarded UPDATE increments the matching counter only while it stays within
@@ -428,51 +347,15 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    /**
-     * Validates that the current user and target user belong to the same organization.
-     * Used to enforce organization-scoped permissions.
-     *
-     * @param currentUser The user performing the action
-     * @param targetUser The user being acted upon
-     * @param action Description of the action being performed (for error messages)
-     * @throws UnauthorizedAccessException if users are not in the same organization or organization is null
-     */
-    private void validateSameOrganization(User currentUser, User targetUser, String action) {
-        requireOrganization(currentUser);
-
-        if (targetUser.getOrganization() == null ||
-            !currentUser.getOrganization().getId().equals(targetUser.getOrganization().getId())) {
-            log.error("{} {} attempted to {} user from different organization",
-                    currentUser.getRole(), currentUser.getUsername(), action);
-            throw new UnauthorizedAccessException("You can only " + action + " users within your organization.");
-        }
-    }
-
-    private void requireOrganization(User user) {
-        if (user.getOrganization() == null) {
-            log.error("{} {} has no organization assigned", user.getRole(), user.getUsername());
-            throw new UnauthorizedAccessException("Your account is not assigned to an organization.");
-        }
-    }
-
-    private boolean isSelfUpdate(User currentUser, User targetUser) {
-        return currentUser.getId().equals(targetUser.getId());
-    }
-
-    private boolean isPrivilegedRole(UserRole role) {
-        return PRIVILEGED_ROLES.contains(role);
-    }
-
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.UPDATE)
     @Override
     @Transactional
-    public UserResponse updateUser(Long userId, UpdateUserRequest request, String currentUsername) {
-        log.info("Updating user with ID: {} by: {}", userId, currentUsername);
+    public UserResponse updateUser(Long userId, UpdateUserRequest request, CurrentActor actor) {
+        log.info("Updating user with ID: {} by: {}", userId, actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
         User targetUser = fetchTargetUser(userId);
 
-        validateUpdateUserAuthorization(currentUser, targetUser);
+        accessPolicy.validateUpdateUserAuthorization(actor, targetUser);
 
         // Update fields if provided
         if (request.getEmail() != null) {
@@ -496,18 +379,18 @@ public class UserServiceImpl implements UserService {
         authUserCache.evict(updatedUser.getUsername());
         log.info("Successfully updated user with ID: {}", updatedUser.getId());
 
-        return toResponse(updatedUser);
+        return responseMapper.toResponse(updatedUser);
     }
 
     @Override
     @Transactional
-    public void changeOwnPassword(String currentUsername, ChangePasswordRequest request) {
-        log.info("Password change requested by: {}", currentUsername);
+    public void changeOwnPassword(CurrentActor actor, ChangePasswordRequest request) {
+        log.info("Password change requested by: {}", actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
+        User currentUser = fetchCurrentUser(actor.username());
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), currentUser.getPassword())) {
-            log.warn("Password change rejected for {}: current password did not match", currentUsername);
+            log.warn("Password change rejected for {}: current password did not match", actor.username());
             throw new InvalidUserDataException("Your current password is incorrect.");
         }
         if (passwordEncoder.matches(request.getNewPassword(), currentUser.getPassword())) {
@@ -522,10 +405,9 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public void assertCanUpdateUser(Long userId, String currentUsername) {
-        User currentUser = fetchCurrentUser(currentUsername);
+    public void assertCanUpdateUser(Long userId, CurrentActor actor) {
         User targetUser = fetchTargetUser(userId);
-        validateUpdateUserAuthorization(currentUser, targetUser);
+        accessPolicy.validateUpdateUserAuthorization(actor, targetUser);
     }
 
     /**
@@ -567,141 +449,15 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    /**
-     * Validates that the current user has permission to update the target user.
-     *
-     * Permission hierarchy:
-     * - ROOT can update: any user
-     * - ADMIN can update: itself, ORG_ADMIN, ORG_USER, DISTRIBUTOR (but not ROOT or other ADMINs)
-     * - ORG_ADMIN can update: itself, ORG_USER, DISTRIBUTOR (own organization only)
-     */
-    private void validateUpdateUserAuthorization(User currentUser, User targetUser) {
-        UserRole currentRole = currentUser.getRole();
-
-        // ROOT can update anyone
-        if (currentRole == UserRole.ROOT) {
-            log.debug("ROOT user authorized to update user ID: {}", targetUser.getId());
-            return;
-        }
-
-        // Delegate to role-specific validators
-        if (currentRole == UserRole.ADMIN) {
-            validateAdminUpdateAuthorization(currentUser, targetUser);
-            return;
-        }
-
-        if (currentRole == UserRole.ORGANIZER_ADMIN) {
-            validateOrgAdminUpdateAuthorization(currentUser, targetUser);
-            return;
-        }
-
-        if (currentRole == UserRole.ORGANIZER_USER) {
-            validateOrgUserUpdateAuthorization(currentUser, targetUser);
-            return;
-        }
-
-        if (currentRole == UserRole.DISTRIBUTOR) {
-            validateSelfUpdateOnly(currentUser, targetUser);
-            return;
-        }
-
-        // Other roles cannot update users
-        log.error("User {} with role {} attempted to update user",
-                currentUser.getUsername(), currentRole);
-        throw new UnauthorizedAccessException("You are not allowed to update users.");
-    }
-
-    /**
-     * Validates ADMIN user update permissions
-     */
-    private void validateAdminUpdateAuthorization(User currentUser, User targetUser) {
-        if (isSelfUpdate(currentUser, targetUser)) {
-            log.debug("ADMIN user updating itself");
-            return;
-        }
-
-        UserRole targetRole = targetUser.getRole();
-
-        // ADMIN cannot update ROOT
-        if (targetRole == UserRole.ROOT) {
-            log.error("ADMIN {} attempted to update ROOT user", currentUser.getUsername());
-            throw new UnauthorizedAccessException("You cannot update users with equal or higher privileges.");
-        }
-
-        // ADMIN cannot update other ADMINs
-        if (targetRole == UserRole.ADMIN) {
-            log.error("ADMIN {} attempted to update another ADMIN user", currentUser.getUsername());
-            throw new UnauthorizedAccessException("You cannot update users with equal or higher privileges.");
-        }
-
-        // ADMIN can update ORG_ADMIN, ORG_USER, DISTRIBUTOR
-        log.debug("ADMIN user authorized to update user ID: {}", targetUser.getId());
-    }
-
-    /**
-     * Validates ORG_ADMIN user update permissions
-     */
-    private void validateOrgAdminUpdateAuthorization(User currentUser, User targetUser) {
-        if (isSelfUpdate(currentUser, targetUser)) {
-            log.debug("ORG_ADMIN user updating itself");
-            return;
-        }
-
-        UserRole targetRole = targetUser.getRole();
-
-        // ORG_ADMIN cannot update ROOT, ADMIN, or other ORG_ADMINs
-        if (isPrivilegedRole(targetRole)) {
-            log.error("ORG_ADMIN {} attempted to update {} user",
-                    currentUser.getUsername(), targetRole);
-            throw new UnauthorizedAccessException("You cannot update users with equal or higher privileges.");
-        }
-
-        // ORG_ADMIN can only update users within their own organization
-        validateSameOrganization(currentUser, targetUser, "update");
-
-        log.debug("ORG_ADMIN user authorized to update user ID: {}", targetUser.getId());
-    }
-
-    private void validateOrgUserUpdateAuthorization(User currentUser, User targetUser) {
-        if (isSelfUpdate(currentUser, targetUser)) {
-            log.debug("ORG_USER user updating itself");
-            return;
-        }
-
-        if (targetUser.getRole() != UserRole.DISTRIBUTOR) {
-            log.error("ORG_USER {} attempted to update {} user",
-                    currentUser.getUsername(), targetUser.getRole());
-            throw new UnauthorizedAccessException("You can only update distributor accounts.");
-        }
-
-        validateSameOrganization(currentUser, targetUser, "update");
-        log.debug("ORG_USER user authorized to update distributor ID: {}", targetUser.getId());
-    }
-
-    /**
-     * Validates that users can only update themselves
-     */
-    private void validateSelfUpdateOnly(User currentUser, User targetUser) {
-        if (isSelfUpdate(currentUser, targetUser)) {
-            log.debug("{} user updating itself", currentUser.getRole());
-            return;
-        }
-
-        log.error("User {} with role {} attempted to update another user",
-                currentUser.getUsername(), currentUser.getRole());
-        throw new UnauthorizedAccessException("You can only update your own profile");
-    }
-
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.STATUS_CHANGE)
     @Override
     @Transactional
-    public UserResponse toggleUserEnabled(Long userId, String currentUsername) {
-        log.info("Toggling enabled status for user ID: {} by: {}", userId, currentUsername);
+    public UserResponse toggleUserEnabled(Long userId, CurrentActor actor) {
+        log.info("Toggling enabled status for user ID: {} by: {}", userId, actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
         User targetUser = fetchTargetUser(userId);
 
-        validateToggleEnabledAuthorization(currentUser, targetUser);
+        accessPolicy.validateToggleEnabledAuthorization(actor, targetUser);
 
         // Toggle the enabled status
         boolean newEnabledStatus = !targetUser.getEnabled();
@@ -711,19 +467,18 @@ public class UserServiceImpl implements UserService {
         authUserCache.evict(updatedUser.getUsername());
         log.info("Successfully toggled enabled status for user ID: {} to: {}", userId, newEnabledStatus);
 
-        return toResponse(updatedUser);
+        return responseMapper.toResponse(updatedUser);
     }
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.STATUS_CHANGE)
     @Override
     @Transactional
-    public UserResponse toggleUserLocked(Long userId, String currentUsername) {
-        log.info("Toggling locked status for user ID: {} by: {}", userId, currentUsername);
+    public UserResponse toggleUserLocked(Long userId, CurrentActor actor) {
+        log.info("Toggling locked status for user ID: {} by: {}", userId, actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
         User targetUser = fetchTargetUser(userId);
 
-        validateToggleLockedAuthorization(currentUser, targetUser);
+        accessPolicy.validateToggleLockedAuthorization(actor, targetUser);
 
         boolean newNonLockedStatus = !targetUser.getAccountNonLocked();
         targetUser.setAccountNonLocked(newNonLockedStatus);
@@ -732,165 +487,46 @@ public class UserServiceImpl implements UserService {
         authUserCache.evict(updatedUser.getUsername());
         log.info("Successfully toggled locked status for user ID: {} to accountNonLocked: {}", userId, newNonLockedStatus);
 
-        return toResponse(updatedUser);
-    }
-
-    /**
-     * Validates that the current user has permission to toggle the enabled status of the target user.
-     *
-     * Permission hierarchy:
-     * - ROOT can disable: any other user
-     * - ADMIN can disable: ORG_ADMIN, ORG_USER, DISTRIBUTOR (not ROOT or other ADMINs)
-     * - ORG_ADMIN can disable: ORG_USER, DISTRIBUTOR (own organization only)
-     * - ORG_USER can disable: DISTRIBUTOR (own organization only)
-     * - No one can enable or disable their own account
-     */
-    private void validateToggleEnabledAuthorization(User currentUser, User targetUser) {
-        UserRole currentRole = currentUser.getRole();
-        UserRole targetRole = targetUser.getRole();
-
-        // No one may enable or disable their own account (prevents self-lockout).
-        if (isSelfUpdate(currentUser, targetUser)) {
-            log.error("User {} attempted to toggle its own enabled status", currentUser.getUsername());
-            throw new UnauthorizedAccessException("You cannot enable or disable your own account.");
-        }
-
-        // ROOT can disable any other user
-        if (currentRole == UserRole.ROOT) {
-            log.debug("ROOT user authorized to toggle enabled status for user ID: {}", targetUser.getId());
-            return;
-        }
-
-        // ADMIN can disable organization roles, but not ROOT or another ADMIN
-        if (currentRole == UserRole.ADMIN) {
-            if (targetRole == UserRole.ROOT || targetRole == UserRole.ADMIN) {
-                log.error("ADMIN {} attempted to toggle enabled status for {} user",
-                        currentUser.getUsername(), targetRole);
-                throw new UnauthorizedAccessException(
-                        "You cannot enable or disable users with equal or higher privileges.");
-            }
-            log.debug("ADMIN user authorized to toggle enabled status for user ID: {}", targetUser.getId());
-            return;
-        }
-
-        // ORG_ADMIN restrictions
-        if (currentRole == UserRole.ORGANIZER_ADMIN) {
-            // ORG_ADMIN cannot disable ROOT, ADMIN, or other ORG_ADMINs
-            if (isPrivilegedRole(targetRole)) {
-                log.error("ORG_ADMIN {} attempted to toggle enabled status for {} user",
-                        currentUser.getUsername(), targetRole);
-                throw new UnauthorizedAccessException(
-                        "You cannot enable or disable users with equal or higher privileges.");
-            }
-
-            // ORG_ADMIN can only disable users within their own organization
-            validateSameOrganization(currentUser, targetUser, "disable");
-
-            log.debug("ORG_ADMIN user authorized to toggle enabled status for user ID: {}", targetUser.getId());
-            return;
-        }
-
-        // ORG_USER restrictions
-        if (currentRole == UserRole.ORGANIZER_USER) {
-            if (targetRole != UserRole.DISTRIBUTOR) {
-                log.error("ORG_USER {} attempted to toggle enabled status for {} user",
-                        currentUser.getUsername(), targetRole);
-                throw new UnauthorizedAccessException(
-                        "You can only enable or disable distributor accounts.");
-            }
-
-            validateSameOrganization(currentUser, targetUser, "disable");
-
-            log.debug("ORG_USER user authorized to toggle enabled status for distributor ID: {}", targetUser.getId());
-            return;
-        }
-
-        // Other roles (DISTRIBUTOR) cannot toggle enabled status
-        log.error("User {} with role {} attempted to toggle enabled status",
-                currentUser.getUsername(), currentRole);
-        throw new UnauthorizedAccessException("You are not allowed to enable or disable users.");
-    }
-
-    /**
-     * Validates that the current user has permission to toggle the locked status of the target user.
-     *
-     * Permission hierarchy:
-     * - ROOT can lock/unlock: any other user
-     * - ADMIN can lock/unlock: ORG_ADMIN, ORG_USER, DISTRIBUTOR (not ROOT or other ADMINs)
-     * - No one can lock or unlock their own account
-     */
-    private void validateToggleLockedAuthorization(User currentUser, User targetUser) {
-        UserRole currentRole = currentUser.getRole();
-        UserRole targetRole = targetUser.getRole();
-
-        // No one may lock or unlock their own account.
-        if (isSelfUpdate(currentUser, targetUser)) {
-            log.error("User {} attempted to toggle its own locked status", currentUser.getUsername());
-            throw new UnauthorizedAccessException("You cannot lock or unlock your own account.");
-        }
-
-        // ROOT can lock/unlock any other user
-        if (currentRole == UserRole.ROOT) {
-            log.debug("ROOT user authorized to toggle locked status for user ID: {}", targetUser.getId());
-            return;
-        }
-
-        // ADMIN can lock/unlock organization roles, but not ROOT or another ADMIN
-        if (currentRole == UserRole.ADMIN) {
-            if (targetRole == UserRole.ROOT || targetRole == UserRole.ADMIN) {
-                log.error("ADMIN {} attempted to toggle locked status for {} user",
-                        currentUser.getUsername(), targetRole);
-                throw new UnauthorizedAccessException(
-                        "You cannot lock or unlock users with equal or higher privileges.");
-            }
-            log.debug("ADMIN user authorized to toggle locked status for user ID: {}", targetUser.getId());
-            return;
-        }
-
-        log.error("User {} with role {} attempted to toggle locked status",
-                currentUser.getUsername(), currentRole);
-        throw new UnauthorizedAccessException("You are not allowed to lock or unlock users.");
+        return responseMapper.toResponse(updatedUser);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public UserResponse getUserById(Long userId, String currentUsername) {
-        log.info("Getting user with ID: {} by: {}", userId, currentUsername);
+    public UserResponse getUserById(Long userId, CurrentActor actor) {
+        log.info("Getting user with ID: {} by: {}", userId, actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
         User targetUser = fetchTargetUser(userId);
 
         // A target the caller may not view is reported as not found, so its existence
         // is not disclosed across organizations or privilege levels.
-        if (!canViewUser(currentUser, targetUser)) {
+        if (!accessPolicy.canViewUser(actor, targetUser)) {
             log.warn("{} {} not permitted to view user ID {}; reporting as not found",
-                    currentUser.getRole(), currentUsername, userId);
+                    actor.role(), actor.username(), userId);
             throw new UserNotFoundException();
         }
 
         log.info("Successfully retrieved user with ID: {}", userId);
-        return toResponse(targetUser);
+        return responseMapper.toResponse(targetUser);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public UserResponse getUserByUsername(String username, String currentUsername) {
-        log.info("Getting user with username: {} by: {}", username, currentUsername);
+    public UserResponse getUserByUsername(String username, CurrentActor actor) {
+        log.info("Getting user with username: {} by: {}", username, actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
         User targetUser = fetchTargetUserByUsername(username);
 
         // A target the caller may not view is reported as not found, so that a username
         // belonging to a privileged or cross-organization account cannot be distinguished
         // from one that does not exist (no account-existence disclosure by username).
-        if (!canViewUser(currentUser, targetUser)) {
+        if (!accessPolicy.canViewUser(actor, targetUser)) {
             log.warn("{} {} not permitted to view user '{}'; reporting as not found",
-                    currentUser.getRole(), currentUsername, username);
+                    actor.role(), actor.username(), username);
             throw new UserNotFoundException();
         }
 
         log.info("Successfully retrieved user with username: {}", username);
-        return toResponse(targetUser);
+        return responseMapper.toResponse(targetUser);
     }
 
     /**
@@ -904,40 +540,25 @@ public class UserServiceImpl implements UserService {
                 });
     }
 
-    /**
-     * Whether {@code currentUser} is permitted to view {@code targetUser}: ROOT and ADMIN may
-     * view anyone, organization-scoped roles only users within their own organization.
-     */
-    private boolean canViewUser(User currentUser, User targetUser) {
-        UserRole currentRole = currentUser.getRole();
-        if (currentRole == UserRole.ROOT || currentRole == UserRole.ADMIN) {
-            return true;
-        }
-        return currentUser.getOrganization() != null
-                && targetUser.getOrganization() != null
-                && currentUser.getOrganization().getId().equals(targetUser.getOrganization().getId());
-    }
-
     @Override
     @Transactional(readOnly = true)
     public Page<UserResponse> getUsers(UserRole role, Long organizationId, Long eventId, Boolean enabled,
                                        String search, Pageable pageable,
-                                       String currentUsername) {
+                                       CurrentActor actor) {
         log.info("Getting users - role: {}, orgId: {}, eventId: {}, enabled: {}, search: {} by: {}",
-                role, organizationId, eventId, enabled, search, currentUsername);
+                role, organizationId, eventId, enabled, search, actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
-        UserRole currentRole = currentUser.getRole();
+        UserRole currentRole = actor.role();
 
         Long scopedOrgId = organizationId;
 
         if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
-            requireOrganization(currentUser);
-            scopedOrgId = currentUser.getOrganization().getId();
+            accessPolicy.requireOrganization(actor);
+            scopedOrgId = actor.organizationId();
         }
 
         Specification<User> spec = buildUserSpecification(role, scopedOrgId, eventId, enabled, search);
-        Page<UserResponse> responsePage = userRepository.findAll(spec, pageable).map(this::toResponse);
+        Page<UserResponse> responsePage = userRepository.findAll(spec, pageable).map(responseMapper::toResponse);
 
         log.info("Successfully retrieved {} users (page {} of {})",
                 responsePage.getNumberOfElements(), responsePage.getNumber() + 1, responsePage.getTotalPages());
@@ -977,27 +598,26 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserResponse getCurrentUser(String currentUsername) {
-        log.info("Getting current user profile for: {}", currentUsername);
+    public UserResponse getCurrentUser(CurrentActor actor) {
+        log.info("Getting current user profile for: {}", actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
+        User currentUser = fetchCurrentUser(actor.username());
 
-        log.info("Successfully retrieved current user profile for: {}", currentUsername);
-        return toResponse(currentUser);
+        log.info("Successfully retrieved current user profile for: {}", actor.username());
+        return responseMapper.toResponse(currentUser);
     }
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.DELETE)
     @Override
     @Transactional
-    public void deleteUser(Long userId, String currentUsername) {
-        log.info("Archiving user ID: {} by: {}", userId, currentUsername);
+    public void deleteUser(Long userId, CurrentActor actor) {
+        log.info("Archiving user ID: {} by: {}", userId, actor.username());
 
-        User currentUser = fetchCurrentUser(currentUsername);
         User targetUser = fetchTargetUser(userId);
 
-        validateDeleteUserAuthorization(currentUser, targetUser);
+        accessPolicy.validateDeleteUserAuthorization(actor, targetUser);
 
-        UserArchive archive = buildArchiveFromUser(targetUser, currentUsername);
+        UserArchive archive = buildArchiveFromUser(targetUser, actor.username());
         userArchiveRepository.save(archive);
 
         int notificationsDeleted = notificationService.deleteAllForUser(targetUser.getId());
@@ -1016,7 +636,7 @@ public class UserServiceImpl implements UserService {
         userRepository.delete(targetUser);
         releaseUserSlot(organization, role);
         authUserCache.evict(username);
-        deleteQuietly(pictureKey);
+        profileMediaService.deletePictureQuietly(pictureKey);
 
         log.info("Successfully archived user ID: {} (username: {})", userId, username);
     }
@@ -1028,7 +648,7 @@ public class UserServiceImpl implements UserService {
         for (User user : users) {
             notificationService.deleteAllForUser(user.getId());
             authUserCache.evict(user.getUsername());
-            deleteQuietly(user.getProfilePictureKey());
+            profileMediaService.deletePictureQuietly(user.getProfilePictureKey());
         }
         userRepository.deleteAll(users);
         // Archived (former) users still FK the organization, so drop those rows before it is removed.
@@ -1036,57 +656,6 @@ public class UserServiceImpl implements UserService {
         userRepository.flush();
         log.info("Purged {} users for organization ID: {}", users.size(), organizationId);
         return users.size();
-    }
-
-    /**
-     * Validates that the current user has permission to archive the target user.
-     * ROOT users can never be archived.
-     */
-    private void validateDeleteUserAuthorization(User currentUser, User targetUser) {
-        if (targetUser.getRole() == UserRole.ROOT) {
-            log.error("Attempt to archive ROOT user by: {}", currentUser.getUsername());
-            throw new UnauthorizedAccessException("ROOT users cannot be archived.");
-        }
-
-        if (isSelfUpdate(currentUser, targetUser)) {
-            log.error("User {} attempted to archive itself", currentUser.getUsername());
-            throw new UnauthorizedAccessException("You cannot archive your own account.");
-        }
-
-        UserRole currentRole = currentUser.getRole();
-
-        if (currentRole == UserRole.ROOT) {
-            return;
-        }
-
-        if (currentRole == UserRole.ADMIN) {
-            if (targetUser.getRole() == UserRole.ADMIN) {
-                throw new UnauthorizedAccessException("You cannot archive users with equal or higher privileges.");
-            }
-            return;
-        }
-
-        if (currentRole == UserRole.ORGANIZER_ADMIN) {
-            if (isPrivilegedRole(targetUser.getRole())) {
-                throw new UnauthorizedAccessException("You cannot archive users with equal or higher privileges.");
-            }
-            validateSameOrganization(currentUser, targetUser, "archive");
-            return;
-        }
-
-        if (currentRole == UserRole.ORGANIZER_USER) {
-            if (targetUser.getRole() != UserRole.DISTRIBUTOR) {
-                log.error("ORG_USER {} attempted to archive {} user",
-                        currentUser.getUsername(), targetUser.getRole());
-                throw new UnauthorizedAccessException("You can only archive distributor accounts.");
-            }
-            validateSameOrganization(currentUser, targetUser, "archive");
-            return;
-        }
-
-        log.error("User {} with role {} attempted to archive a user",
-                currentUser.getUsername(), currentRole);
-        throw new UnauthorizedAccessException("You are not allowed to archive users.");
     }
 
     private UserArchive buildArchiveFromUser(User user, String archivedBy) {
@@ -1108,67 +677,6 @@ public class UserServiceImpl implements UserService {
                 .archivedAt(Instant.now())
                 .archivedBy(archivedBy)
                 .build();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public PresignUploadResponse createProfilePictureUploadUrl(Long userId, String contentType, String currentUsername) {
-        User currentUser = fetchCurrentUser(currentUsername);
-        User targetUser = fetchTargetUser(userId);
-        validateUpdateUserAuthorization(currentUser, targetUser);
-        return storageService.createUploadUrl(UploadCategory.PROFILE_PICTURE, targetUser.getId(), contentType);
-    }
-
-    @Override
-    @Transactional
-    public UserResponse attachProfilePicture(Long userId, String objectKey, String currentUsername) {
-        log.info("Attaching profile picture for user ID: {} by: {}", userId, currentUsername);
-        User currentUser = fetchCurrentUser(currentUsername);
-        User targetUser = fetchTargetUser(userId);
-        validateUpdateUserAuthorization(currentUser, targetUser);
-
-        if (UploadCategory.PROFILE_PICTURE.ownsKey(targetUser.getId(), objectKey)) {
-            throw new InvalidFileException("This upload does not belong to this profile.");
-        }
-        if (!storageService.objectExists(objectKey)) {
-            throw new InvalidFileException("The uploaded file could not be found.");
-        }
-
-        String previousKey = targetUser.getProfilePictureKey();
-        targetUser.setProfilePictureKey(objectKey);
-        User saved = userRepository.saveAndFlush(targetUser);
-        authUserCache.evict(saved.getUsername());
-        if (previousKey != null && !previousKey.equals(objectKey)) {
-            deleteQuietly(previousKey);
-        }
-        log.info("Successfully attached profile picture for user ID: {}", userId);
-        return toResponse(saved);
-    }
-
-    @Override
-    @Transactional
-    public UserResponse removeProfilePicture(Long userId, String currentUsername) {
-        log.info("Removing profile picture for user ID: {} by: {}", userId, currentUsername);
-        User currentUser = fetchCurrentUser(currentUsername);
-        User targetUser = fetchTargetUser(userId);
-        validateUpdateUserAuthorization(currentUser, targetUser);
-
-        String previousKey = targetUser.getProfilePictureKey();
-        targetUser.setProfilePictureKey(null);
-        User saved = userRepository.saveAndFlush(targetUser);
-        authUserCache.evict(saved.getUsername());
-        deleteQuietly(previousKey);
-        log.info("Successfully removed profile picture for user ID: {}", userId);
-        return toResponse(saved);
-    }
-
-    /** Best-effort object deletion: orphaned objects are tolerable, a failed cleanup must not roll back the entity change. */
-    private void deleteQuietly(String objectKey) {
-        try {
-            storageService.delete(objectKey);
-        } catch (Exception e) {
-            log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
-        }
     }
 
 }

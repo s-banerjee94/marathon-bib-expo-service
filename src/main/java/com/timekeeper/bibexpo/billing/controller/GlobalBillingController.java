@@ -1,8 +1,5 @@
 package com.timekeeper.bibexpo.billing.controller;
 
-import com.timekeeper.bibexpo.billing.exception.BillNotAllowedException;
-import com.timekeeper.bibexpo.billing.exception.BillNotFoundException;
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.billing.model.dto.request.UpdatePaymentStatusRequest;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
 import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
@@ -16,15 +13,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.context.request.WebRequest;
 
 import java.time.Instant;
 
@@ -76,21 +70,5 @@ public class GlobalBillingController implements GlobalBillingControllerApi {
         log.info("PATCH /api/billing/{}/payment-status — {}", billId, request.getPaymentStatus());
 
         return ResponseEntity.ok(billingAdminService.updatePaymentStatus(billId, request.getPaymentStatus()));
-    }
-
-    // Bill lookup by id happens only in this controller's flow, so its not-found is handled here
-    // rather than in the global advice.
-    @ExceptionHandler(BillNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleBillNotFound(BillNotFoundException ex, WebRequest request) {
-        log.warn("Bill not found: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
-    }
-
-    @ExceptionHandler(BillNotAllowedException.class)
-    public ResponseEntity<ErrorResponse> handleBillNotAllowed(BillNotAllowedException ex, WebRequest request) {
-        log.warn("Bill operation not allowed: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
 }

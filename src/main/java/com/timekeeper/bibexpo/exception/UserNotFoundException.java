@@ -1,11 +1,13 @@
 package com.timekeeper.bibexpo.exception;
 
-public class UserNotFoundException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class UserNotFoundException extends ApiException {
 
     public static final String DEFAULT_MESSAGE = "The user you requested does not exist.";
 
     public UserNotFoundException() {
-        super(DEFAULT_MESSAGE);
+        super(HttpStatus.NOT_FOUND, DEFAULT_MESSAGE);
     }
 
 }

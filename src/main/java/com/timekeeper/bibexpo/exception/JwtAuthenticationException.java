@@ -1,12 +1,14 @@
 package com.timekeeper.bibexpo.exception;
 
-public class JwtAuthenticationException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class JwtAuthenticationException extends ApiException {
 
     public JwtAuthenticationException(String message) {
-        super(message);
+        super(HttpStatus.UNAUTHORIZED, message);
     }
 
     public JwtAuthenticationException(String message, Throwable cause) {
-        super(message, cause);
+        super(HttpStatus.UNAUTHORIZED, message, cause);
     }
 }

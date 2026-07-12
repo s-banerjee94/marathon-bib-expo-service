@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.batch;
 
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.util.CsvRow;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.SkipListener;
 import org.springframework.batch.core.Step;

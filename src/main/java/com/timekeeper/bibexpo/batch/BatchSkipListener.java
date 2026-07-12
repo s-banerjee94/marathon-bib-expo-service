@@ -3,8 +3,6 @@ package com.timekeeper.bibexpo.batch;
 import com.timekeeper.bibexpo.model.dynamodb.ImportErrorDDB;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.repository.dynamodb.ImportErrorDDBRepository;
-import com.timekeeper.bibexpo.util.CsvRow;
-import com.timekeeper.bibexpo.validator.ValidationError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.ExitStatus;

@@ -16,7 +16,7 @@ import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.Dispatc
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchRequest;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.util.SmsTemplateContext;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
 import com.timekeeper.bibexpo.messaging.campaign.config.WhatsAppSchedulerProperties;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppSendException;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppCampaign;
@@ -92,7 +92,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
                 .targetFilter(participant -> matchesFilter(participant, campaign.getTargetFilter()))
                 .sendsMapAccessor(ParticipantDDB::getWhatsAppCampaignSends)
                 .sender(participant -> {
-                    SmsTemplateContext context = new SmsTemplateContext(participant, event,
+                    MessageTemplateContext context = new MessageTemplateContext(participant, event,
                             names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
                             names.reportingTime(participant.getRaceId()));
                     List<String> variables = WhatsAppVariableRenderer.render(bodyVariables, context);

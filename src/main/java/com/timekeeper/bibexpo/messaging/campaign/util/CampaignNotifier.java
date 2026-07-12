@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.messaging.campaign.util;
 
-import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
-import com.timekeeper.bibexpo.model.enums.NotificationAudience;
-import com.timekeeper.bibexpo.model.enums.NotificationType;
-import com.timekeeper.bibexpo.service.NotificationService;
+import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
+import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
+import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
+import com.timekeeper.bibexpo.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

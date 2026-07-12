@@ -1,14 +1,16 @@
 package com.timekeeper.bibexpo.exception;
 
-public class OrganizationNotFoundException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class OrganizationNotFoundException extends ApiException {
 
     public static final String DEFAULT_MESSAGE = "The organization you requested does not exist.";
 
     public OrganizationNotFoundException() {
-        super(DEFAULT_MESSAGE);
+        super(HttpStatus.NOT_FOUND, DEFAULT_MESSAGE);
     }
 
     public OrganizationNotFoundException(String message) {
-        super(message);
+        super(HttpStatus.NOT_FOUND, message);
     }
 }

@@ -69,7 +69,7 @@ public interface RaceService {
      * @param currentUser The authenticated user
      * @throws RaceNotFoundException if the race does not exist
      * @throws RaceDeletionNotAllowedException if the race has categories
-     * @throws UnauthorizedAccessException if the user is not authorized
+     * @throws AccessForbiddenException if the user is not authorized
      */
     void deleteRace(Long eventId, Long raceId, User currentUser);
 

@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.messaging.provider.service.impl;
 
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.ProviderTestSendRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.SaveMessagingProviderRequest;
@@ -181,13 +181,13 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
             return;
         }
         if (organizationId == null) {
-            throw new UnauthorizedAccessException("Only the root user can manage the default campaign providers.");
+            throw new AccessForbiddenException("Only the root user can manage the default campaign providers.");
         }
         if (role == UserRole.ADMIN) {
             return;
         }
         if (user.getOrganization() == null || !user.getOrganization().getId().equals(organizationId)) {
-            throw new UnauthorizedAccessException("You do not have access to this organization's campaign settings.");
+            throw new AccessForbiddenException("You do not have access to this organization's campaign settings.");
         }
     }
 

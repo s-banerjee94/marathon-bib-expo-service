@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.model.dto.request.CreateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.response.*;
 import com.timekeeper.bibexpo.exception.BibNumberAlreadyExistsException;
+import com.timekeeper.bibexpo.exception.ChipNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.exception.ParticipantDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.ParticipantModificationNotAllowedException;
@@ -12,7 +13,9 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
 import com.timekeeper.bibexpo.service.EventStatsService;
+import com.timekeeper.bibexpo.service.ParticipantExportService;
 import com.timekeeper.bibexpo.service.ParticipantService;
+import com.timekeeper.bibexpo.service.ParticipantStatisticsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -34,6 +37,8 @@ import java.util.Map;
 public class ParticipantController implements ParticipantControllerApi {
 
     private final ParticipantService participantService;
+    private final ParticipantExportService participantExportService;
+    private final ParticipantStatisticsService participantStatisticsService;
     private final EventStatsService eventStatsService;
 
     @Override
@@ -180,7 +185,7 @@ public class ParticipantController implements ParticipantControllerApi {
         log.info("Export participants request - Event: {}, fields: {}, user: {}",
                 eventId, fields, currentUser.getUsername());
 
-        byte[] csvData = participantService.exportParticipantsToCsv(eventId, fields, currentUser);
+        byte[] csvData = participantExportService.exportParticipantsToCsv(eventId, fields, currentUser);
 
         String filename = "participants-event-" + eventId + ".csv";
 
@@ -204,7 +209,7 @@ public class ParticipantController implements ParticipantControllerApi {
         log.info("Get participant statistics request - Event: {}, user: {}",
                 eventId, currentUser.getUsername());
 
-        ParticipantStatisticsResponse response = participantService.getParticipantStatistics(eventId, currentUser);
+        ParticipantStatisticsResponse response = participantStatisticsService.getParticipantStatistics(eventId, currentUser);
 
         return ResponseEntity.ok(response);
     }
@@ -245,6 +250,14 @@ public class ParticipantController implements ParticipantControllerApi {
     public ResponseEntity<ErrorResponse> handleBibNumberAlreadyExists(
             BibNumberAlreadyExistsException ex, WebRequest request) {
         log.info("BIB number conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    @ExceptionHandler(ChipNumberAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleChipNumberAlreadyExists(
+            ChipNumberAlreadyExistsException ex, WebRequest request) {
+        log.info("Chip number conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }

@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.security.CurrentActor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -23,17 +24,17 @@ public interface UserService {
      * Organization limits (administrators, organizer users, distributors) are enforced.
      *
      * @param request the user creation request
-     * @param currentUsername the username of the user creating this user
+     * @param actor the authenticated user creating this user
      * @return the created user response
      * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if username or email already exists
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if validation fails or limits exceeded
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if organization is required but not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to create requested role
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission to create requested role
      */
-    UserResponse createUser(CreateUserRequest request, String currentUsername);
+    UserResponse createUser(CreateUserRequest request, CurrentActor actor);
 
     /**
-     * Validate that {@code currentUsername} is allowed to create a user with the given role
+     * Validate that {@code actor} is allowed to create a user with the given role
      * and organization, applying the same hierarchy, ROOT guard, organization-scoping, and
      * organization existence/enabled checks as {@link #createUser}. Performs no writes.
      *
@@ -43,13 +44,13 @@ public interface UserService {
      * @param role the role the invited user would be created with
      * @param organizationId the target organization (required for organization-scoped roles)
      * @param eventId the target event (required for DISTRIBUTOR; must belong to the organization and not have ended)
-     * @param currentUsername the username of the user issuing the invite
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the role is not creatable by the caller
+     * @param actor the authenticated user issuing the invite
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the role is not creatable by the caller
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the organization is required but missing or disabled, or the event is required but missing or has ended
      * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
      * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
      */
-    void assertCanCreateUser(UserRole role, Long organizationId, Long eventId, String currentUsername);
+    void assertCanCreateUser(UserRole role, Long organizationId, Long eventId, CurrentActor actor);
 
     /**
      * Create a user from an accepted invite. Authorization is intentionally skipped here
@@ -81,41 +82,41 @@ public interface UserService {
      *
      * @param userId the ID of the user to update
      * @param request the user update request (only password, email, fullName, phoneNumber)
-     * @param currentUsername the username of the user performing the update
+     * @param actor the authenticated user performing the update
      * @return the updated user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
      * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if email already exists (when changing email)
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if validation fails
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to update target user
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission to update target user
      */
-    UserResponse updateUser(Long userId, UpdateUserRequest request, String currentUsername);
+    UserResponse updateUser(Long userId, UpdateUserRequest request, CurrentActor actor);
 
     /**
      * Change the signed-in user's own password. The current password is verified before the new
      * one is stored, and the new password must differ from the current one. No audit event is
      * recorded for a self-service change.
      *
-     * @param currentUsername the username of the signed-in user changing their password
+     * @param actor   the signed-in user changing their password
      * @param request         the current and new passwords
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the current password is wrong,
      *         or the new password matches the current one
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the current user no longer exists
      */
-    void changeOwnPassword(String currentUsername, ChangePasswordRequest request);
+    void changeOwnPassword(CurrentActor actor, ChangePasswordRequest request);
 
     /**
-     * Assert that {@code currentUsername} is allowed to manage (update) the target user, applying
+     * Assert that {@code actor} is allowed to manage (update) the target user, applying
      * the same permission hierarchy as {@link #updateUser}. Performs no writes.
      *
      * <p>Used to authorize an administrator-initiated password reset link before it is issued, so a
      * reset can only ever be issued for a user the caller could otherwise have updated.
      *
      * @param userId          the target user to be managed
-     * @param currentUsername the username of the user performing the action
+     * @param actor the authenticated user performing the action
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the target user does not exist
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller lacks permission
      */
-    void assertCanUpdateUser(Long userId, String currentUsername);
+    void assertCanUpdateUser(Long userId, CurrentActor actor);
 
     /**
      * Reassign a distributor to a different event within its own organization.
@@ -127,14 +128,14 @@ public interface UserService {
      *
      * @param userId the distributor to reassign
      * @param eventId the new event to bind the distributor to
-     * @param currentUsername the username of the user performing the reassignment
+     * @param actor the authenticated user performing the reassignment
      * @return the updated user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist
      * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the target is not a distributor, or the event is missing or has ended
      * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller lacks permission
      */
-    UserResponse reassignDistributorEvent(Long userId, Long eventId, String currentUsername);
+    UserResponse reassignDistributorEvent(Long userId, Long eventId, CurrentActor actor);
 
     /**
      * Toggle the enabled status of a user.
@@ -147,12 +148,12 @@ public interface UserService {
      * - ORG_USER can disable: themselves, DISTRIBUTOR (own organization only)
      *
      * @param userId the ID of the user to toggle
-     * @param currentUsername the username of the user performing the toggle
+     * @param actor the authenticated user performing the toggle
      * @return the updated user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to toggle target user
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission to toggle target user
      */
-    UserResponse toggleUserEnabled(Long userId, String currentUsername);
+    UserResponse toggleUserEnabled(Long userId, CurrentActor actor);
 
     /**
      * Toggle the locked status of a user account (flips accountNonLocked).
@@ -163,12 +164,12 @@ public interface UserService {
      * - ADMIN can lock/unlock: any user
      *
      * @param userId the ID of the user to toggle
-     * @param currentUsername the username of the user performing the toggle
+     * @param actor the authenticated user performing the toggle
      * @return the updated user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission to toggle target user
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission to toggle target user
      */
-    UserResponse toggleUserLocked(Long userId, String currentUsername);
+    UserResponse toggleUserLocked(Long userId, CurrentActor actor);
 
     /**
      * Get a single user by ID.
@@ -180,11 +181,11 @@ public interface UserService {
      * existence is not disclosed across organizations or privilege levels.
      *
      * @param userId the ID of the user to retrieve
-     * @param currentUsername the username of the user making the request
+     * @param actor the authenticated user making the request
      * @return the user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist, is archived, or is not visible to the caller
      */
-    UserResponse getUserById(Long userId, String currentUsername);
+    UserResponse getUserById(Long userId, CurrentActor actor);
 
     /**
      * Get a single user by username.
@@ -197,11 +198,11 @@ public interface UserService {
      * a username that does not exist.
      *
      * @param username the username of the user to retrieve
-     * @param currentUsername the username of the user making the request
+     * @param actor the authenticated user making the request
      * @return the user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist, is archived, or is not visible to the caller
      */
-    UserResponse getUserByUsername(String username, String currentUsername);
+    UserResponse getUserByUsername(String username, CurrentActor actor);
 
     /**
      * Get users with role-based scoping.
@@ -214,23 +215,23 @@ public interface UserService {
      * @param enabled optional enabled status filter
      * @param search optional search term (searches username, email, fullName)
      * @param pageable pagination parameters
-     * @param currentUsername the username of the user making the request
+     * @param actor the authenticated user making the request
      * @return page of user responses matching filters
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission
      */
     Page<UserResponse> getUsers(UserRole role, Long organizationId, Long eventId, Boolean enabled,
                                 String search, Pageable pageable,
-                                String currentUsername);
+                                CurrentActor actor);
 
     /**
      * Get the current user's profile.
      * All authenticated users can access their own profile.
      *
-     * @param currentUsername the username of the user making the request
+     * @param actor the authenticated user making the request
      * @return the current user's profile response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if current user not found
      */
-    UserResponse getCurrentUser(String currentUsername);
+    UserResponse getCurrentUser(CurrentActor actor);
 
     /**
      * Archive a user. Moves the user row into the users_archive table, deletes their
@@ -247,12 +248,12 @@ public interface UserService {
      * - DISTRIBUTOR cannot archive users
      *
      * @param userId the id of the user to archive
-     * @param currentUsername the username of the user performing the archive
+     * @param actor the authenticated user performing the archive
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if user not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException if user lacks permission
+     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if user lacks permission
      *         or target user is ROOT
      */
-    void deleteUser(Long userId, String currentUsername);
+    void deleteUser(Long userId, CurrentActor actor);
 
     /**
      * Permanently delete every user of an organization, with no archival. For each user the
@@ -264,45 +265,4 @@ public interface UserService {
      * @return the number of live users deleted
      */
     int purgeUsersForOrganization(Long organizationId);
-
-    /**
-     * Create a presigned S3 upload URL for a user's profile picture. The caller must
-     * have permission to update the target user (same rules as {@link #updateUser}).
-     *
-     * @param userId          the user whose picture is being uploaded
-     * @param contentType     MIME type of the file (validated against allowed image types)
-     * @param currentUsername the username of the user making the request
-     * @return the presigned upload URL plus the object key to attach afterwards
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException  if the caller lacks permission
-     * @throws com.timekeeper.bibexpo.exception.InvalidFileException         if the content type is not allowed
-     */
-    com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse createProfilePictureUploadUrl(
-            Long userId, String contentType, String currentUsername);
-
-    /**
-     * Attach a previously uploaded object as the user's profile picture. Verifies the
-     * key belongs to the user and that the object exists in S3, then replaces any
-     * previous picture (the old object is deleted).
-     *
-     * @param userId          the user whose picture is being set
-     * @param objectKey       the object key returned by the presign step
-     * @param currentUsername the username of the user making the request
-     * @return the updated user response (with a fresh presigned picture URL)
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException  if the caller lacks permission
-     * @throws com.timekeeper.bibexpo.exception.InvalidFileException         if the key is invalid or the object is missing
-     */
-    UserResponse attachProfilePicture(Long userId, String objectKey, String currentUsername);
-
-    /**
-     * Remove the user's profile picture, deleting the object from S3.
-     *
-     * @param userId          the user whose picture is being removed
-     * @param currentUsername the username of the user making the request
-     * @return the updated user response
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.UnauthorizedAccessException  if the caller lacks permission
-     */
-    UserResponse removeProfilePicture(Long userId, String currentUsername);
 }

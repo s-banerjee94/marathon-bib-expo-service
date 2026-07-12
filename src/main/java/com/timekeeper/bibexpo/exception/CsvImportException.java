@@ -1,12 +1,14 @@
 package com.timekeeper.bibexpo.exception;
 
-public class CsvImportException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class CsvImportException extends ApiException {
 
     public CsvImportException(String message) {
-        super(message);
+        super(HttpStatus.BAD_REQUEST, "CSV Import Failed", message);
     }
 
     public CsvImportException(String message, Throwable cause) {
-        super(message, cause);
+        super(HttpStatus.BAD_REQUEST, "CSV Import Failed", message, cause);
     }
 }

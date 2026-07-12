@@ -8,6 +8,7 @@ import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.security.CurrentActor;
 import com.timekeeper.bibexpo.service.UserService;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +49,7 @@ public class UserMcpTools implements McpToolGroup {
         Pageable pageable = PageRequest.of(0, SEARCH_LIMIT);
         log.info("MCP search_users - query '{}', role {}, by {}", search, role, currentUser.getUsername());
 
-        return userService.getUsers(role, organizationId, eventId, null, search, pageable, currentUser.getUsername())
+        return userService.getUsers(role, organizationId, eventId, null, search, pageable, CurrentActor.from(currentUser))
                 .getContent();
     }
 
@@ -64,11 +65,11 @@ public class UserMcpTools implements McpToolGroup {
 
         if (username != null && !username.isBlank()) {
             log.info("MCP get_user - username '{}', by {}", username, currentUser.getUsername());
-            return userService.getUserByUsername(username.trim(), currentUser.getUsername());
+            return userService.getUserByUsername(username.trim(), CurrentActor.from(currentUser));
         }
         if (userId != null) {
             log.info("MCP get_user - id {}, by {}", userId, currentUser.getUsername());
-            return userService.getUserById(userId, currentUser.getUsername());
+            return userService.getUserById(userId, CurrentActor.from(currentUser));
         }
         throw new InvalidUserDataException("Please provide a username or a user id to look up.");
     }
@@ -79,7 +80,7 @@ public class UserMcpTools implements McpToolGroup {
     public UserResponse getMyProfile() {
         User currentUser = McpToolSupport.requireCurrentUser();
         log.info("MCP get_my_profile - by {}", currentUser.getUsername());
-        return userService.getCurrentUser(currentUser.getUsername());
+        return userService.getCurrentUser(CurrentActor.from(currentUser));
     }
 
     @Tool(name = "create_user",
@@ -96,7 +97,7 @@ public class UserMcpTools implements McpToolGroup {
 
         log.info("MCP create_user - username '{}', role {}, by {}",
                 request.getUsername(), request.getRole(), currentUser.getUsername());
-        return userService.createUser(request, currentUser.getUsername());
+        return userService.createUser(request, CurrentActor.from(currentUser));
     }
 
     @Tool(name = "invite_user",
@@ -114,7 +115,7 @@ public class UserMcpTools implements McpToolGroup {
 
         log.info("MCP invite_user - role {}, channels {}, by {}",
                 request.getRole(), request.getDeliveryChannels(), currentUser.getUsername());
-        return invitationService.createInvitation(request, currentUser.getUsername());
+        return invitationService.createInvitation(request, CurrentActor.from(currentUser));
     }
 
     @Tool(name = "reassign_distributor_event",
@@ -131,12 +132,12 @@ public class UserMcpTools implements McpToolGroup {
         Long targetId = resolveUserId(username, userId, currentUser);
 
         log.info("MCP reassign_distributor_event - user {}, event {}, by {}", targetId, eventId, currentUser.getUsername());
-        return userService.reassignDistributorEvent(targetId, eventId, currentUser.getUsername());
+        return userService.reassignDistributorEvent(targetId, eventId, CurrentActor.from(currentUser));
     }
 
     private Long resolveUserId(String username, Long userId, User currentUser) {
         if (username != null && !username.isBlank()) {
-            return userService.getUserByUsername(username.trim(), currentUser.getUsername()).getId();
+            return userService.getUserByUsername(username.trim(), CurrentActor.from(currentUser)).getId();
         }
         if (userId != null) {
             return userId;

@@ -123,6 +123,11 @@ app:
     base-url: ${PASSWORD_RESET_BASE_URL:http://192.168.0.110:4200}
     reset-path: ${PASSWORD_RESET_PATH:/reset-password}
     ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:10}
+  demo:
+    session-ttl-minutes: ${DEMO_SESSION_TTL_MINUTES:3}
+    max-live-sessions: ${DEMO_MAX_LIVE_SESSIONS:500}
+    create-limit-per-minute: ${DEMO_CREATE_LIMIT_PER_MINUTE:10}
+    collect-limit-per-minute: ${DEMO_COLLECT_LIMIT_PER_MINUTE:30}
   # AES key that encrypts the root-managed provider secrets (API keys, passwords) at rest.
   system-messaging:
     secret-key: ${SYSTEM_MESSAGING_SECRET_KEY:dev-only-system-messaging-key-change-in-production}

@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.exception;
 
-public class EventOperationNotAllowedException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class EventOperationNotAllowedException extends ApiException {
     public EventOperationNotAllowedException(String message) {
-        super(message);
+        super(HttpStatus.UNPROCESSABLE_ENTITY, message);
     }
 }

@@ -1,7 +1,10 @@
 package com.timekeeper.bibexpo.billing.exception;
 
-public class BillNotAllowedException extends RuntimeException {
+import com.timekeeper.bibexpo.exception.ApiException;
+import org.springframework.http.HttpStatus;
+
+public class BillNotAllowedException extends ApiException {
     public BillNotAllowedException(String message) {
-        super(message);
+        super(HttpStatus.BAD_REQUEST, message);
     }
 }

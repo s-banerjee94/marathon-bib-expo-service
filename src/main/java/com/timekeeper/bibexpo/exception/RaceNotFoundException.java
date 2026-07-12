@@ -1,11 +1,13 @@
 package com.timekeeper.bibexpo.exception;
 
-public class RaceNotFoundException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class RaceNotFoundException extends ApiException {
 
     public static final String DEFAULT_MESSAGE = "The race you requested does not exist.";
 
     public RaceNotFoundException() {
-        super(DEFAULT_MESSAGE);
+        super(HttpStatus.NOT_FOUND, DEFAULT_MESSAGE);
     }
 
 }

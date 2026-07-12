@@ -5,9 +5,7 @@ import com.timekeeper.bibexpo.model.dto.request.UpdateParticipantRequest;
 import com.timekeeper.bibexpo.model.dto.response.DeleteParticipantsResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantListResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantResponse;
-import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
 
 import java.util.List;
@@ -113,24 +111,6 @@ public interface ParticipantService {
             String lastEvaluatedKey,
             User currentUser
     );
-
-    /**
-     * Export participants to CSV format with selectable fields
-     * @param eventId The event ID
-     * @param fields List of fields to include in export (null or empty exports all fields)
-     * @param currentUser The authenticated user
-     * @return CSV content as byte array
-     */
-    byte[] exportParticipantsToCsv(Long eventId, List<ExportField> fields, User currentUser);
-
-    /**
-     * Get aggregated statistics for participants in an event.
-     * Includes total count, bib collection status, breakdown by race, category, and gender.
-     * @param eventId The event ID
-     * @param currentUser The authenticated user
-     * @return Participant statistics
-     */
-    ParticipantStatisticsResponse getParticipantStatistics(Long eventId, User currentUser);
 
     /**
      * Count participants assigned to a specific category

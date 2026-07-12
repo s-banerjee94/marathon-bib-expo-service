@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.annotation.Auditable;
 import com.timekeeper.bibexpo.aspect.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.*;
-import com.timekeeper.bibexpo.model.dto.notification.NotifyRequest;
+import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
@@ -15,22 +15,19 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.model.enums.NotificationAudience;
-import com.timekeeper.bibexpo.model.enums.NotificationType;
+import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
+import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
 import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.model.event.EventStatusChangedEvent;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
-import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
-import com.timekeeper.bibexpo.messaging.campaign.repository.SmsTemplateRepository;
-import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
-import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppTemplateRepository;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.EventBillingGuard;
+import com.timekeeper.bibexpo.service.EventDeletionGuard;
 import com.timekeeper.bibexpo.service.EventService;
-import com.timekeeper.bibexpo.service.NotificationService;
+import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.service.StorageService;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventStatusTransitionValidator;
@@ -65,13 +62,10 @@ public class EventServiceImpl implements EventService {
     private final OrganizationRepository organizationRepository;
     private final EventLimitRepository eventLimitRepository;
     private final RaceRepository raceRepository;
-    private final SmsTemplateRepository smsTemplateRepository;
-    private final SmsCampaignRepository smsCampaignRepository;
-    private final WhatsAppTemplateRepository whatsAppTemplateRepository;
-    private final WhatsAppCampaignRepository whatsAppCampaignRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventStatusTransitionValidator statusTransitionValidator;
     private final EventBillingGuard eventBillingGuard;
+    private final List<EventDeletionGuard> eventDeletionGuards;
     private final StorageService storageService;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
@@ -329,7 +323,7 @@ public class EventServiceImpl implements EventService {
                 status, search, currentUser.getUsername());
 
         if (currentUser.getOrganization() == null) {
-            throw new UnauthorizedAccessException(
+            throw new AccessForbiddenException(
                     "User does not belong to any organization");
         }
 
@@ -527,21 +521,21 @@ public class EventServiceImpl implements EventService {
 
     /**
      * An event is only deletable once it is empty. Blocking on races transitively guarantees no
-     * categories or participants, since neither can exist without a race above it.
+     * categories or participants, since neither can exist without a race above it. Outer slices
+     * contribute their own emptiness checks through {@link EventDeletionGuard}.
      */
     private void requireEmptyForDeletion(Long eventId) {
-        rejectIfPresent(raceRepository.countByEventIdAndDeletedFalse(eventId), "races");
-        rejectIfPresent(smsTemplateRepository.countByEventId(eventId), "SMS templates");
-        rejectIfPresent(whatsAppTemplateRepository.countByEventId(eventId), "WhatsApp templates");
-        rejectIfPresent(smsCampaignRepository.countByEventId(eventId), "SMS campaigns");
-        rejectIfPresent(whatsAppCampaignRepository.countByEventId(eventId), "WhatsApp campaigns");
+        if (raceRepository.countByEventIdAndDeletedFalse(eventId) > 0) {
+            rejectDeletionFor("races");
+        }
+        for (EventDeletionGuard guard : eventDeletionGuards) {
+            guard.findBlockingContent(eventId).ifPresent(this::rejectDeletionFor);
+        }
     }
 
-    private void rejectIfPresent(long count, String content) {
-        if (count > 0) {
-            throw new EventDeletionNotAllowedException(
-                    "You cannot delete this event while it still has " + content + ". Delete them first.");
-        }
+    private void rejectDeletionFor(String content) {
+        throw new EventDeletionNotAllowedException(
+                "You cannot delete this event while it still has " + content + ". Delete them first.");
     }
 
     private Specification<Event> buildEventSpecification(
@@ -599,18 +593,18 @@ public class EventServiceImpl implements EventService {
 
         if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
             if (currentUser.getOrganization() == null) {
-                throw new UnauthorizedAccessException(
+                throw new AccessForbiddenException(
                         "Your account is not assigned to an organization.");
             }
 
             if (!currentUser.getOrganization().getId().equals(organization.getId())) {
-                throw new UnauthorizedAccessException(
+                throw new AccessForbiddenException(
                         "You can only create events for your organization.");
             }
             return;
         }
 
-        throw new UnauthorizedAccessException("You are not allowed to create events.");
+        throw new AccessForbiddenException("You are not allowed to create events.");
     }
 
     @Override
@@ -626,7 +620,7 @@ public class EventServiceImpl implements EventService {
         log.info("Attaching logo for event ID: {} by user: {}", id, currentUser.getUsername());
         Event event = findAndValidateEvent(id, currentUser);
 
-        if (UploadCategory.EVENT_LOGO.ownsKey(event.getId(), objectKey)) {
+        if (UploadCategory.EVENT_LOGO.isForeignKeyFor(event.getId(), objectKey)) {
             throw new InvalidFileException("This upload does not belong to this event.");
         }
         if (!storageService.objectExists(objectKey)) {

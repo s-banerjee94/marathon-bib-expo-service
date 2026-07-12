@@ -28,7 +28,7 @@ import java.util.Map;
 @Slf4j
 public class ParticipantDDBRepository {
 
-    private static final String TABLE_NAME = "marathon-participants";
+    public static final String TABLE_NAME = "marathon-participants";
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final DynamoDbClient dynamoDbClient;

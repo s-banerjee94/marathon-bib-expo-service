@@ -12,7 +12,7 @@ import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.EventActivityRange;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.ParticipantService;
+import com.timekeeper.bibexpo.service.ParticipantStatisticsService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.util.EventTimeUtil;
@@ -30,15 +30,15 @@ import java.util.List;
 
 /**
  * Assembles the event dashboard rollup: the event-wide participant statistics (reused from
- * {@link ParticipantService}), the range-scoped activity block, and event context, under one
- * {@code refreshedAt}.
+ * {@link ParticipantStatisticsService}), the range-scoped activity block, and event context,
+ * under one {@code refreshedAt}.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class EventDashboardService {
 
-    private final ParticipantService participantService;
+    private final ParticipantStatisticsService participantStatisticsService;
     private final EventActivityService eventActivityService;
     private final EventRepository eventRepository;
     private final RaceCategoryNameResolver nameResolver;
@@ -56,7 +56,7 @@ public class EventDashboardService {
         log.info("Loading event dashboard — event: {}, range: {}, user: {}",
                 eventId, range, currentUser.getUsername());
 
-        ParticipantStatisticsResponse stats = participantService.getParticipantStatistics(eventId, currentUser);
+        ParticipantStatisticsResponse stats = participantStatisticsService.getParticipantStatistics(eventId, currentUser);
         Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
         EventNames names = nameResolver.forEvent(eventId);
 

@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.exception;
 
-public class EventDisabledException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class EventDisabledException extends ApiException {
     public EventDisabledException(String message) {
-        super(message);
+        super(HttpStatus.FORBIDDEN, message);
     }
 }

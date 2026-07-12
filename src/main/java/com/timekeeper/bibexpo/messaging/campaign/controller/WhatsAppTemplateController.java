@@ -4,7 +4,6 @@ import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidWhatsAppTemplateException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppTemplateAlreadyExistsException;
-import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppTemplateNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateWhatsAppTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateWhatsAppTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.WhatsAppTemplateResponse;
@@ -79,13 +78,7 @@ public class WhatsAppTemplateController implements WhatsAppTemplateControllerApi
         return ResponseEntity.noContent().build();
     }
 
-    @ExceptionHandler(WhatsAppTemplateNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleTemplateNotFound(WhatsAppTemplateNotFoundException ex, WebRequest request) {
-        log.warn("WhatsApp template not found: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
-    }
-
+    // Template not-found is also raised from the campaign service, so it is global (ApiException).
     @ExceptionHandler(WhatsAppTemplateAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleTemplateAlreadyExists(WhatsAppTemplateAlreadyExistsException ex, WebRequest request) {
         log.warn("WhatsApp template conflict: {}", ex.getMessage());

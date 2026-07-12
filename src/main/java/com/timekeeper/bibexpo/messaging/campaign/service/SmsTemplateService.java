@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.messaging.campaign.service;
 
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateAlreadyExistsException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
-import com.timekeeper.bibexpo.exception.UnauthorizedAccessException;
+import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsTemplateResponse;
@@ -22,7 +22,7 @@ public interface SmsTemplateService {
      * @param currentUser The authenticated user
      * @return The created SMS template response
      * @throws SmsTemplateAlreadyExistsException if smsTemplateId already exists for the event
-     * @throws UnauthorizedAccessException if the user is not authorized
+     * @throws AccessForbiddenException if the user is not authorized
      */
     SmsTemplateResponse createSmsTemplate(Long eventId, CreateSmsTemplateRequest request, User currentUser);
 
@@ -38,7 +38,7 @@ public interface SmsTemplateService {
      * @return The updated SMS template response
      * @throws SmsTemplateNotFoundException if the template does not exist
      * @throws SmsTemplateAlreadyExistsException if smsTemplateId already exists for the event (for update)
-     * @throws UnauthorizedAccessException if the user is not authorized
+     * @throws AccessForbiddenException if the user is not authorized
      */
     SmsTemplateResponse updateSmsTemplate(Long eventId, Long templateId, UpdateSmsTemplateRequest request, User currentUser);
 
@@ -51,7 +51,7 @@ public interface SmsTemplateService {
      * @param search Partial match on name or smsTemplateId
      * @param currentUser The authenticated user
      * @return List of SMS template responses
-     * @throws UnauthorizedAccessException if the user is not authorized
+     * @throws AccessForbiddenException if the user is not authorized
      */
     List<SmsTemplateResponse> getSmsTemplatesByEvent(Long eventId, String search, User currentUser);
 
@@ -65,7 +65,7 @@ public interface SmsTemplateService {
      * @param currentUser The authenticated user
      * @return The SMS template response
      * @throws SmsTemplateNotFoundException if the template does not exist
-     * @throws UnauthorizedAccessException if the user is not authorized
+     * @throws AccessForbiddenException if the user is not authorized
      */
     SmsTemplateResponse getSmsTemplateById(Long eventId, Long templateId, User currentUser);
 
@@ -79,7 +79,7 @@ public interface SmsTemplateService {
      * @param currentUser The authenticated user
      * @return The SMS template response
      * @throws SmsTemplateNotFoundException if the template does not exist
-     * @throws UnauthorizedAccessException if the user is not authorized
+     * @throws AccessForbiddenException if the user is not authorized
      */
     SmsTemplateResponse getSmsTemplateBySmsTemplateId(Long eventId, String smsTemplateId, User currentUser);
 
@@ -92,7 +92,7 @@ public interface SmsTemplateService {
      * @param templateId The SMS template ID
      * @param currentUser The authenticated user
      * @throws SmsTemplateNotFoundException if the template does not exist
-     * @throws UnauthorizedAccessException if the user is not authorized
+     * @throws AccessForbiddenException if the user is not authorized
      */
     void deleteSmsTemplate(Long eventId, Long templateId, User currentUser);
 }

@@ -1,8 +1,11 @@
 package com.timekeeper.bibexpo.messaging.campaign.exception;
 
-public class WhatsAppTemplateNotFoundException extends RuntimeException {
+import com.timekeeper.bibexpo.exception.ApiException;
+import org.springframework.http.HttpStatus;
+
+public class WhatsAppTemplateNotFoundException extends ApiException {
 
     public WhatsAppTemplateNotFoundException() {
-        super("The WhatsApp template was not found.");
+        super(HttpStatus.NOT_FOUND, "The WhatsApp template was not found.");
     }
 }

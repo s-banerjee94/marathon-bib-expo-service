@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.exception;
 
-public class InvalidFileException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class InvalidFileException extends ApiException {
     public InvalidFileException(String message) {
-        super(message);
+        super(HttpStatus.BAD_REQUEST, message);
     }
 }
