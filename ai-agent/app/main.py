@@ -21,15 +21,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .agent.usage import UsageLimitError
+from .core.logging_config import configure_logging
 from .core.settings import settings
 from .routers import chat
 
-# One logging setup for the whole service. Works whether started via `python -m app.main` or
-# `uvicorn app.main:app`; our app logs and uvicorn's request logs both land on the console.
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s | %(message)s",
-)
+# One logging setup for the whole service, applied at import so it covers every entry point
+# (`python -m app.main`, `uvicorn app.main:app`, and the bibexpo-agent console script). Coloured
+# console in dev, plus a rolling file when BIBEXPO_LOG_FILE is set in prod.
+configure_logging(level=settings.log_level, log_file=settings.log_file, color=settings.log_color)
 logger = logging.getLogger(__name__)
 
 
@@ -115,7 +114,9 @@ app.include_router(chat.router)
 
 def run() -> None:
     """Console-script entry point (bibexpo-agent): start the ASGI server."""
-    uvicorn.run(app, host=settings.api_host, port=settings.api_port)
+    # log_config=None -> uvicorn keeps the logging we set up in configure_logging() instead of
+    # reinstalling its own, so request logs share our format and rolling file.
+    uvicorn.run(app, host=settings.api_host, port=settings.api_port, log_config=None)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
+import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -33,12 +34,12 @@ import java.util.function.Function;
 @Slf4j
 public class EventStatsDDBRepository {
 
-    private static final String TABLE_NAME = "marathon-event-stats";
     private static final int BATCH_SIZE = 25;
     private static final int UPDATE_PARALLELISM = 8;
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final DynamoDbClient dynamoDbClient;
+    private final DynamoDbProperties dynamoDbProperties;
 
     private volatile DynamoDbTable<EventStatsDDB> table;
     private volatile ExecutorService updateExecutor;
@@ -47,7 +48,7 @@ public class EventStatsDDBRepository {
         if (table == null) {
             synchronized (this) {
                 if (table == null) {
-                    table = dynamoDbEnhancedClient.table(TABLE_NAME, TableSchema.fromBean(EventStatsDDB.class));
+                    table = dynamoDbEnhancedClient.table(dynamoDbProperties.eventStatsTable(), TableSchema.fromBean(EventStatsDDB.class));
                 }
             }
         }
@@ -105,7 +106,7 @@ public class EventStatsDDBRepository {
             exprValues.put(":u", AttributeValue.fromS(updatedAt));
 
             UpdateItemRequest request = UpdateItemRequest.builder()
-                    .tableName(TABLE_NAME)
+                    .tableName(dynamoDbProperties.eventStatsTable())
                     .key(key)
                     .updateExpression("ADD #c :d SET #u = :u")
                     .expressionAttributeNames(exprNames)

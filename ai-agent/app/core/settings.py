@@ -57,6 +57,11 @@ class Settings:
     # subdomain). List the EXACT frontend origins; set your Amplify origin here in prod.
     cors_allowed_origins: list[str]
 
+    # Logging (mirrors the Spring app: coloured console in dev, rolling file in prod, 12-hour clock).
+    log_level: str          # root threshold: INFO in normal use, DEBUG to chase a bug
+    log_file: str | None    # rolling file path in prod; None = console only (dev default)
+    log_color: str          # auto | always | never -- tint the console level
+
 
 def _parse_mode(raw: str) -> ApprovalMode:
     """Turn the BIBEXPO_APPROVAL_MODE text into a mode, defaulting to AGENT if unknown."""
@@ -103,6 +108,9 @@ def load_settings() -> Settings:
             for o in os.getenv("BIBEXPO_CORS_ALLOWED_ORIGINS", "http://localhost:4200,http://localhost:3000").split(",")
             if o.strip()
         ],
+        log_level=os.getenv("BIBEXPO_LOG_LEVEL", "INFO"),
+        log_file=os.getenv("BIBEXPO_LOG_FILE") or None,
+        log_color=os.getenv("BIBEXPO_LOG_COLOR", "auto"),
     )
 
 

@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.notification.repository;
 
+import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.notification.model.dynamodb.NotificationDDB;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,19 +31,19 @@ import java.util.Map;
 @Slf4j
 public class NotificationDDBRepository {
 
-    public static final String TABLE_NAME = "marathon-notifications";
     public static final String INDEX_UNREAD = "LSI-UnreadIndex";
     private static final int MAX_BATCH = 25;
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final DynamoDbClient dynamoDbClient;
+    private final DynamoDbProperties dynamoDbProperties;
     private volatile DynamoDbTable<NotificationDDB> table;
 
     private DynamoDbTable<NotificationDDB> getTable() {
         if (table == null) {
             synchronized (this) {
                 if (table == null) {
-                    table = dynamoDbEnhancedClient.table(TABLE_NAME, TableSchema.fromBean(NotificationDDB.class));
+                    table = dynamoDbEnhancedClient.table(dynamoDbProperties.notificationsTable(), TableSchema.fromBean(NotificationDDB.class));
                 }
             }
         }
@@ -91,7 +92,7 @@ public class NotificationDDBRepository {
         Map<String, AttributeValue> startKey = null;
         do {
             QueryRequest.Builder request = QueryRequest.builder()
-                    .tableName(TABLE_NAME)
+                    .tableName(dynamoDbProperties.notificationsTable())
                     .indexName(INDEX_UNREAD)
                     .select(Select.COUNT)
                     .keyConditionExpression("userId = :uid")
@@ -138,7 +139,7 @@ public class NotificationDDBRepository {
     private boolean updateToRead(Long userId, String notificationKey) {
         try {
             dynamoDbClient.updateItem(UpdateItemRequest.builder()
-                    .tableName(TABLE_NAME)
+                    .tableName(dynamoDbProperties.notificationsTable())
                     .key(primaryKey(userId, notificationKey))
                     .updateExpression("SET #read = :true REMOVE unreadKey")
                     .conditionExpression("attribute_exists(unreadKey)")

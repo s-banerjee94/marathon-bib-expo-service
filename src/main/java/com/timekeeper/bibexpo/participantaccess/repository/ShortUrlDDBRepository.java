@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.participantaccess.repository;
 
 import com.timekeeper.bibexpo.exception.ShortUrlNotFoundException;
+import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.participantaccess.model.dynamodb.ShortUrlDDB;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,13 +20,14 @@ import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedExce
 public class ShortUrlDDBRepository {
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final DynamoDbProperties dynamoDbProperties;
     private volatile DynamoDbTable<ShortUrlDDB> table;
 
     private DynamoDbTable<ShortUrlDDB> getTable() {
         if (table == null) {
             synchronized (this) {
                 if (table == null) {
-                    table = dynamoDbEnhancedClient.table("marathon-short-urls", TableSchema.fromBean(ShortUrlDDB.class));
+                    table = dynamoDbEnhancedClient.table(dynamoDbProperties.shortUrlsTable(), TableSchema.fromBean(ShortUrlDDB.class));
                 }
             }
         }
