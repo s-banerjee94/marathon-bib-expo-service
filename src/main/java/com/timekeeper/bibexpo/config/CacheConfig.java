@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.config;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.timekeeper.bibexpo.demo.config.DemoProperties;
+import com.timekeeper.bibexpo.demo.model.DemoSession;
 import com.timekeeper.bibexpo.invitation.config.InviteProperties;
 import com.timekeeper.bibexpo.invitation.model.Invitation;
 import com.timekeeper.bibexpo.passwordreset.config.PasswordResetProperties;
@@ -139,6 +141,19 @@ public class CacheConfig {
         return Caffeine.newBuilder()
                 .maximumSize(10_000)
                 .expireAfterWrite(passwordResetProperties.getTtlMinutes(), TimeUnit.MINUTES)
+                .build();
+    }
+
+    /**
+     * Dedicated native cache for landing-page demo sessions. The write-expiry is twice the
+     * session TTL: entries outlive their logical expiry so a phone scanning a stale QR gets
+     * a clean "expired" (410) answer instead of "not found" until the entry is evicted.
+     */
+    @Bean
+    public Cache<String, DemoSession> demoSessionCache(DemoProperties demoProperties) {
+        return Caffeine.newBuilder()
+                .maximumSize(2_000)
+                .expireAfterWrite(demoProperties.getSessionTtlMinutes() * 2, TimeUnit.MINUTES)
                 .build();
     }
 }
