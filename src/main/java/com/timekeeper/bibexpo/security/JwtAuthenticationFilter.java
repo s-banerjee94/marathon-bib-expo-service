@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.security;
 
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.exception.AuthErrorCode;
 import com.timekeeper.bibexpo.service.JwtService;
 import com.timekeeper.bibexpo.service.SessionService;
 import jakarta.servlet.FilterChain;
@@ -66,10 +66,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String tokenSid = jwtService.extractSid(jwt);
                 String activeSid = sessionService.getActiveSid(username);
                 if (tokenSid == null || !tokenSid.equals(activeSid)) {
-                    Long userId = (userDetails instanceof User u) ? u.getId() : null;
-                    sessionService.endSession(username, userId);
-                    log.info("Session invalidated for user {} (sid mismatch) — forcing logout", username);
-                    writeUnauthorized(request, response, "Session invalidated by another login. Please log in again.");
+                    // A stale token is expected traffic after an eviction — reject it without touching
+                    // the session row, which now belongs to the newer login (do not end it here).
+                    log.info("Stale session token for user {} (sid mismatch) — rejecting request", username);
+                    writeUnauthorized(request, response, AuthErrorCode.SESSION_INVALIDATED,
+                            "Session invalidated by another login. Please log in again.");
                     return;
                 }
 
@@ -77,9 +78,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     accountStatusChecker.check(userDetails);
                 } catch (AccountStatusException e) {
                     log.info("Blocking request for {} — {}", username, e.getMessage());
-                    writeUnauthorized(request, response, e instanceof LockedException
-                            ? "Your account has been locked. Please contact an platform administrator."
-                            : "Your account has been disabled. Please contact an administrator.");
+                    boolean locked = e instanceof LockedException;
+                    writeUnauthorized(request, response,
+                            locked ? AuthErrorCode.ACCOUNT_LOCKED : AuthErrorCode.ACCOUNT_DISABLED,
+                            locked ? "Your account has been locked. Please contact an platform administrator."
+                                    : "Your account has been disabled. Please contact an administrator.");
                     return;
                 }
 
@@ -99,12 +102,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private void writeUnauthorized(HttpServletRequest request, HttpServletResponse response, String message) throws IOException {
+    private void writeUnauthorized(HttpServletRequest request, HttpServletResponse response,
+                                   String code, String message) throws IOException {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         String body = String.format(
-                "{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Unauthorized\",\"message\":\"%s\",\"path\":\"%s\"}",
-                Instant.now(), message, request.getRequestURI()
+                "{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Unauthorized\",\"code\":\"%s\",\"message\":\"%s\",\"path\":\"%s\"}",
+                Instant.now(), code, message, request.getRequestURI()
         );
         response.getWriter().write(body);
     }

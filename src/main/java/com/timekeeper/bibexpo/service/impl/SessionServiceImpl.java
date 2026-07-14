@@ -66,8 +66,8 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     @CacheEvict(value = CacheConfig.ACTIVE_SESSIONS_CACHE, key = "#username")
-    public void endSession(String username, Long userId) {
+    public void endSession(String username) {
         activeSessionRepository.deleteByUsername(username);
-        log.info("Session force-ended for user {}", username);
+        log.info("Session ended for user {}", username);
     }
 }

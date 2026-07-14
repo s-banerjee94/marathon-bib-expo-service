@@ -7,13 +7,11 @@ import com.timekeeper.bibexpo.exception.InvalidCredentialsException;
 import com.timekeeper.bibexpo.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.model.dto.response.LoginResponse;
 import com.timekeeper.bibexpo.model.dto.response.RefreshResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,7 +20,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -82,18 +79,19 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    @SecurityRequirement(name = "bearerAuth")
     @Operation(
             summary = "User logout",
-            description = "Ends the user's session, clears auth cookies, and closes all SSE connections.",
+            description = "Ends the session tied to the refresh cookie and clears the auth cookies. " +
+                    "Requires the X-CSRF-Token header matching the csrfToken cookie (double-submit). " +
+                    "Does not require a valid access token, so logout succeeds even after it has expired.",
             responses = {
                     @ApiResponse(responseCode = "204", description = "Logged out successfully"),
-                    @ApiResponse(responseCode = "401", description = "Unauthorized")
+                    @ApiResponse(responseCode = "403", description = "CSRF token mismatch")
             }
     )
-    public ResponseEntity<Void> logout(@AuthenticationPrincipal User currentUser,
+    public ResponseEntity<Void> logout(HttpServletRequest httpRequest,
                                        HttpServletResponse httpResponse) {
-        authService.logout(currentUser, httpResponse);
+        authService.logout(httpRequest, httpResponse);
         return ResponseEntity.noContent().build();
     }
 

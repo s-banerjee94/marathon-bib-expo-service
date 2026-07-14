@@ -16,8 +16,8 @@ public class LoginResponse {
     @Schema(description = "JWT access token (Bearer)", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
     private String accessToken;
 
-    @Schema(description = "Access token expiration in milliseconds", example = "900000")
-    private Long expiresIn;
+    @Schema(description = "Access token lifetime in milliseconds", example = "900000")
+    private Long expiresInMs;
 
     @Schema(description = "User ID", example = "1")
     private Long userId;
