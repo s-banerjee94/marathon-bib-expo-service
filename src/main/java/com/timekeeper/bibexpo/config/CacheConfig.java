@@ -145,15 +145,19 @@ public class CacheConfig {
     }
 
     /**
-     * Dedicated native cache for landing-page demo sessions. The write-expiry is twice the
-     * session TTL: entries outlive their logical expiry so a phone scanning a stale QR gets
-     * a clean "expired" (410) answer instead of "not found" until the entry is evicted.
+     * Dedicated native cache for landing-page demo sessions. The write-expiry is the session
+     * retention window (longer than the session TTL): entries outlive their logical expiry so a
+     * phone scanning a stale QR gets a clean "expired" (410) answer instead of "not found" until
+     * the entry is evicted.
      */
     @Bean
     public Cache<String, DemoSession> demoSessionCache(DemoProperties demoProperties) {
+        // Never evict before the session TTL, or a still-valid QR would start answering 404.
+        long retentionMinutes = Math.max(
+                demoProperties.getSessionRetentionMinutes(), demoProperties.getSessionTtlMinutes());
         return Caffeine.newBuilder()
                 .maximumSize(2_000)
-                .expireAfterWrite(demoProperties.getSessionTtlMinutes() * 2, TimeUnit.MINUTES)
+                .expireAfterWrite(retentionMinutes, TimeUnit.MINUTES)
                 .build();
     }
 }
