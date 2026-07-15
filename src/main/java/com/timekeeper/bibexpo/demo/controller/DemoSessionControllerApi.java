@@ -105,12 +105,10 @@ public interface DemoSessionControllerApi {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "SSE stream of status events",
                     content = @Content(mediaType = MediaType.TEXT_EVENT_STREAM_VALUE)),
-            @ApiResponse(responseCode = "404", description = "Unknown code",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "410", description = "Session expired",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "404", description = "Unknown code (no body — EventSource clients cannot read one)",
+                    content = @Content),
+            @ApiResponse(responseCode = "410", description = "Session expired (no body — EventSource clients cannot read one)",
+                    content = @Content)
     })
     ResponseEntity<SseEmitter> streamSessionEvents(@PathVariable String code);
 }

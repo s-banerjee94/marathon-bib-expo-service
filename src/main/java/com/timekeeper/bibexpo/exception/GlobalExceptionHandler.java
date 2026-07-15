@@ -14,6 +14,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -184,6 +186,17 @@ public class GlobalExceptionHandler {
             builder.allow(supported.toArray(new HttpMethod[0]));
         }
         return builder.body(error);
+    }
+
+    /**
+     * SSE/async streams commit a {@code text/event-stream} response, so when the emitter times out
+     * or the client disconnects there is no JSON body to return. Handle these framework exceptions
+     * here (nothing to write) instead of letting the catch-all try to serialize an ErrorResponse
+     * into the stream, which fails with HttpMessageNotWritableException.
+     */
+    @ExceptionHandler({AsyncRequestTimeoutException.class, AsyncRequestNotUsableException.class})
+    public void handleAsyncStreamEnded(Exception ex) {
+        log.debug("Async stream ended: {}", ex.getClass().getSimpleName());
     }
 
     @ExceptionHandler(Exception.class)
