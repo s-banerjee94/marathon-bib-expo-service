@@ -16,6 +16,6 @@ public class RefreshResponse {
     @Schema(description = "New JWT access token (Bearer)")
     private String accessToken;
 
-    @Schema(description = "Access token expiration in milliseconds", example = "900000")
-    private Long expiresIn;
+    @Schema(description = "Access token lifetime in milliseconds", example = "900000")
+    private Long expiresInMs;
 }

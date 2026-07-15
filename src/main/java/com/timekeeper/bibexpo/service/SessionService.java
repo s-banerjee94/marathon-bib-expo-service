@@ -43,7 +43,8 @@ public interface SessionService {
 
     /**
      * Same as {@link #endSession(User)} but used when only the username is
-     * available (e.g. forced logout from the JWT filter on sid mismatch).
+     * available — e.g. the logout flow, which resolves the user from the
+     * refresh cookie rather than an authenticated principal.
      */
-    void endSession(String username, Long userId);
+    void endSession(String username);
 }

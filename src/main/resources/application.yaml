@@ -129,7 +129,8 @@ app:
     reset-path: ${PASSWORD_RESET_PATH:/reset-password}
     ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:10}
   demo:
-    session-ttl-minutes: ${DEMO_SESSION_TTL_MINUTES:3}
+    session-ttl-minutes: ${DEMO_SESSION_TTL_MINUTES:10}
+    session-retention-minutes: ${DEMO_SESSION_RETENTION_MINUTES:15}
     max-live-sessions: ${DEMO_MAX_LIVE_SESSIONS:500}
     create-limit-per-minute: ${DEMO_CREATE_LIMIT_PER_MINUTE:10}
     collect-limit-per-minute: ${DEMO_COLLECT_LIMIT_PER_MINUTE:30}

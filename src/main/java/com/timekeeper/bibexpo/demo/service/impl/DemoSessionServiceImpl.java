@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -144,7 +145,13 @@ public class DemoSessionServiceImpl implements DemoSessionService {
                         .bib(session.getBib())
                         .category(session.getCategory())
                         .build())
-                .expiresAt(session.getExpiresAt())
+                .expiresInSeconds(remainingSeconds(session))
                 .build();
+    }
+
+    /** Ceil to whole seconds so a freshly minted session reports the full TTL, not TTL minus one. */
+    private long remainingSeconds(DemoSession session) {
+        long remainingMillis = Duration.between(Instant.now(), session.getExpiresAt()).toMillis();
+        return Math.max((remainingMillis + 999) / 1000, 0);
     }
 }

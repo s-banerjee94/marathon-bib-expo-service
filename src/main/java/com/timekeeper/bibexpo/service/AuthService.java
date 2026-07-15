@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.service;
 import com.timekeeper.bibexpo.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.model.dto.response.LoginResponse;
 import com.timekeeper.bibexpo.model.dto.response.RefreshResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -25,8 +24,10 @@ public interface AuthService {
     RefreshResponse refresh(HttpServletRequest httpRequest, HttpServletResponse httpResponse);
 
     /**
-     * Ends the user's session, clears auth cookies, and closes their SSE
-     * connections.
+     * Ends the session identified by the refresh cookie and clears the auth
+     * cookies. Requires the CSRF double-submit check to pass, exactly like
+     * {@link #refresh}. Does not rely on an authenticated principal, so logout
+     * still succeeds after the access token has expired.
      */
-    void logout(User user, HttpServletResponse httpResponse);
+    void logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse);
 }

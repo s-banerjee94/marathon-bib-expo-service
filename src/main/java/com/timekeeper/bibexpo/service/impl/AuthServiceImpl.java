@@ -80,7 +80,7 @@ public class AuthServiceImpl implements AuthService {
 
             return LoginResponse.builder()
                     .accessToken(accessToken)
-                    .expiresIn(jwtService.getAccessTokenExpirationMs())
+                    .expiresInMs(jwtService.getAccessTokenExpirationMs())
                     .userId(user.getId())
                     .username(user.getUsername())
                     .role(user.getRole().name())
@@ -149,15 +149,32 @@ public class AuthServiceImpl implements AuthService {
 
         return RefreshResponse.builder()
                 .accessToken(newAccessToken)
-                .expiresIn(jwtService.getAccessTokenExpirationMs())
+                .expiresInMs(jwtService.getAccessTokenExpirationMs())
                 .build();
     }
 
     @Override
-    public void logout(User user, HttpServletResponse httpResponse) {
-        sessionService.endSession(user);
+    public void logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String csrfHeader = httpRequest.getHeader("X-CSRF-Token");
+        String csrfCookie = readCookie(httpRequest, jwtConfig.getCsrfCookieName());
+        if (!csrfTokenService.matches(csrfHeader, csrfCookie)) {
+            throw new CsrfValidationException("Invalid request. Please refresh and try again.");
+        }
+
+        String refreshToken = readCookie(httpRequest, jwtConfig.getRefreshCookieName());
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            try {
+                String username = jwtService.extractUsername(refreshToken);
+                if (username != null) {
+                    sessionService.endSession(username);
+                    log.info("User {} logged out", username);
+                }
+            } catch (Exception e) {
+                log.debug("Logout: could not end session from refresh token — {}", e.getMessage());
+            }
+        }
+        // Always clear the cookies so the client is signed out even if the session was already gone.
         clearAuthCookies(httpResponse);
-        log.info("User {} logged out", user.getUsername());
     }
 
     private String readCookie(HttpServletRequest request, String name) {

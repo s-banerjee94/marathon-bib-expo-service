@@ -51,10 +51,22 @@ public class DemoSessionController implements DemoSessionControllerApi {
 
     @Override
     public ResponseEntity<SseEmitter> streamSessionEvents(@PathVariable String code) {
+        // This response is pinned to text/event-stream, so a thrown exception cannot be rendered
+        // as a JSON ErrorResponse here (no converter). The EventSource client can't read a body
+        // anyway, so signal an unknown/expired session with a body-less status; the desktop mints
+        // a fresh session, exactly as it does for an expired /status poll.
+        SseEmitter emitter;
+        try {
+            emitter = demoSessionService.streamSessionEvents(code);
+        } catch (DemoSessionNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (DemoSessionExpiredException e) {
+            return ResponseEntity.status(HttpStatus.GONE).build();
+        }
         // X-Accel-Buffering stops nginx from buffering the stream, which would delay events
         return ResponseEntity.ok()
                 .header("X-Accel-Buffering", "no")
-                .body(demoSessionService.streamSessionEvents(code));
+                .body(emitter);
     }
 
     /** First X-Forwarded-For hop when behind the reverse proxy, otherwise the socket address. */

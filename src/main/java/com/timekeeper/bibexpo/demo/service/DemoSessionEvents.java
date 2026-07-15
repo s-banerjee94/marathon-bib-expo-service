@@ -34,7 +34,13 @@ public class DemoSessionEvents {
         long remainingMillis = Math.max(Duration.between(Instant.now(), session.getExpiresAt()).toMillis(), 1);
         SseEmitter emitter = new SseEmitter(remainingMillis);
         emitter.onCompletion(() -> emitters.remove(code, emitter));
-        emitter.onTimeout(() -> emitters.remove(code, emitter));
+        // Complete the emitter on timeout so the async request ends cleanly. Without this, Spring
+        // raises AsyncRequestTimeoutException, which the global handler then tries to render as a
+        // JSON ErrorResponse into a text/event-stream response (unwritable).
+        emitter.onTimeout(() -> {
+            emitters.remove(code, emitter);
+            emitter.complete();
+        });
         emitter.onError(e -> emitters.remove(code, emitter));
         SseEmitter previous = emitters.put(code, emitter);
         if (previous != null) {
