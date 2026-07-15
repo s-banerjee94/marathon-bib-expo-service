@@ -6,8 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -21,6 +19,7 @@ public class DemoSessionResponse {
     @Schema(description = "Fabricated runner details")
     private DemoRunnerResponse runner;
 
-    @Schema(description = "When the session and its QR stop working", example = "2026-07-11T12:34:56Z")
-    private Instant expiresAt;
+    @Schema(description = "Seconds until the session and its QR stop working, computed on the server "
+            + "so the client clock never matters; count down from this value", example = "600")
+    private long expiresInSeconds;
 }
