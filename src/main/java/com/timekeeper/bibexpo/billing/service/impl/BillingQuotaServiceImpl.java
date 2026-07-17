@@ -7,6 +7,7 @@ import com.timekeeper.bibexpo.billing.service.QuotaClaimResult;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -19,7 +20,10 @@ public class BillingQuotaServiceImpl implements BillingQuotaService {
     private final EventBillingStateRepository repository;
 
     @Override
-    @Transactional
+    // Called from an AFTER_COMMIT event listener where no transaction is active, so a fresh one
+    // (REQUIRES_NEW) is required — plain REQUIRED would fail the modifying query with
+    // TransactionRequiredException and abort the auto-bill scheduling that follows it.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void ensureState(Long eventId) {
         repository.insertIfAbsent(eventId);
     }
