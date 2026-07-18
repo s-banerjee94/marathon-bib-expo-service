@@ -1,2 +1,4 @@
 # boto3 is provided by the Lambda runtime — bundle only this. No reportlab/S3/DynamoDB needed.
 pymysql==1.1.1
+# pymysql needs cryptography for MySQL 8's caching_sha2_password auth
+cryptography==44.0.3

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.scheduler.SchedulerClient;
+import software.amazon.awssdk.services.scheduler.model.ActionAfterCompletion;
 import software.amazon.awssdk.services.scheduler.model.ConflictException;
 import software.amazon.awssdk.services.scheduler.model.CreateScheduleRequest;
 import software.amazon.awssdk.services.scheduler.model.DeleteScheduleRequest;
@@ -58,8 +59,9 @@ public class BillingScheduleServiceImpl implements BillingScheduleService {
                 .arn(billingProperties.getLambda().getArn())
                 .roleArn(billingProperties.getScheduler().getRoleArn())
                 .input(autoBillPayload(eventId, name))
-                // Single-shot: the auto-bill fires once. The Lambda self-deletes the schedule on
-                // any outcome, so EventBridge must not retry a failed invocation.
+                // Single-shot: the auto-bill fires once and must not retry — a failed auto-draft
+                // is recovered by a manual generate. EventBridge then auto-deletes the schedule
+                // (ActionAfterCompletion=DELETE), so no self-cleanup is needed anywhere.
                 .retryPolicy(RetryPolicy.builder().maximumRetryAttempts(0).build())
                 .build();
         FlexibleTimeWindow window = FlexibleTimeWindow.builder()
@@ -72,6 +74,7 @@ public class BillingScheduleServiceImpl implements BillingScheduleService {
                     .scheduleExpression("at(" + fireAt + ")")
                     .scheduleExpressionTimezone("UTC")
                     .flexibleTimeWindow(window)
+                    .actionAfterCompletion(ActionAfterCompletion.DELETE)
                     .target(target)
                     .build());
             log.info("[billing] armed auto-bill for event {} at {} UTC", eventId, fireAt);
@@ -82,6 +85,7 @@ public class BillingScheduleServiceImpl implements BillingScheduleService {
                     .scheduleExpression("at(" + fireAt + ")")
                     .scheduleExpressionTimezone("UTC")
                     .flexibleTimeWindow(window)
+                    .actionAfterCompletion(ActionAfterCompletion.DELETE)
                     .target(target)
                     .build());
             log.info("[billing] re-armed auto-bill for event {} at {} UTC", eventId, fireAt);
