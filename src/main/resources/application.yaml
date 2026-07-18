@@ -13,7 +13,7 @@ spring:
       enabled: false
 
   datasource:
-    url: jdbc:mysql://${DB_HOST:192.168.0.111}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+    url: jdbc:mysql://${DB_HOST:192.168.0.113}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -170,11 +170,11 @@ aws:
   access-key-id: ${AWS_ACCESS_KEY_ID:test}
   secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
   dynamodb:
-    endpoint: ${AWS_DYNAMODB_ENDPOINT:http://192.168.0.111:4566}
+    endpoint: ${AWS_DYNAMODB_ENDPOINT:http://192.168.0.113:4566}
     table-prefix: ${AWS_DYNAMODB_TABLE_PREFIX:}
   s3:
     bucket: ${AWS_S3_BUCKET:marathon-bib-expo-media}
-    endpoint: ${AWS_S3_ENDPOINT:http://192.168.0.111:4566}                 # LocalStack locally; leave empty in prod to target real AWS S3
+    endpoint: ${AWS_S3_ENDPOINT:http://192.168.0.113:4566}                 # LocalStack locally; leave empty in prod to target real AWS S3
     upload-url-expiry-seconds: ${AWS_S3_UPLOAD_URL_EXPIRY_SECONDS:600}     # presigned PUT validity (10 min)
     download-url-expiry-seconds: ${AWS_S3_DOWNLOAD_URL_EXPIRY_SECONDS:3600} # presigned GET validity (1 hour)
 
@@ -183,12 +183,12 @@ billing:
   scheduling:
     enabled: ${BILLING_SCHEDULING_ENABLED:false}                          # off locally (LocalStack stores but never fires schedules); set true on real AWS
   scheduler:
-    endpoint: ${AWS_SCHEDULER_ENDPOINT:http://192.168.0.111:4566}         # LocalStack locally; leave empty in prod to target real AWS EventBridge Scheduler
+    endpoint: ${AWS_SCHEDULER_ENDPOINT:http://192.168.0.113:4566}         # LocalStack locally; leave empty in prod to target real AWS EventBridge Scheduler
     role-arn: ${BILLING_SCHEDULER_ROLE_ARN:arn:aws:iam::000000000000:role/test-scheduler-role}  # role EventBridge assumes to invoke the Lambda
     delay-hours: ${BILLING_DELAY_HOURS:5}                                 # auto-bill fires this long after an event turns terminal
   lambda:
     arn: ${BILLING_LAMBDA_ARN:arn:aws:lambda:us-east-1:000000000000:function:marathon-billing}  # billing Lambda (EventBridge target + manual-invoke target)
-    endpoint: ${AWS_LAMBDA_ENDPOINT:http://192.168.0.111:4566}            # LocalStack locally; leave empty in prod to target real AWS Lambda
+    endpoint: ${AWS_LAMBDA_ENDPOINT:http://192.168.0.113:4566}            # LocalStack locally; leave empty in prod to target real AWS Lambda
   stats-lambda:
     arn: ${BILLING_STATS_LAMBDA_ARN:arn:aws:lambda:us-east-1:000000000000:function:marathon-billing-stats}  # dedicated bill-stats Lambda, invoked async on finalize/payment/manual refresh
-    endpoint: ${AWS_LAMBDA_ENDPOINT:http://192.168.0.111:4566}            # shares the bill Lambda's client/endpoint; only the ARN differs
+    endpoint: ${AWS_LAMBDA_ENDPOINT:http://192.168.0.113:4566}            # shares the bill Lambda's client/endpoint; only the ARN differs
