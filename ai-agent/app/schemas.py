@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
+from fastapi import UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
@@ -37,6 +38,12 @@ class ChatRequest(CamelModel):
         description="Ids returned by POST /chat/attachments for files (image/PDF) the assistant "
         "should read with this message; omit (null) or [] for a text-only message. At most 2.",
     )
+
+
+class AttachmentUploadRequest(CamelModel):
+    """Multipart body of POST /chat/attachments; a named model keeps the OpenAPI schema name clean."""
+
+    files: list[UploadFile] = Field(description="Up to 2 image/PDF files.")
 
 
 class AttachmentInfo(CamelModel):

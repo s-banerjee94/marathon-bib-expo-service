@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 
 import openai
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -104,12 +104,20 @@ async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse
     return JSONResponse(status_code=500, content={"detail": "The AI assistant hit an unexpected error."})
 
 
-@app.get("/health", tags=["meta"], summary="Liveness check")
+# Every agent endpoint lives under /ai, mirroring Spring's /api — one prefix reaches them all
+# (/ai/health, /ai/chat, /ai/chat/...). Because the app now OWNS the prefix, prod nginx must pass
+# /ai/ through UNCHANGED (proxy_pass without a trailing slash); locally you call
+# http://localhost:8000/ai/... directly.
+root_router = APIRouter(prefix="/ai")
+
+
+@root_router.get("/health", tags=["meta"], summary="Liveness check")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-app.include_router(chat.router)
+root_router.include_router(chat.router)
+app.include_router(root_router)
 
 
 def run() -> None:
