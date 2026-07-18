@@ -9,10 +9,10 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any
 
 import openai
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langgraph.types import Command
 from sse_starlette import EventSourceResponse
@@ -36,6 +36,7 @@ from ..core.settings import settings
 from ..dependencies import authenticate, authenticated_user_id, bearer_scheme
 from ..schemas import (
     AttachmentInfo,
+    AttachmentUploadRequest,
     AttachmentUploadResponse,
     ChatRequest,
     ChatResponse,
@@ -577,7 +578,7 @@ async def resume_stream(req: ResumeRequest, request: Request) -> EventSourceResp
 
 @router.post("/chat/attachments", summary="Upload image/PDF file(s) for the assistant to read")
 async def upload_attachments(
-    request: Request, files: list[UploadFile] = File(description="Up to 2 image/PDF files.")
+    request: Request, body: Annotated[AttachmentUploadRequest, File()]
 ) -> AttachmentUploadResponse:
     """Store one or two uploaded images/PDFs; return an id (to send with a chat message) plus a
     short-lived presigned URL (to display the file right away) per file.
@@ -589,7 +590,7 @@ async def upload_attachments(
     from the Bearer access token, and every id is scoped to that user.
     """
     session = authenticate(request)
-    uploads = [((f.filename or "attachment"), (f.content_type or ""), await f.read()) for f in files]
+    uploads = [((f.filename or "attachment"), (f.content_type or ""), await f.read()) for f in body.files]
     try:
         refs = await asyncio.to_thread(store_uploads, settings, session.user_id, uploads)
     except AttachmentError as exc:
