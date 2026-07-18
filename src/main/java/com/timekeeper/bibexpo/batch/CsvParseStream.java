@@ -31,7 +31,6 @@ public class CsvParseStream implements Closeable {
     private final List<String> goodiesColumns;
 
     private boolean headerSkipped;
-    private int lineNumber;
 
     public CsvParseStream(CSVParser parser,
                           boolean hasHeader,
@@ -61,7 +60,6 @@ public class CsvParseStream implements Closeable {
     public CsvRow nextRow() {
         while (iterator.hasNext()) {
             CSVRecord record = iterator.next();
-            lineNumber++;
             if (hasHeader && !headerSkipped) {
                 headerSkipped = true;
                 continue;
@@ -73,7 +71,9 @@ public class CsvParseStream implements Closeable {
 
     private CsvRow buildRow(CSVRecord record) {
         CsvRow row = new CsvRow();
-        row.setRowNumber(lineNumber);
+        // Physical file line (as seen in Excel), not the record ordinal — the parser skips
+        // blank lines, so a hand-rolled per-record counter drifts below the real line number.
+        row.setRowNumber((int) parser.getCurrentLineNumber());
 
         for (Map.Entry<Integer, String> entry : fieldByIndex.entrySet()) {
             applyField(row, entry.getValue(), getField(record, entry.getKey()));

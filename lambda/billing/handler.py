@@ -85,7 +85,6 @@ TWO_PLACES = Decimal("0.01")
 HUNDRED = Decimal("100")
 
 dynamodb = boto3.resource("dynamodb")
-scheduler = boto3.client("scheduler")
 s3 = boto3.client("s3")
 lambda_client = boto3.client("lambda")
 
@@ -601,29 +600,10 @@ def _trigger_stats_recompute(reason):
         log.warning("[bill-stats] could not trigger %s recompute: %s", reason, e)
 
 
-def _delete_own_schedule(event):
-    """Self-clean the one-time AUTO schedule. The auto-bill is a single-shot nudge, so the
-    schedule is deleted whether the run succeeded or failed — there is no re-firing. A failed
-    auto-draft is recovered by a manual generate, not by re-running the timer."""
-    if event.get("reason") != "AUTO":
-        return
-    name = event.get("scheduleName")
-    if not name:
-        return
-    try:
-        scheduler.delete_schedule(Name=name)
-        log.info("Deleted one-time schedule %s", name)
-    except Exception as e:  # best-effort cleanup
-        log.warning("Could not delete schedule %s: %s", name, e)
-
-
 def handler(event, context):
-    # The AUTO schedule fires once; delete it on every outcome (success or failure) so a failed
-    # run never re-fires. The exception still propagates — MANUAL callers (Spring) need to see it.
-    try:
-        return _process(event, context)
-    finally:
-        _delete_own_schedule(event)
+    # The one-time AUTO schedule cleans itself up (ActionAfterCompletion=DELETE, set by Spring
+    # when arming it), so no scheduler-API access is needed from inside the VPC.
+    return _process(event, context)
 
 
 def _process(event, context):

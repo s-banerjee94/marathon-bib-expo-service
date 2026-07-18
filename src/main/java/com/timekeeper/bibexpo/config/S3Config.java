@@ -3,6 +3,8 @@ package com.timekeeper.bibexpo.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -29,8 +31,12 @@ public class S3Config {
                 .region(Region.of(awsProperties.getRegion()))
                 .credentialsProvider(awsProperties.credentialsProvider(s3Properties.getEndpoint()));
         if (hasEndpointOverride()) {
+            // The pinned LocalStack image predates the SDK's default CRC32 integrity checksums
+            // (SDK >= 2.30), so keep the legacy opt-in behavior for local dev only.
             builder.endpointOverride(URI.create(s3Properties.getEndpoint()))
-                    .forcePathStyle(true);
+                    .forcePathStyle(true)
+                    .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+                    .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
         }
         return builder.build();
     }
