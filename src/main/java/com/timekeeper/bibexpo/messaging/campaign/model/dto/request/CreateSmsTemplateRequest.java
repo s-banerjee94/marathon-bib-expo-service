@@ -9,6 +9,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -27,18 +29,33 @@ public class CreateSmsTemplateRequest {
     @Schema(description = "DLT Template ID from telecom provider", example = "1107161234567890123")
     private String smsTemplateId;
 
-    @NotBlank(message = "Template text is required")
+    @Size(max = 32, message = "Sender ID must not exceed 32 characters")
+    @Schema(description = "Registered DLT header / sender id", example = "BIBEXP", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String senderId;
+
     @Size(min = 2, max = 1000, message = "Template text must be at least 2 characters")
     @Schema(
             description = """
-                    SMS message text. Use #{fieldName} placeholders to personalise the message. \
+                    SMS message text for a client-rendered provider. Use #{fieldName} placeholders to personalise the message. \
+                    Provide this OR bodyVariables, depending on the provider's rendering mode. \
                     Participant: #{fullName}, #{bibNumber}, #{raceName}, #{categoryName}, \
                     #{bibCollectedAt}, #{bibCollectedByName}, #{bibCollectedByPhone}. \
                     Event: #{eventName}, #{venueName}, #{eventStartDate}, #{eventEndDate}, #{eventCity}. \
                     Race: #{reportingTime}. \
                     Any placeholder not in this list will be rejected with a validation error.""",
-            example = "Hi #{fullName}, your bib #{bibNumber} for #{eventName} is ready at #{venueName}, #{eventCity} on #{eventStartDate}!")
+            example = "Hi #{fullName}, your bib #{bibNumber} for #{eventName} is ready at #{venueName}, #{eventCity} on #{eventStartDate}!",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String template;
+
+    @Size(max = 20, message = "A template can have a maximum of 20 variables.")
+    @Schema(
+            description = """
+                    Ordered #{fieldName} variable expressions for a provider-rendered SMS provider; entry n fills {{VAR:n}}. \
+                    Provide this OR the message text, depending on the provider's rendering mode.""",
+            example = "[\"#{fullName}\", \"#{bibNumber}\"]",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private List<@NotBlank(message = "Template variables must not be blank.")
+            @Size(max = 200, message = "A template variable must not exceed 200 characters.") String> bodyVariables;
 
     @Size(max = 500, message = "Note must not exceed 500 characters")
     @Schema(description = "Optional note or description", example = "Reminder to collect bib at expo", requiredMode = Schema.RequiredMode.NOT_REQUIRED)

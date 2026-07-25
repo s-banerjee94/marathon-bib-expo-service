@@ -74,12 +74,16 @@ public class SmsTemplateServiceImpl
                     "SMS template with ID '" + request.getSmsTemplateId() + "' already exists for this event");
         }
 
+        requireBodyOrVariables(request.getTemplate(), request.getBodyVariables());
         validateTemplatePlaceholders(request.getTemplate());
+        validateBodyVariables(request.getBodyVariables());
 
         SmsTemplate smsTemplate = SmsTemplate.builder()
                 .name(request.getName().toLowerCase().trim())
                 .smsTemplateId(request.getSmsTemplateId())
+                .senderId(request.getSenderId())
                 .template(request.getTemplate())
+                .bodyVariables(joinBodyVariables(request.getBodyVariables()))
                 .note(request.getNote())
                 .event(event)
                 .build();
@@ -127,6 +131,12 @@ public class SmsTemplateServiceImpl
             smsTemplate.setTemplate(request.getTemplate());
         }
 
+        if (request.getBodyVariables() != null) {
+            validateBodyVariables(request.getBodyVariables());
+            smsTemplate.setBodyVariables(joinBodyVariables(request.getBodyVariables()));
+        }
+
+        TextUtils.applyIfSent(request.getSenderId(), smsTemplate::setSenderId);
         TextUtils.applyIfSent(request.getNote(), smsTemplate::setNote);
 
         SmsTemplate updatedTemplate = smsTemplateRepository.saveAndFlush(smsTemplate);
@@ -219,5 +229,33 @@ public class SmsTemplateServiceImpl
             throw new InvalidSmsTemplateException(
                     "Invalid placeholders in template: " + invalid + ".");
         }
+    }
+
+    private void requireBodyOrVariables(String template, List<String> bodyVariables) {
+        boolean hasBody = template != null && !template.isBlank();
+        boolean hasVariables = bodyVariables != null && !bodyVariables.isEmpty();
+        if (!hasBody && !hasVariables) {
+            throw new InvalidSmsTemplateException(
+                    "Provide either the message text or the template variables.");
+        }
+    }
+
+    private void validateBodyVariables(List<String> bodyVariables) {
+        if (bodyVariables == null || bodyVariables.isEmpty()) {
+            return;
+        }
+        List<String> invalid = MessageTemplateParser.validatePlaceholders(
+                String.join(" ", bodyVariables), MessageTemplateContext.class);
+        if (!invalid.isEmpty()) {
+            throw new InvalidSmsTemplateException(
+                    "Invalid placeholders in template variables: " + invalid + ".");
+        }
+    }
+
+    private String joinBodyVariables(List<String> bodyVariables) {
+        if (bodyVariables == null || bodyVariables.isEmpty()) {
+            return null;
+        }
+        return String.join("\n", bodyVariables.stream().map(String::trim).toList());
     }
 }

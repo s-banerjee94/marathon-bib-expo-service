@@ -17,6 +17,7 @@ import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepositor
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsCampaignSendService;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignNotifier;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchOutcome;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchRequest;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
@@ -27,6 +28,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +58,8 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
         Event event = campaign.getEvent();
         String templateText = campaign.getSmsTemplate().getTemplate();
         String dltTemplateId = campaign.getSmsTemplate().getSmsTemplateId();
+        String senderId = campaign.getSmsTemplate().getSenderId();
+        String bodyVariables = campaign.getSmsTemplate().getBodyVariables();
 
         MessagingProvider provider;
         try {
@@ -85,10 +90,13 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
                             names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
                             names.reportingTime(participant.getRaceId()));
                     String message = MessageTemplateParser.parse(templateText, context);
+                    List<String> variables = CampaignVariableRenderer.render(bodyVariables, context);
                     messagingProviderClient.send(provider, OutboundMessage.builder()
                             .recipientPhone(participant.getPhoneNumber())
                             .templateId(dltTemplateId)
+                            .senderId(senderId)
                             .message(message)
+                            .variables(variables)
                             .build());
                     return null;
                 })

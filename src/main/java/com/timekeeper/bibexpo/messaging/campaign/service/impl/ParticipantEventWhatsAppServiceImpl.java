@@ -16,7 +16,7 @@ import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppCampaign;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppTemplate;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventWhatsAppService;
-import com.timekeeper.bibexpo.messaging.campaign.util.WhatsAppVariableRenderer;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -59,7 +59,7 @@ public class ParticipantEventWhatsAppServiceImpl implements ParticipantEventWhat
             MessageTemplateContext context = new MessageTemplateContext(participant, event,
                     names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
                     names.reportingTime(participant.getRaceId()));
-            List<String> variables = WhatsAppVariableRenderer.render(template.getBodyVariables(), context);
+            List<String> variables = CampaignVariableRenderer.render(template.getBodyVariables(), context);
             messagingProviderClient.send(provider, OutboundMessage.builder()
                     .recipientPhone(phone)
                     .templateId(template.getContentSid())

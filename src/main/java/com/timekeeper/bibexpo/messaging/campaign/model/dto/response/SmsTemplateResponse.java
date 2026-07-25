@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -25,8 +26,14 @@ public class SmsTemplateResponse {
     @Schema(description = "DLT Template ID from telecom provider", example = "1107161234567890123")
     private String smsTemplateId;
 
+    @Schema(description = "Registered DLT header / sender id", example = "BIBEXP")
+    private String senderId;
+
     @Schema(description = "SMS template text with placeholders", example = "Hi {participantName}, your bib #{bibNumber} is ready at {venueName} for {eventName}!")
     private String template;
+
+    @Schema(description = "Ordered variable expressions for a provider-rendered SMS provider; entry n fills {{VAR:n}}")
+    private List<String> bodyVariables;
 
     @Schema(description = "Optional note or description", example = "Reminder to collect bib at expo")
     private String note;
@@ -60,7 +67,9 @@ public class SmsTemplateResponse {
                 .id(smsTemplate.getId())
                 .name(smsTemplate.getName())
                 .smsTemplateId(smsTemplate.getSmsTemplateId())
+                .senderId(smsTemplate.getSenderId())
                 .template(smsTemplate.getTemplate())
+                .bodyVariables(splitBodyVariables(smsTemplate.getBodyVariables()))
                 .note(smsTemplate.getNote())
                 .eventId(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getId() : null)
                 .organizationId(smsTemplate.getEvent() != null && smsTemplate.getEvent().getOrganization() != null
@@ -71,5 +80,12 @@ public class SmsTemplateResponse {
                 .createdBy(smsTemplate.getCreatedBy())
                 .lastModifiedBy(smsTemplate.getLastModifiedBy())
                 .build();
+    }
+
+    private static List<String> splitBodyVariables(String joined) {
+        if (joined == null || joined.isBlank()) {
+            return List.of();
+        }
+        return List.of(joined.split("\n"));
     }
 }

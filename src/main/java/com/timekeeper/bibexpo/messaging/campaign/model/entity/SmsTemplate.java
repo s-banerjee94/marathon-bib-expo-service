@@ -42,8 +42,17 @@ public class SmsTemplate implements TemplateEntity, Serializable {
     @Column(nullable = false, length = 100)
     private String smsTemplateId;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    // Registered DLT header / sender id
+    @Column(name = "sender_id", length = 32)
+    private String senderId;
+
+    // Full message text with #{...} placeholders — for client-rendered providers (sent as {{MESSAGE}})
+    @Column(columnDefinition = "TEXT")
     private String template;
+
+    // Ordered #{...} expressions, newline-joined — for provider-rendered providers (sent as {{VAR:n}}/{{VARIABLES_JSON}})
+    @Column(name = "body_variables", columnDefinition = "TEXT")
+    private String bodyVariables;
 
     @Column(columnDefinition = "TEXT")
     @Convert(converter = EmptyStringToNullConverter.class)

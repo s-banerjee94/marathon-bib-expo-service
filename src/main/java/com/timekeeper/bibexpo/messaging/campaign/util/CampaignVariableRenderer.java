@@ -7,13 +7,14 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Renders a WhatsApp template's stored body variables (newline-joined placeholder
- * expressions) into the ordered values for Twilio's ContentVariables — entry n becomes
- * template variable {{n}}.
+ * Renders a campaign template's stored body variables (newline-joined placeholder
+ * expressions) into the ordered values a provider-rendered gateway expects — entry n
+ * becomes positional variable {@code {{VAR:n}}} (Twilio ContentVariables for WhatsApp,
+ * DLT variables for SMS).
  */
-public final class WhatsAppVariableRenderer {
+public final class CampaignVariableRenderer {
 
-    private WhatsAppVariableRenderer() {}
+    private CampaignVariableRenderer() {}
 
     public static List<String> render(String joinedBodyVariables, MessageTemplateContext context) {
         if (joinedBodyVariables == null || joinedBodyVariables.isBlank()) {
