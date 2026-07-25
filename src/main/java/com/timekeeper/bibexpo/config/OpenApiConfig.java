@@ -31,6 +31,7 @@ public class OpenApiConfig {
     private static final String ORG_BILLING = "/api/organizations/{organizationId}/billing/**";
     private static final String ORG_CAMPAIGN_PROVIDERS = "/api/organizations/{organizationId}/campaign-providers/**";
     private static final String SYSTEM_CAMPAIGN_PROVIDERS = "/api/system/campaign-providers/**";
+    private static final String CAMPAIGN_PROVIDER_STYLE = "/api/events/{eventId}/campaign-provider-style/**";
 
     // ---- Base document ----
 
@@ -88,7 +89,7 @@ public class OpenApiConfig {
         return group("04-event-management", "Event, Race & Category Management",
                 match("/api/events/**", "/api/races/**", "/api/categories/**"),
                 exclude(DISTRIBUTION, PARTICIPANTS, SMS_TEMPLATES, SMS_CAMPAIGNS,
-                        EVENT_BILLING, WHATSAPP_TEMPLATES, WHATSAPP_CAMPAIGNS));
+                        EVENT_BILLING, WHATSAPP_TEMPLATES, WHATSAPP_CAMPAIGNS, CAMPAIGN_PROVIDER_STYLE));
     }
 
     @Bean
@@ -119,7 +120,7 @@ public class OpenApiConfig {
     @Bean
     public GroupedOpenApi campaignProvidersDoc() {
         return group("10-campaign-providers", "Campaign Providers (SMS/WhatsApp senders)",
-                SYSTEM_CAMPAIGN_PROVIDERS, ORG_CAMPAIGN_PROVIDERS);
+                SYSTEM_CAMPAIGN_PROVIDERS, ORG_CAMPAIGN_PROVIDERS, CAMPAIGN_PROVIDER_STYLE);
     }
 
     @Bean

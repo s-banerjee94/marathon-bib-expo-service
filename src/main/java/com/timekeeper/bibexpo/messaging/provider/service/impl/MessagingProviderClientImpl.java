@@ -19,6 +19,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -136,13 +137,15 @@ public class MessagingProviderClientImpl implements MessagingProviderClient {
     private void fire(MessagingProvider provider, String url, Map<String, String> headers,
                       String body, MessageChannel channel) {
         try {
+            // url is already fully percent-encoded (uri.build().encode()); pass a URI so RestClient's
+            // default UriBuilderFactory does not encode it a second time (double-encoding query values).
             if (provider.getHttpMethod() == HttpMethodType.GET) {
-                RestClient.RequestHeadersSpec<?> spec = restClient.get().uri(url);
+                RestClient.RequestHeadersSpec<?> spec = restClient.get().uri(URI.create(url));
                 headers.forEach(spec::header);
                 spec.retrieve().toBodilessEntity();
                 return;
             }
-            RestClient.RequestBodySpec spec = restClient.post().uri(url);
+            RestClient.RequestBodySpec spec = restClient.post().uri(URI.create(url));
             headers.forEach(spec::header);
             spec.contentType(provider.getContentType() == MessageContentType.FORM
                     ? MediaType.APPLICATION_FORM_URLENCODED

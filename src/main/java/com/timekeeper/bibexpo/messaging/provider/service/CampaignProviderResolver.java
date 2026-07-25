@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.messaging.provider.service;
 
 import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderException;
 import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
 import lombok.RequiredArgsConstructor;
@@ -39,10 +40,29 @@ public class CampaignProviderResolver {
      *                                    (unless the stub is enabled, which yields a placeholder)
      */
     public MessagingProvider resolve(MessageChannel channel, Long organizationId) {
-        return organizationOverride(channel, organizationId)
-                .or(() -> platformDefault(channel))
+        return resolveOptional(channel, organizationId)
+                .map(ResolvedProvider::provider)
                 .orElseGet(() -> fallbackOrThrow(channel, organizationId));
     }
+
+    /**
+     * The same override-vs-default decision as {@link #resolve}, but without the stub/throw fallback and
+     * carrying which row was chosen. Read paths (e.g. the template editor learning the provider's
+     * rendering mode) use this so the UI can never disagree with what the send path actually selects.
+     *
+     * @return the resolved provider and its source, or empty when no enabled provider exists
+     */
+    public Optional<ResolvedProvider> resolveOptional(MessageChannel channel, Long organizationId) {
+        Optional<MessagingProvider> override = organizationOverride(channel, organizationId);
+        if (override.isPresent()) {
+            return override.map(provider -> new ResolvedProvider(provider, ProviderSource.ORGANIZATION));
+        }
+        return platformDefault(channel)
+                .map(provider -> new ResolvedProvider(provider, ProviderSource.DEFAULT));
+    }
+
+    /** A resolved campaign provider paired with which row it came from. */
+    public record ResolvedProvider(MessagingProvider provider, ProviderSource source) {}
 
     private MessagingProvider fallbackOrThrow(MessageChannel channel, Long organizationId) {
         if (stubEnabled) {
