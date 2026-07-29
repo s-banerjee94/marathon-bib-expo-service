@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.messaging.delivery;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
+import com.timekeeper.bibexpo.messaging.system.exception.InvalidSystemMessageTemplateException;
 import com.timekeeper.bibexpo.messaging.system.model.entity.SystemMessageTemplate;
 import com.timekeeper.bibexpo.messaging.system.service.SystemMessageTemplateService;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
@@ -62,6 +63,7 @@ public class SystemMessageDispatcher {
     private OutboundMessage buildMessage(SystemTemplatePurpose purpose, MessageChannel channel,
                                          String recipientPhone, Object context) {
         SystemMessageTemplate template = systemMessageTemplateService.resolve(purpose, channel);
+        assertCarriesRequiredVariable(purpose, template);
         return OutboundMessage.builder()
                 .recipientPhone(recipientPhone)
                 .templateId(template.getDltTemplateId())
@@ -71,17 +73,40 @@ public class SystemMessageDispatcher {
                 .build();
     }
 
+    /**
+     * Refuses to send a template that never references the link or code the purpose exists to
+     * deliver. Such a template renders that spot as an empty string, so the recipient would get an
+     * invite with no link at all — a reported failure the caller can act on is worth more than a
+     * message that looks sent but is useless. Guards rows registered before the save-time check.
+     */
+    private void assertCarriesRequiredVariable(SystemTemplatePurpose purpose, SystemMessageTemplate template) {
+        String required = purpose.getRequiredVariable();
+        String source = hasText(template.getVariables()) ? template.getVariables() : template.getBody();
+        if (!hasText(source) || !MessageTemplateParser.containsPlaceholder(source, required)) {
+            throw new InvalidSystemMessageTemplateException("The " + template.getChannel() + " template for "
+                    + purpose + " does not include #{" + required + "}.");
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private String renderBody(String body, Object context) {
         return (body == null || body.isBlank()) ? null : MessageTemplateParser.parse(body, context);
     }
 
-    /** Renders the newline-separated {@code #{field}} expressions into ordered positional values. */
+    /**
+     * Renders the newline-separated {@code #{field}} expressions into ordered positional values.
+     * Splits on any line terminator: the stored text carries whatever newlines the editor sent, and a
+     * CRLF would otherwise leave a stray carriage return on every value but the last.
+     */
     private List<String> renderVariables(String variables, Object context) {
         if (variables == null || variables.isBlank()) {
             return List.of();
         }
-        return Arrays.stream(variables.split("\n"))
-                .map(expression -> MessageTemplateParser.parse(expression, context))
+        return Arrays.stream(variables.split("\\R"))
+                .map(expression -> MessageTemplateParser.parse(expression.trim(), context))
                 .toList();
     }
 }
