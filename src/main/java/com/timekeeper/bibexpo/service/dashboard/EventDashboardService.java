@@ -146,12 +146,18 @@ public class EventDashboardService {
             return List.of();
         }
         return stats.getCategoryBreakdown().stream()
-                .map(c -> CategoryStat.builder()
-                        .raceId(names.categoryRaceId(c.getCategoryId()))
-                        .categoryId(c.getCategoryId())
-                        .categoryName(c.getCategoryName())
-                        .total(nz(c.getCount()))
-                        .build())
+                .map(c -> {
+                    long total = nz(c.getCount());
+                    long collected = nz(c.getBibCollectedCount());
+                    return CategoryStat.builder()
+                            .raceId(names.categoryRaceId(c.getCategoryId()))
+                            .categoryId(c.getCategoryId())
+                            .categoryName(c.getCategoryName())
+                            .total(total)
+                            .collected(collected)
+                            .collectedPercent(percent(collected, total))
+                            .build();
+                })
                 .toList();
     }
 

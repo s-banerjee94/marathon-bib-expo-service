@@ -69,6 +69,9 @@ public class ParticipantStatisticsResponse {
 
         @Schema(description = "Total participants in this category")
         private Integer count;
+
+        @Schema(description = "Participants in this category who collected their bib")
+        private Integer bibCollectedCount;
     }
 
     @Data

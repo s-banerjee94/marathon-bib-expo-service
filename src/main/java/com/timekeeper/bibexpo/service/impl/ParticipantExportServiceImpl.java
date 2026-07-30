@@ -160,8 +160,8 @@ public class ParticipantExportServiceImpl implements ParticipantExportService {
             case GENDER -> TextUtils.nullSafe(participant.getGender());
             case COUNTRY -> TextUtils.nullSafe(participant.getCountry());
             case CITY -> TextUtils.nullSafe(participant.getCity());
-            case RACE_NAME -> TextUtils.nullSafe(names.raceName(participant.getRaceId()));
-            case CATEGORY_NAME -> TextUtils.nullSafe(names.categoryName(participant.getCategoryId()));
+            case RACE_NAME -> TextUtils.nullSafe(names.raceLabel(participant.getRaceId()));
+            case CATEGORY_NAME -> TextUtils.nullSafe(names.categoryLabel(participant.getCategoryId()));
             case BIB_COLLECTED_AT -> TextUtils.nullSafe(participant.getBibCollectedAt());
             case EMERGENCY_CONTACT_NAME -> TextUtils.nullSafe(participant.getEmergencyContactName());
             case EMERGENCY_CONTACT_PHONE -> TextUtils.nullSafe(participant.getEmergencyContactPhone());

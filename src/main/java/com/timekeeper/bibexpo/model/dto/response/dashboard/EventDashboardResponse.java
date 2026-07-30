@@ -128,16 +128,24 @@ public class EventDashboardResponse {
     @AllArgsConstructor
     @Schema(description = "Per-category total, tagged with its race")
     public static class CategoryStat {
-        @Schema(description = "Race ID the category belongs to", example = "11")
+        @Schema(description = "Race ID the category belongs to; null when the category no longer exists",
+                example = "11")
         private String raceId;
 
         @Schema(description = "Category ID", example = "101")
         private String categoryId;
 
-        @Schema(description = "Category name", example = "Male · 18–35")
+        @Schema(description = "Category name, or an 'Unknown category (#id)' placeholder when the "
+                + "category no longer exists", example = "Male · 18–35")
         private String categoryName;
 
         @Schema(description = "Registered participants in this category", example = "820")
         private long total;
+
+        @Schema(description = "Bibs collected in this category", example = "540")
+        private long collected;
+
+        @Schema(description = "Collected as a percentage of the category total", example = "65.9")
+        private double collectedPercent;
     }
 }
