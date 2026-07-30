@@ -11,6 +11,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -18,6 +19,7 @@ import org.springframework.web.context.request.async.AsyncRequestNotUsableExcept
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
@@ -170,6 +172,18 @@ public class GlobalExceptionHandler {
             MethodArgumentTypeMismatchException ex, WebRequest request) {
         log.warn("Invalid query param '{}' = '{}'", ex.getName(), ex.getValue());
         String message = "Invalid value '" + ex.getValue() + "' for parameter '" + ex.getName() + "'.";
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, BAD_REQUEST, message, request));
+    }
+
+    @ExceptionHandler({MissingServletRequestParameterException.class, MissingServletRequestPartException.class})
+    public ResponseEntity<ErrorResponse> handleMissingRequestParameter(
+            Exception ex, WebRequest request) {
+        String name = ex instanceof MissingServletRequestParameterException missingParam
+                ? missingParam.getParameterName()
+                : ((MissingServletRequestPartException) ex).getRequestPartName();
+        log.warn("Missing required request parameter '{}'", name);
+        String message = "The '" + name + "' parameter is required.";
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, BAD_REQUEST, message, request));
     }
