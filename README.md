@@ -28,10 +28,17 @@ docker-compose up -d
 ```
 
 This starts:
-- **MySQL** on port `3306`
+- **MySQL 8.0** on port `3306`
 - **LocalStack** (DynamoDB, S3, Lambda, EventBridge Scheduler) on port `4566`
 - **Prometheus** on port `9090`
 - **Grafana** on port `3000`
+
+`scripts/localstack-init.sh` runs on LocalStack startup and creates every DynamoDB table plus the S3
+bucket. The MySQL schema is created by Hibernate (`DDL_AUTO=update`).
+
+> The committed defaults in `application.yaml` expect this stack on a shared LAN Docker host. If you
+> run it on the same machine as the application, point `DB_HOST` and the `AWS_*_ENDPOINT` variables
+> at `localhost` in your `.env`.
 
 ### 3. Run the Application
 
@@ -80,7 +87,7 @@ The AI assistant is a standalone Python service under [`ai-agent/`](ai-agent/) t
 The application uses a **dual-database architecture**:
 
 - **MySQL** — relational storage for organizations, users, events, races, categories, billing invoices, messaging providers/templates, and daily statistics
-- **DynamoDB** — NoSQL storage for participant records, distribution logs, and import errors
+- **DynamoDB** — NoSQL storage for participants, distribution logs, import errors, event stats, notifications, the audit log, and participant short links (table names are individually overridable and can be namespaced at once with `AWS_DYNAMODB_TABLE_PREFIX`)
 - **S3** — object storage for profile pictures, organization/event logos, AI media attachments, and generated invoice PDFs
 
 ```
@@ -92,23 +99,30 @@ src/main/java/com/timekeeper/bibexpo/
 ├── billing/            # Usage-based billing: invoices, GST PDFs, Lambda/Scheduler wiring
 ├── config/             # Spring configuration (Security, CORS, DynamoDB, JPA, Cache, OpenAPI)
 ├── controller/         # REST controllers + API interface definitions (*ControllerApi.java)
-├── exception/          # Custom exceptions and GlobalExceptionHandler
+├── demo/               # Public landing-page live QR demo (SSE, in-memory session store)
+├── exception/          # ApiException hierarchy and GlobalExceptionHandler
 ├── invitation/         # User invitation flow (token store + delivery)
 ├── messaging/          # SMS/WhatsApp: campaign, delivery, provider, shared, system
 ├── model/
 │   ├── dto/            # Request/response DTOs
 │   ├── entity/         # JPA entities (MySQL)
 │   ├── dynamodb/       # DynamoDB entity mappings
-│   └── enums/          # Domain enums (UserRole, SubscriptionTier, DashboardRange, ...)
+│   ├── enums/          # Domain enums (SubscriptionTier, DashboardRange, AuditAction, ...)
+│   └── event/          # Spring application events
+├── notification/       # In-app notifications (DynamoDB-backed, polled by clients)
 ├── participantaccess/  # Participant self-service access via signed QR links
 ├── passwordreset/      # Self-service & admin-issued password reset flow
 ├── repository/         # JPA repositories (MySQL) + DynamoDB repositories
 ├── scheduler/          # Scheduled jobs (e.g. session cleanup)
 ├── security/           # JWT filters, MCP token filter, entry point, access handlers
-├── service/            # Business logic (interfaces + impl/)
-├── util/               # CSV parsing, date/time, DynamoDB pagination codec
-└── validator/          # Custom bean validators (@ValidEnum, @ValidCreateParticipant)
+├── service/            # Business logic (interfaces + impl/, cache/, dashboard/, audit/, validator/)
+├── util/               # Generic helpers (text, event date/time, name normalization)
+└── validation/         # Custom bean validators (@ValidEnum, @ValidCreateParticipant)
 ```
+
+Core domains use a layered structure; newer domains (`billing/`, `messaging/`, `notification/`,
+`invitation/`, `passwordreset/`, `participantaccess/`, `demo/`) are organized package-by-feature,
+each with its own controller/service/model/repository. New features follow the latter.
 
 ---
 
@@ -118,7 +132,7 @@ src/main/java/com/timekeeper/bibexpo/
 - **Event Management** — create and manage marathon events with status lifecycle, races, age/gender-based categories, and per-race race-day reporting times
 - **Participant Management** — store participant data in DynamoDB with single and bulk create, update, delete, search, lookup, and CSV export
 - **Participant Self-Access** — signed QR links let participants view their own bib/collection status without an account
-- **CSV Batch Import** — asynchronous participant import via Spring Batch with real-time SSE progress and per-row error tracking
+- **CSV Batch Import** — asynchronous participant import via Spring Batch with pollable job status, stop support, and per-row errors reported at their physical CSV line numbers
 - **Bib Distribution** — track bib collection per participant with staff attribution, bulk collect, and undo support
 - **Goodies Distribution** — distribute and track goodies items per participant with bulk operations and duplicate prevention
 - **Distribution Logs** — full audit trail of all bib and goodies distribution activity with search and pagination
@@ -127,8 +141,9 @@ src/main/java/com/timekeeper/bibexpo/
 - **Password Reset** — admin-issued reset links plus a public forgot-password flow that never discloses account existence
 - **Billing** — usage-based invoicing (auto + manual), GST invoice PDFs to S3, and per-organization / global / summary views
 - **Dashboards** — platform-wide rollups with revenue and trend charts, plus per-event activity dashboards
-- **Audit Log** — recorded actor/action/entity events across the platform
-- **Real-time Notifications** — Server-Sent Events (SSE) for live import progress and in-app notifications with read/unread tracking
+- **Audit Log** — `@Auditable` AOP capture of actor/action/entity events into DynamoDB, with search and pagination
+- **Notifications** — in-app notifications stored in DynamoDB with read/unread tracking and unread counts; clients poll
+- **Public Live Demo** — a landing-page QR demo backed by short-lived in-memory sessions, streamed over SSE with per-IP rate limits
 - **AI Assistant** — an in-repo Spring AI MCP server exposes existing services as tools; a Python LangGraph agent sidecar drives conversations with role-based tool visibility and human-in-the-loop approval for writes
 - **Caching** — Caffeine-backed caches with post-commit programmatic eviction
 - **JWT Authentication** — stateless RS256 Bearer auth with refresh-token rotation and role-based access control
@@ -137,7 +152,9 @@ src/main/java/com/timekeeper/bibexpo/
 
 ## AI Agent Sidecar
 
-The `ai-agent/` directory contains a standalone **Python LangGraph** service (FastAPI + SSE) that acts as the chat assistant. It authenticates users, verifies their JWT locally, and calls this application's **Spring AI MCP server** (SSE at `/sse`, messages at `/mcp/messages`) to read and act on data using the same role-based permissions as the REST API.
+The `ai-agent/` directory contains a standalone **Python LangGraph** service (FastAPI + SSE) that acts as the chat assistant. It authenticates users, verifies their JWT locally, and calls this application's **Spring AI MCP server** (SSE at `/sse`, messages at `/mcp/message`) to read and act on data using the same role-based permissions as the REST API. Those two routes sit
+on their own Spring Security chain (`McpTokenAuthenticationFilter`), which resolves the caller and
+puts them in the SecurityContext so every MCP tool inherits the caller's RBAC.
 
 Highlights:
 - Conversation memory persisted in DynamoDB with automatic summarization
@@ -156,6 +173,9 @@ uv run uvicorn app.main:app --reload
 ```
 
 > Requires Python 3.13+. The MCP server it talks to is served by the Java application, which must be running.
+
+All agent endpoints are served under an `/ai` prefix (e.g. `/ai/chat`, `/ai/chat/attachments`) — a
+reverse proxy in front of it must pass `/ai/` through unchanged.
 
 ---
 
@@ -215,13 +235,50 @@ Use the root account to log in via `/api/auth/login` and obtain a JWT token to s
 
 ---
 
+## API Overview
+
+Full request/response detail lives in Swagger UI. Endpoints at a glance:
+
+| Area | Base path |
+|---|---|
+| Auth | `/api/auth/login`, `/refresh`, `/logout`, `/password-reset/**`, `/invitations/**` |
+| Users | `/api/users`, `/api/users/invitations` |
+| Organizations | `/api/organizations` (+ `/{id}/billing`, `/{id}/campaign-providers`) |
+| Events | `/api/events` (+ `/{id}/limits`, `/{id}/dashboard`, `/{id}/billing`) |
+| Races & Categories | `/api/events/{eventId}/races`, `/races/{raceId}/categories` |
+| Participants | `/api/events/{eventId}/participants` (+ `/count`, `/lookup`, `/export`, `/bulk`, `/{bibNumber}`) |
+| Batch Import | `/api/events/{eventId}/participants/batch-import` (+ `/{jobExecutionId}/status`, `/stop`, `/latest/errors`) |
+| Distribution | `/api/events/{eventId}/distribution` |
+| Participant Access | `/api/events/{eventId}/participant-access` |
+| Messaging | `/api/events/{eventId}/{sms,whatsapp}-campaigns`, `/{sms,whatsapp}-templates`, `/campaign-provider-style` |
+| System (root only) | `/api/system/message-templates`, `/messaging-providers`, `/campaign-providers` |
+| Dashboards | `/api/dashboard/organization`, `/api/dashboard/platform` (+ `/revenue`) |
+| Billing | `/api/billing` |
+| Audit Logs | `/api/audit-logs` |
+| Notifications | `/api/notifications` |
+| Public | `/api/public/short-links`, `/api/public/demo/sessions` |
+| MCP | `/sse`, `/mcp/message` |
+| Actuator | `/actuator/health`, `/actuator/metrics`, `/actuator/prometheus` |
+
+Public (unauthenticated) routes are `/api/auth/**`, `/api/public/**`, `/api/dev/**`, `/actuator/**`,
+and the Swagger paths. Everything else requires a Bearer access token.
+
+---
+
 ## Environment Variables
 
-Common variables (see `.env.example` and `application.yaml` for the full list and defaults):
+The active profile defaults to `local`. `application-local.yaml` is gitignored and holds local-only
+secrets (such as the OpenAI key used by Spring AI); `application-prod.yaml` carries the production
+overrides and deliberately gives its secrets no defaults so the app fails fast when they are missing.
+
+Common variables (see `.env.example` and `application.yaml` for the full list and defaults). The
+committed defaults point at the shared LAN Docker host — override them in `.env` if your
+infrastructure runs elsewhere:
 
 | Variable | Default | Description |
 |---|---|---|
-| `DB_HOST` | `localhost` | MySQL host |
+| `SPRING_PROFILES_ACTIVE` | `local` | Active Spring profile (`local` / `prod`) |
+| `DB_HOST` | `192.168.0.113` | MySQL host |
 | `DB_PORT` | `3306` | MySQL port |
 | `DB_NAME` | `marathon_bib_expo` | Database name |
 | `DB_USERNAME` | `root` | MySQL username |
@@ -238,14 +295,19 @@ Common variables (see `.env.example` and `application.yaml` for the full list an
 | `AWS_REGION` | `us-east-1` | AWS region |
 | `AWS_ACCESS_KEY_ID` | `test` | AWS access key |
 | `AWS_SECRET_ACCESS_KEY` | `test` | AWS secret key |
-| `AWS_DYNAMODB_ENDPOINT` | `http://localhost:4566` | DynamoDB / LocalStack endpoint |
-| `AWS_DYNAMODB_TABLE_NAME` | `marathon-participants` | DynamoDB participants table |
+| `AWS_DYNAMODB_ENDPOINT` | `http://192.168.0.113:4566` | DynamoDB / LocalStack endpoint (empty for real AWS) |
+| `AWS_DYNAMODB_TABLE_PREFIX` | *(empty)* | Prefix applied to every DynamoDB table name (e.g. `staging-`) |
 | `AWS_S3_BUCKET` | `marathon-bib-expo-media` | S3 bucket for media / invoices |
 | `AWS_S3_ENDPOINT` | LocalStack | S3 endpoint (empty for real AWS) |
 | `AWS_LAMBDA_ENDPOINT` | LocalStack | Lambda endpoint (billing) |
 | `AWS_SCHEDULER_ENDPOINT` | LocalStack | EventBridge Scheduler endpoint |
-| `STATS_STALE_THRESHOLD_MINUTES` | `15` | Statistics cache stale threshold |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:4200` | Allowed CORS origins |
+| `BILLING_SCHEDULING_ENABLED` | `false` | Auto-bill scheduling; keep off locally (LocalStack never fires schedules) |
+| `BILLING_DELAY_HOURS` | `5` | Delay between an event turning terminal and its auto-bill |
+| `MESSAGING_STUB_ENABLED` | `true` | Stubs all outbound SMS/WhatsApp provider calls (logs, never sends) |
+| `SYSTEM_MESSAGING_SECRET_KEY` | dev key | AES key encrypting provider secrets at rest — **replace in production** |
+| `PARTICIPANT_ACCESS_QR_SECRET` | dev secret | Signing secret for participant QR links — **replace in production** |
+| `CACHE_TYPE` | `caffeine` | Spring cache provider |
+| `CORS_ALLOWED_ORIGINS` | `*` | Allowed CORS origins (must be exact origins in production) |
 
 ---
 
@@ -271,6 +333,9 @@ Common variables (see `.env.example` and `application.yaml` for the full list an
 ./mvnw clean install -DskipTests
 ```
 
+> Spring Boot DevTools is commented out in `pom.xml` — there is no hot reload; restart the
+> application after code changes.
+
 ---
 
 ## Monitoring
@@ -280,8 +345,13 @@ Common variables (see `.env.example` and `application.yaml` for the full list an
 | Swagger UI | http://localhost:8080/swagger-ui.html | Bearer JWT |
 | Health Check | http://localhost:8080/actuator/health | — |
 | Prometheus Metrics | http://localhost:8080/actuator/prometheus | — |
-| Prometheus | http://localhost:9090 | — |
-| Grafana | http://localhost:3000 | admin / admin |
+| Prometheus | http://\<docker-host\>:9090 | — |
+| Grafana | http://\<docker-host\>:3000 | admin / admin |
+
+Prometheus and Grafana run in Docker alongside the databases, so substitute the host running
+`docker-compose` (`localhost` if that is your own machine). Prometheus scrapes the application at
+`host.docker.internal:8080` by default — adjust the target in `prometheus.yml` when the app runs on
+a different host than Docker.
 
 ---
 
