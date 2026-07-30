@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.model.dto.response.dashboard.PlatformDashboardResp
 import com.timekeeper.bibexpo.model.dto.response.dashboard.PlatformRevenueResponse;
 import com.timekeeper.bibexpo.model.enums.DashboardRange;
 import com.timekeeper.bibexpo.model.enums.TrendInterval;
+import com.timekeeper.bibexpo.service.dashboard.DashboardQueryLimits;
 import com.timekeeper.bibexpo.service.dashboard.PlatformDashboardQuery;
 import com.timekeeper.bibexpo.service.dashboard.PlatformDashboardService;
 import com.timekeeper.bibexpo.service.dashboard.PlatformRevenueService;
@@ -49,7 +50,8 @@ public class PlatformDashboardController implements PlatformDashboardControllerA
     public ResponseEntity<PlatformRevenueResponse> getRevenue(
             DashboardRange range, int trendBuckets, TrendInterval trendInterval) {
         log.info("GET /dashboard/platform/revenue — range: {}", range);
-        return ResponseEntity.ok(platformRevenueService.buildRevenue(range, clamp(trendBuckets, 1, 90), trendInterval));
+        return ResponseEntity.ok(platformRevenueService.buildRevenue(
+                range, DashboardQueryLimits.trendBuckets(trendBuckets), trendInterval));
     }
 
     private PlatformDashboardQuery buildQuery(DashboardRange range, DashboardRange tierRange,
@@ -61,15 +63,11 @@ public class PlatformDashboardController implements PlatformDashboardControllerA
                 .tierRange(tierRange != null ? tierRange : range)
                 .statusRange(statusRange != null ? statusRange : range)
                 .citiesRange(citiesRange != null ? citiesRange : range)
-                .trendBuckets(clamp(trendBuckets, 1, 90))
+                .trendBuckets(DashboardQueryLimits.trendBuckets(trendBuckets))
                 .trendInterval(trendInterval)
-                .topCities(clamp(topCities, 1, 20))
-                .topOrgs(clamp(topOrgs, 1, 20))
+                .topCities(DashboardQueryLimits.topN(topCities))
+                .topOrgs(DashboardQueryLimits.topN(topOrgs))
                 .build();
-    }
-
-    private int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
     }
 
     private void rejectOrgIdParam(Long organizationId) {
