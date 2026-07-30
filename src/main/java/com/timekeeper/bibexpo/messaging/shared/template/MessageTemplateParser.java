@@ -88,6 +88,19 @@ public class MessageTemplateParser {
         return extractPlaceholders(template).contains(fieldName);
     }
 
+    /**
+     * Whether {@code #{fieldName}} would resolve against {@code clazz} at render time. Callers that
+     * declare a placeholder contract as data can check it against the class that actually renders it,
+     * without restating how a placeholder maps to a getter.
+     *
+     * @param clazz     the rendering context class
+     * @param fieldName placeholder name, without the {@code #{}} wrapper
+     * @return true when the class exposes the matching getter
+     */
+    public static boolean resolvesAgainst(Class<?> clazz, String fieldName) {
+        return hasGetter(clazz, fieldName);
+    }
+
     private static Set<String> extractPlaceholders(String template) {
         if (template == null || template.isBlank()) {
             return Collections.emptySet();
