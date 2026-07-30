@@ -34,8 +34,8 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
 
         List<EventStatsDDB> rows = eventStatsRepo.queryAll(eventId.toString());
         if (rows.isEmpty()) {
-            log.warn("No stats counters found for event {} — call POST /participants/statistics/reconcile to backfill",
-                    eventId);
+            log.warn("No stats counters found for event {} — counters are built on participant writes "
+                    + "and rebuilt by EventStatsService.reconcile after a batch import", eventId);
             return emptyStatistics(eventId);
         }
 
@@ -68,6 +68,7 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
 
         log.info("Loaded statistics for event {} from counters: total={} bibCollected={}",
                 eventId, total, bibCollected);
+        warnOnUnresolvedIds(eventId, raceMap, categoryMap, names);
 
         return ParticipantStatisticsResponse.builder()
                 .eventId(eventId)
@@ -111,7 +112,7 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
         ParticipantStatisticsResponse.RaceStatistics rs = raceMap.computeIfAbsent(raceId,
                 k -> ParticipantStatisticsResponse.RaceStatistics.builder()
                         .raceId(k)
-                        .raceName(names.raceName(k))
+                        .raceName(names.raceLabel(k))
                         .count(0)
                         .bibCollectedCount(0)
                         .build());
@@ -128,16 +129,54 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
             Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap,
             EventNames names) {
 
-        if (key.endsWith(EventStatsServiceImpl.SUFFIX_COLLECTED)) return;
+        boolean collected = key.endsWith(EventStatsServiceImpl.SUFFIX_COLLECTED);
+        String categoryId = collected
+                ? key.substring(EventStatsServiceImpl.PREFIX_CATEGORY.length(),
+                        key.length() - EventStatsServiceImpl.SUFFIX_COLLECTED.length())
+                : key.substring(EventStatsServiceImpl.PREFIX_CATEGORY.length());
 
-        String categoryId = key.substring(EventStatsServiceImpl.PREFIX_CATEGORY.length());
-        categoryMap.computeIfAbsent(categoryId,
+        ParticipantStatisticsResponse.CategoryStatistics cs = categoryMap.computeIfAbsent(categoryId,
                 k -> ParticipantStatisticsResponse.CategoryStatistics.builder()
                         .categoryId(k)
-                        .categoryName(names.categoryName(k))
+                        .categoryName(names.categoryLabel(k))
                         .count(0)
-                        .build())
-                .setCount((int) count);
+                        .bibCollectedCount(0)
+                        .build());
+
+        if (collected) {
+            cs.setBibCollectedCount((int) count);
+        } else {
+            cs.setCount((int) count);
+        }
+    }
+
+    /**
+     * Counter keys are the only record of which races/categories participants point at, so an id that
+     * no longer resolves means the relational rows and the participant store have drifted apart. Log
+     * it here — the rollup itself degrades to a placeholder label rather than failing.
+     */
+    private void warnOnUnresolvedIds(
+            Long eventId,
+            Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap,
+            Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap,
+            EventNames names) {
+
+        List<String> races = raceMap.keySet().stream().filter(id -> !names.hasRace(id)).toList();
+        List<String> categories = categoryMap.keySet().stream().filter(id -> !names.hasCategory(id)).toList();
+        if (races.isEmpty() && categories.isEmpty()) {
+            return;
+        }
+
+        long affected = categoryMap.entrySet().stream()
+                .filter(e -> !names.hasCategory(e.getKey()))
+                .mapToLong(e -> e.getValue().getCount() != null ? e.getValue().getCount() : 0)
+                .sum();
+
+        log.warn("Event {} has participants pointing at races/categories that no longer exist — "
+                        + "unresolved races: {}, unresolved categories: {} ({} participant(s) unlabelled). "
+                        + "Reconcile will not repair this; the participant records must be re-imported or "
+                        + "reassigned to live races/categories.",
+                eventId, races, categories, affected);
     }
 
     private ParticipantStatisticsResponse emptyStatistics(Long eventId) {

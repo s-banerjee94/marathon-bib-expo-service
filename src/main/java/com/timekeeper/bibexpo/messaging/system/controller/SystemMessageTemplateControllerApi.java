@@ -57,12 +57,30 @@ public interface SystemMessageTemplateControllerApi {
             description = """
                     Upserts the template content for the purpose and channel. Use body for \
                     client-rendered channels (SMS) and variables for provider-rendered channels \
-                    (WhatsApp). Root only.""")
+                    (WhatsApp). Root only. \
+
+                    **Placeholder rules.** Each purpose supplies a fixed set of `#{...}` variables, \
+                    and one of them carries the link or code the message exists to deliver: \
+
+                    | Purpose | Available | Must include |
+                    |---|---|---|
+                    | `INVITE` | `#{role}`, `#{organizationName}`, `#{inviteUrl}` | `#{inviteUrl}` |
+                    | `PASSWORD_RESET` | `#{userName}`, `#{resetUrl}` | `#{resetUrl}` |
+                    | `OTP` | `#{otp}`, `#{expiryMinutes}` | `#{otp}` |
+
+                    A placeholder outside that set is rejected — names are matched exactly and are \
+                    case-sensitive, so `#{inviteURL}` fails. This is enforced even while the \
+                    template is disabled, since an unresolvable placeholder renders as an empty \
+                    string and would silently ship a message with a blank where the link belongs. \
+
+                    Enabling a template additionally requires content in body or variables, and \
+                    that every field carrying content includes the purpose's required variable.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Template saved",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = SystemMessageTemplateResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Validation failure",
+            @ApiResponse(responseCode = "400",
+                    description = "Unknown placeholder, or an enabled template missing content or its required variable",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })

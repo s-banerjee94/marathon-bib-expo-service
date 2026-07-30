@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
@@ -13,8 +12,6 @@ import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.util.DistributionConstants;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.util.EventTimeUtil;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +24,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -56,7 +52,6 @@ public class EventStatsServiceImpl implements EventStatsService {
     private final EventRepository eventRepository;
     private final EventService eventService;
     private final EventAccessValidator validator;
-    private final RaceCategoryNameResolver nameResolver;
 
     @Override
     public void onParticipantCreated(ParticipantDDB p) {
@@ -148,7 +143,7 @@ public class EventStatsServiceImpl implements EventStatsService {
     }
 
     @Override
-    public ParticipantStatisticsResponse reconcile(Long eventId, User currentUser) {
+    public void reconcile(Long eventId, User currentUser) {
         log.info("Reconciling event stats for event ID: {} by user: {}", eventId, currentUser.getUsername());
 
         Event event = eventRepository.findById(eventId)
@@ -157,68 +152,32 @@ public class EventStatsServiceImpl implements EventStatsService {
         eventService.validateEventEnabled(event, currentUser);
 
         ZoneId zone = EventTimeUtil.zoneOf(event.getTimezone());
-        ReconcileState state = aggregateParticipants(eventId, nameResolver.forEvent(eventId), zone);
+        ReconcileState state = aggregateParticipants(eventId, zone);
         int statRowsWritten = writeReconciledRows(eventId, state.accumulator);
 
         log.info("Reconciled event {}: total={} bibCollected={} statRows={}",
                 eventId, state.total, state.bibCollected, statRowsWritten);
-
-        return buildReconcileResponse(eventId, state);
     }
 
-    private ReconcileState aggregateParticipants(Long eventId, EventNames names, ZoneId zone) {
+    private ReconcileState aggregateParticipants(Long eventId, ZoneId zone) {
         ReconcileState s = new ReconcileState();
         for (Page<ParticipantDDB> page : participantRepo.findPagesByEventId(eventId, PARTICIPANT_PAGE_SIZE)) {
             for (ParticipantDDB p : page.items()) {
-                aggregateOne(s, p, names, zone);
+                aggregateOne(s, p, zone);
             }
         }
         return s;
     }
 
-    private static void aggregateOne(ReconcileState s, ParticipantDDB p, EventNames names, ZoneId zone) {
+    private static void aggregateOne(ReconcileState s, ParticipantDDB p, ZoneId zone) {
         s.total++;
         boolean collected = isCollected(p);
         if (collected) s.bibCollected++;
 
-        accumulateGender(s, p);
         applyParticipantPresence(s.accumulator, p, +1);
-        accumulateRace(s, p, collected, names);
-        accumulateCategory(s, p, names);
         if (collected) {
             addActivityDeltas(s.accumulator, p.getBibCollectedAt(), p.getBibDistributedBy(), zone, +1);
         }
-    }
-
-    private static void accumulateGender(ReconcileState s, ParticipantDDB p) {
-        String k = genderKey(p.getGender());
-        if (GENDER_M.equals(k)) s.male++;
-        else if (GENDER_F.equals(k)) s.female++;
-        else s.other++;
-    }
-
-    private static void accumulateRace(ReconcileState s, ParticipantDDB p, boolean collected, EventNames names) {
-        String raceKey = p.getRaceId() != null ? p.getRaceId() : "UNKNOWN";
-        ParticipantStatisticsResponse.RaceStatistics rs = s.raceMap.computeIfAbsent(raceKey, k ->
-                ParticipantStatisticsResponse.RaceStatistics.builder()
-                        .raceId(p.getRaceId())
-                        .raceName(names.raceName(p.getRaceId()))
-                        .count(0)
-                        .bibCollectedCount(0)
-                        .build());
-        rs.setCount(rs.getCount() + 1);
-        if (collected) rs.setBibCollectedCount(rs.getBibCollectedCount() + 1);
-    }
-
-    private static void accumulateCategory(ReconcileState s, ParticipantDDB p, EventNames names) {
-        String catKey = p.getCategoryId() != null ? p.getCategoryId() : "UNKNOWN";
-        ParticipantStatisticsResponse.CategoryStatistics cs = s.categoryMap.computeIfAbsent(catKey, k ->
-                ParticipantStatisticsResponse.CategoryStatistics.builder()
-                        .categoryId(p.getCategoryId())
-                        .categoryName(names.categoryName(p.getCategoryId()))
-                        .count(0)
-                        .build());
-        cs.setCount(cs.getCount() + 1);
     }
 
     private int writeReconciledRows(Long eventId, DeltaBuilder accumulator) {
@@ -229,30 +188,10 @@ public class EventStatsServiceImpl implements EventStatsService {
         return rows.size();
     }
 
-    private static ParticipantStatisticsResponse buildReconcileResponse(Long eventId, ReconcileState s) {
-        return ParticipantStatisticsResponse.builder()
-                .eventId(eventId)
-                .totalParticipants(s.total)
-                .bibCollectedCount(s.bibCollected)
-                .pendingCount(s.total - s.bibCollected)
-                .raceBreakdown(new ArrayList<>(s.raceMap.values()))
-                .categoryBreakdown(new ArrayList<>(s.categoryMap.values()))
-                .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
-                        .male(s.male)
-                        .female(s.female)
-                        .other(s.other)
-                        .build())
-                .build();
-    }
-
+    /** Running totals for the reconcile log line; the counter rows themselves come from the accumulator. */
     private static final class ReconcileState {
         int total = 0;
         int bibCollected = 0;
-        int male = 0;
-        int female = 0;
-        int other = 0;
-        final Map<String, ParticipantStatisticsResponse.RaceStatistics> raceMap = new LinkedHashMap<>();
-        final Map<String, ParticipantStatisticsResponse.CategoryStatistics> categoryMap = new LinkedHashMap<>();
         final DeltaBuilder accumulator = new DeltaBuilder();
     }
 

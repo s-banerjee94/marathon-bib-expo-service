@@ -12,10 +12,8 @@ import com.timekeeper.bibexpo.exception.ParticipantModificationNotAllowedExcepti
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ExportField;
 import com.timekeeper.bibexpo.model.enums.SearchType;
-import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.ParticipantExportService;
 import com.timekeeper.bibexpo.service.ParticipantService;
-import com.timekeeper.bibexpo.service.ParticipantStatisticsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -38,8 +36,6 @@ public class ParticipantController implements ParticipantControllerApi {
 
     private final ParticipantService participantService;
     private final ParticipantExportService participantExportService;
-    private final ParticipantStatisticsService participantStatisticsService;
-    private final EventStatsService eventStatsService;
 
     @Override
     public ResponseEntity<ParticipantResponse> createParticipant(
@@ -199,35 +195,6 @@ public class ParticipantController implements ParticipantControllerApi {
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(csvData);
-    }
-
-    @Override
-    public ResponseEntity<ParticipantStatisticsResponse> getParticipantStatistics(
-            Long eventId,
-            User currentUser) {
-
-        log.info("Get participant statistics request - Event: {}, user: {}",
-                eventId, currentUser.getUsername());
-
-        ParticipantStatisticsResponse response = participantStatisticsService.getParticipantStatistics(eventId, currentUser);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
-    public ResponseEntity<ParticipantStatisticsResponse> reconcileParticipantStatistics(
-            Long eventId,
-            User currentUser) {
-
-        log.info("Reconcile participant statistics request - Event: {}, user: {}",
-                eventId, currentUser.getUsername());
-
-        ParticipantStatisticsResponse response = eventStatsService.reconcile(eventId, currentUser);
-
-        log.info("Reconcile completed for event {}. Total: {}, BibCollected: {}",
-                eventId, response.getTotalParticipants(), response.getBibCollectedCount());
-
-        return ResponseEntity.ok(response);
     }
 
     @ExceptionHandler(ParticipantDeletionNotAllowedException.class)

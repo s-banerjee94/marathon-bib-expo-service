@@ -67,6 +67,40 @@ public class MessageTemplateParser {
                 .toList();
     }
 
+    /**
+     * Validates that all #{fieldName} placeholders in the template are names the caller can supply.
+     * Used where the variable contract is declared as data rather than by a class, such as the
+     * system message templates. Returns the list of unsupported placeholder names.
+     *
+     * @param template raw template text
+     * @param allowed  the placeholder names the rendering context supplies
+     * @return list of placeholder names found in the template that are not in {@code allowed}
+     */
+    public static List<String> validatePlaceholders(String template, Set<String> allowed) {
+        return extractPlaceholders(template).stream()
+                .filter(fieldName -> !allowed.contains(fieldName))
+                .sorted()
+                .toList();
+    }
+
+    /** Whether the template references {@code #{fieldName}} at least once. */
+    public static boolean containsPlaceholder(String template, String fieldName) {
+        return extractPlaceholders(template).contains(fieldName);
+    }
+
+    /**
+     * Whether {@code #{fieldName}} would resolve against {@code clazz} at render time. Callers that
+     * declare a placeholder contract as data can check it against the class that actually renders it,
+     * without restating how a placeholder maps to a getter.
+     *
+     * @param clazz     the rendering context class
+     * @param fieldName placeholder name, without the {@code #{}} wrapper
+     * @return true when the class exposes the matching getter
+     */
+    public static boolean resolvesAgainst(Class<?> clazz, String fieldName) {
+        return hasGetter(clazz, fieldName);
+    }
+
     private static Set<String> extractPlaceholders(String template) {
         if (template == null || template.isBlank()) {
             return Collections.emptySet();

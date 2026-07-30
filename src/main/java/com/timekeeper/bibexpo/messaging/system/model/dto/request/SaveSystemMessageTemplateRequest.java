@@ -12,11 +12,14 @@ import lombok.Data;
 @Schema(description = "System message template content for one purpose × channel")
 public class SaveSystemMessageTemplateRequest {
 
-    @Schema(description = "Message text with #{...} placeholders, for client-rendered channels (SMS)",
+    @Schema(description = "Message text with #{...} placeholders, for client-rendered channels (SMS). "
+            + "Only the purpose's own variables are accepted, and an enabled template must include "
+            + "the one carrying its link or code (see the endpoint description).",
             example = "BibExpo: You're invited as #{role}. Create your account: #{inviteUrl}")
     private String body;
 
-    @Schema(description = "Newline-separated #{...} expressions mapped to positional variables, for provider-rendered channels (WhatsApp)",
+    @Schema(description = "Newline-separated #{...} expressions mapped to positional variables, for "
+            + "provider-rendered channels (WhatsApp). Same placeholder rules as body; one expression per line.",
             example = "#{role}\n#{organizationName}\n#{inviteUrl}")
     private String variables;
 

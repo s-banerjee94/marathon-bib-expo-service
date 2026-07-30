@@ -297,8 +297,8 @@ public class DistributionServiceImpl implements DistributionService {
                         .fullName(participant.getFullName())
                         .email(participant.getEmail())
                         .phoneNumber(participant.getPhoneNumber())
-                        .raceName(names.raceName(participant.getRaceId()))
-                        .categoryName(names.categoryName(participant.getCategoryId()))
+                        .raceName(names.raceLabel(participant.getRaceId()))
+                        .categoryName(names.categoryLabel(participant.getCategoryId()))
                         .bibCollectedAt(null)
                         .bibCollectedByName(null)
                         .bibCollectedByPhone(null)
@@ -405,7 +405,7 @@ public class DistributionServiceImpl implements DistributionService {
 
         EventNames names = nameResolver.forEvent(eventId);
         return ParticipantDistributionResponse.from(participant,
-                names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()));
+                names.raceLabel(participant.getRaceId()), names.categoryLabel(participant.getCategoryId()));
 	}
 
     @Override
@@ -681,8 +681,8 @@ public class DistributionServiceImpl implements DistributionService {
                 .fullName(participant.getFullName())
                 .email(participant.getEmail())
                 .phoneNumber(participant.getPhoneNumber())
-                .raceName(names.raceName(participant.getRaceId()))
-                .categoryName(names.categoryName(participant.getCategoryId()))
+                .raceName(names.raceLabel(participant.getRaceId()))
+                .categoryName(names.categoryLabel(participant.getCategoryId()))
                 .bibCollectedAt(participant.getBibCollectedAt())
                 .goodies(participant.getGoodies())
                 .goodiesDistribution(participant.getGoodiesDistribution())

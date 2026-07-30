@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.DashboardRange;
 import com.timekeeper.bibexpo.model.enums.TrendInterval;
 import com.timekeeper.bibexpo.repository.UserRepository;
+import com.timekeeper.bibexpo.service.dashboard.DashboardQueryLimits;
 import com.timekeeper.bibexpo.service.dashboard.OrgDashboardQuery;
 import com.timekeeper.bibexpo.service.dashboard.OrgDashboardService;
 import lombok.RequiredArgsConstructor;
@@ -58,9 +59,9 @@ public class DashboardController implements DashboardControllerApi {
                 .range(range)
                 .statusRange(statusRange != null ? statusRange : range)
                 .citiesRange(citiesRange != null ? citiesRange : range)
-                .trendBuckets(trendBuckets)
+                .trendBuckets(DashboardQueryLimits.trendBuckets(trendBuckets))
                 .trendInterval(trendInterval)
-                .topCities(topCities)
+                .topCities(DashboardQueryLimits.topN(topCities))
                 .build();
     }
 
