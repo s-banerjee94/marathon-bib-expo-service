@@ -34,8 +34,8 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
 
         List<EventStatsDDB> rows = eventStatsRepo.queryAll(eventId.toString());
         if (rows.isEmpty()) {
-            log.warn("No stats counters found for event {} — call POST /participants/statistics/reconcile to backfill",
-                    eventId);
+            log.warn("No stats counters found for event {} — counters are built on participant writes "
+                    + "and rebuilt by EventStatsService.reconcile after a batch import", eventId);
             return emptyStatistics(eventId);
         }
 

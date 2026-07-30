@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.service;
 
-import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.User;
 
@@ -8,8 +7,8 @@ import java.time.ZoneId;
 import java.util.List;
 
 /**
- * Maintains pre-aggregated counter rows in the marathon-event-stats DynamoDB table
- * to serve the per-event statistics endpoint without scanning participants on every read.
+ * Maintains pre-aggregated counter rows in the marathon-event-stats DynamoDB table so the event
+ * dashboard rollup can be served without scanning participants on every read.
  * <p>
  * All on* methods are best-effort: counter failures are logged but never propagated to
  * the caller, so a failed counter update does not break the user-facing operation.
@@ -80,11 +79,10 @@ public interface EventStatsService {
     /**
      * Rebuild the entire counter table for an event from the source-of-truth participant rows.
      * Wipes existing counter rows for the event, queries all participants, aggregates in memory,
-     * and writes fresh counter rows. Used for initial backfill, after batch import, and as a drift
-     * recovery tool.
+     * and writes fresh counter rows. Used after batch import and as a drift recovery tool.
+     * Read the rebuilt figures back through {@code ParticipantStatisticsService}.
      * @param eventId     The event whose counters to rebuild
      * @param currentUser The authenticated user (used for authorization and event-enabled checks)
-     * @return The freshly computed statistics response
      */
-    ParticipantStatisticsResponse reconcile(Long eventId, User currentUser);
+    void reconcile(Long eventId, User currentUser);
 }
