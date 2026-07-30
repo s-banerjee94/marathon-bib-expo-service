@@ -586,13 +586,23 @@ public class ParticipantServiceImpl implements ParticipantService {
     private void updateRaceAndCategory(ParticipantDDB participant, UpdateParticipantRequest request,
                                        Long eventId, User currentUser) {
 
+        boolean categorySent = StringUtils.hasText(request.getCategoryId());
         String newRaceId = StringUtils.hasText(request.getRaceId()) ? request.getRaceId() : participant.getRaceId();
-        String newCategoryId = StringUtils.hasText(request.getCategoryId()) ? request.getCategoryId() : participant.getCategoryId();
+        String newCategoryId = categorySent ? request.getCategoryId() : participant.getCategoryId();
 
         // Validate the new race/category exist for this event; names are resolved at read time.
         raceService.getRaceById(eventId, Long.parseLong(newRaceId), currentUser);
-        categoryService.getCategoryById(eventId, Long.parseLong(newRaceId),
-                Long.parseLong(newCategoryId), currentUser);
+        try {
+            categoryService.getCategoryById(eventId, Long.parseLong(newRaceId),
+                    Long.parseLong(newCategoryId), currentUser);
+        } catch (CategoryNotFoundException ex) {
+            // The caller only moved the race, so the category they never sent is the one that no
+            // longer fits — report the mismatch instead of a category they did not ask for.
+            if (!categorySent) {
+                throw new RaceCategoryMismatchException();
+            }
+            throw ex;
+        }
 
         participant.setRaceId(newRaceId);
         participant.setCategoryId(newCategoryId);
