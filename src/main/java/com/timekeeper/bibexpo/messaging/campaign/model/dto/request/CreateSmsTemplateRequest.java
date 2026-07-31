@@ -23,10 +23,11 @@ public class CreateSmsTemplateRequest {
     @Schema(description = "Human-readable name for the template", example = "bib collection reminder")
     private String name;
 
-    @NotBlank(message = "SMS Template ID (DLT ID) is required")
-    @Size(min = 19, max = 100, message = "SMS Template ID must be between 19 and 100 characters")
-    @Pattern(regexp = "^[0-9]+$", message = "SMS Template ID must contain only digits")
-    @Schema(description = "DLT Template ID from telecom provider", example = "1107161234567890123")
+    @Size(max = 100, message = "SMS Template ID must not exceed 100 characters")
+    @Schema(description = "Template id registered with your SMS provider — the DLT template id in India. "
+            + "Required only when your provider's request uses {{TEMPLATE_ID}}; providers that take the message "
+            + "text directly do not need one.",
+            example = "1107161234567890123", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String smsTemplateId;
 
     @Size(max = 32, message = "Sender ID must not exceed 32 characters")

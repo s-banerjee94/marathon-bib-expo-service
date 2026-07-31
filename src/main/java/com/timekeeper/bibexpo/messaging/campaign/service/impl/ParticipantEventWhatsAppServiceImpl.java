@@ -16,7 +16,11 @@ import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppCampaign;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppTemplate;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventWhatsAppService;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
+import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
+
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +36,7 @@ public class ParticipantEventWhatsAppServiceImpl implements ParticipantEventWhat
     private final CampaignProviderResolver campaignProviderResolver;
     private final MessagingProviderClient messagingProviderClient;
     private final RaceCategoryNameResolver nameResolver;
+    private final CampaignCompatibilityGuard compatibilityGuard;
 
     @Override
     public void sendBibCollectedWhatsApp(Event event, ParticipantDDB participant) {
@@ -51,8 +56,20 @@ public class ParticipantEventWhatsAppServiceImpl implements ParticipantEventWhat
             return;
         }
 
+        WhatsAppTemplate template = campaign.getWhatsAppTemplate();
+        Optional<String> incompatible = compatibilityGuard.problem(MessageChannel.WHATSAPP, campaign.getOrganizationId(),
+                new TemplateContent(false, CampaignVariableRenderer.count(template.getBodyVariables()),
+                        template.getContentSid() != null && !template.getContentSid().isBlank(), false),
+                template.getProviderSource());
+        if (incompatible.isPresent()) {
+            // Logged rather than notified: this fires per bib collection, and one notification per
+            // participant would bury the counter staff.
+            log.error("Bib-collected WhatsApp skipped for bib {} in event {} — {}",
+                    participant.getBibNumber(), eventId, incompatible.get());
+            return;
+        }
+
         try {
-            WhatsAppTemplate template = campaign.getWhatsAppTemplate();
             MessagingProvider provider = campaignProviderResolver.resolve(MessageChannel.WHATSAPP, campaign.getOrganizationId());
 
             EventNames names = nameResolver.forEvent(eventId);

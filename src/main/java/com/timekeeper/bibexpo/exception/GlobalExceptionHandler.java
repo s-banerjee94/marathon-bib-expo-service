@@ -6,6 +6,12 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.StreamReadException;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.databind.exc.MismatchedInputException;
 import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -23,8 +29,11 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 @Slf4j
@@ -174,6 +183,57 @@ public class GlobalExceptionHandler {
         String message = "Invalid value '" + ex.getValue() + "' for parameter '" + ex.getName() + "'.";
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, BAD_REQUEST, message, request));
+    }
+
+    /**
+     * A request body Jackson could not bind. Reports the offending field, and for an enum the values
+     * it accepts, so a rejected payload reads like the rest of the validation errors instead of
+     * surfacing as an unexpected failure.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableRequestBody(
+            HttpMessageNotReadableException ex, WebRequest request) {
+        log.warn("Unreadable request body: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, BAD_REQUEST, describeUnreadableBody(ex), request));
+    }
+
+    private String describeUnreadableBody(HttpMessageNotReadableException ex) {
+        if (ex.getCause() instanceof InvalidFormatException invalidFormat) {
+            return describeInvalidValue(invalidFormat);
+        }
+        if (ex.getCause() instanceof MismatchedInputException mismatched) {
+            String field = fieldPath(mismatched);
+            return field.isEmpty()
+                    ? "The request body is not in the expected format."
+                    : "The '" + field + "' value is not in the expected format.";
+        }
+        if (ex.getCause() instanceof StreamReadException) {
+            return "The request body is not valid JSON.";
+        }
+        return "A request body is required.";
+    }
+
+    private String describeInvalidValue(InvalidFormatException ex) {
+        String field = fieldPath(ex);
+        String where = field.isEmpty() ? "" : " for '" + field + "'";
+        Class<?> target = ex.getTargetType();
+
+        if (target != null && target.isEnum()) {
+            String allowed = Arrays.stream(target.getEnumConstants())
+                    .map(constant -> ((Enum<?>) constant).name())
+                    .collect(Collectors.joining(", "));
+            return "Invalid value '" + ex.getValue() + "'" + where + ". Allowed values: " + allowed + ".";
+        }
+        return "Invalid value '" + ex.getValue() + "'" + where + ".";
+    }
+
+    /** Dotted field path Jackson was reading when it failed; empty when the failure is not field-specific. */
+    private String fieldPath(DatabindException ex) {
+        return ex.getPath().stream()
+                .map(JacksonException.Reference::getPropertyName)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining("."));
     }
 
     @ExceptionHandler({MissingServletRequestParameterException.class, MissingServletRequestPartException.class})

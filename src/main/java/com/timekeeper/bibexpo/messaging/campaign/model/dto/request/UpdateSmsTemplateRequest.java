@@ -23,8 +23,7 @@ public class UpdateSmsTemplateRequest {
     private String name;
 
     @Size(min = 19, max = 100, message = "SMS Template ID must be between 19 and 100 characters")
-    @Pattern(regexp = "^[0-9]+$", message = "SMS Template ID must contain only digits")
-    @Schema(description = "DLT Template ID from telecom provider", example = "1107161234567890123", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        @Schema(description = "DLT Template ID from telecom provider", example = "1107161234567890123", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String smsTemplateId;
 
     @Size(max = 32, message = "Sender ID must not exceed 32 characters")

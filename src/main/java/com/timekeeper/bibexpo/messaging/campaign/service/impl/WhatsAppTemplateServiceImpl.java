@@ -12,6 +12,9 @@ import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppTemplateRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppTemplateService;
+import com.timekeeper.bibexpo.messaging.campaign.util.TemplateSenderStamp;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
@@ -39,15 +42,18 @@ public class WhatsAppTemplateServiceImpl
 
     private final WhatsAppTemplateRepository templateRepository;
     private final WhatsAppCampaignRepository campaignRepository;
+    private final TemplateSenderStamp senderStamp;
 
     public WhatsAppTemplateServiceImpl(WhatsAppTemplateRepository templateRepository,
                                        WhatsAppCampaignRepository campaignRepository,
                                        EventRepository eventRepository,
                                        EventAccessValidator eventAccessValidator,
-                                       EventOperationGuard eventOperationGuard) {
+                                       EventOperationGuard eventOperationGuard,
+                                       TemplateSenderStamp senderStamp) {
         super("WhatsApp", templateRepository, eventRepository, eventAccessValidator, eventOperationGuard);
         this.templateRepository = templateRepository;
         this.campaignRepository = campaignRepository;
+        this.senderStamp = senderStamp;
     }
 
     @Auditable(entityType = AuditEntityType.WHATSAPP_TEMPLATE, action = AuditAction.CREATE)
@@ -70,14 +76,22 @@ public class WhatsAppTemplateServiceImpl
 
         validateBodyVariables(request.getBodyVariables());
 
+        Long organizationId = event.getOrganization() != null ? event.getOrganization().getId() : null;
+        // The body is only the local readable copy of the approved text — the Content SID is what carries
+        // the message — so an unconfigured channel still falls back to provider-rendered.
+        TemplateSenderStamp.Stamp stamp = senderStamp.resolveForSave(MessageChannel.WHATSAPP, organizationId,
+                TemplateMode.PROVIDER_RENDERED);
+
         WhatsAppTemplate template = WhatsAppTemplate.builder()
                 .name(request.getName().toLowerCase().trim())
                 .contentSid(request.getContentSid())
                 .body(request.getBody().trim())
                 .bodyVariables(joinBodyVariables(request.getBodyVariables()))
+                .renderMode(stamp.renderMode())
+                .providerSource(stamp.providerSource())
                 .note(request.getNote())
                 .eventId(eventId)
-                .organizationId(event.getOrganization() != null ? event.getOrganization().getId() : null)
+                .organizationId(organizationId)
                 .build();
 
         WhatsAppTemplate saved = templateRepository.save(template);
@@ -116,6 +130,10 @@ public class WhatsAppTemplateServiceImpl
                         "A WhatsApp template with this Content SID already exists for this event.");
             }
             template.setContentSid(request.getContentSid());
+        }
+
+        if (template.getRenderMode() == null) {
+            template.setRenderMode(TemplateMode.PROVIDER_RENDERED);
         }
 
         if (request.getBodyVariables() != null) {

@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.messaging.campaign.model.entity;
 import com.timekeeper.bibexpo.model.entity.Event;
 
 import com.timekeeper.bibexpo.config.EmptyStringToNullConverter;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,7 +41,9 @@ public class SmsTemplate implements TemplateEntity, Serializable {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(nullable = false, length = 100)
+    // Null for providers that take the message text directly; required only when the provider's request
+    // reads {{TEMPLATE_ID}}, which is what the Indian DLT gateways do
+    @Column(length = 100)
     private String smsTemplateId;
 
     // Registered DLT header / sender id
@@ -53,6 +57,17 @@ public class SmsTemplate implements TemplateEntity, Serializable {
     // Ordered #{...} expressions, newline-joined — for provider-rendered providers (sent as {{VAR:n}}/{{VARIABLES_JSON}})
     @Column(name = "body_variables", columnDefinition = "TEXT")
     private String bodyVariables;
+
+    // Rendering this template was authored for, stamped from the org's provider at creation; null on legacy rows
+    @Enumerated(EnumType.STRING)
+    @Column(name = "render_mode", length = 20)
+    private TemplateMode renderMode;
+
+    // Whether it was written against the org's own sender or the platform default; a send resolving to
+    // the other source carries a template id the account does not know
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider_source", length = 20)
+    private ProviderSource providerSource;
 
     @Column(columnDefinition = "TEXT")
     @Convert(converter = EmptyStringToNullConverter.class)

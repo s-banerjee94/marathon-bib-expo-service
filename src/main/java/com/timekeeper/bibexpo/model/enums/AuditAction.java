@@ -8,5 +8,6 @@ public enum AuditAction {
     LOGIN,
     GENERATE,
     IMPORT,
-    PASSWORD_RESET
+    PASSWORD_RESET,
+    SEND
 }

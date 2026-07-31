@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.messaging.campaign.model.dto.response;
 
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppTemplate;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,6 +36,16 @@ public class WhatsAppTemplateResponse {
     @Schema(description = "Ordered variable expressions; entry n fills the Twilio template variable {{n}}")
     private List<String> bodyVariables;
 
+    @Schema(description = "Rendering this template was authored for, taken from the provider at creation. Read this to shape the edit form — it does not change when the organization switches provider.",
+            example = "PROVIDER_RENDERED")
+    private TemplateMode renderMode;
+
+    @Schema(description = "Which sender this template was written against: ORGANIZATION for the organization's own, "
+            + "DEFAULT for the platform one. Sending is refused when the sender in force is the other source, since a "
+            + "Content SID is registered in one account only. Null on templates written before this was recorded.",
+            example = "DEFAULT")
+    private ProviderSource providerSource;
+
     @Schema(description = "Optional note or description")
     private String note;
 
@@ -65,6 +77,10 @@ public class WhatsAppTemplateResponse {
                 .contentSid(template.getContentSid())
                 .body(template.getBody())
                 .bodyVariables(splitBodyVariables(template.getBodyVariables()))
+                // The Content SID always carries the message, so rows saved before the stamp existed read
+                // as provider-rendered.
+                .renderMode(template.getRenderMode() != null ? template.getRenderMode() : TemplateMode.PROVIDER_RENDERED)
+                .providerSource(template.getProviderSource())
                 .note(template.getNote())
                 .eventId(template.getEventId())
                 .organizationId(template.getOrganizationId())

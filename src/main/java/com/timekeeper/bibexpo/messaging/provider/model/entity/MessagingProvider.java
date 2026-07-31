@@ -110,6 +110,16 @@ public class MessagingProvider implements Serializable {
     @Column(name = "body_template", columnDefinition = "TEXT")
     private String bodyTemplate;
 
+    // Country calling code, digits only, prefixed by {{RECIPIENT_E164}} when a number has no '+'.
+    // Participants are stored as local numbers, so this is what makes the same code work outside India.
+    @Column(name = "default_country_code", length = 6)
+    private String defaultCountryCode;
+
+    // Optional text the provider's success response must contain. Many gateways answer HTTP 200 with a
+    // failure body; without this they are billed as delivered. Left blank, only the status code decides.
+    @Column(name = "success_contains", length = 200)
+    private String successContains;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean enabled = false;

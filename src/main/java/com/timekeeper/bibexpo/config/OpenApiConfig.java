@@ -27,6 +27,7 @@ public class OpenApiConfig {
     private static final String SMS_TEMPLATES = "/api/events/{eventId}/sms-templates/**";
     private static final String WHATSAPP_CAMPAIGNS = "/api/events/{eventId}/whatsapp-campaigns/**";
     private static final String WHATSAPP_TEMPLATES = "/api/events/{eventId}/whatsapp-templates/**";
+    private static final String PARTICIPANT_MESSAGES = "/api/events/{eventId}/participant-messages/**";
     private static final String EVENT_BILLING = "/api/events/{eventId}/billing/**";
     private static final String ORG_BILLING = "/api/organizations/{organizationId}/billing/**";
     private static final String ORG_CAMPAIGN_PROVIDERS = "/api/organizations/{organizationId}/campaign-providers/**";
@@ -89,7 +90,8 @@ public class OpenApiConfig {
         return group("04-event-management", "Event, Race & Category Management",
                 match("/api/events/**", "/api/races/**", "/api/categories/**"),
                 exclude(DISTRIBUTION, PARTICIPANTS, SMS_TEMPLATES, SMS_CAMPAIGNS,
-                        EVENT_BILLING, WHATSAPP_TEMPLATES, WHATSAPP_CAMPAIGNS, CAMPAIGN_PROVIDER_STYLE));
+                        EVENT_BILLING, WHATSAPP_TEMPLATES, WHATSAPP_CAMPAIGNS, CAMPAIGN_PROVIDER_STYLE,
+                        PARTICIPANT_MESSAGES));
     }
 
     @Bean
@@ -118,40 +120,45 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public GroupedOpenApi participantMessagesDoc() {
+        return group("10-participant-messaging", "Targeted Participant Messaging", PARTICIPANT_MESSAGES);
+    }
+
+    @Bean
     public GroupedOpenApi campaignProvidersDoc() {
-        return group("10-campaign-providers", "Campaign Providers (SMS/WhatsApp senders)",
+        return group("11-campaign-providers", "Campaign Providers (SMS/WhatsApp senders)",
                 SYSTEM_CAMPAIGN_PROVIDERS, ORG_CAMPAIGN_PROVIDERS, CAMPAIGN_PROVIDER_STYLE);
     }
 
     @Bean
     public GroupedOpenApi dashboardDoc() {
-        return group("11-dashboard", "Dashboard", "/api/dashboard/**", "/api/events/*/dashboard");
+        return group("12-dashboard", "Dashboard", "/api/dashboard/**", "/api/events/*/dashboard");
     }
 
     @Bean
     public GroupedOpenApi auditLogsDoc() {
-        return group("12-audit-logs", "Audit Logs", "/api/audit-logs/**");
+        return group("13-audit-logs", "Audit Logs", "/api/audit-logs/**");
     }
 
     @Bean
     public GroupedOpenApi notificationsDoc() {
-        return group("13-notifications", "Notifications", "/api/notifications/**");
+        return group("14-notifications", "Notifications", "/api/notifications/**");
     }
 
     @Bean
     public GroupedOpenApi systemMessagingDoc() {
-        return group("14-system-messaging", "System Messaging (Root)",
+        return group("15-system-messaging", "System Messaging (Root)",
                 "/api/system/messaging-providers/**", "/api/system/message-templates/**");
     }
 
     @Bean
     public GroupedOpenApi devOperationsDoc() {
-        return group("15-dev-operations", "Dev Operations (Dev Profile Only)", "/api/dev/**");
+        return group("16-dev-operations", "Dev Operations (Dev Profile Only)", "/api/dev/**");
     }
 
     @Bean
     public GroupedOpenApi landingDemoDoc() {
-        return group("16-landing-demo", "Landing Page Live Demo (Public)", "/api/public/demo/**");
+        return group("17-landing-demo", "Landing Page Live Demo (Public)", "/api/public/demo/**");
     }
 
     // ---- helpers ----

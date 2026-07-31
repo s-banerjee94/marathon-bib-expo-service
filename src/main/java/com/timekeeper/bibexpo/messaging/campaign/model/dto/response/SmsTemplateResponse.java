@@ -1,6 +1,9 @@
 package com.timekeeper.bibexpo.messaging.campaign.model.dto.response;
 
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.SmsTemplate;
+import com.timekeeper.bibexpo.messaging.campaign.util.TemplateSenderStamp;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,6 +37,16 @@ public class SmsTemplateResponse {
 
     @Schema(description = "Ordered variable expressions for a provider-rendered SMS provider; entry n fills {{VAR:n}}")
     private List<String> bodyVariables;
+
+    @Schema(description = "Rendering this template was authored for, taken from the provider at creation. CLIENT_RENDERED: the message text is edited here. PROVIDER_RENDERED: the provider holds the registered template and only the variables are edited here. Read this to shape the edit form — it does not change when the organization switches provider.",
+            example = "CLIENT_RENDERED")
+    private TemplateMode renderMode;
+
+    @Schema(description = "Which sender this template was written against: ORGANIZATION for the organization's own, "
+            + "DEFAULT for the platform one. Sending is refused when the sender in force is the other source, since a "
+            + "registered template id belongs to one vendor account. Null on templates written before this was recorded.",
+            example = "DEFAULT")
+    private ProviderSource providerSource;
 
     @Schema(description = "Optional note or description", example = "Reminder to collect bib at expo")
     private String note;
@@ -70,6 +83,11 @@ public class SmsTemplateResponse {
                 .senderId(smsTemplate.getSenderId())
                 .template(smsTemplate.getTemplate())
                 .bodyVariables(splitBodyVariables(smsTemplate.getBodyVariables()))
+                // Rows saved before the stamp existed are read from their content, so the client always
+                // gets a mode to shape the editor with.
+                .renderMode(smsTemplate.getRenderMode() != null ? smsTemplate.getRenderMode()
+                        : TemplateSenderStamp.fromSmsContent(smsTemplate.getTemplate(), smsTemplate.getBodyVariables()))
+                .providerSource(smsTemplate.getProviderSource())
                 .note(smsTemplate.getNote())
                 .eventId(smsTemplate.getEvent() != null ? smsTemplate.getEvent().getId() : null)
                 .organizationId(smsTemplate.getEvent() != null && smsTemplate.getEvent().getOrganization() != null

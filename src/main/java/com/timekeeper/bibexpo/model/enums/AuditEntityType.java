@@ -12,5 +12,6 @@ public enum AuditEntityType {
     WHATSAPP_CAMPAIGN,
     VERIFICATION_LINK,
     PARTICIPANT,
+    PARTICIPANT_MESSAGE,
     INVOICE
 }

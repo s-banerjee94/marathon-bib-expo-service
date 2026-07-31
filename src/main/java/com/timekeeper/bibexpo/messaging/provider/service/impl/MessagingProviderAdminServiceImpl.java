@@ -6,7 +6,9 @@ import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.ProviderTestSendRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.SaveMessagingProviderRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.response.MessagingProviderResponse;
+import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderInUseException;
 import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
+import com.timekeeper.bibexpo.messaging.provider.service.ActiveCampaignCounter;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.MessageContentType;
 import com.timekeeper.bibexpo.messaging.provider.repository.MessagingProviderRepository;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderAdminService;
@@ -19,6 +21,7 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,12 +31,15 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MessagingProviderAdminServiceImpl implements MessagingProviderAdminService {
 
     private final MessagingProviderRepository providerRepository;
     private final OrganizationRepository organizationRepository;
     private final MessagingProviderClient messagingProviderClient;
     private final MessagingProviderCache providerCache;
+    private final ProviderMappingValidator mappingValidator;
+    private final ActiveCampaignCounter activeCampaignCounter;
 
     // ---- SYSTEM (root) ----
 
@@ -88,10 +94,13 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
 
     @Override
     @Transactional
-    public MessagingProviderResponse saveCampaignProvider(MessageChannel channel, Long organizationId,
+    public MessagingProviderResponse saveCampaignProvider(MessageChannel channel, Long organizationId, boolean force,
                                                           SaveMessagingProviderRequest request, User currentUser) {
         authorize(currentUser, organizationId);
         verifyOrganizationExists(organizationId);
+        if (!request.isEnabled()) {
+            requireNoCampaignsDependOn(channel, organizationId, force, "switched off");
+        }
         MessagingProvider saved = upsert(MessageUsage.CAMPAIGN, channel, organizationId, request);
         evictCampaign(channel, organizationId);
         return toResponse(saved);
@@ -99,9 +108,10 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
 
     @Override
     @Transactional
-    public void deleteCampaignProvider(MessageChannel channel, Long organizationId, User currentUser) {
+    public void deleteCampaignProvider(MessageChannel channel, Long organizationId, boolean force, User currentUser) {
         authorize(currentUser, organizationId);
         verifyOrganizationExists(organizationId);
+        requireNoCampaignsDependOn(channel, organizationId, force, "removed");
         providerRepository.delete(findOrThrow(MessageUsage.CAMPAIGN, channel, organizationId));
         evictCampaign(channel, organizationId);
     }
@@ -116,6 +126,8 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
         MessagingProvider provider = findOrThrow(MessageUsage.CAMPAIGN, channel, organizationId);
         messagingProviderClient.send(provider, OutboundMessage.builder()
                 .recipientPhone(request.getRecipientPhone())
+                .recipientEmail(request.getRecipientEmail())
+                .subject(request.getSubject())
                 .templateId(request.getTemplateId())
                 .senderId(request.getSenderId())
                 .message(request.getMessage())
@@ -142,6 +154,10 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
         provider.setContentType(request.getContentType() == null ? MessageContentType.JSON : request.getContentType());
         provider.setRequestParams(request.getRequestParams() == null ? List.of() : request.getRequestParams());
         provider.setBodyTemplate(request.getBodyTemplate());
+        provider.setDefaultCountryCode(isPresent(request.getDefaultCountryCode())
+                ? request.getDefaultCountryCode().trim().replace("+", "") : null);
+        provider.setSuccessContains(isPresent(request.getSuccessContains())
+                ? request.getSuccessContains().trim() : null);
         provider.setEnabled(request.isEnabled());
 
         // Secrets are write-only: a blank value on update keeps the stored credential.
@@ -152,7 +168,37 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
             provider.setPassword(request.getPassword());
         }
 
+        // Only a sender that can actually send has to make sense: checking a disabled row would block the
+        // one action a broken sender needs, which is being switched off. It stays unusable until fixed,
+        // because enabling it runs this check.
+        if (provider.isEnabled()) {
+            mappingValidator.requireConsistent(provider);
+        }
+
         return providerRepository.save(provider);
+    }
+
+    /**
+     * Refuses to switch off or remove a sender that armed campaigns are relying on. An organization's own
+     * sender is always protected: it owns both sides, so disarming first is a fair ask. The platform
+     * default can be forced through, because it is shared by every organization and a hard block would
+     * make an emergency — a leaked key, a vendor breach — impossible to act on precisely when it matters.
+     */
+    private void requireNoCampaignsDependOn(MessageChannel channel, Long organizationId, boolean force, String verb) {
+        int active = activeCampaignCounter.countActive(channel, organizationId);
+        if (active == 0) {
+            return;
+        }
+        if (organizationId == null && force) {
+            log.error("Platform default {} sender {} with {} campaign(s) still armed, by explicit override",
+                    channel, verb, active);
+            return;
+        }
+        throw new MessagingProviderInUseException(organizationId == null
+                ? "This sender cannot be " + verb + " while " + active + " campaign(s) are still armed across the "
+                        + "platform — disarm them, or repeat the request with force to override."
+                : "This sender cannot be " + verb + " while " + active + " of your campaign(s) are still armed — "
+                        + "disarm them first.");
     }
 
     private void evictCampaign(MessageChannel channel, Long organizationId) {
@@ -218,6 +264,8 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
                 .contentType(provider.getContentType())
                 .requestParams(provider.getRequestParams())
                 .bodyTemplate(provider.getBodyTemplate())
+                .defaultCountryCode(provider.getDefaultCountryCode())
+                .successContains(provider.getSuccessContains())
                 .enabled(provider.isEnabled())
                 .createdAt(provider.getCreatedAt())
                 .updatedAt(provider.getUpdatedAt())

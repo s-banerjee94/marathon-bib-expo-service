@@ -58,6 +58,13 @@ public class MessagingProviderResponse {
     @Schema(description = "POST body template with {{TOKEN}} placeholders; null for GET providers")
     private String bodyTemplate;
 
+    @Schema(description = "Country calling code {{RECIPIENT_E164}} prefixes onto local numbers", example = "91")
+    private String defaultCountryCode;
+
+    @Schema(description = "Text the provider's response must contain to count as a successful send; "
+            + "null when only the status code decides")
+    private String successContains;
+
     private boolean enabled;
     private Instant createdAt;
     private Instant updatedAt;

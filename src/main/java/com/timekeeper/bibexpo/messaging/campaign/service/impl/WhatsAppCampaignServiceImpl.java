@@ -13,6 +13,11 @@ import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppTemplate;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppTemplateRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppCampaignService;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
+import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
@@ -38,9 +43,27 @@ public class WhatsAppCampaignServiceImpl
                                        WhatsAppTemplateRepository templateRepository,
                                        EventRepository eventRepository,
                                        EventAccessValidator eventAccessValidator,
-                                       EventOperationGuard eventOperationGuard) {
-        super("WhatsApp", campaignRepository, eventRepository, eventAccessValidator, eventOperationGuard);
+                                       EventOperationGuard eventOperationGuard,
+                                       CampaignCompatibilityGuard compatibilityGuard) {
+        super("WhatsApp", campaignRepository, eventRepository, eventAccessValidator, eventOperationGuard,
+                compatibilityGuard);
         this.templateRepository = templateRepository;
+    }
+
+    @Override
+    protected MessageChannel channel() {
+        return MessageChannel.WHATSAPP;
+    }
+
+    @Override
+    protected TemplateContent templateContent(WhatsAppCampaign campaign) {
+        WhatsAppTemplate template = campaign.getWhatsAppTemplate();
+        // The stored body is only the local copy of the approved text — a WhatsApp send passes the
+        // Content SID and the variables, never the text — so no message text is on offer here.
+        // WhatsApp templates carry no sender id of their own — the sender is the account's number.
+        return new TemplateContent(false,
+                CampaignVariableRenderer.count(template.getBodyVariables()),
+                template.getContentSid() != null && !template.getContentSid().isBlank(), false);
     }
 
     @Auditable(entityType = AuditEntityType.WHATSAPP_CAMPAIGN, action = AuditAction.CREATE)
@@ -75,6 +98,11 @@ public class WhatsAppCampaignServiceImpl
     @Transactional
     public void deleteCampaign(Long eventId, Long campaignId, User currentUser) {
         doDelete(eventId, campaignId, currentUser);
+    }
+
+    @Override
+    protected ProviderSource templateSource(WhatsAppCampaign campaign) {
+        return campaign.getWhatsAppTemplate().getProviderSource();
     }
 
     @Override
