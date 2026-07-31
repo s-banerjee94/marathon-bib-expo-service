@@ -166,6 +166,7 @@ public class AuditAspect {
             case GENERATE      -> "generated";
             case IMPORT        -> "imported";
             case PASSWORD_RESET -> "password reset";
+            case SEND          -> "sent";
         };
         return (label != null && !label.isBlank())
                 ? entityName + " \"" + label + "\" " + verb

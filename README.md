@@ -102,7 +102,7 @@ src/main/java/com/timekeeper/bibexpo/
 ├── demo/               # Public landing-page live QR demo (SSE, in-memory session store)
 ├── exception/          # ApiException hierarchy and GlobalExceptionHandler
 ├── invitation/         # User invitation flow (token store + delivery)
-├── messaging/          # SMS/WhatsApp: campaign, delivery, provider, shared, system
+├── messaging/          # SMS/WhatsApp: campaign, delivery, direct, provider, shared, system
 ├── model/
 │   ├── dto/            # Request/response DTOs
 │   ├── entity/         # JPA entities (MySQL)
@@ -137,6 +137,7 @@ each with its own controller/service/model/repository. New features follow the l
 - **Goodies Distribution** — distribute and track goodies items per participant with bulk operations and duplicate prevention
 - **Distribution Logs** — full audit trail of all bib and goodies distribution activity with search and pagination
 - **Messaging & Campaigns** — SMS and WhatsApp delivery through a dynamic provider engine, with per-organization overrides, reusable system and campaign templates, and DLT/sender configuration
+- **Targeted Participant Messaging** — re-send a message to named bib numbers (up to 25 per request) instead of the whole event, for the participant who never received the automatic one; sent while the request is open, with a per-bib outcome and no effect on campaign send history
 - **Invitations** — invite new users via tokenized links delivered over configured channels
 - **Password Reset** — admin-issued reset links plus a public forgot-password flow that never discloses account existence
 - **Billing** — usage-based invoicing (auto + manual), GST invoice PDFs to S3, and per-organization / global / summary views
@@ -251,6 +252,7 @@ Full request/response detail lives in Swagger UI. Endpoints at a glance:
 | Distribution | `/api/events/{eventId}/distribution` |
 | Participant Access | `/api/events/{eventId}/participant-access` |
 | Messaging | `/api/events/{eventId}/{sms,whatsapp}-campaigns`, `/{sms,whatsapp}-templates`, `/campaign-provider-style` |
+| Targeted Messaging | `/api/events/{eventId}/participant-messages` |
 | System (root only) | `/api/system/message-templates`, `/messaging-providers`, `/campaign-providers` |
 | Dashboards | `/api/dashboard/organization`, `/api/dashboard/platform` (+ `/revenue`) |
 | Billing | `/api/billing` |

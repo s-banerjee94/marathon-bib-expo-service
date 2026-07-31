@@ -34,10 +34,10 @@ public interface MessagingProviderAdminService {
 
     MessagingProviderResponse getCampaignProvider(MessageChannel channel, Long organizationId, User currentUser);
 
-    MessagingProviderResponse saveCampaignProvider(MessageChannel channel, Long organizationId,
+    MessagingProviderResponse saveCampaignProvider(MessageChannel channel, Long organizationId, boolean force,
                                                    SaveMessagingProviderRequest request, User currentUser);
 
-    void deleteCampaignProvider(MessageChannel channel, Long organizationId, User currentUser);
+    void deleteCampaignProvider(MessageChannel channel, Long organizationId, boolean force, User currentUser);
 
     /** Fires one real message through the stored provider to verify it; throws if the send fails. */
     MessagingProviderResponse testSendCampaignProvider(MessageChannel channel, Long organizationId,

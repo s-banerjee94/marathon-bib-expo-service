@@ -75,6 +75,7 @@ public interface AuditLogControllerApi {
                         <tr><td><code>LOGIN</code></td><td>A user successfully authenticated</td><td><code>POST /api/auth/login</code> after credentials accepted</td></tr>
                         <tr><td><code>GENERATE</code></td><td>A short-lived artifact was generated</td><td>Participant-access verification short-URLs (QR / SMS) issued in bulk</td></tr>
                         <tr><td><code>IMPORT</code></td><td>A bulk CSV participant import was launched</td><td><code>POST /api/events/{eventId}/participants/batch-import</code> after the mapping is accepted and the job starts</td></tr>
+                        <tr><td><code>SEND</code></td><td>A message was sent to named participants</td><td><code>POST /api/events/{eventId}/participant-messages</code> — a targeted SMS / WhatsApp send, not a campaign</td></tr>
                       </tbody>
                     </table>
 
@@ -91,6 +92,7 @@ public interface AuditLogControllerApi {
                         <tr><td><code>SMS_CAMPAIGN</code></td><td>A scheduled or trigger-based SMS send</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE</td></tr>
                         <tr><td><code>VERIFICATION_LINK</code></td><td>Short URLs (QR / SMS) generated for participant self-verification</td><td>GENERATE</td></tr>
                         <tr><td><code>PARTICIPANT</code></td><td>Participant records of an event (currently via bulk CSV import)</td><td>IMPORT</td></tr>
+                        <tr><td><code>PARTICIPANT_MESSAGE</code></td><td>A targeted SMS / WhatsApp send to named participants; <code>entityLabel</code> carries the channel and bib numbers</td><td>SEND</td></tr>
                       </tbody>
                     </table>
                     <p><em>Note:</em> Individual participant create / update / delete actions and distribution events (bib collected, goodies given) are <strong>not</strong> recorded in this audit log — distribution has its own dedicated log. Bulk CSV imports <strong>are</strong> recorded as <code>entityType=PARTICIPANT</code>, <code>action=IMPORT</code>, with the <code>entityId</code> set to the event id and the <code>entityLabel</code> set to the event name.</p>

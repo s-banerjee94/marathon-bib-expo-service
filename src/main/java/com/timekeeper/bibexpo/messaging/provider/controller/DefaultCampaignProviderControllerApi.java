@@ -63,6 +63,9 @@ public interface DefaultCampaignProviderControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT')")
     ResponseEntity<MessagingProviderResponse> save(
             @Parameter(description = "Channel", example = "SMS") @PathVariable MessageChannel channel,
+            @Parameter(description = "Switch the sender off even though campaigns are still armed. Only for an "
+                    + "emergency — every organization without its own sender stops sending.", example = "false")
+            @RequestParam(defaultValue = "false") boolean force,
             @Valid @RequestBody SaveMessagingProviderRequest request,
             @AuthenticationPrincipal User currentUser);
 
@@ -72,6 +75,9 @@ public interface DefaultCampaignProviderControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT')")
     ResponseEntity<Void> delete(
             @Parameter(description = "Channel", example = "SMS") @PathVariable MessageChannel channel,
+            @Parameter(description = "Remove the sender even though campaigns are still armed. Only for an "
+                    + "emergency — every organization without its own sender stops sending.", example = "false")
+            @RequestParam(defaultValue = "false") boolean force,
             @AuthenticationPrincipal User currentUser);
 
     @Operation(summary = "Send a test message to verify the platform-default provider")

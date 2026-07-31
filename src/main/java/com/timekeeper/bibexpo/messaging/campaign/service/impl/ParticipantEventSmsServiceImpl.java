@@ -11,7 +11,13 @@ import com.timekeeper.bibexpo.messaging.campaign.model.entity.SmsCampaign;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType;
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
+import com.timekeeper.bibexpo.messaging.campaign.model.entity.SmsTemplate;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventSmsService;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
+import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
+
+import java.util.Optional;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
@@ -29,6 +35,7 @@ public class ParticipantEventSmsServiceImpl implements ParticipantEventSmsServic
     private final CampaignProviderResolver campaignProviderResolver;
     private final MessagingProviderClient messagingProviderClient;
     private final RaceCategoryNameResolver nameResolver;
+    private final CampaignCompatibilityGuard compatibilityGuard;
 
     @Override
     public void sendBibCollectedSms(Event event, ParticipantDDB participant) {
@@ -48,17 +55,34 @@ public class ParticipantEventSmsServiceImpl implements ParticipantEventSmsServic
             return;
         }
 
+        SmsTemplate template = campaign.getSmsTemplate();
+        Optional<String> incompatible = compatibilityGuard.problem(MessageChannel.SMS, campaign.getOrganizationId(),
+                new TemplateContent(template.getTemplate() != null && !template.getTemplate().isBlank(),
+                        CampaignVariableRenderer.count(template.getBodyVariables()),
+                        template.getSmsTemplateId() != null && !template.getSmsTemplateId().isBlank(),
+                        template.getSenderId() != null && !template.getSenderId().isBlank()),
+                template.getProviderSource());
+        if (incompatible.isPresent()) {
+            // Logged rather than notified: this fires per bib collection, and one notification per
+            // participant would bury the counter staff.
+            log.error("Bib-collected SMS skipped for bib {} in event {} — {}",
+                    participant.getBibNumber(), eventId, incompatible.get());
+            return;
+        }
+
         try {
             MessagingProvider provider = campaignProviderResolver.resolve(MessageChannel.SMS, campaign.getOrganizationId());
             EventNames names = nameResolver.forEvent(eventId);
             MessageTemplateContext context = new MessageTemplateContext(participant, event,
                     names.raceName(participant.getRaceId()), names.categoryName(participant.getCategoryId()),
                     names.reportingTime(participant.getRaceId()));
-            String renderedMessage = MessageTemplateParser.parse(campaign.getSmsTemplate().getTemplate(), context);
+            String renderedMessage = MessageTemplateParser.parse(template.getTemplate(), context);
             messagingProviderClient.send(provider, OutboundMessage.builder()
                     .recipientPhone(phone)
-                    .templateId(campaign.getSmsTemplate().getSmsTemplateId())
+                    .templateId(template.getSmsTemplateId())
+                    .senderId(template.getSenderId())
                     .message(renderedMessage)
+                    .variables(CampaignVariableRenderer.render(template.getBodyVariables(), context))
                     .build());
             log.info("Bib-collected SMS sent to bib {} in event {}", participant.getBibNumber(), eventId);
         } catch (Exception e) {

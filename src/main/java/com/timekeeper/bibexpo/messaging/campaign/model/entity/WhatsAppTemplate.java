@@ -1,6 +1,8 @@
 package com.timekeeper.bibexpo.messaging.campaign.model.entity;
 
 import com.timekeeper.bibexpo.config.EmptyStringToNullConverter;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -47,6 +49,17 @@ public class WhatsAppTemplate implements TemplateEntity, Serializable {
     // Ordered placeholder expressions, newline-joined; entry n fills Twilio template variable {{n}}
     @Column(columnDefinition = "TEXT")
     private String bodyVariables;
+
+    // Rendering this template was authored for, stamped from the org's provider at creation; null on legacy rows
+    @Enumerated(EnumType.STRING)
+    @Column(name = "render_mode", length = 20)
+    private TemplateMode renderMode;
+
+    // Whether it was written against the org's own sender or the platform default; the Content SID is
+    // registered in one account and is meaningless in the other
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider_source", length = 20)
+    private ProviderSource providerSource;
 
     @Column(columnDefinition = "TEXT")
     @Convert(converter = EmptyStringToNullConverter.class)

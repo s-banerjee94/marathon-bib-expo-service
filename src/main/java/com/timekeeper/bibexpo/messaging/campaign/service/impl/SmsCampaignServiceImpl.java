@@ -14,6 +14,11 @@ import com.timekeeper.bibexpo.messaging.campaign.model.entity.SmsTemplate;
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsTemplateRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsCampaignService;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
+import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -41,8 +46,10 @@ public class SmsCampaignServiceImpl
                                   EventRepository eventRepository,
                                   EventAccessValidator eventAccessValidator,
                                   EventLimitRepository eventLimitRepository,
-                                  EventOperationGuard eventOperationGuard) {
-        super("SMS", smsCampaignRepository, eventRepository, eventAccessValidator, eventOperationGuard);
+                                  EventOperationGuard eventOperationGuard,
+                                  CampaignCompatibilityGuard compatibilityGuard) {
+        super("SMS", smsCampaignRepository, eventRepository, eventAccessValidator, eventOperationGuard,
+                compatibilityGuard);
         this.smsTemplateRepository = smsTemplateRepository;
         this.eventLimitRepository = eventLimitRepository;
     }
@@ -85,6 +92,26 @@ public class SmsCampaignServiceImpl
     @Transactional
     public void deleteCampaign(Long eventId, Long campaignId, User currentUser) {
         doDelete(eventId, campaignId, currentUser);
+    }
+
+    @Override
+    protected MessageChannel channel() {
+        return MessageChannel.SMS;
+    }
+
+    @Override
+    protected TemplateContent templateContent(SmsCampaign campaign) {
+        SmsTemplate template = campaign.getSmsTemplate();
+        return new TemplateContent(
+                template.getTemplate() != null && !template.getTemplate().isBlank(),
+                CampaignVariableRenderer.count(template.getBodyVariables()),
+                template.getSmsTemplateId() != null && !template.getSmsTemplateId().isBlank(),
+                template.getSenderId() != null && !template.getSenderId().isBlank());
+    }
+
+    @Override
+    protected ProviderSource templateSource(SmsCampaign campaign) {
+        return campaign.getSmsTemplate().getProviderSource();
     }
 
     @Override

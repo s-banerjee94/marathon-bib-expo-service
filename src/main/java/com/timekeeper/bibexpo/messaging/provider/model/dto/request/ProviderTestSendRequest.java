@@ -19,6 +19,12 @@ public class ProviderTestSendRequest {
     @Schema(description = "Recipient phone number, country-coded", example = "919876543210")
     private String recipientPhone;
 
+    @Schema(description = "Recipient address, for the email channel", example = "runner@example.com", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String recipientEmail;
+
+    @Schema(description = "Subject line, for the email channel", example = "Your bib is ready", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String subject;
+
     @Schema(description = "Registered template id: DLT template id (SMS) or Content SID (WhatsApp)", example = "1707160000000000000", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String templateId;
 

@@ -23,14 +23,17 @@ import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppCampaign;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppTemplate;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppCampaignSendService;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignNotifier;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
+import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +50,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
     private final RaceCategoryNameResolver nameResolver;
     private final CampaignDispatcher campaignDispatcher;
     private final CampaignNotifier campaignNotifier;
+    private final CampaignCompatibilityGuard compatibilityGuard;
 
     @Override
     @Async("whatsAppCampaignTaskExecutor")
@@ -76,11 +80,27 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
             return;
         }
 
+        String contentSid = template.getContentSid();
+        String bodyVariables = template.getBodyVariables();
+
+        // Re-checked here because the organization may have switched sender since the campaign was
+        // armed, and a dispatch that cannot carry its content still costs per message.
+        Optional<String> incompatible = compatibilityGuard.problem(MessageChannel.WHATSAPP, campaign.getOrganizationId(),
+                new TemplateContent(false, CampaignVariableRenderer.count(bodyVariables),
+                        contentSid != null && !contentSid.isBlank(), false),
+                template.getProviderSource());
+        if (incompatible.isPresent()) {
+            campaign.setStatus(CampaignStatus.FAILED);
+            campaignRepository.save(campaign);
+            log.error("WhatsApp campaign ID: {} not sent — {}", campaignId, incompatible.get());
+            campaignNotifier.notifyFailed(campaignId, campaign.getName(), campaign.getOrganizationId(), "WhatsApp",
+                    incompatible.get());
+            return;
+        }
+
         log.info("Starting async WhatsApp send for campaign ID: {} event ID: {}", campaignId, event.getId());
 
         EventNames names = nameResolver.forEvent(event.getId());
-        String contentSid = template.getContentSid();
-        String bodyVariables = template.getBodyVariables();
 
         DispatchOutcome outcome = campaignDispatcher.dispatch(DispatchRequest.builder()
                 .eventId(event.getId())

@@ -37,6 +37,17 @@ public interface CampaignBaseRepository<C extends CampaignEntity>
     List<C> findAllByEventId(Long eventId);
 
     /**
+     * How many of an organization's campaigns are in one of the given statuses — used to refuse
+     * switching off a sender that armed campaigns still depend on.
+     */
+    int countByOrganizationIdAndStatusIn(Long organizationId, List<CampaignStatus> statuses);
+
+    /**
+     * How many campaigns platform-wide are in one of the given statuses.
+     */
+    int countByStatusIn(List<CampaignStatus> statuses);
+
+    /**
      * Find the active auto-triggered bib-collected campaign for an event
      */
     Optional<C> findByEventIdAndTriggerTypeAndStatus(Long eventId, CampaignTriggerType triggerType, CampaignStatus status);

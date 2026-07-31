@@ -31,16 +31,16 @@ public class DefaultCampaignProviderController implements DefaultCampaignProvide
     }
 
     @Override
-    public ResponseEntity<MessagingProviderResponse> save(MessageChannel channel,
+    public ResponseEntity<MessagingProviderResponse> save(MessageChannel channel, boolean force,
                                                           SaveMessagingProviderRequest request, User currentUser) {
         log.info("Root saving default {} campaign provider", channel);
-        return ResponseEntity.ok(providerAdminService.saveCampaignProvider(channel, null, request, currentUser));
+        return ResponseEntity.ok(providerAdminService.saveCampaignProvider(channel, null, force, request, currentUser));
     }
 
     @Override
-    public ResponseEntity<Void> delete(MessageChannel channel, User currentUser) {
+    public ResponseEntity<Void> delete(MessageChannel channel, boolean force, User currentUser) {
         log.info("Root deleting default {} campaign provider", channel);
-        providerAdminService.deleteCampaignProvider(channel, null, currentUser);
+        providerAdminService.deleteCampaignProvider(channel, null, force, currentUser);
         return ResponseEntity.noContent().build();
     }
 

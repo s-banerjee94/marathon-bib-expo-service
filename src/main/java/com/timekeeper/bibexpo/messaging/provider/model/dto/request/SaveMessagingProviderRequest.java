@@ -7,6 +7,8 @@ import com.timekeeper.bibexpo.messaging.provider.model.enums.MessageContentType;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
@@ -51,9 +53,26 @@ public class SaveMessagingProviderRequest {
     private List<ProviderParam> requestParams;
 
     @Schema(description = "POST body template; may contain {{TOKEN}} placeholders. Leave blank for GET. "
-            + "In a FORM body, write any literal '+' as %2B (a raw '+' is decoded as a space)",
+            + "In a FORM body, write any literal '+' as %2B (a raw '+' is decoded as a space). "
+            + "The tokens must match templateMode: CLIENT_RENDERED has to use {{MESSAGE}}, PROVIDER_RENDERED has to "
+            + "use {{VAR:n}} or {{VARIABLES_JSON}}, and a provider that disagrees with its own mode is rejected. "
+            + "{{VAR:n}} counts from zero while {{VARIABLES_JSON}} emits keys from one, so {{VAR:0}} and key \"1\" "
+            + "are the same value",
             example = "{ \"route\": \"q\", \"message\": \"{{MESSAGE}}\", \"numbers\": \"{{RECIPIENT}}\" }")
     private String bodyTemplate;
+
+    @Size(max = 6, message = "Country code must not exceed 6 characters")
+    @Pattern(regexp = "^\\+?[0-9]{1,5}$", message = "Country code must be digits, optionally prefixed with +")
+    @Schema(description = "Country calling code prefixed by {{RECIPIENT_E164}} when a number is not already "
+            + "international. Defaults to 91 when omitted", example = "91",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String defaultCountryCode;
+
+    @Size(max = 200, message = "Success marker must not exceed 200 characters")
+    @Schema(description = "Text the provider's response must contain for the send to count as successful. "
+            + "Set it when the gateway answers HTTP 200 even for failures, otherwise leave blank and only the "
+            + "status code decides", example = "\"type\":\"success\"", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String successContains;
 
     @Schema(description = "Whether this provider is active for sending", example = "true")
     private boolean enabled;

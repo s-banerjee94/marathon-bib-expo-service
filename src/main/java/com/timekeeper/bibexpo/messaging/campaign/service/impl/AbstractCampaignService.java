@@ -8,6 +8,10 @@ import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTargetFilter;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType;
 import com.timekeeper.bibexpo.messaging.campaign.repository.CampaignBaseRepository;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
+import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.EventOperation;
@@ -56,17 +60,20 @@ public abstract class AbstractCampaignService<
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventOperationGuard eventOperationGuard;
+    private final CampaignCompatibilityGuard compatibilityGuard;
 
     protected AbstractCampaignService(String channelLabel,
                                       CampaignBaseRepository<C> campaignRepository,
                                       EventRepository eventRepository,
                                       EventAccessValidator eventAccessValidator,
-                                      EventOperationGuard eventOperationGuard) {
+                                      EventOperationGuard eventOperationGuard,
+                                      CampaignCompatibilityGuard compatibilityGuard) {
         this.channelLabel = channelLabel;
         this.campaignRepository = campaignRepository;
         this.eventRepository = eventRepository;
         this.eventAccessValidator = eventAccessValidator;
         this.eventOperationGuard = eventOperationGuard;
+        this.compatibilityGuard = compatibilityGuard;
     }
 
     protected final R doCreate(Long eventId, CREATE request, User currentUser) {
@@ -237,6 +244,11 @@ public abstract class AbstractCampaignService<
                     "An active bib collection campaign already exists for this event. Please disarm it before arming a new one.");
         }
 
+        // Arming is the last moment a mismatched template can be refused while someone is watching;
+        // every send after this costs money whether the message carries its content or not.
+        compatibilityGuard.require(channel(), organizationId(event), templateContent(campaign),
+                templateSource(campaign), this::invalidCampaign);
+
         campaign.setTriggerType(triggerType);
         campaign.setTargetFilter(targetFilter);
         campaign.setScheduledAt(scheduledAt);
@@ -256,6 +268,25 @@ public abstract class AbstractCampaignService<
 
         return event;
     }
+
+    private Long organizationId(Event event) {
+        return event.getOrganization() != null ? event.getOrganization().getId() : null;
+    }
+
+    /**
+     * Channel this service's campaigns are sent over.
+     */
+    protected abstract MessageChannel channel();
+
+    /**
+     * What the campaign's template can hand to a send, for the compatibility check at arm time.
+     */
+    protected abstract TemplateContent templateContent(C campaign);
+
+    /**
+     * Which sender the campaign's template was written against, or null when it predates the stamp.
+     */
+    protected abstract ProviderSource templateSource(C campaign);
 
     /**
      * Channel's invalid-campaign exception carrying the given message.

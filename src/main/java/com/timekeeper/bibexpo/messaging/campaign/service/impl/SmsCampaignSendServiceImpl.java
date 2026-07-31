@@ -15,9 +15,11 @@ import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTargetFilter;
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsCampaignSendService;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignNotifier;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
+import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchOutcome;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchRequest;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
@@ -30,6 +32,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +48,7 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
     private final RaceCategoryNameResolver nameResolver;
     private final CampaignDispatcher campaignDispatcher;
     private final CampaignNotifier campaignNotifier;
+    private final CampaignCompatibilityGuard compatibilityGuard;
 
     @Override
     @Async("smsCampaignTaskExecutor")
@@ -69,6 +73,23 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
             smsCampaignRepository.save(campaign);
             log.error("SMS campaign ID: {} failed: {}", campaignId, e.getMessage());
             campaignNotifier.notifyFailed(campaignId, campaign.getName(), campaign.getOrganizationId(), "SMS");
+            return;
+        }
+
+        // The sender may have changed since the campaign was armed, so the pairing is checked again
+        // here — one bad dispatch bills the organization for messages with no content in them.
+        Optional<String> incompatible = compatibilityGuard.problem(MessageChannel.SMS, campaign.getOrganizationId(),
+                new TemplateContent(templateText != null && !templateText.isBlank(),
+                        CampaignVariableRenderer.count(bodyVariables),
+                        dltTemplateId != null && !dltTemplateId.isBlank(),
+                        senderId != null && !senderId.isBlank()),
+                campaign.getSmsTemplate().getProviderSource());
+        if (incompatible.isPresent()) {
+            campaign.setStatus(CampaignStatus.FAILED);
+            smsCampaignRepository.save(campaign);
+            log.error("SMS campaign ID: {} not sent — {}", campaignId, incompatible.get());
+            campaignNotifier.notifyFailed(campaignId, campaign.getName(), campaign.getOrganizationId(), "SMS",
+                    incompatible.get());
             return;
         }
 

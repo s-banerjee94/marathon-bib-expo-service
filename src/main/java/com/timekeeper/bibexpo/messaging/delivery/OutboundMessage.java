@@ -17,6 +17,12 @@ public class OutboundMessage {
 
     private final String recipientPhone;
 
+    /** Recipient address for the email channel; substituted as {@code {{RECIPIENT_EMAIL}}}. */
+    private final String recipientEmail;
+
+    /** Subject line for the email channel; substituted as {@code {{SUBJECT}}}. */
+    private final String subject;
+
     /**
      * Registered template id. Required for every SMS (India DLT compliance) and used as the
      * template reference for provider-rendered channels such as Twilio WhatsApp.

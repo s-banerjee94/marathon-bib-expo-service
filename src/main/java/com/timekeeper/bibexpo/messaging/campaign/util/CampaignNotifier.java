@@ -34,8 +34,21 @@ public class CampaignNotifier {
     }
 
     public void notifyFailed(Long campaignId, String campaignName, Long organizationId, String channel) {
+        notifyFailed(campaignId, campaignName, organizationId, channel, null);
+    }
+
+    /**
+     * Reports a failed campaign, naming the reason when there is an actionable one — a template the
+     * organization's sender cannot fill, for instance, which nobody can fix without being told what
+     * is wrong.
+     *
+     * @param reason operator-facing explanation, or null for an unqualified failure
+     */
+    public void notifyFailed(Long campaignId, String campaignName, Long organizationId, String channel, String reason) {
         String title = "Campaign Failed";
-        String message = String.format("The %s campaign \"%s\" failed to send.", channel, campaignName);
+        String message = reason == null
+                ? String.format("The %s campaign \"%s\" failed to send.", channel, campaignName)
+                : String.format("The %s campaign \"%s\" was not sent. %s", channel, campaignName, reason);
 
         notificationService.notify(NotifyRequest.builder()
                 .audience(NotificationAudience.ORGANIZATION_STAFF)

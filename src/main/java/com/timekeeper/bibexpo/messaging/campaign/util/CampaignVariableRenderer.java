@@ -16,6 +16,20 @@ public final class CampaignVariableRenderer {
 
     private CampaignVariableRenderer() {}
 
+    /**
+     * How many variables a template declares, without rendering them — what the compatibility check
+     * compares against the number the provider's request reads.
+     *
+     * @param joinedBodyVariables newline-joined placeholder expressions, may be null
+     * @return the declared variable count, zero when none
+     */
+    public static int count(String joinedBodyVariables) {
+        if (joinedBodyVariables == null || joinedBodyVariables.isBlank()) {
+            return 0;
+        }
+        return joinedBodyVariables.split("\n").length;
+    }
+
     public static List<String> render(String joinedBodyVariables, MessageTemplateContext context) {
         if (joinedBodyVariables == null || joinedBodyVariables.isBlank()) {
             return List.of();

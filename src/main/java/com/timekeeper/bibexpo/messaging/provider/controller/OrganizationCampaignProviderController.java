@@ -35,14 +35,14 @@ public class OrganizationCampaignProviderController implements OrganizationCampa
                                                           SaveMessagingProviderRequest request, User currentUser) {
         log.info("Saving {} campaign provider for organization ID: {} by user: {}",
                 channel, organizationId, currentUser.getUsername());
-        return ResponseEntity.ok(providerAdminService.saveCampaignProvider(channel, organizationId, request, currentUser));
+        return ResponseEntity.ok(providerAdminService.saveCampaignProvider(channel, organizationId, false, request, currentUser));
     }
 
     @Override
     public ResponseEntity<Void> delete(Long organizationId, MessageChannel channel, User currentUser) {
         log.info("Deleting {} campaign provider for organization ID: {} by user: {}",
                 channel, organizationId, currentUser.getUsername());
-        providerAdminService.deleteCampaignProvider(channel, organizationId, currentUser);
+        providerAdminService.deleteCampaignProvider(channel, organizationId, false, currentUser);
         return ResponseEntity.noContent().build();
     }
 

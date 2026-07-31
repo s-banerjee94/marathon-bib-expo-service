@@ -13,6 +13,9 @@ import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsTemplateRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsTemplateService;
+import com.timekeeper.bibexpo.messaging.campaign.util.TemplateSenderStamp;
+import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.User;
@@ -41,17 +44,20 @@ public class SmsTemplateServiceImpl
     private final SmsTemplateRepository smsTemplateRepository;
     private final SmsCampaignRepository smsCampaignRepository;
     private final EventLimitRepository eventLimitRepository;
+    private final TemplateSenderStamp senderStamp;
 
     public SmsTemplateServiceImpl(SmsTemplateRepository smsTemplateRepository,
                                   SmsCampaignRepository smsCampaignRepository,
                                   EventRepository eventRepository,
                                   EventAccessValidator eventAccessValidator,
                                   EventLimitRepository eventLimitRepository,
-                                  EventOperationGuard eventOperationGuard) {
+                                  EventOperationGuard eventOperationGuard,
+                                  TemplateSenderStamp senderStamp) {
         super("SMS", smsTemplateRepository, eventRepository, eventAccessValidator, eventOperationGuard);
         this.smsTemplateRepository = smsTemplateRepository;
         this.smsCampaignRepository = smsCampaignRepository;
         this.eventLimitRepository = eventLimitRepository;
+        this.senderStamp = senderStamp;
     }
 
     @Auditable(entityType = AuditEntityType.SMS_TEMPLATE, action = AuditAction.CREATE)
@@ -69,12 +75,20 @@ public class SmsTemplateServiceImpl
             throw new EventLimitExceededException("You have reached the maximum number of SMS templates allowed for this event.");
         }
 
-        if (smsTemplateRepository.existsBySmsTemplateIdAndEventId(request.getSmsTemplateId(), eventId)) {
+        // Only a template that carries a provider template id can collide on one.
+        if (request.getSmsTemplateId() != null && !request.getSmsTemplateId().isBlank()
+                && smsTemplateRepository.existsBySmsTemplateIdAndEventId(request.getSmsTemplateId(), eventId)) {
             throw new SmsTemplateAlreadyExistsException(
                     "SMS template with ID '" + request.getSmsTemplateId() + "' already exists for this event");
         }
 
-        requireBodyOrVariables(request.getTemplate(), request.getBodyVariables());
+        TemplateSenderStamp.Stamp stamp = senderStamp.resolveForSave(MessageChannel.SMS,
+                event.getOrganization() != null ? event.getOrganization().getId() : null,
+                TemplateSenderStamp.fromSmsContent(request.getTemplate(),
+                        joinBodyVariables(request.getBodyVariables())));
+        TemplateMode renderMode = stamp.renderMode();
+
+        requireContentForMode(renderMode, request.getTemplate(), request.getBodyVariables());
         validateTemplatePlaceholders(request.getTemplate());
         validateBodyVariables(request.getBodyVariables());
 
@@ -84,6 +98,8 @@ public class SmsTemplateServiceImpl
                 .senderId(request.getSenderId())
                 .template(request.getTemplate())
                 .bodyVariables(joinBodyVariables(request.getBodyVariables()))
+                .renderMode(renderMode)
+                .providerSource(stamp.providerSource())
                 .note(request.getNote())
                 .event(event)
                 .build();
@@ -125,6 +141,12 @@ public class SmsTemplateServiceImpl
             }
             smsTemplate.setSmsTemplateId(request.getSmsTemplateId());
         }
+
+        // The mode the template was written in governs the edit, not whichever provider is resolved
+        // now — a template must not change shape because the organization switched provider.
+        TemplateMode renderMode = effectiveRenderMode(smsTemplate);
+        requireFieldsAllowedForMode(renderMode, request.getTemplate(), request.getBodyVariables());
+        smsTemplate.setRenderMode(renderMode);
 
         if (request.getTemplate() != null && !request.getTemplate().isBlank()) {
             validateTemplatePlaceholders(request.getTemplate());
@@ -231,12 +253,35 @@ public class SmsTemplateServiceImpl
         }
     }
 
-    private void requireBodyOrVariables(String template, List<String> bodyVariables) {
+    private TemplateMode effectiveRenderMode(SmsTemplate template) {
+        return template.getRenderMode() != null
+                ? template.getRenderMode()
+                : TemplateSenderStamp.fromSmsContent(template.getTemplate(), template.getBodyVariables());
+    }
+
+    private void requireContentForMode(TemplateMode renderMode, String template, List<String> bodyVariables) {
+        if (renderMode == TemplateMode.CLIENT_RENDERED && (template == null || template.isBlank())) {
+            throw new InvalidSmsTemplateException(
+                    "Add the message text — your SMS provider sends the message body itself.");
+        }
+        requireFieldsAllowedForMode(renderMode, template, bodyVariables);
+    }
+
+    /**
+     * Rejects only the field the rendering cannot use. A provider-rendered template with no variables
+     * stays valid — a registered template can be fully static, with nothing to fill in.
+     */
+    private void requireFieldsAllowedForMode(TemplateMode renderMode, String template, List<String> bodyVariables) {
         boolean hasBody = template != null && !template.isBlank();
         boolean hasVariables = bodyVariables != null && !bodyVariables.isEmpty();
-        if (!hasBody && !hasVariables) {
+
+        if (renderMode == TemplateMode.CLIENT_RENDERED && hasVariables) {
             throw new InvalidSmsTemplateException(
-                    "Provide either the message text or the template variables.");
+                    "Remove the template variables — your SMS provider expects the full message text instead.");
+        }
+        if (renderMode == TemplateMode.PROVIDER_RENDERED && hasBody) {
+            throw new InvalidSmsTemplateException(
+                    "Remove the message text — your SMS provider holds the registered template and expects only the variables.");
         }
     }
 

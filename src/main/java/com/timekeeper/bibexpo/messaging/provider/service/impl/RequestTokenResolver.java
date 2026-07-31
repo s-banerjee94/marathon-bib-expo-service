@@ -8,8 +8,10 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Substitutes {@code {{TOKEN}}} placeholders in a provider's URL, header/query values, and body
@@ -25,10 +27,48 @@ class RequestTokenResolver {
     enum Escape {
         NONE,
         JSON,
-        FORM
+        FORM,
+        XML
     }
 
     private static final Pattern TOKEN = Pattern.compile("\\{\\{\\s*([A-Z0-9_]+)(?::(\\d+))?\\s*}}");
+
+    /**
+     * Highest {@code {{VAR:n}}} index a piece of provider configuration reads, so a caller can tell
+     * how many variables the mapping expects. Note the indexing asymmetry this inherits:
+     * {@code {{VAR:n}}} is zero-based while {@code {{VARIABLES_JSON}}} emits one-based keys, so
+     * {@code {{VAR:0}}} and the {@code "1"} key of the JSON map are the same value.
+     *
+     * @param template a configured URL, param value, or body template
+     * @return the highest index found, or -1 when the template reads no positional variable
+     */
+    static int maxVariableIndex(String template) {
+        if (template == null || template.isEmpty()) {
+            return -1;
+        }
+        return TOKEN.matcher(template).results()
+                .filter(result -> "VAR".equals(result.group(1)) && result.group(2) != null)
+                .mapToInt(result -> Integer.parseInt(result.group(2)))
+                .max()
+                .orElse(-1);
+    }
+
+    /**
+     * The token names a piece of provider configuration references, without the index — so
+     * {@code {{VAR:0}}} reports as {@code VAR}. Lets a caller ask what a mapping actually reads
+     * without restating the token syntax.
+     *
+     * @param template a configured URL, param value, or body template
+     * @return the distinct token names found, empty when there are none
+     */
+    static Set<String> tokenNames(String template) {
+        if (template == null || template.isEmpty()) {
+            return Set.of();
+        }
+        return TOKEN.matcher(template).results()
+                .map(result -> result.group(1))
+                .collect(Collectors.toSet());
+    }
 
     String resolve(String template, Escape escape, MessagingProvider provider, OutboundMessage message) {
         if (template == null || template.isEmpty()) {
@@ -47,7 +87,10 @@ class RequestTokenResolver {
     private String value(String token, String index, MessagingProvider provider, OutboundMessage message) {
         return switch (token) {
             case "RECIPIENT" -> nullToEmpty(message.getRecipientPhone());
-            case "RECIPIENT_E164" -> toE164(message.getRecipientPhone());
+            case "RECIPIENT_E164" -> toE164(message.getRecipientPhone(), provider.getDefaultCountryCode());
+            case "RECIPIENT_CC" -> withCountryCode(message.getRecipientPhone(), provider.getDefaultCountryCode());
+            case "RECIPIENT_EMAIL" -> nullToEmpty(message.getRecipientEmail());
+            case "SUBJECT" -> nullToEmpty(message.getSubject());
             case "MESSAGE" -> nullToEmpty(message.getMessage());
             case "TEMPLATE_ID" -> nullToEmpty(message.getTemplateId());
             case "SENDER_ID" -> nullToEmpty(message.getSenderId());
@@ -66,6 +109,7 @@ class RequestTokenResolver {
             case NONE -> value;
             case JSON -> jsonEscape(value);
             case FORM -> URLEncoder.encode(value, StandardCharsets.UTF_8);
+            case XML -> xmlEscape(value);
         };
     }
 
@@ -100,13 +144,37 @@ class RequestTokenResolver {
         return Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Prepends the India country code unless the number is already in international (+) format. */
-    private String toE164(String phone) {
+    /**
+     * Prepends the provider's country calling code unless the number is already international.
+     * The code is per provider rather than a constant, so the same engine serves any market.
+     */
+    private String toE164(String phone, String countryCode) {
         if (phone == null || phone.isBlank()) {
             return "";
         }
         String trimmed = phone.trim();
-        return trimmed.startsWith("+") ? trimmed : "+91" + trimmed;
+        if (trimmed.startsWith("+")) {
+            return trimmed;
+        }
+        String code = countryCode == null || countryCode.isBlank() ? "" : countryCode.trim().replace("+", "");
+        return "+" + code + trimmed;
+    }
+
+    /**
+     * Country code and number with no leading plus, for gateways that reject the {@code +} form. Mirrors
+     * {@link #toE164} otherwise: a number already in international form keeps its own code.
+     */
+    private String withCountryCode(String phone, String countryCode) {
+        String e164 = toE164(phone, countryCode);
+        return e164.startsWith("+") ? e164.substring(1) : e164;
+    }
+
+    private String xmlEscape(String s) {
+        return s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
     }
 
     private String jsonEscape(String s) {

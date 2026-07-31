@@ -1,10 +1,12 @@
 package com.timekeeper.bibexpo.messaging.provider.model.enums;
 
 /**
- * How the POST request body is encoded: a JSON object, or {@code application/x-www-form-urlencoded}
- * {@code key=value} pairs. Also decides how substituted token values are escaped inside the body.
+ * How the request body is encoded, and therefore how a substituted token value is escaped inside it:
+ * a JSON object, {@code application/x-www-form-urlencoded} pairs, an XML document, or plain text.
  */
 public enum MessageContentType {
     JSON,
-    FORM
+    FORM,
+    XML,
+    TEXT
 }
