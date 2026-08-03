@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.security;
 
-import com.timekeeper.bibexpo.exception.AuthErrorCode;
 import com.timekeeper.bibexpo.service.JwtService;
 import com.timekeeper.bibexpo.service.SessionService;
+import com.timekeeper.bibexpo.shared.error.AuthErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

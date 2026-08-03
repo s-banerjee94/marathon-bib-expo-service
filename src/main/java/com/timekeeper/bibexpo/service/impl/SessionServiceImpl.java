@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.config.CacheConfig;
+import com.timekeeper.bibexpo.bootstrap.CacheConfig;
 import com.timekeeper.bibexpo.config.JwtConfig;
 import com.timekeeper.bibexpo.model.entity.ActiveSession;
 import com.timekeeper.bibexpo.model.entity.User;

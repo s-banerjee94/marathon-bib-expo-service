@@ -2,12 +2,12 @@ package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.exception.AccountDisabledException;
 import com.timekeeper.bibexpo.exception.CsrfValidationException;
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.exception.InvalidCredentialsException;
 import com.timekeeper.bibexpo.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.model.dto.response.LoginResponse;
 import com.timekeeper.bibexpo.model.dto.response.RefreshResponse;
 import com.timekeeper.bibexpo.service.AuthService;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

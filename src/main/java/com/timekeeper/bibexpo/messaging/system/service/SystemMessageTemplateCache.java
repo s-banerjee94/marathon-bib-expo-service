@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.messaging.system.service;
 
-import com.timekeeper.bibexpo.config.CacheConfig;
+import com.timekeeper.bibexpo.bootstrap.CacheConfig;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
 import com.timekeeper.bibexpo.messaging.system.model.entity.SystemMessageTemplate;

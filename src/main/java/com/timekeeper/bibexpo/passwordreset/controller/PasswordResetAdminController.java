@@ -4,7 +4,7 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.IssueResetLinkRequest;
 import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetLinkResponse;
 import com.timekeeper.bibexpo.passwordreset.service.PasswordResetService;
-import com.timekeeper.bibexpo.security.CurrentActor;
+import com.timekeeper.bibexpo.shared.security.CurrentActor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

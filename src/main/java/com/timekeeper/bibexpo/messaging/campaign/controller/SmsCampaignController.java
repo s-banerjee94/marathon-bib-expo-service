@@ -1,14 +1,14 @@
 package com.timekeeper.bibexpo.messaging.campaign.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsCampaignException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignAlreadyActiveException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateSmsCampaignRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateSmsCampaignRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsCampaignResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsCampaignService;
+import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

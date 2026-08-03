@@ -3,13 +3,13 @@ package com.timekeeper.bibexpo.service;
 import com.timekeeper.bibexpo.exception.EventDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.EventDisabledException;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
-import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
+import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -139,7 +139,7 @@ public interface EventService {
      * @return the presigned upload URL plus the object key to attach afterwards
      * @throws EventNotFoundException if the event does not exist
      * @throws AccessForbiddenException if the caller lacks permission
-     * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the content type is not allowed
+     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the content type is not allowed
      */
     PresignUploadResponse createLogoUploadUrl(Long id, String contentType, User currentUser);
 
@@ -153,7 +153,7 @@ public interface EventService {
      * @return the updated event response (with a fresh presigned logo URL)
      * @throws EventNotFoundException if the event does not exist
      * @throws AccessForbiddenException if the caller lacks permission
-     * @throws com.timekeeper.bibexpo.exception.InvalidFileException if the key is invalid or the object is missing
+     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the key is invalid or the object is missing
      */
     EventResponse attachLogo(Long id, String objectKey, User currentUser);
 

@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.model.entity;
 
-import com.timekeeper.bibexpo.config.EmptyStringToNullConverter;
+import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.shared.web.EmptyStringToNullConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

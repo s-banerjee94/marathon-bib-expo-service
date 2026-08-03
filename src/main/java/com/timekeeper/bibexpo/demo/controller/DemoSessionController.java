@@ -8,7 +8,7 @@ import com.timekeeper.bibexpo.demo.exception.DemoSessionNotFoundException;
 import com.timekeeper.bibexpo.demo.model.dto.response.DemoSessionResponse;
 import com.timekeeper.bibexpo.demo.model.dto.response.DemoSessionStatusResponse;
 import com.timekeeper.bibexpo.demo.service.DemoSessionService;
-import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -2,11 +2,11 @@ package com.timekeeper.bibexpo.messaging.campaign.service;
 
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateAlreadyExistsException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
-import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsTemplateResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import java.util.List;
 
 

@@ -4,7 +4,7 @@ import com.timekeeper.bibexpo.billing.model.entity.EventBillingState;
 import com.timekeeper.bibexpo.billing.repository.EventBillingStateRepository;
 import com.timekeeper.bibexpo.billing.service.BillingQuotaService;
 import com.timekeeper.bibexpo.billing.service.QuotaClaimResult;
-import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.shared.security.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;

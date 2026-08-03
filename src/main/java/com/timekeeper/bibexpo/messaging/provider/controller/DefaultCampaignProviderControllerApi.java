@@ -1,11 +1,11 @@
 package com.timekeeper.bibexpo.messaging.provider.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.ProviderTestSendRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.SaveMessagingProviderRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.response.MessagingProviderResponse;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

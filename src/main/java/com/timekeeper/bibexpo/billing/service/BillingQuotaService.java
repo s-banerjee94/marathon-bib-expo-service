@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.billing.service;
 
-import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.shared.security.UserRole;
 
 /**
  * Guards manual bill generation with a per-event, per-role quota and the one-final lock.

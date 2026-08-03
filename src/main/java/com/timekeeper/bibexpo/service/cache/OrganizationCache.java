@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.service.cache;
 
-import com.timekeeper.bibexpo.config.CacheConfig;
+import com.timekeeper.bibexpo.bootstrap.CacheConfig;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import lombok.RequiredArgsConstructor;

@@ -1,18 +1,18 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.exception.InvalidFileException;
 import com.timekeeper.bibexpo.exception.UserNotFoundException;
-import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.UploadCategory;
 import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.security.CurrentActor;
-import com.timekeeper.bibexpo.service.StorageService;
-import com.timekeeper.bibexpo.service.UserProfileMediaService;
 import com.timekeeper.bibexpo.service.cache.AuthUserCache;
+import com.timekeeper.bibexpo.service.UserProfileMediaService;
 import com.timekeeper.bibexpo.service.util.UserResponseMapper;
 import com.timekeeper.bibexpo.service.validator.UserAccessPolicy;
+import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.storage.exception.InvalidFileException;
+import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
+import com.timekeeper.bibexpo.storage.model.enums.UploadCategory;
+import com.timekeeper.bibexpo.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

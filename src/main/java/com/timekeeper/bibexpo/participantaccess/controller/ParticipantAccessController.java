@@ -1,12 +1,12 @@
 package com.timekeeper.bibexpo.participantaccess.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.exception.InvalidQrCodeException;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participantaccess.model.dto.request.ScanQrRequest;
 import com.timekeeper.bibexpo.participantaccess.model.dto.response.ShortUrlGenerationResponse;
 import com.timekeeper.bibexpo.participantaccess.service.ParticipantAccessService;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;

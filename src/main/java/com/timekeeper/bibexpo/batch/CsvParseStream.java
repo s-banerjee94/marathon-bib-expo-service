@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.batch;
 
-import com.timekeeper.bibexpo.util.TextUtils;
+import com.timekeeper.bibexpo.shared.util.TextUtils;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 

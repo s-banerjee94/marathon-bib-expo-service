@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.controller;
 
-import com.timekeeper.bibexpo.config.DynamoDbProperties;
+import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;

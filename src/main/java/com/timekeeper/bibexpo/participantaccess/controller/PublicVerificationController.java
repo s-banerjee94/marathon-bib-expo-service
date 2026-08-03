@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.participantaccess.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.exception.ShortUrlNotFoundException;
 import com.timekeeper.bibexpo.participantaccess.model.dto.response.ParticipantVerificationResponse;
 import com.timekeeper.bibexpo.participantaccess.service.ParticipantAccessService;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

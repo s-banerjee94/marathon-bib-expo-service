@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.service.dashboard;
 
 import com.timekeeper.bibexpo.model.dto.response.dashboard.UserCountsDto;
-import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.repository.UserRepository;
+import com.timekeeper.bibexpo.shared.security.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

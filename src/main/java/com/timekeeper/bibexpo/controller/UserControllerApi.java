@@ -1,16 +1,16 @@
 package com.timekeeper.bibexpo.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
-import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
-import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.ReassignDistributorEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
-import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
-import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.shared.web.PageableResponse;
+import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;
+import com.timekeeper.bibexpo.storage.model.dto.request.PresignUploadRequest;
+import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -471,7 +471,7 @@ public interface UserControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     ResponseEntity<PageableResponse<UserResponse>> getUsers(
             @Parameter(description = "Filter by user role")
-            @RequestParam(required = false) com.timekeeper.bibexpo.model.entity.UserRole role,
+            @RequestParam(required = false) com.timekeeper.bibexpo.shared.security.UserRole role,
 
             @Parameter(description = "Filter by organization ID (ROOT/ADMIN only)")
             @RequestParam(required = false) Long organizationId,

@@ -1,13 +1,13 @@
 package com.timekeeper.bibexpo.messaging.campaign.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidWhatsAppTemplateException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppTemplateAlreadyExistsException;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateWhatsAppTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateWhatsAppTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.WhatsAppTemplateResponse;
 import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppTemplateService;
+import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

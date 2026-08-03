@@ -1,13 +1,13 @@
 package com.timekeeper.bibexpo.billing.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.billing.model.dto.request.UpdatePaymentStatusRequest;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
-import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsRefreshResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsResponse;
 import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
 import com.timekeeper.bibexpo.model.enums.DashboardRange;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

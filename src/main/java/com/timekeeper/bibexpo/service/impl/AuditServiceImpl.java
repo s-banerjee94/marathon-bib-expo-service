@@ -1,19 +1,19 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.exception.InvalidUserDataException;
-import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.model.dto.audit.AuditLogQuery;
 import com.timekeeper.bibexpo.model.dto.response.AuditLogListResponse;
 import com.timekeeper.bibexpo.model.dto.response.AuditLogResponse;
 import com.timekeeper.bibexpo.model.dynamodb.AuditLogDDB;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.model.enums.AuditAction;
 import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.AuditLogDDBRepository;
+import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.AuditService;
-import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
+import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
+import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
+import com.timekeeper.bibexpo.shared.persistence.DynamoDBPaginationCodec;
+import com.timekeeper.bibexpo.shared.security.UserRole;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

@@ -1,14 +1,12 @@
 package com.timekeeper.bibexpo.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.model.dto.request.BulkCollectBibRequest;
 import com.timekeeper.bibexpo.model.dto.request.BulkDistributeGoodiesRequest;
 import com.timekeeper.bibexpo.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.model.dto.request.DistributeGoodiesRequest;
 import com.timekeeper.bibexpo.model.dto.response.BibDistributionResponse;
-import com.timekeeper.bibexpo.model.dto.response.DistributionLogListResponse;
-import com.timekeeper.bibexpo.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.model.dto.response.BulkDistributionResponse;
+import com.timekeeper.bibexpo.model.dto.response.DistributionLogListResponse;
 import com.timekeeper.bibexpo.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.model.dto.response.GoodiesDistributionResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
@@ -16,6 +14,8 @@ import com.timekeeper.bibexpo.model.dto.response.PendingBibListResponse;
 import com.timekeeper.bibexpo.model.dto.response.PendingGoodiesListResponse;
 import com.timekeeper.bibexpo.model.dto.response.UndoDistributionResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.model.enums.LogSearchType;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 
 import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;

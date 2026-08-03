@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
-import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.model.dynamodb.ImportErrorDDB;
+import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;

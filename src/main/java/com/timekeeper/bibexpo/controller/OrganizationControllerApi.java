@@ -1,13 +1,13 @@
 package com.timekeeper.bibexpo.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
-import com.timekeeper.bibexpo.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
-import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
-import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
+import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.shared.web.PageableResponse;
+import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;
+import com.timekeeper.bibexpo.storage.model.dto.request.PresignUploadRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,7 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;

@@ -4,7 +4,7 @@ import com.timekeeper.bibexpo.invitation.model.dto.request.CreateInvitationReque
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
 import com.timekeeper.bibexpo.invitation.service.InvitationService;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.security.CurrentActor;
+import com.timekeeper.bibexpo.shared.security.CurrentActor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

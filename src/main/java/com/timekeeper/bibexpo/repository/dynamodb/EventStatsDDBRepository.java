@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.repository.dynamodb;
 
-import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
+import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

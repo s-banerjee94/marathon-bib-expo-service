@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.service.util;
 
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.service.StorageService;
+import com.timekeeper.bibexpo.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

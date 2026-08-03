@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.exception.RaceAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.RaceDeletionNotAllowedException;
 import com.timekeeper.bibexpo.model.dto.request.CreateRaceRequest;
@@ -8,6 +7,7 @@ import com.timekeeper.bibexpo.model.dto.request.UpdateRaceRequest;
 import com.timekeeper.bibexpo.model.dto.response.RaceResponse;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.RaceService;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

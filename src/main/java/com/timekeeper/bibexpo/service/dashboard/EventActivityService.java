@@ -1,20 +1,20 @@
 package com.timekeeper.bibexpo.service.dashboard;
 
-import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse.DistributorCount;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse.Peak;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse.Point;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse.Rate;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse.Series;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse.Timeline;
+import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse;
 import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.EventActivityRange;
-import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
+import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.impl.EventStatsServiceImpl;
-import com.timekeeper.bibexpo.util.EventTimeUtil;
+import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

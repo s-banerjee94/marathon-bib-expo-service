@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.service;
 
-import com.timekeeper.bibexpo.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
-import com.timekeeper.bibexpo.security.CurrentActor;
+import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 
 /**
  * Profile-picture storage operations for user accounts: presigned upload, attach,
@@ -20,8 +20,8 @@ public interface UserProfileMediaService {
      * @param actor       the authenticated user making the request
      * @return the presigned upload URL plus the object key to attach afterwards
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException  if the caller lacks permission
-     * @throws com.timekeeper.bibexpo.exception.InvalidFileException         if the content type is not allowed
+     * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException  if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException         if the content type is not allowed
      */
     PresignUploadResponse createProfilePictureUploadUrl(Long userId, String contentType, CurrentActor actor);
 
@@ -35,8 +35,8 @@ public interface UserProfileMediaService {
      * @param actor     the authenticated user making the request
      * @return the updated user response (with a fresh presigned picture URL)
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException  if the caller lacks permission
-     * @throws com.timekeeper.bibexpo.exception.InvalidFileException         if the key is invalid or the object is missing
+     * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException  if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException         if the key is invalid or the object is missing
      */
     UserResponse attachProfilePicture(Long userId, String objectKey, CurrentActor actor);
 
@@ -47,7 +47,7 @@ public interface UserProfileMediaService {
      * @param actor  the authenticated user making the request
      * @return the updated user response
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
-     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException  if the caller lacks permission
+     * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException  if the caller lacks permission
      */
     UserResponse removeProfilePicture(Long userId, CurrentActor actor);
 

@@ -1,21 +1,21 @@
 package com.timekeeper.bibexpo.service.dashboard;
 
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
-import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse.CategoryStat;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse.EventContext;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse.GenderBreakdown;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse.ParticipantTotals;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse.RaceStat;
+import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse;
+import com.timekeeper.bibexpo.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.EventActivityRange;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.ParticipantStatisticsService;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.util.EventTimeUtil;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

@@ -5,7 +5,7 @@ import com.timekeeper.bibexpo.passwordreset.model.dto.request.ForgotPasswordRequ
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.IssueResetLinkRequest;
 import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetLinkResponse;
 import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetTokenStatusResponse;
-import com.timekeeper.bibexpo.security.CurrentActor;
+import com.timekeeper.bibexpo.shared.security.CurrentActor;
 
 /**
  * Issues and completes short-lived, single-use password-reset links. A link may originate from an
@@ -31,8 +31,8 @@ public interface PasswordResetService {
      * @param actor   the administrator issuing the link
      * @return the reset link plus any per-channel delivery outcomes
      * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist
-     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller may not manage the user
-     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the caller targets their own account
+     * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the caller may not manage the user
+     * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the caller targets their own account
      */
     PasswordResetLinkResponse issueForUser(Long userId, IssueResetLinkRequest request, CurrentActor actor);
 
