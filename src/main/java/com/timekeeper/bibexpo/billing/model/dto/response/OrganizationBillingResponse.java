@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.billing.model.dto.response;
 
-import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

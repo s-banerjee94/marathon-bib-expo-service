@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.audit.api;
 
-import com.timekeeper.bibexpo.audit.api.AuditEvent;
 
 /**
  * Sink for audit events emitted by {@code AuditAspect}.

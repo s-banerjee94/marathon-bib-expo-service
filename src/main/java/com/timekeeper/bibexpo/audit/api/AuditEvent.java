@@ -1,7 +1,5 @@
 package com.timekeeper.bibexpo.audit.api;
 
-import com.timekeeper.bibexpo.audit.api.AuditAction;
-import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

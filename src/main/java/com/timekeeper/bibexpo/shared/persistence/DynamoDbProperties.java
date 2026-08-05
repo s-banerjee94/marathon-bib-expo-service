@@ -23,7 +23,6 @@ public class DynamoDbProperties {
 
     private String participants = "marathon-participants";
     private String notifications = "marathon-notifications";
-    private String importErrors = "marathon-import-errors";
     private String eventStats = "marathon-event-stats";
     private String distributionLogs = "marathon-distribution-logs";
     private String auditLog = "marathon-audit-log";
@@ -31,7 +30,6 @@ public class DynamoDbProperties {
 
     public String participantsTable()     { return tablePrefix + participants; }
     public String notificationsTable()    { return tablePrefix + notifications; }
-    public String importErrorsTable()     { return tablePrefix + importErrors; }
     public String eventStatsTable()       { return tablePrefix + eventStats; }
     public String distributionLogsTable() { return tablePrefix + distributionLogs; }
     public String auditLogTable()         { return tablePrefix + auditLog; }

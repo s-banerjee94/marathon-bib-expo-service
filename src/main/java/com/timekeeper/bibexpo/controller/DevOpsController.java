@@ -60,23 +60,10 @@ public class DevOpsController {
         return clearDynamoDBTable(dynamoDbProperties.distributionLogsTable(), "eventId", "timestamp");
     }
 
-    @DeleteMapping("/clear-import-errors")
-    @Operation(
-            summary = "Clear all import errors",
-            description = "Deletes all records from the marathon-import-errors DynamoDB table. Use with caution!",
-            responses = {
-                    @ApiResponse(responseCode = "200", description = "Successfully cleared import errors table"),
-                    @ApiResponse(responseCode = "500", description = "Error occurred while clearing table")
-            }
-    )
-    public ResponseEntity<Map<String, Object>> clearImportErrors() {
-        return clearDynamoDBTable(dynamoDbProperties.importErrorsTable(), "importId", "rowNumber");
-    }
-
     @DeleteMapping("/clear-all-dynamodb")
     @Operation(
             summary = "Clear all DynamoDB tables",
-            description = "Deletes all records from all three DynamoDB tables (participants, distribution logs, and import errors). Use with extreme caution!",
+            description = "Deletes all records from the participants and distribution log DynamoDB tables. Use with extreme caution!",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Successfully cleared all DynamoDB tables"),
                     @ApiResponse(responseCode = "500", description = "Error occurred while clearing tables")
@@ -105,14 +92,6 @@ public class DevOpsController {
                 tableResults.put(dynamoDbProperties.distributionLogsTable(), count);
                 totalDeleted += count;
                 allSuccess &= (Boolean) distributionResult.getBody().getOrDefault(SUCCESS, false);
-            }
-
-            ResponseEntity<Map<String, Object>> importResult = clearImportErrors();
-            if (importResult.getBody() != null) {
-                int count = (Integer) importResult.getBody().getOrDefault(DELETED_COUNT, 0);
-                tableResults.put(dynamoDbProperties.importErrorsTable(), count);
-                totalDeleted += count;
-                allSuccess &= (Boolean) importResult.getBody().getOrDefault(SUCCESS, false);
             }
 
             totalResponse.put(SUCCESS, allSuccess);

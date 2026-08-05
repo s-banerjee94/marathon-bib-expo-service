@@ -1,7 +1,5 @@
 package com.timekeeper.bibexpo.audit.api;
 
-import com.timekeeper.bibexpo.audit.api.AuditAction;
-import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

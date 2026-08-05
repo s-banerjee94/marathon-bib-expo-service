@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.exception.CsvImportException;
+import com.timekeeper.bibexpo.exception.ParticipantExportFailedException;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.ExportField;
@@ -78,7 +78,7 @@ public class ParticipantExportServiceImpl implements ParticipantExportService {
 
         } catch (IOException e) {
             log.error("Failed to generate CSV for event ID: {}", eventId, e);
-            throw new CsvImportException("Failed to generate CSV export", e);
+            throw new ParticipantExportFailedException(e);
         }
     }
 

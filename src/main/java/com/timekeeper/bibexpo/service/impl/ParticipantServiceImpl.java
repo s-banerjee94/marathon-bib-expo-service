@@ -3,8 +3,8 @@ package com.timekeeper.bibexpo.service.impl;
 import com.timekeeper.bibexpo.exception.BibNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.CategoryNotFoundException;
 import com.timekeeper.bibexpo.exception.ChipNumberAlreadyExistsException;
-import com.timekeeper.bibexpo.exception.CsvImportException;
 import com.timekeeper.bibexpo.exception.EventLimitExceededException;
+import com.timekeeper.bibexpo.exception.ParticipantDeletionFailedException;
 import com.timekeeper.bibexpo.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.exception.RaceCategoryMismatchException;
 import com.timekeeper.bibexpo.model.dto.request.CreateParticipantRequest;
@@ -569,7 +569,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 eventStatsService.onBulkDeleted(participantsToDelete);
             } catch (Exception e) {
                 log.error("Failed to delete participants in bulk for event {}", eventId, e);
-                throw new CsvImportException("Failed to delete participants: " + e.getMessage(), e);
+                throw new ParticipantDeletionFailedException(e);
             }
         }
 
