@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.enums;
+package com.timekeeper.bibexpo.audit.api;
 
 public enum AuditEntityType {
     EVENT,

@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.aspect.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
@@ -13,8 +15,6 @@ import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.OrganizationLimit;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.SubscriptionTier;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;

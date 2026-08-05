@@ -1,11 +1,12 @@
-package com.timekeeper.bibexpo.aspect;
+package com.timekeeper.bibexpo.audit.aspect;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.model.dto.audit.AuditEvent;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
+import com.timekeeper.bibexpo.audit.api.AuditEvent;
+import com.timekeeper.bibexpo.audit.api.AuditPublisher;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.service.audit.AuditPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -52,9 +53,12 @@ public class AuditAspect {
 
         try {
             // A service method may set these (chiefly void deletes); they take precedence.
+            String hintedEntityId = AuditContextHolder.getEntityId();
             String hintedLabel = AuditContextHolder.getEntityLabel();
             Long hintedOrgId = AuditContextHolder.getOrganizationId();
 
+            String entityId = hintedEntityId != null ? hintedEntityId
+                    : extractEntityId(result, pjp.getArgs());
             String label = hintedLabel != null ? hintedLabel : extractEntityLabel(result);
             Long orgId = hintedOrgId != null ? hintedOrgId
                     : resolveOrgId(auditable.entityType(), actor, result, pjp.getArgs());
@@ -65,7 +69,7 @@ public class AuditAspect {
                     .actorName(username(actor))
                     .action(auditable.action())
                     .entityType(auditable.entityType())
-                    .entityId(extractEntityId(result, pjp.getArgs()))
+                    .entityId(entityId)
                     .entityLabel(label)
                     .description(buildDescription(auditable.action(), auditable.entityType(), label))
                     .occurredAt(Instant.now())
@@ -144,8 +148,10 @@ public class AuditAspect {
 
     private String extractEntityLabel(Object result) {
         if (result == null) return null;
-        for (String getter : new String[]{"getEventName", "getRaceName", "getCategoryName",
-                "getName", "getFullName", "getUsername", "getOrganizerName", "getTitle"}) {
+        // getName comes first: campaign and template responses carry their parent's eventName
+        // alongside their own name, so probing eventName first labelled them with the event.
+        for (String getter : new String[]{"getName", "getEventName", "getRaceName", "getCategoryName",
+                "getFullName", "getUsername", "getOrganizerName", "getTitle"}) {
             Object value = invokeObject(result, getter);
             if (value instanceof String s && !s.isBlank()) return s;
         }

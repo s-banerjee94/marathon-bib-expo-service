@@ -1,9 +1,9 @@
-package com.timekeeper.bibexpo.service.audit.impl;
+package com.timekeeper.bibexpo.audit.service.impl;
 
-import com.timekeeper.bibexpo.model.dto.audit.AuditEvent;
-import com.timekeeper.bibexpo.model.dynamodb.AuditLogDDB;
-import com.timekeeper.bibexpo.repository.dynamodb.AuditLogDDBRepository;
-import com.timekeeper.bibexpo.service.audit.AuditPublisher;
+import com.timekeeper.bibexpo.audit.api.AuditEvent;
+import com.timekeeper.bibexpo.audit.api.AuditPublisher;
+import com.timekeeper.bibexpo.audit.model.dynamodb.AuditLogDDB;
+import com.timekeeper.bibexpo.audit.repository.AuditLogDDBRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @Component
 @Slf4j
@@ -42,15 +43,22 @@ public class DynamoDbAuditPublisher implements AuditPublisher {
         AuditLogDDB orgRow = toRow(event, orgPartition, entryId, now);
         AuditLogDDB allRow = toRow(event, AuditLogDDB.ALL_PARTITION, entryId, now);
 
-        executor.execute(() -> {
-            try {
-                repository.save(orgRow);
-                repository.save(allRow);
-            } catch (Exception e) {
-                log.error("Failed to persist audit entry: action={} entityType={} entityId={}",
-                        event.getAction(), event.getEntityType(), event.getEntityId(), e);
-            }
-        });
+        // Callers that publish without the aspect have no try/catch of their own, so a saturated
+        // queue must not surface as a failed login or password reset.
+        try {
+            executor.execute(() -> {
+                try {
+                    repository.save(orgRow);
+                    repository.save(allRow);
+                } catch (Exception e) {
+                    log.error("Failed to persist audit entry: action={} entityType={} entityId={}",
+                            event.getAction(), event.getEntityType(), event.getEntityId(), e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            log.error("Audit queue is full, dropping entry: action={} entityType={} entityId={}",
+                    event.getAction(), event.getEntityType(), event.getEntityId(), e);
+        }
     }
 
     private AuditLogDDB toRow(AuditEvent event, Long partition, String entryId, Instant now) {

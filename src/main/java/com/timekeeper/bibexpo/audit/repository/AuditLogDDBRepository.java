@@ -1,7 +1,7 @@
-package com.timekeeper.bibexpo.repository.dynamodb;
+package com.timekeeper.bibexpo.audit.repository;
 
-import com.timekeeper.bibexpo.model.dto.audit.AuditLogQuery;
-import com.timekeeper.bibexpo.model.dynamodb.AuditLogDDB;
+import com.timekeeper.bibexpo.audit.model.dto.AuditLogQuery;
+import com.timekeeper.bibexpo.audit.model.dynamodb.AuditLogDDB;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,14 +1,15 @@
 package com.timekeeper.bibexpo.passwordreset.service.impl;
 
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
+import com.timekeeper.bibexpo.audit.api.AuditEvent;
+import com.timekeeper.bibexpo.audit.api.AuditPublisher;
 import com.timekeeper.bibexpo.exception.UserNotFoundException;
 import com.timekeeper.bibexpo.messaging.delivery.DeliveryResult;
 import com.timekeeper.bibexpo.messaging.delivery.SystemMessageDispatcher;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
-import com.timekeeper.bibexpo.model.dto.audit.AuditEvent;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.passwordreset.config.PasswordResetProperties;
 import com.timekeeper.bibexpo.passwordreset.exception.PasswordResetInvalidException;
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.CompletePasswordResetRequest;
@@ -21,7 +22,6 @@ import com.timekeeper.bibexpo.passwordreset.model.PasswordResetToken;
 import com.timekeeper.bibexpo.passwordreset.service.PasswordResetService;
 import com.timekeeper.bibexpo.passwordreset.store.PasswordResetStore;
 import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.service.audit.AuditPublisher;
 import com.timekeeper.bibexpo.service.cache.AuthUserCache;
 import com.timekeeper.bibexpo.service.UserService;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;

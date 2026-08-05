@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.aspect.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.exception.CategoryAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.CategoryInUseException;
 import com.timekeeper.bibexpo.exception.CategoryNotFoundException;
@@ -17,8 +19,6 @@ import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.Gender;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.EventOperation;
 import com.timekeeper.bibexpo.repository.CategoryRepository;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
@@ -212,6 +212,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         Long orgId = race.getEvent() != null && race.getEvent().getOrganization() != null
                 ? race.getEvent().getOrganization().getId() : null;
+        AuditContextHolder.setEntityId(String.valueOf(categoryId));
         AuditContextHolder.setEntityLabel(category.getCategoryName());
         AuditContextHolder.setOrganizationId(orgId);
 

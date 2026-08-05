@@ -1,6 +1,9 @@
 package com.timekeeper.bibexpo.billing.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.billing.config.BillingRates;
 import com.timekeeper.bibexpo.billing.exception.BillNotAllowedException;
 import com.timekeeper.bibexpo.billing.exception.BillNotFoundException;
@@ -18,8 +21,6 @@ import com.timekeeper.bibexpo.billing.service.util.BillTotalsCalculator;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.storage.service.StorageService;
@@ -222,6 +223,8 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
         invoice.setTotalAmount(totals.totalAmount());
         invoice.setUpdatedAt(Instant.now());
         Invoice saved = invoiceRepository.save(invoice);
+        // BillResponse identifies the invoice as billId, not id, so the aspect cannot infer it.
+        AuditContextHolder.setEntityId(saved.getBillId());
         return BillResponse.fromEntity(saved, lines, storageService.createDownloadUrl(saved.getPdfKey()));
     }
 }

@@ -1,10 +1,10 @@
-package com.timekeeper.bibexpo.controller;
+package com.timekeeper.bibexpo.audit.controller;
 
-import com.timekeeper.bibexpo.model.dto.response.AuditLogListResponse;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
+import com.timekeeper.bibexpo.audit.model.dto.response.AuditLogListResponse;
+import com.timekeeper.bibexpo.audit.service.AuditService;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.service.AuditService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

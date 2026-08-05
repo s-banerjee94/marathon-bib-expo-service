@@ -1,7 +1,7 @@
-package com.timekeeper.bibexpo.model.dto.audit;
+package com.timekeeper.bibexpo.audit.model.dto;
 
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

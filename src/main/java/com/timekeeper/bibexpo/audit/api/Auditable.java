@@ -1,7 +1,7 @@
-package com.timekeeper.bibexpo.annotation;
+package com.timekeeper.bibexpo.audit.api;
 
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -10,8 +10,7 @@ import java.lang.annotation.Target;
 
 /**
  * Marks a service method as auditable. {@code AuditAspect} captures actor + entity data,
- * builds an {@link com.timekeeper.bibexpo.model.dto.audit.AuditEvent}, and hands it to the
- * active {@link com.timekeeper.bibexpo.service.audit.AuditPublisher}.
+ * builds an {@link AuditEvent}, and hands it to the active {@link AuditPublisher}.
  *
  * <p>Audits fire on successful return only — methods that throw are not audited.
  */

@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.aspect.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.RaceAlreadyExistsException;
@@ -14,8 +16,6 @@ import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.EventOperation;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
@@ -205,6 +205,7 @@ public class RaceServiceImpl implements RaceService {
                     "Race cannot be deleted because it has categories. Please delete all categories first.");
         }
 
+        AuditContextHolder.setEntityId(String.valueOf(raceId));
         AuditContextHolder.setEntityLabel(race.getRaceName());
         AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 

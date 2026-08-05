@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.messaging.direct.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.aspect.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
@@ -18,7 +20,6 @@ import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepo
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppTemplateRepository;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
-import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
 import com.timekeeper.bibexpo.messaging.direct.exception.InvalidParticipantMessageException;
 import com.timekeeper.bibexpo.messaging.direct.model.dto.request.SendParticipantMessagesRequest;
@@ -30,6 +31,7 @@ import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderExce
 import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
 import com.timekeeper.bibexpo.messaging.provider.service.CampaignProviderResolver;
+import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
@@ -37,13 +39,11 @@ import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.model.enums.EventOperation;
-import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
+import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
 import lombok.RequiredArgsConstructor;

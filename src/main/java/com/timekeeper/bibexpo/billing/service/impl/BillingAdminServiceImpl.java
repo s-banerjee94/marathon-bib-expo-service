@@ -1,6 +1,9 @@
 package com.timekeeper.bibexpo.billing.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.billing.config.BillingRates;
 import com.timekeeper.bibexpo.billing.exception.BillNotAllowedException;
 import com.timekeeper.bibexpo.billing.exception.BillNotFoundException;
@@ -14,8 +17,6 @@ import com.timekeeper.bibexpo.billing.service.BillingAdminService;
 import com.timekeeper.bibexpo.billing.service.BillStatsTriggerService;
 import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.security.UserRole;
@@ -83,6 +84,8 @@ public class BillingAdminServiceImpl implements BillingAdminService {
     public BillResponse updatePaymentStatus(String billId, PaymentStatus paymentStatus) {
         Invoice invoice = invoiceRepository.findByBillId(billId)
                 .orElseThrow(() -> new BillNotFoundException("The bill you requested does not exist."));
+        // BillResponse identifies the invoice as billId, not id, so the aspect cannot infer it.
+        AuditContextHolder.setEntityId(billId);
         if (!isFinal(invoice)) {
             throw new BillNotAllowedException("A draft bill cannot be marked paid or unpaid.");
         }

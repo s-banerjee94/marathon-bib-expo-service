@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 
-import com.timekeeper.bibexpo.aspect.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.TemplateEntity;
 import com.timekeeper.bibexpo.messaging.campaign.repository.TemplateBaseRepository;
@@ -79,6 +79,7 @@ public abstract class AbstractTemplateService<T extends TemplateEntity, R> {
 
         assertTemplateDeletable(template);
 
+        AuditContextHolder.setEntityId(String.valueOf(templateId));
         AuditContextHolder.setEntityLabel(template.getName());
         AuditContextHolder.setOrganizationId(
                 event.getOrganization() != null ? event.getOrganization().getId() : null);

@@ -1,6 +1,8 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsCampaignException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignAlreadyActiveException;
@@ -22,8 +24,6 @@ import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;

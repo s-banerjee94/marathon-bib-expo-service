@@ -1,15 +1,14 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.audit.service.impl;
 
-import com.timekeeper.bibexpo.model.dto.audit.AuditLogQuery;
-import com.timekeeper.bibexpo.model.dto.response.AuditLogListResponse;
-import com.timekeeper.bibexpo.model.dto.response.AuditLogResponse;
-import com.timekeeper.bibexpo.model.dynamodb.AuditLogDDB;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
+import com.timekeeper.bibexpo.audit.model.dto.AuditLogQuery;
+import com.timekeeper.bibexpo.audit.model.dto.response.AuditLogListResponse;
+import com.timekeeper.bibexpo.audit.model.dto.response.AuditLogResponse;
+import com.timekeeper.bibexpo.audit.model.dynamodb.AuditLogDDB;
+import com.timekeeper.bibexpo.audit.repository.AuditLogDDBRepository;
+import com.timekeeper.bibexpo.audit.service.AuditService;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.repository.dynamodb.AuditLogDDBRepository;
-import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.service.AuditService;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDBPaginationCodec;
@@ -32,7 +31,6 @@ import java.util.Map;
 public class AuditServiceImpl implements AuditService {
 
     private final AuditLogDDBRepository auditLogRepository;
-    private final UserRepository userRepository;
     private final DynamoDBPaginationCodec paginationCodec;
 
     @Override
@@ -46,7 +44,7 @@ public class AuditServiceImpl implements AuditService {
                                              String cursor,
                                              User currentUser) {
 
-        validateFilters(from, to, action, entityType, username);
+        validateFilters(from, to, action, entityType, username, limit);
 
         boolean globalRole = currentUser.getRole() == UserRole.ROOT || currentUser.getRole() == UserRole.ADMIN;
         Long partitionKey = resolveScope(globalRole, organizationId, currentUser);
@@ -71,7 +69,10 @@ public class AuditServiceImpl implements AuditService {
      * otherwise need in-app filtering.
      */
     private void validateFilters(Instant from, Instant to, AuditAction action,
-                                 AuditEntityType entityType, String username) {
+                                 AuditEntityType entityType, String username, int limit) {
+        if (limit < 1) {
+            throw new InvalidUserDataException("Please ask for at least one entry per page.");
+        }
         if (from != null && to != null && from.isAfter(to)) {
             throw new InvalidUserDataException("The start date must be on or before the end date.");
         }
@@ -86,12 +87,10 @@ public class AuditServiceImpl implements AuditService {
 
     private Long resolveScope(boolean globalRole, Long organizationId, User currentUser) {
         if (!globalRole) {
-            User user = userRepository.findByUsernameWithOrganization(currentUser.getUsername())
-                    .orElseThrow(() -> new AccessForbiddenException("Your account could not be found."));
-            if (user.getOrganization() == null) {
+            if (currentUser.getOrganization() == null) {
                 throw new AccessForbiddenException("Your account is not assigned to an organization.");
             }
-            return user.getOrganization().getId();
+            return currentUser.getOrganization().getId();
         }
         return organizationId != null ? organizationId : AuditLogDDB.ALL_PARTITION;
     }

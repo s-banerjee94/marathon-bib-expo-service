@@ -1,8 +1,8 @@
-package com.timekeeper.bibexpo.model.dto.response;
+package com.timekeeper.bibexpo.audit.model.dto.response;
 
-import com.timekeeper.bibexpo.model.dynamodb.AuditLogDDB;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
+import com.timekeeper.bibexpo.audit.model.dynamodb.AuditLogDDB;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

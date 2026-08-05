@@ -1,9 +1,9 @@
-package com.timekeeper.bibexpo.controller;
+package com.timekeeper.bibexpo.audit.controller;
 
-import com.timekeeper.bibexpo.model.dto.response.AuditLogListResponse;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
+import com.timekeeper.bibexpo.audit.model.dto.response.AuditLogListResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -29,7 +29,7 @@ import java.time.Instant;
  */
 @Tag(
         name = "Audit Logs",
-        description = "<p>Recent activity feed — audit trail of CREATE / UPDATE / DELETE / STATUS_CHANGE / LOGIN / GENERATE / IMPORT actions across the system. " +
+        description = "<p>Recent activity feed — audit trail of CREATE / UPDATE / DELETE / STATUS_CHANGE / LOGIN / GENERATE / IMPORT / PASSWORD_RESET / SEND actions across the system. " +
                 "Backed by DynamoDB with a <strong>15-day TTL</strong> (older entries auto-delete). " +
                 "Every read is a single direct DynamoDB <code>Query</code> — no scans, no in-app filtering.</p>"
 )
@@ -75,6 +75,7 @@ public interface AuditLogControllerApi {
                         <tr><td><code>LOGIN</code></td><td>A user successfully authenticated</td><td><code>POST /api/auth/login</code> after credentials accepted</td></tr>
                         <tr><td><code>GENERATE</code></td><td>A short-lived artifact was generated</td><td>Participant-access verification short-URLs (QR / SMS) issued in bulk</td></tr>
                         <tr><td><code>IMPORT</code></td><td>A bulk CSV participant import was launched</td><td><code>POST /api/events/{eventId}/participants/batch-import</code> after the mapping is accepted and the job starts</td></tr>
+                        <tr><td><code>PASSWORD_RESET</code></td><td>A user's password was reset</td><td>An admin issued a reset link, or a user completed the public forgot-password flow</td></tr>
                         <tr><td><code>SEND</code></td><td>A message was sent to named participants</td><td><code>POST /api/events/{eventId}/participant-messages</code> — a targeted SMS / WhatsApp send, not a campaign</td></tr>
                       </tbody>
                     </table>
@@ -84,15 +85,18 @@ public interface AuditLogControllerApi {
                       <thead><tr><th>Value</th><th>What it refers to</th><th>Actions that can target it</th></tr></thead>
                       <tbody>
                         <tr><td><code>ORGANIZATION</code></td><td>A marathon organizer tenant</td><td>CREATE, UPDATE, STATUS_CHANGE</td></tr>
-                        <tr><td><code>USER</code></td><td>A platform user account (ROOT / ADMIN / ORGANIZER_ADMIN / ORGANIZER_USER)</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE, LOGIN</td></tr>
+                        <tr><td><code>USER</code></td><td>A platform user account (ROOT / ADMIN / ORGANIZER_ADMIN / ORGANIZER_USER)</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE, LOGIN, PASSWORD_RESET</td></tr>
                         <tr><td><code>EVENT</code></td><td>A marathon event under an organization</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE</td></tr>
                         <tr><td><code>RACE</code></td><td>A race inside an event</td><td>CREATE, UPDATE, DELETE</td></tr>
                         <tr><td><code>CATEGORY</code></td><td>An age / gender category inside a race</td><td>CREATE, UPDATE, DELETE</td></tr>
                         <tr><td><code>SMS_TEMPLATE</code></td><td>A reusable SMS message template</td><td>CREATE, UPDATE, DELETE</td></tr>
                         <tr><td><code>SMS_CAMPAIGN</code></td><td>A scheduled or trigger-based SMS send</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE</td></tr>
+                        <tr><td><code>WHATSAPP_TEMPLATE</code></td><td>A reusable WhatsApp message template</td><td>CREATE, UPDATE, DELETE</td></tr>
+                        <tr><td><code>WHATSAPP_CAMPAIGN</code></td><td>A scheduled or trigger-based WhatsApp send</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE</td></tr>
                         <tr><td><code>VERIFICATION_LINK</code></td><td>Short URLs (QR / SMS) generated for participant self-verification</td><td>GENERATE</td></tr>
                         <tr><td><code>PARTICIPANT</code></td><td>Participant records of an event (currently via bulk CSV import)</td><td>IMPORT</td></tr>
                         <tr><td><code>PARTICIPANT_MESSAGE</code></td><td>A targeted SMS / WhatsApp send to named participants; <code>entityLabel</code> carries the channel and bib numbers</td><td>SEND</td></tr>
+                        <tr><td><code>INVOICE</code></td><td>A usage-based bill raised against an event</td><td>GENERATE, UPDATE, STATUS_CHANGE</td></tr>
                       </tbody>
                     </table>
                     <p><em>Note:</em> Individual participant create / update / delete actions and distribution events (bib collected, goodies given) are <strong>not</strong> recorded in this audit log — distribution has its own dedicated log. Bulk CSV imports <strong>are</strong> recorded as <code>entityType=PARTICIPANT</code>, <code>action=IMPORT</code>, with the <code>entityId</code> set to the event id and the <code>entityLabel</code> set to the event name.</p>
@@ -107,7 +111,7 @@ public interface AuditLogControllerApi {
 
                     <h3>Pagination</h3>
                     <ul>
-                      <li><code>limit</code> — page size, default <strong>50</strong></li>
+                      <li><code>limit</code> — page size, default <strong>50</strong>, must be at least <strong>1</strong></li>
                       <li><code>lastEvaluatedKey</code> — opaque cursor returned by the previous response. Omit on the first page.</li>
                       <li>Response carries <code>hasMore</code> (boolean) and the <code>lastEvaluatedKey</code> to use next.</li>
                     </ul>
@@ -138,6 +142,7 @@ public interface AuditLogControllerApi {
                       <li><code>?action=DELETE&amp;username=rahul.sharma</code> — two filter dimensions</li>
                       <li><code>?entityType=USER&amp;username=rahul.sharma</code> — two filter dimensions</li>
                       <li><code>?from=2026-06-01T00:00:00Z&amp;to=2026-05-01T00:00:00Z</code> — start after end</li>
+                      <li><code>?limit=0</code> — page size below 1</li>
                     </ul>
 
                     <h3>Worked examples (full URLs)</h3>
@@ -164,7 +169,7 @@ public interface AuditLogControllerApi {
 
                     <h3>Errors</h3>
                     <ul>
-                      <li><strong>400 Bad Request</strong> — more than one of <code>action</code> / <code>entityType</code> / <code>username</code>, or <code>from</code> after <code>to</code></li>
+                      <li><strong>400 Bad Request</strong> — more than one of <code>action</code> / <code>entityType</code> / <code>username</code>, <code>from</code> after <code>to</code>, or a <code>limit</code> below 1</li>
                       <li><strong>401 Unauthorized</strong> — missing or invalid bearer token</li>
                       <li><strong>403 Forbidden</strong> — caller's role cannot access this endpoint</li>
                     </ul>
@@ -182,7 +187,7 @@ public interface AuditLogControllerApi {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = AuditLogListResponse.class))),
             @ApiResponse(responseCode = "400",
-                    description = "Bad request — more than one filter dimension was passed, or <code>from</code> is after <code>to</code>",
+                    description = "Bad request — more than one filter dimension was passed, <code>from</code> is after <code>to</code>, or <code>limit</code> is below 1",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token",
@@ -233,7 +238,7 @@ public interface AuditLogControllerApi {
             )
             @RequestParam(required = false) String username,
 
-            @Parameter(description = "Page size (default 50). Applies to the returned page only — DynamoDB does not over-read.", example = "50")
+            @Parameter(description = "Page size (default 50, minimum 1). Applies to the returned page only — DynamoDB does not over-read.", example = "50")
             @RequestParam(defaultValue = "50") int limit,
 
             @Parameter(description = "Opaque pagination cursor from the previous response's <code>lastEvaluatedKey</code>. Omit on the first page.")

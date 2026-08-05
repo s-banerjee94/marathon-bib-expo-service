@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 
-import com.timekeeper.bibexpo.aspect.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CampaignWriteRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.CampaignEntity;
@@ -197,6 +197,7 @@ public abstract class AbstractCampaignService<
             throw invalidCampaign("Only draft campaigns can be deleted.");
         }
 
+        AuditContextHolder.setEntityId(String.valueOf(campaignId));
         AuditContextHolder.setEntityLabel(campaign.getName());
         AuditContextHolder.setOrganizationId(
                 event.getOrganization() != null ? event.getOrganization().getId() : null);

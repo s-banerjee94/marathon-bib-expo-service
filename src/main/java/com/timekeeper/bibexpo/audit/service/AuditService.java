@@ -1,15 +1,15 @@
-package com.timekeeper.bibexpo.service;
+package com.timekeeper.bibexpo.audit.service;
 
-import com.timekeeper.bibexpo.model.dto.response.AuditLogListResponse;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
+import com.timekeeper.bibexpo.audit.model.dto.response.AuditLogListResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
 
 import java.time.Instant;
 
 /**
  * Read-side of the audit log. Writes are produced by {@code AuditAspect} via the
- * active {@link com.timekeeper.bibexpo.service.audit.AuditPublisher}.
+ * active {@link com.timekeeper.bibexpo.audit.api.AuditPublisher}.
  */
 public interface AuditService {
 
