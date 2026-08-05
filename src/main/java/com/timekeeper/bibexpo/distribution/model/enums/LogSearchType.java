@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.enums;
+package com.timekeeper.bibexpo.distribution.model.enums;
 
 public enum LogSearchType {
     BIB,

@@ -1,5 +1,6 @@
-package com.timekeeper.bibexpo.model.dto.response;
+package com.timekeeper.bibexpo.distribution.model.dto.response;
 
+import com.timekeeper.bibexpo.distribution.model.dynamodb.DistributionLogDDB;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
@@ -39,4 +40,18 @@ public class DistributionLogResponse {
 
     @Schema(description = "Additional details about the action", example = "Bib collection undone. All goodies distribution reset.")
     private String details;
+
+    public static DistributionLogResponse from(DistributionLogDDB logEntry) {
+        return DistributionLogResponse.builder()
+                .eventId(logEntry.getEventId())
+                .timestamp(logEntry.getTimestamp())
+                .bibNumber(logEntry.getBibNumber())
+                .action(logEntry.getAction())
+                .itemNames(logEntry.getItemNames())
+                .performedBy(logEntry.getPerformedBy())
+                .collectorName(logEntry.getCollectorName())
+                .collectorPhone(logEntry.getCollectorPhone())
+                .details(logEntry.getDetails())
+                .build();
+    }
 }

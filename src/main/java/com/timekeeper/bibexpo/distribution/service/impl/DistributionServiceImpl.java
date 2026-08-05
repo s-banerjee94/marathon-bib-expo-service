@@ -1,39 +1,42 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.distribution.service.impl;
 
-import com.timekeeper.bibexpo.exception.BibAlreadyCollectedException;
-import com.timekeeper.bibexpo.exception.BibNotCollectedException;
+import com.timekeeper.bibexpo.distribution.exception.BibAlreadyCollectedException;
+import com.timekeeper.bibexpo.distribution.exception.BibNotCollectedException;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.GoodiesAlreadyDistributedException;
-import com.timekeeper.bibexpo.exception.GoodiesItemNotFoundException;
+import com.timekeeper.bibexpo.distribution.exception.GoodiesAlreadyDistributedException;
+import com.timekeeper.bibexpo.distribution.exception.GoodiesItemNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventSmsService;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventWhatsAppService;
-import com.timekeeper.bibexpo.model.dto.request.BulkCollectBibRequest;
-import com.timekeeper.bibexpo.model.dto.request.BulkDistributeGoodiesRequest;
-import com.timekeeper.bibexpo.model.dto.request.CollectBibRequest;
-import com.timekeeper.bibexpo.model.dto.request.DistributeGoodiesRequest;
-import com.timekeeper.bibexpo.model.dto.response.BibDistributionResponse;
-import com.timekeeper.bibexpo.model.dto.response.BulkDistributionResponse;
-import com.timekeeper.bibexpo.model.dto.response.DistributionLogListResponse;
-import com.timekeeper.bibexpo.model.dto.response.DistributionLogResponse;
-import com.timekeeper.bibexpo.model.dto.response.GoodiesDistributionResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.request.BulkCollectBibRequest;
+import com.timekeeper.bibexpo.distribution.model.dto.request.BulkDistributeGoodiesRequest;
+import com.timekeeper.bibexpo.distribution.model.dto.request.CollectBibRequest;
+import com.timekeeper.bibexpo.distribution.model.dto.request.DistributeGoodiesRequest;
+import com.timekeeper.bibexpo.distribution.model.dto.response.BibDistributionResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.BulkDistributionResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogListResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
 import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
-import com.timekeeper.bibexpo.model.dto.response.PendingBibListResponse;
-import com.timekeeper.bibexpo.model.dto.response.PendingGoodiesListResponse;
-import com.timekeeper.bibexpo.model.dto.response.UndoDistributionResponse;
-import com.timekeeper.bibexpo.model.dynamodb.DistributionLogDDB;
+import com.timekeeper.bibexpo.distribution.model.dto.response.PendingBibListResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.PendingGoodiesListResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;
+import com.timekeeper.bibexpo.distribution.model.dynamodb.DistributionLogDDB;
 import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.LogSearchType;
-import com.timekeeper.bibexpo.repository.dynamodb.DistributionLogDDBRepository;
+import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
+import com.timekeeper.bibexpo.distribution.repository.DistributionLogDDBRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.DistributionService;
+import com.timekeeper.bibexpo.distribution.service.DistributionService;
 import com.timekeeper.bibexpo.service.EventStatsService;
-import com.timekeeper.bibexpo.service.util.DistributionConstants;
+import com.timekeeper.bibexpo.distribution.service.util.DistributionConstants;
+import com.timekeeper.bibexpo.service.util.DistributorStamp;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
-import com.timekeeper.bibexpo.service.validator.DistributionValidator;
+import com.timekeeper.bibexpo.distribution.service.validator.DistributionValidator;
+import com.timekeeper.bibexpo.shared.error.ApiException;
+import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
@@ -48,6 +51,8 @@ import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -56,8 +61,10 @@ import java.util.*;
 @Slf4j
 public class DistributionServiceImpl implements DistributionService {
 
+    private static final int DEFAULT_PAGE_SIZE = 50;
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final EventRepository eventRepository;
-    private final com.timekeeper.bibexpo.service.EventService eventService;
     private final ParticipantDDBRepository participantRepository;
     private final DistributionLogDDBRepository logRepository;
     private final DynamoDBPaginationCodec paginationCodec;
@@ -72,12 +79,11 @@ public class DistributionServiceImpl implements DistributionService {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
         validator.validateDistributionAllowed(event);
-        eventService.validateEventEnabled(event, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
         if (participant.getBibCollectedAt() != null) {
-            throw new BibAlreadyCollectedException(String.valueOf(eventId), bibNumber);
+            throw new BibAlreadyCollectedException();
         }
 
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
@@ -88,7 +94,7 @@ public class DistributionServiceImpl implements DistributionService {
         String collectorPhone = (request != null && request.getCollectorPhone() != null)
                 ? request.getCollectorPhone()
                 : participant.getPhoneNumber();
-        String distributedBy = DistributionConstants.formatDistributorInfo(currentUser.getId(), currentUser.getUsername());
+        String distributedBy = DistributorStamp.of(currentUser.getId(), currentUser.getUsername());
 
         participant.setBibCollectedAt(now);
         participant.setBibCollectedByName(collectorName);
@@ -105,7 +111,7 @@ public class DistributionServiceImpl implements DistributionService {
             }
 
             for (String itemName : request.getGoodiesItems()) {
-                validateGoodiesItem(participant, goodiesDistribution, itemName, bibNumber);
+                validateGoodiesItem(participant, goodiesDistribution, itemName);
 
                 String distributionData = String.format("{\"collectedAt\":\"%s\",\"distributedBy\":\"%s\"}",
                         now, distributedBy);
@@ -113,7 +119,7 @@ public class DistributionServiceImpl implements DistributionService {
                 goodiesDistributed.add(itemName);
             }
 
-            logDistributionAction(String.valueOf(eventId), bibNumber, now,
+            logDistributionAction(String.valueOf(eventId), bibNumber,
                     DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
                     goodiesDistributed, distributedBy, collectorName, collectorPhone, null);
 
@@ -127,7 +133,7 @@ public class DistributionServiceImpl implements DistributionService {
         eventStatsService.onBibCollected(participant, goodiesDistributed, EventTimeUtil.zoneOf(event.getTimezone()));
         markDistributionStarted(event);
 
-        logDistributionAction(String.valueOf(eventId), bibNumber, now,
+        logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_BIB_COLLECTED,
                 null, distributedBy, collectorName, collectorPhone, null);
 
@@ -154,18 +160,17 @@ public class DistributionServiceImpl implements DistributionService {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForUndoOperation(currentUser, event);
         validator.validateDistributionAllowed(event);
-        eventService.validateEventEnabled(event, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
         if (participant.getBibCollectedAt() == null) {
-            throw new BibNotCollectedException(String.valueOf(eventId), bibNumber);
+            throw new BibNotCollectedException();
         }
 
         ParticipantDDB beforeSnapshot = snapshotForStats(participant);
 
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
-        String undoneBy = DistributionConstants.formatDistributorInfo(currentUser.getId(), currentUser.getUsername());
+        String undoneBy = DistributorStamp.of(currentUser.getId(), currentUser.getUsername());
 
         participant.setBibCollectedAt(null);
         participant.setBibCollectedByName(null);
@@ -178,7 +183,7 @@ public class DistributionServiceImpl implements DistributionService {
         participantRepository.save(participant);
         eventStatsService.onBibUndone(beforeSnapshot, EventTimeUtil.zoneOf(event.getTimezone()));
 
-        logDistributionAction(String.valueOf(eventId), bibNumber, now,
+        logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_BIB_UNDONE,
                 null, undoneBy, null, null, "Bib collection undone. All goodies distribution reset.");
 
@@ -201,12 +206,11 @@ public class DistributionServiceImpl implements DistributionService {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
         validator.validateDistributionAllowed(event);
-        eventService.validateEventEnabled(event, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
         if (participant.getBibCollectedAt() == null) {
-            throw new BibNotCollectedException(String.valueOf(eventId), bibNumber);
+            throw new BibNotCollectedException();
         }
 
         Map<String, String> goodiesDistribution = participant.getGoodiesDistribution();
@@ -215,11 +219,11 @@ public class DistributionServiceImpl implements DistributionService {
         }
 
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
-        String distributedBy = DistributionConstants.formatDistributorInfo(currentUser.getId(), currentUser.getUsername());
+        String distributedBy = DistributorStamp.of(currentUser.getId(), currentUser.getUsername());
 
         List<String> itemsDistributed = new ArrayList<>();
         for (String itemName : request.getGoodiesItems()) {
-            validateGoodiesItem(participant, goodiesDistribution, itemName, bibNumber);
+            validateGoodiesItem(participant, goodiesDistribution, itemName);
 
             String distributionData = String.format("{\"collectedAt\":\"%s\",\"distributedBy\":\"%s\"}",
                     now, distributedBy);
@@ -227,7 +231,7 @@ public class DistributionServiceImpl implements DistributionService {
             itemsDistributed.add(itemName);
         }
 
-        logDistributionAction(String.valueOf(eventId), bibNumber, now,
+        logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
                 itemsDistributed, distributedBy, participant.getBibCollectedByName(),
                 participant.getBibCollectedByPhone(), null);
@@ -260,37 +264,13 @@ public class DistributionServiceImpl implements DistributionService {
 
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
-
-        Map<String, AttributeValue> expressionValues = new HashMap<>();
-        expressionValues.put(":nullValue", AttributeValue.builder().nul(true).build());
 
         Expression filterExpression = Expression.builder()
                 .expression("attribute_not_exists(bibCollectedAt) OR bibCollectedAt = :nullValue")
-                .expressionValues(expressionValues)
+                .expressionValues(Map.of(":nullValue", AttributeValue.builder().nul(true).build()))
                 .build();
 
-        QueryConditional queryConditional = QueryConditional.keyEqualTo(
-                Key.builder().partitionValue(String.valueOf(eventId)).build()
-        );
-
-        QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
-                .queryConditional(queryConditional)
-                .filterExpression(filterExpression)
-                .limit(limit != null ? limit : 50);
-
-        if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
-            Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
-            if (exclusiveStartKey != null) {
-                requestBuilder.exclusiveStartKey(exclusiveStartKey);
-            }
-        }
-
-        Page<ParticipantDDB> page = participantRepository.getTable()
-                .query(requestBuilder.build())
-                .stream()
-                .findFirst()
-                .orElse(null);
+        Page<ParticipantDDB> page = queryParticipantsWithPagination(eventId, limit, lastEvaluatedKey, filterExpression);
 
         if (page == null) {
             return PendingBibListResponse.builder()
@@ -319,7 +299,7 @@ public class DistributionServiceImpl implements DistributionService {
                         .build())
                 .toList();
 
-        String newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
+        String newLastEvaluatedKey = encodeCursor(page.lastEvaluatedKey());
 
         log.info("Found {} participants with pending bib collection for event {}", participants.size(), eventId);
 
@@ -335,70 +315,34 @@ public class DistributionServiceImpl implements DistributionService {
     public DistributionLogListResponse getDistributionLogs(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForLogAccess(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
 
-        QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
-                .queryConditional(QueryConditional.keyEqualTo(
-                        Key.builder().partitionValue(String.valueOf(eventId)).build()))
-                .scanIndexForward(false)
-                .limit(limit != null ? Math.min(limit, 100) : 50);
+        DistributionLogListResponse response = queryLogs(null,
+                QueryConditional.keyEqualTo(Key.builder().partitionValue(String.valueOf(eventId)).build()),
+                limit, lastEvaluatedKey);
 
-        if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
-            Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
-            if (exclusiveStartKey != null && !exclusiveStartKey.isEmpty()) {
-                requestBuilder.exclusiveStartKey(exclusiveStartKey);
-            }
-        }
+        log.info("Retrieved {} distribution logs for event {}, hasMore: {}",
+                response.getCount(), eventId, response.getHasMore());
 
-        Page<DistributionLogDDB> page = logRepository.getTable()
-                .query(requestBuilder.build())
-                .stream()
-                .findFirst()
-                .orElse(null);
-
-        if (page == null) {
-            return DistributionLogListResponse.builder()
-                    .logs(Collections.emptyList())
-                    .count(0)
-                    .hasMore(false)
-                    .build();
-        }
-
-        List<DistributionLogResponse> logs = page.items().stream()
-                .map(this::convertToLogResponse)
-                .toList();
-
-        String newLastEvaluatedKey = null;
-        if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
-            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
-        }
-
-        log.info("Retrieved {} distribution logs for event {}, hasMore: {}", logs.size(), eventId, newLastEvaluatedKey != null);
-
-        return DistributionLogListResponse.builder()
-                .logs(logs)
-                .lastEvaluatedKey(newLastEvaluatedKey)
-                .count(logs.size())
-                .hasMore(newLastEvaluatedKey != null)
-                .build();
+        return response;
     }
 
     @Override
     public List<DistributionLogResponse> getParticipantLogs(Long eventId, String bibNumber, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForLogAccess(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
 
         Key key = Key.builder()
                 .partitionValue(String.valueOf(eventId))
                 .sortValue(bibNumber)
                 .build();
 
+        // Exact match, not beginsWith: this is one participant's history, and a prefix returned
+        // every bib that started with the one asked for.
         List<DistributionLogResponse> logs = new ArrayList<>();
         logRepository.getTable().index("LSI-BibNumberIndex").query(r -> r.queryConditional(
-                QueryConditional.sortBeginsWith(key)
+                QueryConditional.keyEqualTo(key)
         )).stream().flatMap(page -> page.items().stream()).forEach(logEntry ->
-                logs.add(convertToLogResponse(logEntry))
+                logs.add(DistributionLogResponse.from(logEntry))
         );
 
         log.info("Retrieved {} distribution logs for participant {} in event {}", logs.size(), bibNumber, eventId);
@@ -410,7 +354,6 @@ public class DistributionServiceImpl implements DistributionService {
     public ParticipantDistributionResponse getDistributionStatus(Long eventId, String bibNumber, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
@@ -426,9 +369,8 @@ public class DistributionServiceImpl implements DistributionService {
 
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
 
-        Page<ParticipantDDB> page = queryParticipantsWithPagination(eventId, limit, lastEvaluatedKey);
+        Page<ParticipantDDB> page = queryParticipantsWithPagination(eventId, limit, lastEvaluatedKey, null);
 
         if (page == null) {
             return buildEmptyPendingGoodiesResponse();
@@ -441,7 +383,7 @@ public class DistributionServiceImpl implements DistributionService {
                 .map(participant -> mapToParticipantPendingGoodies(participant, names))
                 .toList();
 
-        String newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
+        String newLastEvaluatedKey = encodeCursor(page.lastEvaluatedKey());
 
         log.info("Found {} participants with pending goodies for event {}", participants.size(), eventId);
 
@@ -458,7 +400,6 @@ public class DistributionServiceImpl implements DistributionService {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
         validator.validateDistributionAllowed(event);
-        eventService.validateEventEnabled(event, currentUser);
 
         List<String> successful = new ArrayList<>();
         List<BulkDistributionResponse.FailedOperation> failed = new ArrayList<>();
@@ -472,11 +413,11 @@ public class DistributionServiceImpl implements DistributionService {
 
                 collectBib(eventId, bibNumber, collectRequest, currentUser);
                 successful.add(bibNumber);
-            } catch (Exception e) {
-                log.warn("Failed to collect bib {} in bulk operation: {}", bibNumber, e.getMessage());
+            } catch (RuntimeException e) {
+                log.warn("Failed to collect bib {} in bulk operation: {}", bibNumber, e.getMessage(), e);
                 failed.add(BulkDistributionResponse.FailedOperation.builder()
                         .bibNumber(bibNumber)
-                        .reason(e.getMessage())
+                        .reason(failureReason(e))
                         .build());
             }
         }
@@ -496,7 +437,6 @@ public class DistributionServiceImpl implements DistributionService {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
         validator.validateDistributionAllowed(event);
-        eventService.validateEventEnabled(event, currentUser);
 
         List<String> successful = new ArrayList<>();
         List<BulkDistributionResponse.FailedOperation> failed = new ArrayList<>();
@@ -509,13 +449,13 @@ public class DistributionServiceImpl implements DistributionService {
 
                 distributeGoodies(eventId, item.getBibNumber(), distributeRequest, currentUser);
                 successful.add(item.getBibNumber() + ":" + String.join(",", item.getGoodiesItems()));
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 log.warn("Failed to distribute goodies items {} for bib {} in bulk operation: {}",
-                        item.getGoodiesItems(), item.getBibNumber(), e.getMessage());
+                        item.getGoodiesItems(), item.getBibNumber(), e.getMessage(), e);
                 failed.add(BulkDistributionResponse.FailedOperation.builder()
                         .bibNumber(item.getBibNumber())
                         .itemNames(item.getGoodiesItems())
-                        .reason(e.getMessage())
+                        .reason(failureReason(e))
                         .build());
             }
         }
@@ -538,9 +478,7 @@ public class DistributionServiceImpl implements DistributionService {
 
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForLogAccess(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
 
-        int effectiveLimit = limit != null ? Math.min(limit, 100) : 50;
         String indexName = getLogIndexName(searchType);
 
         // Collector names are stored upper-cased, so the search term must match that casing.
@@ -548,28 +486,35 @@ public class DistributionServiceImpl implements DistributionService {
                 ? searchValue.trim().toUpperCase()
                 : searchValue.trim();
 
-        QueryConditional queryConditional = QueryConditional.sortBeginsWith(
-                Key.builder()
+        DistributionLogListResponse response = queryLogs(indexName,
+                QueryConditional.sortBeginsWith(Key.builder()
                         .partitionValue(String.valueOf(eventId))
                         .sortValue(normalizedSearchValue)
-                        .build()
-        );
+                        .build()),
+                limit, lastEvaluatedKey);
 
+        log.info("Lookup logs completed for event {} using index {}. Found {} logs, hasMore: {}",
+                eventId, indexName, response.getCount(), response.getHasMore());
+
+        return response;
+    }
+
+    /**
+     * One newest-first page of log rows, off the table itself when {@code indexName} is null or
+     * off one of its local secondary indexes otherwise.
+     */
+    private DistributionLogListResponse queryLogs(String indexName, QueryConditional conditional,
+                                                  Integer limit, String lastEvaluatedKey) {
         QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
-                .queryConditional(queryConditional)
+                .queryConditional(conditional)
                 .scanIndexForward(false)
-                .limit(effectiveLimit);
+                .limit(normalizeLimit(limit));
 
-        if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
-            Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
-            if (exclusiveStartKey != null && !exclusiveStartKey.isEmpty()) {
-                requestBuilder.exclusiveStartKey(exclusiveStartKey);
-            }
-        }
+        applyCursor(requestBuilder, lastEvaluatedKey);
 
-        Page<DistributionLogDDB> page = logRepository.getTable().index(indexName)
-                .query(requestBuilder.build())
-                .stream()
+        Page<DistributionLogDDB> page = (indexName == null
+                ? logRepository.getTable().query(requestBuilder.build()).stream()
+                : logRepository.getTable().index(indexName).query(requestBuilder.build()).stream())
                 .findFirst()
                 .orElse(null);
 
@@ -582,16 +527,10 @@ public class DistributionServiceImpl implements DistributionService {
         }
 
         List<DistributionLogResponse> logs = page.items().stream()
-                .map(this::convertToLogResponse)
+                .map(DistributionLogResponse::from)
                 .toList();
 
-        String newLastEvaluatedKey = null;
-        if (page.lastEvaluatedKey() != null && !page.lastEvaluatedKey().isEmpty()) {
-            newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey());
-        }
-
-        log.info("Lookup logs completed for event {} using index {}. Found {} logs, hasMore: {}",
-                eventId, indexName, logs.size(), newLastEvaluatedKey != null);
+        String newLastEvaluatedKey = encodeCursor(page.lastEvaluatedKey());
 
         return DistributionLogListResponse.builder()
                 .logs(logs)
@@ -638,27 +577,62 @@ public class DistributionServiceImpl implements DistributionService {
         }
     }
 
-    private Page<ParticipantDDB> queryParticipantsWithPagination(Long eventId, Integer limit, String lastEvaluatedKey) {
-        QueryConditional queryConditional = QueryConditional.keyEqualTo(
-                Key.builder().partitionValue(String.valueOf(eventId)).build()
-        );
-
+    private Page<ParticipantDDB> queryParticipantsWithPagination(Long eventId, Integer limit, String lastEvaluatedKey,
+                                                                 Expression filterExpression) {
         QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
-                .queryConditional(queryConditional)
-                .limit(limit != null ? limit : 50);
+                .queryConditional(QueryConditional.keyEqualTo(
+                        Key.builder().partitionValue(String.valueOf(eventId)).build()))
+                .limit(normalizeLimit(limit));
 
-        if (lastEvaluatedKey != null && !lastEvaluatedKey.isEmpty()) {
-            Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
-            if (!exclusiveStartKey.isEmpty()) {
-                requestBuilder.exclusiveStartKey(exclusiveStartKey);
-            }
+        if (filterExpression != null) {
+            requestBuilder.filterExpression(filterExpression);
         }
+        applyCursor(requestBuilder, lastEvaluatedKey);
 
         return participantRepository.getTable()
                 .query(requestBuilder.build())
                 .stream()
                 .findFirst()
                 .orElse(null);
+    }
+
+    // Bulk operations report per-bib failures in the response body, so only messages that were
+    // written for a user may go in. Anything unexpected is logged with its stack and reported flatly.
+    private static String failureReason(RuntimeException e) {
+        boolean expected = e instanceof BibAlreadyCollectedException
+                || e instanceof BibNotCollectedException
+                || e instanceof GoodiesAlreadyDistributedException
+                || e instanceof GoodiesItemNotFoundException
+                || e instanceof ApiException;
+        return expected && e.getMessage() != null ? e.getMessage() : "This bib could not be processed.";
+    }
+
+    private static int normalizeLimit(Integer limit) {
+        if (limit == null) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        if (limit < 1) {
+            throw new InvalidUserDataException("Please ask for at least one entry per page.");
+        }
+        return Math.min(limit, MAX_PAGE_SIZE);
+    }
+
+    private void applyCursor(QueryEnhancedRequest.Builder requestBuilder, String lastEvaluatedKey) {
+        if (lastEvaluatedKey == null || lastEvaluatedKey.isEmpty()) {
+            return;
+        }
+        Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
+        if (exclusiveStartKey != null && !exclusiveStartKey.isEmpty()) {
+            requestBuilder.exclusiveStartKey(exclusiveStartKey);
+        }
+    }
+
+    // The shared codec returns "" for an exhausted page rather than null, and every response here
+    // derives hasMore from the cursor being null. Left as-is the pending lists always answered
+    // hasMore=true and a client paging until it flipped never stopped.
+    private String encodeCursor(Map<String, AttributeValue> lastEvaluatedKey) {
+        String encoded = paginationCodec.encode(lastEvaluatedKey);
+        return (encoded == null || encoded.isEmpty()) ? null : encoded;
     }
 
     private PendingGoodiesListResponse buildEmptyPendingGoodiesResponse() {
@@ -716,22 +690,30 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     private void validateGoodiesItem(ParticipantDDB participant, Map<String, String> goodiesDistribution,
-                                      String itemName, String bibNumber) {
+                                      String itemName) {
         if (participant.getGoodies() == null || !participant.getGoodies().containsKey(itemName)) {
             throw new GoodiesItemNotFoundException();
         }
 
         if (goodiesDistribution.containsKey(itemName)) {
-            throw new GoodiesAlreadyDistributedException(itemName, bibNumber);
+            throw new GoodiesAlreadyDistributedException(itemName);
         }
     }
 
-    private void logDistributionAction(String eventId, String bibNumber, String timestamp,
+    // The log table is keyed by (eventId, timestamp). A whole-second timestamp made that key
+    // collide -- a bib collected together with its goodies wrote both rows at the same instant
+    // and the second putItem overwrote the first -- so log rows carry their own microsecond
+    // stamp, distinct from the whole-second one recorded on the participant. Fixed width: a
+    // variable number of fraction digits would not sort lexicographically.
+    private static final DateTimeFormatter LOG_TIMESTAMP =
+            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSS'Z'").withZone(ZoneOffset.UTC);
+
+    private void logDistributionAction(String eventId, String bibNumber,
                                        String action, List<String> itemNames, String performedBy,
                                        String collectorName, String collectorPhone, String details) {
         DistributionLogDDB log = DistributionLogDDB.builder()
                 .eventId(eventId)
-                .timestamp(timestamp)
+                .timestamp(LOG_TIMESTAMP.format(Instant.now()))
                 .bibNumber(bibNumber)
                 .action(action)
                 .itemNames(itemNames)
@@ -744,17 +726,4 @@ public class DistributionServiceImpl implements DistributionService {
         logRepository.save(log);
     }
 
-    private DistributionLogResponse convertToLogResponse(DistributionLogDDB logEntry) {
-        return DistributionLogResponse.builder()
-                .eventId(logEntry.getEventId())
-                .timestamp(logEntry.getTimestamp())
-                .bibNumber(logEntry.getBibNumber())
-                .action(logEntry.getAction())
-                .itemNames(logEntry.getItemNames())
-                .performedBy(logEntry.getPerformedBy())
-                .collectorName(logEntry.getCollectorName())
-                .collectorPhone(logEntry.getCollectorPhone())
-                .details(logEntry.getDetails())
-                .build();
-    }
 }

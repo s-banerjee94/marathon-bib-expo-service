@@ -53,7 +53,7 @@ public interface BatchImportService {
 
     /**
      * Retrieve paginated errors from the most recent batch import for an event.
-     * Resolves the latest job from event_latest_import, then queries DynamoDB for errors.
+     * Resolves the latest job from import_jobs, then reads its rows from import_errors.
      * Returns an empty response if no batch import has been run for the event.
      * @param eventId          event the job was launched for
      * @param limit            max errors per page (default 50)

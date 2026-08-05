@@ -1,6 +1,6 @@
-package com.timekeeper.bibexpo.repository.dynamodb;
+package com.timekeeper.bibexpo.distribution.repository;
 
-import com.timekeeper.bibexpo.model.dynamodb.DistributionLogDDB;
+import com.timekeeper.bibexpo.distribution.model.dynamodb.DistributionLogDDB;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

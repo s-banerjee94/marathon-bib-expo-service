@@ -11,7 +11,7 @@ import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.EventStatsService;
-import com.timekeeper.bibexpo.service.util.DistributionConstants;
+import com.timekeeper.bibexpo.service.util.DistributorStamp;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import lombok.RequiredArgsConstructor;
@@ -240,18 +240,10 @@ public class EventStatsServiceImpl implements EventStatsService {
         ZonedDateTime local = Instant.parse(collectedAtIso).atZone(zone);
         String date = local.toLocalDate().toString();
         d.simple(PREFIX_HOUR + date + "#" + String.format("%02d", local.getHour()), sign);
-        String distId = distributorId(bibDistributedBy);
+        String distId = DistributorStamp.userIdOf(bibDistributedBy);
         if (distId != null) {
             d.simple(PREFIX_DIST + date + "#" + distId, sign);
         }
-    }
-
-    private static String distributorId(String bibDistributedBy) {
-        if (bibDistributedBy == null || bibDistributedBy.isBlank()) {
-            return null;
-        }
-        int idx = bibDistributedBy.indexOf(DistributionConstants.DISTRIBUTOR_SEPARATOR);
-        return idx > 0 ? bibDistributedBy.substring(0, idx) : bibDistributedBy;
     }
 
     private static boolean isCollected(ParticipantDDB p) {

@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.dynamodb;
+package com.timekeeper.bibexpo.distribution.model.dynamodb;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
