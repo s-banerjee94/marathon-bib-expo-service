@@ -6,14 +6,15 @@ import com.timekeeper.bibexpo.audit.api.AuditEvent;
 import com.timekeeper.bibexpo.audit.api.AuditPublisher;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.InvalidQrCodeException;
-import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
+import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participantaccess.model.dto.response.ParticipantVerificationResponse;
 import com.timekeeper.bibexpo.participantaccess.model.dynamodb.ShortUrlDDB;
 import com.timekeeper.bibexpo.participantaccess.repository.ShortUrlDDBRepository;
@@ -21,9 +22,7 @@ import com.timekeeper.bibexpo.participantaccess.service.ParticipantAccessService
 import com.timekeeper.bibexpo.participantaccess.util.QrImageGenerator;
 import com.timekeeper.bibexpo.participantaccess.util.QrTokenCodec;
 import com.timekeeper.bibexpo.participantaccess.util.ShortCodeGenerator;
-import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
@@ -42,9 +41,8 @@ import java.time.temporal.ChronoUnit;
 public class ParticipantAccessServiceImpl implements ParticipantAccessService {
 
     private final EventRepository eventRepository;
-    private final EventService eventService;
     private final EventAccessValidator eventAccessValidator;
-    private final ParticipantDDBRepository participantRepository;
+    private final ParticipantStore participantStore;
     private final ShortUrlDDBRepository shortUrlRepository;
     private final ShortCodeGenerator shortCodeGenerator;
     private final QrTokenCodec qrTokenCodec;
@@ -61,7 +59,6 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     public void generateShortUrls(Long eventId, User currentUser) {
         Event event = findEventOrThrow(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
 
         int total = 0;
         int generated = 0;
@@ -69,7 +66,7 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         Long expiresAt = resolveExpiry(event);
 
-        for (Page<ParticipantDDB> page : participantRepository.findPagesByEventId(eventId, 100)) {
+        for (Page<ParticipantDDB> page : participantStore.findPagesByEventId(eventId, 100)) {
             for (ParticipantDDB participant : page.items()) {
                 total++;
                 String existingCode = participant.getVerifyShortCode();
@@ -80,7 +77,7 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
                     continue;
                 }
                 String code = allocateShortCode(eventId, participant.getBibNumber(), now, expiresAt);
-                participantRepository.updateVerifyShortCode(eventId, participant.getBibNumber(), code);
+                participantStore.updateVerifyShortCode(eventId, participant.getBibNumber(), code);
                 generated++;
             }
         }
@@ -135,7 +132,7 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
         ShortUrlDDB shortUrl = shortUrlRepository.findByCodeOrThrow(shortCode);
         Long eventId = Long.parseLong(shortUrl.getEventId());
         Event event = findEventOrThrow(eventId);
-        ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, shortUrl.getBibNumber());
+        ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, shortUrl.getBibNumber());
         String token = qrTokenCodec.encode(shortUrl.getEventId(), participant.getBibNumber());
         return toVerificationResponse(event, participant, qrImageGenerator.toCompactDataUri(token));
     }
@@ -144,9 +141,8 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     public byte[] getParticipantQr(Long eventId, String bibNumber, User currentUser) {
         Event event = findEventOrThrow(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
 
-        participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
+        participantStore.findByEventAndBibOrThrow(eventId, bibNumber);
 
         String token = qrTokenCodec.encode(String.valueOf(eventId), bibNumber);
         return qrImageGenerator.toPng(token);
@@ -156,14 +152,13 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     public ParticipantDistributionResponse scanQr(Long eventId, String token, User currentUser) {
         Event event = findEventOrThrow(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
 
         String[] parts = qrTokenCodec.decode(token);
         if (!String.valueOf(eventId).equals(parts[0])) {
             throw new InvalidQrCodeException();
         }
 
-        ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, parts[1]);
+        ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, parts[1]);
         return toDistributionResponse(participant);
     }
 

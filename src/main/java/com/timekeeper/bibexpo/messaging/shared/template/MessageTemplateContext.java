@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.messaging.shared.template;
 
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import lombok.Getter;
 
 import java.time.Instant;

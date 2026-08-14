@@ -2,16 +2,15 @@ package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
+import com.timekeeper.bibexpo.participant.service.util.DistributorStamp;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository.CounterDelta;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
-import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.EventService;
 import com.timekeeper.bibexpo.service.EventStatsService;
-import com.timekeeper.bibexpo.service.util.DistributorStamp;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import lombok.RequiredArgsConstructor;
@@ -27,30 +26,29 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.GENDER_F;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.GENDER_M;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.GENDER_O;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.KEY_BIB_COLLECTED;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.KEY_TOTAL;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.PREFIX_CATEGORY;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.PREFIX_DIST;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.PREFIX_GOODIE;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.PREFIX_HOUR;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.PREFIX_RACE;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.SUFFIX_COLLECTED;
+import static com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB.SUFFIX_DISTRIBUTED;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class EventStatsServiceImpl implements EventStatsService {
 
-    public static final String KEY_TOTAL = "TOTAL";
-    public static final String KEY_BIB_COLLECTED = "BIB_COLLECTED";
-    public static final String PREFIX_RACE = "RACE#";
-    public static final String PREFIX_CATEGORY = "CATEGORY#";
-    public static final String PREFIX_GENDER = "GENDER#";
-    public static final String PREFIX_GOODIE = "GOODIE#";
-    public static final String PREFIX_HOUR = "HOUR#";
-    public static final String PREFIX_DIST = "DIST#";
-    public static final String SUFFIX_COLLECTED = "#COLLECTED";
-    public static final String SUFFIX_DISTRIBUTED = "#DISTRIBUTED";
-    public static final String GENDER_M = PREFIX_GENDER + "M";
-    public static final String GENDER_F = PREFIX_GENDER + "F";
-    public static final String GENDER_O = PREFIX_GENDER + "O";
     private static final int PARTICIPANT_PAGE_SIZE = 100;
 
     private final EventStatsDDBRepository statsRepo;
-    private final ParticipantDDBRepository participantRepo;
+    private final ParticipantStore participantStore;
     private final EventRepository eventRepository;
-    private final EventService eventService;
     private final EventAccessValidator validator;
 
     @Override
@@ -149,7 +147,6 @@ public class EventStatsServiceImpl implements EventStatsService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new EventNotFoundException());
         validator.validateUserAuthorizationForEvent(currentUser, event);
-        eventService.validateEventEnabled(event, currentUser);
 
         ZoneId zone = EventTimeUtil.zoneOf(event.getTimezone());
         ReconcileState state = aggregateParticipants(eventId, zone);
@@ -161,7 +158,7 @@ public class EventStatsServiceImpl implements EventStatsService {
 
     private ReconcileState aggregateParticipants(Long eventId, ZoneId zone) {
         ReconcileState s = new ReconcileState();
-        for (Page<ParticipantDDB> page : participantRepo.findPagesByEventId(eventId, PARTICIPANT_PAGE_SIZE)) {
+        for (Page<ParticipantDDB> page : participantStore.findPagesByEventId(eventId, PARTICIPANT_PAGE_SIZE)) {
             for (ParticipantDDB p : page.items()) {
                 aggregateOne(s, p, zone);
             }

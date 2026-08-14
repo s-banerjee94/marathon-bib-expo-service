@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.importer.batch;
 
 import com.timekeeper.bibexpo.importer.model.entity.ImportRowError;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.importer.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.importer.repository.ImportRowErrorRepository;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.ExitStatus;

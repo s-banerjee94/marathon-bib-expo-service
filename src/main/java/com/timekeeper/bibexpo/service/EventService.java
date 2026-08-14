@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.service;
 
 import com.timekeeper.bibexpo.exception.EventDeletionNotAllowedException;
-import com.timekeeper.bibexpo.exception.EventDisabledException;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
@@ -103,15 +102,6 @@ public interface EventService {
      */
     EventResponse changeEventStatus(Long id, EventStatus status, User currentUser);
 
-    /**
-     * Validate that an event is enabled and accessible
-     * ROOT and ADMIN can access disabled events
-     * Other roles cannot access disabled events
-     * @param event The event to validate
-     * @param currentUser The authenticated user
-     * @throws EventDisabledException if the event is disabled and user is not ROOT/ADMIN
-     */
-    void validateEventEnabled(com.timekeeper.bibexpo.model.entity.Event event, User currentUser);
 
     /**
      * Permanently delete an event

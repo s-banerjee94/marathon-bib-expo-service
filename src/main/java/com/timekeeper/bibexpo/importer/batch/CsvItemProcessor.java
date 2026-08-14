@@ -1,17 +1,17 @@
 package com.timekeeper.bibexpo.importer.batch;
 
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
+import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
 import com.timekeeper.bibexpo.model.entity.Category;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
+import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.configuration.annotation.StepScope;

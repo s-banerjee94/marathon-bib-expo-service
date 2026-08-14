@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.importer.batch;
 
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.SkipListener;
 import org.springframework.batch.core.Step;

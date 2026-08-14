@@ -484,11 +484,6 @@ public class EventServiceImpl implements EventService {
         return event.getOrganization() != null ? " (" + event.getOrganization().getOrganizerName() + ")" : "";
     }
 
-    @Override
-    public void validateEventEnabled(Event event, User currentUser) {
-        eventAccessValidator.validateEventAvailability(currentUser, event);
-    }
-
     private Event findAndValidateEvent(Long id, User currentUser) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(EventNotFoundException::new);

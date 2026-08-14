@@ -121,7 +121,7 @@ public class EventStatsDDBRepository {
     }
 
     public long getTotalParticipantCount(String eventId) {
-        Key key = Key.builder().partitionValue(eventId).sortValue("TOTAL").build();
+        Key key = Key.builder().partitionValue(eventId).sortValue(EventStatsDDB.KEY_TOTAL).build();
         EventStatsDDB row = getTable().getItem(key);
         return row != null && row.getCount() != null ? row.getCount() : 0L;
     }

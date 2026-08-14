@@ -2,11 +2,8 @@ package com.timekeeper.bibexpo.distribution.service.impl;
 
 import com.timekeeper.bibexpo.distribution.exception.BibAlreadyCollectedException;
 import com.timekeeper.bibexpo.distribution.exception.BibNotCollectedException;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.distribution.exception.GoodiesAlreadyDistributedException;
 import com.timekeeper.bibexpo.distribution.exception.GoodiesItemNotFoundException;
-import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventSmsService;
-import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventWhatsAppService;
 import com.timekeeper.bibexpo.distribution.model.dto.request.BulkCollectBibRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.request.BulkDistributeGoodiesRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.request.CollectBibRequest;
@@ -16,25 +13,28 @@ import com.timekeeper.bibexpo.distribution.model.dto.response.BulkDistributionRe
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
-import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.PendingBibListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.PendingGoodiesListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.dynamodb.DistributionLogDDB;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.distribution.repository.DistributionLogDDBRepository;
-import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
-import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.distribution.service.DistributionService;
-import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.distribution.service.util.DistributionConstants;
-import com.timekeeper.bibexpo.service.util.DistributorStamp;
+import com.timekeeper.bibexpo.distribution.service.validator.DistributionValidator;
+import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventSmsService;
+import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventWhatsAppService;
+import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
+import com.timekeeper.bibexpo.participant.service.util.DistributorStamp;
+import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
-import com.timekeeper.bibexpo.distribution.service.validator.DistributionValidator;
 import com.timekeeper.bibexpo.shared.error.ApiException;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDBPaginationCodec;
@@ -65,7 +65,7 @@ public class DistributionServiceImpl implements DistributionService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final EventRepository eventRepository;
-    private final ParticipantDDBRepository participantRepository;
+    private final ParticipantStore participantStore;
     private final DistributionLogDDBRepository logRepository;
     private final DynamoDBPaginationCodec paginationCodec;
     private final DistributionValidator validator;
@@ -80,7 +80,7 @@ public class DistributionServiceImpl implements DistributionService {
         validator.validateUserAuthorizationForEvent(currentUser, event);
         validator.validateDistributionAllowed(event);
 
-        ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
+        ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, bibNumber);
 
         if (participant.getBibCollectedAt() != null) {
             throw new BibAlreadyCollectedException();
@@ -129,7 +129,7 @@ public class DistributionServiceImpl implements DistributionService {
             participant.setGoodiesDistribution(goodiesDistribution);
         }
 
-        participantRepository.save(participant);
+        participantStore.save(participant);
         eventStatsService.onBibCollected(participant, goodiesDistributed, EventTimeUtil.zoneOf(event.getTimezone()));
         markDistributionStarted(event);
 
@@ -161,7 +161,7 @@ public class DistributionServiceImpl implements DistributionService {
         validator.validateUserAuthorizationForUndoOperation(currentUser, event);
         validator.validateDistributionAllowed(event);
 
-        ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
+        ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, bibNumber);
 
         if (participant.getBibCollectedAt() == null) {
             throw new BibNotCollectedException();
@@ -180,7 +180,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedAt(now);
         participant.setUpdatedBy(currentUser.getUsername());
 
-        participantRepository.save(participant);
+        participantStore.save(participant);
         eventStatsService.onBibUndone(beforeSnapshot, EventTimeUtil.zoneOf(event.getTimezone()));
 
         logDistributionAction(String.valueOf(eventId), bibNumber,
@@ -207,7 +207,7 @@ public class DistributionServiceImpl implements DistributionService {
         validator.validateUserAuthorizationForEvent(currentUser, event);
         validator.validateDistributionAllowed(event);
 
-        ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
+        ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, bibNumber);
 
         if (participant.getBibCollectedAt() == null) {
             throw new BibNotCollectedException();
@@ -243,7 +243,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedAt(now);
         participant.setUpdatedBy(currentUser.getUsername());
 
-        participantRepository.save(participant);
+        participantStore.save(participant);
         eventStatsService.onGoodiesDistributed(participant, itemsDistributed);
         markDistributionStarted(event);
 
@@ -355,7 +355,7 @@ public class DistributionServiceImpl implements DistributionService {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
 
-        ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
+        ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, bibNumber);
 
         EventNames names = nameResolver.forEvent(eventId);
         return ParticipantDistributionResponse.from(participant,
@@ -579,21 +579,8 @@ public class DistributionServiceImpl implements DistributionService {
 
     private Page<ParticipantDDB> queryParticipantsWithPagination(Long eventId, Integer limit, String lastEvaluatedKey,
                                                                  Expression filterExpression) {
-        QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
-                .queryConditional(QueryConditional.keyEqualTo(
-                        Key.builder().partitionValue(String.valueOf(eventId)).build()))
-                .limit(normalizeLimit(limit));
-
-        if (filterExpression != null) {
-            requestBuilder.filterExpression(filterExpression);
-        }
-        applyCursor(requestBuilder, lastEvaluatedKey);
-
-        return participantRepository.getTable()
-                .query(requestBuilder.build())
-                .stream()
-                .findFirst()
-                .orElse(null);
+        return participantStore.findPage(eventId, normalizeLimit(limit),
+                decodeCursor(lastEvaluatedKey), filterExpression);
     }
 
     // Bulk operations report per-bib failures in the response body, so only messages that were
@@ -618,13 +605,18 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     private void applyCursor(QueryEnhancedRequest.Builder requestBuilder, String lastEvaluatedKey) {
-        if (lastEvaluatedKey == null || lastEvaluatedKey.isEmpty()) {
-            return;
-        }
-        Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
-        if (exclusiveStartKey != null && !exclusiveStartKey.isEmpty()) {
+        Map<String, AttributeValue> exclusiveStartKey = decodeCursor(lastEvaluatedKey);
+        if (exclusiveStartKey != null) {
             requestBuilder.exclusiveStartKey(exclusiveStartKey);
         }
+    }
+
+    private Map<String, AttributeValue> decodeCursor(String lastEvaluatedKey) {
+        if (lastEvaluatedKey == null || lastEvaluatedKey.isEmpty()) {
+            return null;
+        }
+        Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
+        return (exclusiveStartKey == null || exclusiveStartKey.isEmpty()) ? null : exclusiveStartKey;
     }
 
     // The shared codec returns "" for an exhausted page rather than null, and every response here

@@ -1,22 +1,22 @@
 package com.timekeeper.bibexpo.importer.batch;
 
 import tools.jackson.databind.ObjectMapper;
-import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.importer.model.dto.response.ErrorSummary;
-import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.importer.model.entity.ImportJob;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
+import com.timekeeper.bibexpo.importer.repository.ImportJobRepository;
+import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
-import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.notification.service.NotificationService;
+import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.importer.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.service.EventStatsService;
-import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
 
     private final NotificationService notificationService;
     private final ImportJobRepository importJobRepository;
-    private final ParticipantDDBRepository participantDDBRepository;
+    private final ParticipantStore participantStore;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final EventStatsService eventStatsService;
@@ -56,7 +56,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
         }
 
         try {
-            int deleted = participantDDBRepository.deleteAllByEventId(eventIdParam);
+            int deleted = participantStore.deleteAllByEventId(eventIdParam);
             log.info("Deleted {} existing participants for event {} before import", deleted, eventIdParam);
         } catch (Exception e) {
             log.error("Failed to delete existing participants for event {} — aborting import", eventIdParam, e);

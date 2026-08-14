@@ -5,7 +5,6 @@ import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppTemplateNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.SmsCampaign;
@@ -36,11 +35,12 @@ import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.EventOperation;
-import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
+import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.exception.ParticipantNotFoundException;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
@@ -64,7 +64,7 @@ public class ParticipantMessageServiceImpl implements ParticipantMessageService 
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventOperationGuard eventOperationGuard;
-    private final ParticipantDDBRepository participantDDBRepository;
+    private final ParticipantStore participantStore;
     private final SmsTemplateRepository smsTemplateRepository;
     private final WhatsAppTemplateRepository whatsAppTemplateRepository;
     private final SmsCampaignRepository smsCampaignRepository;
@@ -134,7 +134,7 @@ public class ParticipantMessageServiceImpl implements ParticipantMessageService 
     private ParticipantMessageResult sendOne(String bibNumber, Event event, EventNames names,
                                              MessagePlan plan, MessagingProvider provider, MessageChannel channel) {
         try {
-            ParticipantDDB participant = participantDDBRepository.findByEventAndBibOrThrow(event.getId(), bibNumber);
+            ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(event.getId(), bibNumber);
 
             String phone = participant.getPhoneNumber();
             if (phone == null || phone.isBlank()) {

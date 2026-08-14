@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.participantaccess.controller;
 
-import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.participantaccess.model.dto.request.ScanQrRequest;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;

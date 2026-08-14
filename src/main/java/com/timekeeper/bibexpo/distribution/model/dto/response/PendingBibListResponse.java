@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.distribution.model.dto.response;
 
-import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
+import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -13,7 +13,6 @@ import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.EventActivityRange;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.service.impl.EventStatsServiceImpl;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -122,12 +121,12 @@ public class EventActivityService {
         for (EventStatsDDB row : statsRepo.queryAll(eventId)) {
             String key = row.getStatKey();
             long count = row.getCount() != null ? row.getCount() : 0L;
-            if (EventStatsServiceImpl.KEY_TOTAL.equals(key)) {
+            if (EventStatsDDB.KEY_TOTAL.equals(key)) {
                 parsed.total = count;
-            } else if (key.startsWith(EventStatsServiceImpl.PREFIX_HOUR)) {
-                parsed.hourCounts.merge(key.substring(EventStatsServiceImpl.PREFIX_HOUR.length()), count, Long::sum);
-            } else if (key.startsWith(EventStatsServiceImpl.PREFIX_DIST)) {
-                String rest = key.substring(EventStatsServiceImpl.PREFIX_DIST.length());
+            } else if (key.startsWith(EventStatsDDB.PREFIX_HOUR)) {
+                parsed.hourCounts.merge(key.substring(EventStatsDDB.PREFIX_HOUR.length()), count, Long::sum);
+            } else if (key.startsWith(EventStatsDDB.PREFIX_DIST)) {
+                String rest = key.substring(EventStatsDDB.PREFIX_DIST.length());
                 int sep = rest.indexOf('#');
                 if (sep > 0) {
                     LocalDate date = LocalDate.parse(rest.substring(0, sep));

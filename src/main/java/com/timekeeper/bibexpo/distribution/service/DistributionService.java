@@ -10,7 +10,7 @@ import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.distribution.model.dto.response.BulkDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
-import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
+import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.PendingBibListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.PendingGoodiesListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;

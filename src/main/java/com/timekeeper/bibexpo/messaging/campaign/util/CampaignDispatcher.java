@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.messaging.campaign.util;
 
 import com.timekeeper.bibexpo.messaging.campaign.exception.MessageSendException;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
+import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -32,7 +32,7 @@ public class CampaignDispatcher {
 
     private static final int PAGE_SIZE = 50;
 
-    private final ParticipantDDBRepository participantDDBRepository;
+    private final ParticipantStore participantStore;
 
     /** Sends one message to one participant; returns the provider message ID (nullable). */
     @FunctionalInterface
@@ -83,7 +83,7 @@ public class CampaignDispatcher {
     public DispatchOutcome dispatch(DispatchRequest request) {
         DispatchState state = new DispatchState(request.getInitialSentCount());
 
-        for (Page<ParticipantDDB> page : participantDDBRepository.findPagesByEventId(request.getEventId(), PAGE_SIZE)) {
+        for (Page<ParticipantDDB> page : participantStore.findPagesByEventId(request.getEventId(), PAGE_SIZE)) {
             for (ParticipantDDB participant : page.items()) {
                 if (!isSendable(request, participant)) {
                     continue;
@@ -129,7 +129,7 @@ public class CampaignDispatcher {
             request.getSender().send(participant);
 
             request.getSendsMapAccessor().apply(participant).put(campaignKey, Instant.now().toString());
-            participantDDBRepository.save(participant);
+            participantStore.save(participant);
             state.sentCount++;
             state.consecutiveFailures = 0;
             log.debug("{} sent to bib {} for campaign {}", request.getChannelName(), participant.getBibNumber(), campaignKey);
