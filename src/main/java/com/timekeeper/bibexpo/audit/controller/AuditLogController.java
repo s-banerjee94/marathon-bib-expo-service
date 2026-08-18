@@ -4,7 +4,7 @@ import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.audit.model.dto.response.AuditLogListResponse;
 import com.timekeeper.bibexpo.audit.service.AuditService;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

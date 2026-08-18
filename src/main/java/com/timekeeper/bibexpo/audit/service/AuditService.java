@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.audit.service;
 import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.audit.model.dto.response.AuditLogListResponse;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.time.Instant;
 

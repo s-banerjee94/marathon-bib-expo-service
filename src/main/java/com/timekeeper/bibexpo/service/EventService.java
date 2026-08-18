@@ -6,9 +6,9 @@ import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

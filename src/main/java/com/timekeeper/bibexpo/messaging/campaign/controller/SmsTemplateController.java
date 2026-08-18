@@ -6,8 +6,8 @@ import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateSmsTemp
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsTemplateResponse;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsTemplateService;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

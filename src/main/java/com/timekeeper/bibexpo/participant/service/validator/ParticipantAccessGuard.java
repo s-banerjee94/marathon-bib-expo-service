@@ -4,12 +4,12 @@ import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.EventOperationNotAllowedException;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.exception.ParticipantDeletionNotAllowedException;
 import com.timekeeper.bibexpo.participant.exception.ParticipantModificationNotAllowedException;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.EventBillingGuard;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

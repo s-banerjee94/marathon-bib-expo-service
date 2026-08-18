@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.shared.security;
 
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 /**
  * Immutable identity of the authenticated caller, resolved once at the web/tool boundary and

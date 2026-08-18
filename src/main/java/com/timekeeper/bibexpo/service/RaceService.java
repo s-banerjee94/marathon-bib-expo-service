@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.service;
 import com.timekeeper.bibexpo.model.dto.request.CreateRaceRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateRaceRequest;
 import com.timekeeper.bibexpo.model.dto.response.RaceResponse;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
 

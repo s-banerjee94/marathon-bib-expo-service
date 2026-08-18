@@ -2,8 +2,8 @@ package com.timekeeper.bibexpo.service.impl;
 
 import com.timekeeper.bibexpo.config.JwtConfig;
 import com.timekeeper.bibexpo.exception.JwtAuthenticationException;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.JwtService;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;

@@ -2,10 +2,10 @@ package com.timekeeper.bibexpo.service.validator;
 
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;

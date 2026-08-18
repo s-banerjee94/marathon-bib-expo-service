@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.billing.controller;
 
 import com.timekeeper.bibexpo.billing.model.dto.response.OrganizationBillingResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

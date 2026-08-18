@@ -4,8 +4,8 @@ import com.timekeeper.bibexpo.invitation.model.dto.request.AcceptInvitationReque
 import com.timekeeper.bibexpo.invitation.model.dto.request.CreateInvitationRequest;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationDetailsResponse;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
-import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 
 /**
  * Issues and redeems one-time, short-lived user-invite links. The role and organization are
@@ -45,7 +45,7 @@ public interface InvitationService {
      * @param request the invitee's personal details
      * @return the created user
      * @throws com.timekeeper.bibexpo.invitation.exception.InvitationInvalidException if the token is missing or expired
-     * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if username, email, or phone already exists
+     * @throws com.timekeeper.bibexpo.user.exception.UserAlreadyExistsException if username, email, or phone already exists
      * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if required details are missing or limits exceeded
      */
     UserResponse acceptInvitation(String token, AcceptInvitationRequest request);

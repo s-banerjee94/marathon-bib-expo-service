@@ -5,8 +5,8 @@ import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundEx
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateSmsTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsTemplateResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import java.util.List;
 
 

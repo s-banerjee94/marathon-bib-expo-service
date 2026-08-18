@@ -13,11 +13,11 @@ import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
 import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.EventOperation;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

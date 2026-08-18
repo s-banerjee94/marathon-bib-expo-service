@@ -13,9 +13,9 @@ import com.timekeeper.bibexpo.distribution.model.dto.response.PendingBibListResp
 import com.timekeeper.bibexpo.distribution.model.dto.response.PendingGoodiesListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;

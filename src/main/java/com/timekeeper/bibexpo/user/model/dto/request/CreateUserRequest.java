@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.dto.request;
+package com.timekeeper.bibexpo.user.model.dto.request;
 
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.shared.validation.ValidEnum;

@@ -4,8 +4,8 @@ import com.timekeeper.bibexpo.messaging.provider.model.dto.request.ProviderTestS
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.SaveMessagingProviderRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.response.MessagingProviderResponse;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

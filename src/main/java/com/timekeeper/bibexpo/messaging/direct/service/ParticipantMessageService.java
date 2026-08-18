@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.messaging.direct.service;
 
 import com.timekeeper.bibexpo.messaging.direct.model.dto.request.SendParticipantMessagesRequest;
 import com.timekeeper.bibexpo.messaging.direct.model.dto.response.ParticipantMessagesResponse;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 /**
  * Targeted counterpart to the campaign senders: delivers one template to named participants

@@ -30,7 +30,7 @@ public interface PasswordResetService {
      * @param request optional channels to deliver the link on
      * @param actor   the administrator issuing the link
      * @return the reset link plus any per-channel delivery outcomes
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException if the user does not exist
+     * @throws com.timekeeper.bibexpo.user.exception.UserNotFoundException if the user does not exist
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the caller may not manage the user
      * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the caller targets their own account
      */

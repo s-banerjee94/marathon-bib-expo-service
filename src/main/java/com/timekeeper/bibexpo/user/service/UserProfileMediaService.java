@@ -1,8 +1,8 @@
-package com.timekeeper.bibexpo.service;
+package com.timekeeper.bibexpo.user.service;
 
-import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.shared.security.CurrentActor;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
+import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 
 /**
  * Profile-picture storage operations for user accounts: presigned upload, attach,
@@ -19,7 +19,7 @@ public interface UserProfileMediaService {
      * @param contentType MIME type of the file (validated against allowed image types)
      * @param actor       the authenticated user making the request
      * @return the presigned upload URL plus the object key to attach afterwards
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
+     * @throws com.timekeeper.bibexpo.user.exception.UserNotFoundException        if the user is not found
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException  if the caller lacks permission
      * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException         if the content type is not allowed
      */
@@ -34,7 +34,7 @@ public interface UserProfileMediaService {
      * @param objectKey the object key returned by the presign step
      * @param actor     the authenticated user making the request
      * @return the updated user response (with a fresh presigned picture URL)
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
+     * @throws com.timekeeper.bibexpo.user.exception.UserNotFoundException        if the user is not found
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException  if the caller lacks permission
      * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException         if the key is invalid or the object is missing
      */
@@ -46,7 +46,7 @@ public interface UserProfileMediaService {
      * @param userId the user whose picture is being removed
      * @param actor  the authenticated user making the request
      * @return the updated user response
-     * @throws com.timekeeper.bibexpo.exception.UserNotFoundException        if the user is not found
+     * @throws com.timekeeper.bibexpo.user.exception.UserNotFoundException        if the user is not found
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException  if the caller lacks permission
      */
     UserResponse removeProfilePicture(Long userId, CurrentActor actor);

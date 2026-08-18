@@ -6,12 +6,11 @@ import com.timekeeper.bibexpo.model.entity.Category;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.Race;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.UserRepository;
+import com.timekeeper.bibexpo.user.api.UserDirectory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -37,7 +36,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
 
     private final CsvRowValidator csvRowValidator;
     private final EventRepository eventRepository;
-    private final UserRepository userRepository;
+    private final UserDirectory userDirectory;
     private final BatchReferenceDataService referenceDataService;
     private final EventLimitRepository eventLimitRepository;
     private final EventStatsDDBRepository eventStatsRepo;
@@ -100,8 +99,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
             event = eventRepository.findById(eventId)
                     .orElseThrow(() -> new EventNotFoundException());
             if (userIdParam != null) {
-                User user = userRepository.findById(Long.parseLong(userIdParam)).orElse(null);
-                username = user != null ? user.getUsername() : "batch-import";
+                username = userDirectory.findUsername(Long.parseLong(userIdParam)).orElse("batch-import");
             } else {
                 username = "batch-import";
             }

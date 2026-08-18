@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.organization.controller;
 
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.organization.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationDeletionNotAllowedException;
 import com.timekeeper.bibexpo.organization.exception.UserLimitReductionException;
@@ -10,10 +9,12 @@ import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationR
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.organization.service.OrganizationService;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.shared.security.CurrentActor;
 import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +45,7 @@ public class OrganizationController implements OrganizationControllerApi {
                 currentUser.getUsername(), enabled, search);
 
         Page<OrganizationResponse> organizationsPage = organizationService.getAllOrganizations(
-                enabled, search, pageable, currentUser);
+                enabled, search, pageable, CurrentActor.from(currentUser));
 
         PageableResponse<OrganizationResponse> response = PageableResponse.of(organizationsPage);
 
@@ -71,7 +72,7 @@ public class OrganizationController implements OrganizationControllerApi {
         log.info("Received request to update organization ID: {} by user: {}",
                 id, currentUser.getUsername());
 
-        OrganizationResponse response = organizationService.updateOrganization(id, request, currentUser);
+        OrganizationResponse response = organizationService.updateOrganization(id, request, CurrentActor.from(currentUser));
 
         return ResponseEntity.ok(response);
     }
@@ -97,7 +98,7 @@ public class OrganizationController implements OrganizationControllerApi {
         log.info("Received request to delete organization ID: {} by user: {}",
                 id, currentUser.getUsername());
 
-        organizationService.deleteOrganization(id, currentUser);
+        organizationService.deleteOrganization(id, CurrentActor.from(currentUser));
 
         return ResponseEntity.noContent().build();
     }
@@ -110,7 +111,7 @@ public class OrganizationController implements OrganizationControllerApi {
         log.info("Received request to get organization ID: {} by user: {}",
                 id, currentUser.getUsername());
 
-        OrganizationResponse response = organizationService.getOrganizationById(id, currentUser);
+        OrganizationResponse response = organizationService.getOrganizationById(id, CurrentActor.from(currentUser));
 
         return ResponseEntity.ok(response);
     }
@@ -122,7 +123,7 @@ public class OrganizationController implements OrganizationControllerApi {
         log.info("Received request to get organization for user: {}",
                 currentUser.getUsername());
 
-        OrganizationResponse response = organizationService.getCurrentUserOrganization(currentUser);
+        OrganizationResponse response = organizationService.getCurrentUserOrganization(CurrentActor.from(currentUser));
 
         return ResponseEntity.ok(response);
     }
@@ -132,7 +133,7 @@ public class OrganizationController implements OrganizationControllerApi {
             Long id, PresignUploadRequest request, User currentUser) {
         log.info("Request logo upload URL for organization ID: {} by user: {}", id, currentUser.getUsername());
         PresignUploadResponse response = organizationService.createLogoUploadUrl(
-                id, request.getContentType(), currentUser);
+                id, request.getContentType(), CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
@@ -140,14 +141,14 @@ public class OrganizationController implements OrganizationControllerApi {
     public ResponseEntity<OrganizationResponse> attachLogo(
             Long id, AttachUploadRequest request, User currentUser) {
         log.info("Request to attach logo for organization ID: {} by user: {}", id, currentUser.getUsername());
-        OrganizationResponse response = organizationService.attachLogo(id, request.getObjectKey(), currentUser);
+        OrganizationResponse response = organizationService.attachLogo(id, request.getObjectKey(), CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<OrganizationResponse> removeLogo(Long id, User currentUser) {
         log.info("Request to remove logo for organization ID: {} by user: {}", id, currentUser.getUsername());
-        OrganizationResponse response = organizationService.removeLogo(id, currentUser);
+        OrganizationResponse response = organizationService.removeLogo(id, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 

@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.participant.service.impl;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.exception.ParticipantExportFailedException;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.model.enums.ExportField;
@@ -10,6 +9,7 @@ import com.timekeeper.bibexpo.participant.service.validator.ParticipantAccessGua
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;

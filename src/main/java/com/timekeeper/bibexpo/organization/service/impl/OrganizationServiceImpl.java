@@ -15,14 +15,14 @@ import com.timekeeper.bibexpo.organization.model.dto.request.UserQuotaRequest;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.organization.model.entity.OrganizationLimit;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.organization.model.enums.SubscriptionTier;
-import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.organization.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.organization.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.organization.service.cache.OrganizationCache;
 import com.timekeeper.bibexpo.organization.service.OrganizationService;
+import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
+import com.timekeeper.bibexpo.shared.security.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.storage.exception.InvalidFileException;
@@ -72,13 +72,13 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional(readOnly = true)
     public Page<OrganizationResponse> getAllOrganizations(
-            Boolean enabled, String search, Pageable pageable, User currentUser) {
+            Boolean enabled, String search, Pageable pageable, CurrentActor actor) {
         log.info("Fetching all organizations with filters - enabled: {}, search: {}, user: {}",
-                enabled, search, currentUser.getUsername());
+                enabled, search, actor.username());
 
         // Only ROOT and ADMIN can access this method (enforced by @PreAuthorize in controller)
         // But we'll add an additional check here for extra security
-        if (currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) {
+        if (actor.role() != UserRole.ROOT && actor.role() != UserRole.ADMIN) {
             throw new AccessForbiddenException(
                     "You are not allowed to view all organizations.");
         }
@@ -226,8 +226,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.UPDATE)
     @Override
     @Transactional
-    public OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, User currentUser) {
-        log.info("Updating organization with ID: {} by user: {}", id, currentUser.getUsername());
+    public OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, CurrentActor actor) {
+        log.info("Updating organization with ID: {} by user: {}", id, actor.username());
 
         Organization organization = organizationRepository.findById(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
@@ -236,7 +236,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         OrganizationLimit limit = getOrCreateLimit(organization);
 
-        validateUpdateAuthorization(currentUser, id);
+        validateUpdateAuthorization(actor, id);
         validateOrganizerNameUniqueness(request.getOrganizerName(), organization.getOrganizerName());
         validateEmailUniqueness(request.getEmail(), organization.getEmail());
         validatePhoneNumberUniqueness(request.getPhoneNumber(), organization.getPhoneNumber());
@@ -286,8 +286,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.DELETE)
     @Override
     @Transactional
-    public void deleteOrganization(Long id, User currentUser) {
-        log.info("Deleting organization with ID: {} by user: {}", id, currentUser.getUsername());
+    public void deleteOrganization(Long id, CurrentActor actor) {
+        log.info("Deleting organization with ID: {} by user: {}", id, actor.username());
 
         Organization organization = organizationRepository.findById(id)
                 .orElseThrow(() -> new OrganizationNotFoundException(
@@ -311,12 +311,12 @@ public class OrganizationServiceImpl implements OrganizationService {
         organizationRepository.delete(organization);
         organizationCache.evict(id);
         deleteQuietly(logoKey);
-        log.info("Successfully deleted organization with ID: {} by user: {}", id, currentUser.getUsername());
+        log.info("Successfully deleted organization with ID: {} by user: {}", id, actor.username());
     }
 
-    private void validateUpdateAuthorization(User currentUser, Long organizationId) {
-        if (currentUser.getRole() == UserRole.ORGANIZER_ADMIN && (currentUser.getOrganization() == null ||
-                    !currentUser.getOrganization().getId().equals(organizationId))) {
+    private void validateUpdateAuthorization(CurrentActor actor, Long organizationId) {
+        if (actor.role() == UserRole.ORGANIZER_ADMIN && (actor.organizationId() == null ||
+                    !actor.organizationId().equals(organizationId))) {
                 throw new AccessForbiddenException(
                         "You can only update your own organization.");
             }
@@ -470,36 +470,36 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     @Transactional(readOnly = true)
-    public OrganizationResponse getOrganizationById(Long id, User currentUser) {
-        log.info("Fetching organization by ID: {} for user: {}", id, currentUser.getUsername());
+    public OrganizationResponse getOrganizationById(Long id, CurrentActor actor) {
+        log.info("Fetching organization by ID: {} for user: {}", id, actor.username());
 
         Organization organization = organizationCache.findById(id);
         if (organization == null) {
             throw new OrganizationNotFoundException(THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST);
         }
 
-        if ((currentUser.getRole() != UserRole.ROOT && currentUser.getRole() != UserRole.ADMIN) &&
-                (currentUser.getOrganization() == null || !currentUser.getOrganization().getId().equals(id))) {
+        if ((actor.role() != UserRole.ROOT && actor.role() != UserRole.ADMIN) &&
+                (actor.organizationId() == null || !actor.organizationId().equals(id))) {
             throw new AccessForbiddenException(
                     "You can only view your own organization.");
         }
 
         log.info("Successfully retrieved organization with ID: {} for user: {}",
-                id, currentUser.getUsername());
+                id, actor.username());
 
         return toResponse(organization);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public OrganizationResponse getCurrentUserOrganization(User currentUser) {
-        log.info("Fetching organization for user: {}", currentUser.getUsername());
+    public OrganizationResponse getCurrentUserOrganization(CurrentActor actor) {
+        log.info("Fetching organization for user: {}", actor.username());
 
-        if (currentUser.getOrganization() == null) {
+        if (actor.organizationId() == null) {
             throw new AccessForbiddenException("Your account is not assigned to an organization.");
         }
 
-        Long organizationId = currentUser.getOrganization().getId();
+        Long organizationId = actor.organizationId();
 
         Organization organization = organizationCache.findById(organizationId);
         if (organization == null) {
@@ -507,7 +507,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
 
         log.info("Successfully retrieved organization with ID: {} for user: {}",
-                organizationId, currentUser.getUsername());
+                organizationId, actor.username());
 
         return toResponse(organization);
     }
@@ -565,18 +565,18 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     @Transactional(readOnly = true)
-    public PresignUploadResponse createLogoUploadUrl(Long id, String contentType, User currentUser) {
+    public PresignUploadResponse createLogoUploadUrl(Long id, String contentType, CurrentActor actor) {
         Organization organization = getActiveOrganizationOrThrow(id);
-        validateUpdateAuthorization(currentUser, id);
+        validateUpdateAuthorization(actor, id);
         return storageService.createUploadUrl(UploadCategory.ORGANIZATION_LOGO, organization.getId(), contentType);
     }
 
     @Override
     @Transactional
-    public OrganizationResponse attachLogo(Long id, String objectKey, User currentUser) {
-        log.info("Attaching logo for organization ID: {} by user: {}", id, currentUser.getUsername());
+    public OrganizationResponse attachLogo(Long id, String objectKey, CurrentActor actor) {
+        log.info("Attaching logo for organization ID: {} by user: {}", id, actor.username());
         Organization organization = getActiveOrganizationOrThrow(id);
-        validateUpdateAuthorization(currentUser, id);
+        validateUpdateAuthorization(actor, id);
 
         if (UploadCategory.ORGANIZATION_LOGO.isForeignKeyFor(organization.getId(), objectKey)) {
             throw new InvalidFileException("This upload does not belong to this organization.");
@@ -598,10 +598,10 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     @Transactional
-    public OrganizationResponse removeLogo(Long id, User currentUser) {
-        log.info("Removing logo for organization ID: {} by user: {}", id, currentUser.getUsername());
+    public OrganizationResponse removeLogo(Long id, CurrentActor actor) {
+        log.info("Removing logo for organization ID: {} by user: {}", id, actor.username());
         Organization organization = getActiveOrganizationOrThrow(id);
-        validateUpdateAuthorization(currentUser, id);
+        validateUpdateAuthorization(actor, id);
 
         String previousKey = organization.getLogoKey();
         organization.setLogoKey(null);

@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.messaging.direct.controller;
 import com.timekeeper.bibexpo.messaging.direct.model.dto.request.SendParticipantMessagesRequest;
 import com.timekeeper.bibexpo.messaging.direct.model.dto.response.ParticipantMessagesResponse;
 import com.timekeeper.bibexpo.messaging.direct.service.ParticipantMessageService;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

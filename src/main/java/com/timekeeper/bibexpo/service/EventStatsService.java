@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.service;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.time.ZoneId;
 import java.util.List;

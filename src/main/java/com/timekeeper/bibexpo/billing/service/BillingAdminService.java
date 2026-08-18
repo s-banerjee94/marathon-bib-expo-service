@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.billing.service;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.OrganizationBillingResponse;
 import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

@@ -4,12 +4,10 @@ import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.audit.api.AuditEvent;
 import com.timekeeper.bibexpo.audit.api.AuditPublisher;
-import com.timekeeper.bibexpo.exception.UserNotFoundException;
 import com.timekeeper.bibexpo.messaging.delivery.DeliveryResult;
 import com.timekeeper.bibexpo.messaging.delivery.SystemMessageDispatcher;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.passwordreset.config.PasswordResetProperties;
 import com.timekeeper.bibexpo.passwordreset.exception.PasswordResetInvalidException;
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.CompletePasswordResetRequest;
@@ -21,15 +19,14 @@ import com.timekeeper.bibexpo.passwordreset.model.PasswordResetMessageContext;
 import com.timekeeper.bibexpo.passwordreset.model.PasswordResetToken;
 import com.timekeeper.bibexpo.passwordreset.service.PasswordResetService;
 import com.timekeeper.bibexpo.passwordreset.store.PasswordResetStore;
-import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.service.cache.AuthUserCache;
-import com.timekeeper.bibexpo.service.UserService;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.UserDirectory;
+import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -49,10 +46,8 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     private static final Set<MessageChannel> FORGOT_PASSWORD_CHANNELS =
             Set.of(MessageChannel.WHATSAPP, MessageChannel.SMS);
 
-    private final UserRepository userRepository;
+    private final UserDirectory userDirectory;
     private final UserService userService;
-    private final PasswordEncoder passwordEncoder;
-    private final AuthUserCache authUserCache;
     private final AuditPublisher auditPublisher;
     private final PasswordResetStore passwordResetStore;
     private final PasswordResetProperties passwordResetProperties;
@@ -64,7 +59,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         log.info("Password reset link requested for user ID: {} by: {}", userId, actor.username());
 
         userService.assertCanUpdateUser(userId, actor);
-        User target = fetchUser(userId);
+        User target = userDirectory.requireById(userId);
 
         // A signed-in user must not mint a reset link for their own account: that would bypass the
         // current-password check on change-password and let a hijacked session take the account over.
@@ -81,7 +76,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 ? request.getDeliveryChannels() : Set.of();
         List<DeliveryResult> deliveries = deliverResetLink(target, channels, resetUrl);
 
-        auditLinkIssued(actor.username(), target);
+        auditLinkIssued(actor, target);
         log.info("Password reset link issued for user ID: {} by: {} — channels: {}", userId, actor.username(), channels);
         return PasswordResetLinkResponse.builder()
                 .resetUrl(resetUrl)
@@ -95,7 +90,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         // Runs off the request thread so the endpoint responds in constant time whether or not an
         // account matched — otherwise the extra work of sending a link would leak, by response time,
         // that an account exists.
-        Optional<User> match = findByIdentifier(request.getIdentifier());
+        Optional<User> match = userDirectory.findByLoginIdentifier(request.getIdentifier());
         if (match.isEmpty()) {
             log.info("Forgot-password request did not match any account");
             return;
@@ -136,10 +131,8 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         PasswordResetToken reset = peekOrThrow(token);
         User user = resolveUser(reset);
 
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
+        userService.applyNewPassword(user.getId(), request.getNewPassword());
         passwordResetStore.consume(token);
-        authUserCache.evict(user.getUsername());
 
         auditResetCompleted(user, reset.getIssuedBy());
         log.info("Password reset completed for user ID: {} (issuedBy {})", user.getId(), reset.getIssuedBy());
@@ -165,16 +158,6 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 SystemTemplatePurpose.PASSWORD_RESET, channels, user.getPhoneNumber(), context);
     }
 
-    private Optional<User> findByIdentifier(String identifier) {
-        String value = identifier == null ? null : identifier.trim();
-        if (isBlank(value)) {
-            return Optional.empty();
-        }
-        return userRepository.findByUsername(value)
-                .or(() -> userRepository.findByEmail(value))
-                .or(() -> userRepository.findByPhoneNumber(value));
-    }
-
     private PasswordResetToken peekOrThrow(String token) {
         PasswordResetToken reset = passwordResetStore.peek(token);
         if (reset == null) {
@@ -185,13 +168,9 @@ public class PasswordResetServiceImpl implements PasswordResetService {
 
     /** The token's user, or a rejection if it was removed since the link was issued. */
     private User resolveUser(PasswordResetToken reset) {
-        return userRepository.findById(reset.getUserId())
+        return userDirectory.findById(reset.getUserId())
                 .orElseThrow(() -> new PasswordResetInvalidException(
                         "This password reset link is invalid or has expired."));
-    }
-
-    private User fetchUser(Long userId) {
-        return userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
     }
 
     private String buildResetUrl(String token) {
@@ -202,17 +181,17 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 .toUriString();
     }
 
-    private void auditLinkIssued(String adminUsername, User target) {
+    private void auditLinkIssued(CurrentActor actor, User target) {
         String label = labelOf(target);
         auditPublisher.publish(AuditEvent.builder()
                 .organizationId(organizationIdOf(target))
-                .actorUserId(userRepository.findByUsername(adminUsername).map(User::getId).orElse(null))
-                .actorName(adminUsername)
+                .actorUserId(actor.id())
+                .actorName(actor.username())
                 .action(AuditAction.PASSWORD_RESET)
                 .entityType(AuditEntityType.USER)
                 .entityId(target.getId().toString())
                 .entityLabel(label)
-                .description(adminUsername + " generated a password reset link for " + label)
+                .description(actor.username() + " generated a password reset link for " + label)
                 .occurredAt(Instant.now())
                 .build());
     }
@@ -238,7 +217,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     }
 
     private String labelOf(User user) {
-        return (user.getFullName() != null && !user.getFullName().isBlank())
+        return !isBlank(user.getFullName())
                 ? user.getFullName() : user.getUsername();
     }
 

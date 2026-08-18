@@ -2,8 +2,8 @@ package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventLimitRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventLimitResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

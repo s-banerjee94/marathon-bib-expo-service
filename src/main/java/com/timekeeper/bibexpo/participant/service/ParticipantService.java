@@ -1,12 +1,12 @@
 package com.timekeeper.bibexpo.participant.service;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.model.dto.request.CreateParticipantRequest;
 import com.timekeeper.bibexpo.participant.model.dto.request.UpdateParticipantRequest;
 import com.timekeeper.bibexpo.participant.model.dto.response.DeleteParticipantsResponse;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantListResponse;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantResponse;
 import com.timekeeper.bibexpo.participant.model.enums.SearchType;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
 

@@ -7,7 +7,6 @@ import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
 import com.timekeeper.bibexpo.importer.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
@@ -15,9 +14,10 @@ import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.user.api.UserDirectory;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.JobExecution;
@@ -38,7 +38,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private final ImportJobRepository importJobRepository;
     private final ParticipantStore participantStore;
     private final EventRepository eventRepository;
-    private final UserRepository userRepository;
+    private final UserDirectory userDirectory;
     private final EventStatsService eventStatsService;
     private final ObjectMapper objectMapper;
     private final EventLimitRepository eventLimitRepository;
@@ -110,7 +110,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
         }
 
         if ("COMPLETED".equals(jobStatus)) {
-            User uploader = userRepository.findById(userId).orElse(null);
+            User uploader = userDirectory.findById(userId).orElse(null);
             reconcileStats(eventId, uploader, jobExecutionId);
             notifyOrgAdminsOfImport(uploader, eventId, writeCount, skipCount);
         }

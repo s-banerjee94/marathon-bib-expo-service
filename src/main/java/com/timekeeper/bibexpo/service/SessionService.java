@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.service;
 
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 /**
  * Manages single-device user sessions backed by the {@code active_sessions} table.

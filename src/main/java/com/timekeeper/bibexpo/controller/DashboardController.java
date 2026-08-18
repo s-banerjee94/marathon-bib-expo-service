@@ -1,13 +1,13 @@
 package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.model.dto.response.dashboard.OrgDashboardResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.DashboardRange;
 import com.timekeeper.bibexpo.model.enums.TrendInterval;
-import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.dashboard.DashboardQueryLimits;
 import com.timekeeper.bibexpo.service.dashboard.OrgDashboardQuery;
 import com.timekeeper.bibexpo.service.dashboard.OrgDashboardService;
+import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

@@ -15,10 +15,10 @@ import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
 import com.timekeeper.bibexpo.messaging.shared.exception.MessagingConfigNotFoundException;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

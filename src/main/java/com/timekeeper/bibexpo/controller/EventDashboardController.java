@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.EventActivityRange;
 import com.timekeeper.bibexpo.service.dashboard.EventDashboardService;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.CacheControl;

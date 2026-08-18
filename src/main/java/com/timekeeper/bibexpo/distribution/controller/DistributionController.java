@@ -18,9 +18,9 @@ import com.timekeeper.bibexpo.distribution.model.dto.response.PendingGoodiesList
 import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.distribution.service.DistributionService;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

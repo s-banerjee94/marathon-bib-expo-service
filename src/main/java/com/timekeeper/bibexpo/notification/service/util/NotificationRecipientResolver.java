@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.notification.service.util;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
-import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.api.UserDirectory;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -14,31 +14,31 @@ import java.util.Map;
 
 /**
  * Turns a {@link NotifyRequest}'s audience into the concrete list of recipient users, reusing the
- * existing role/organization lookups on {@link UserRepository}. Results are de-duplicated by user id.
+ * role and organization lookups published by {@link UserDirectory}. Results are de-duplicated by user id.
  */
 @Component
 @RequiredArgsConstructor
 public class NotificationRecipientResolver {
 
-    private final UserRepository userRepository;
+    private final UserDirectory userDirectory;
 
     public List<User> resolve(NotifyRequest req) {
         return switch (req.getAudience()) {
-            case PLATFORM_ADMINS -> dedup(userRepository.findByRole(UserRole.ROOT),
-                                          userRepository.findByRole(UserRole.ADMIN));
-            case ROOT  -> userRepository.findByRole(UserRole.ROOT);
-            case ADMIN -> userRepository.findByRole(UserRole.ADMIN);
+            case PLATFORM_ADMINS -> dedup(userDirectory.findByRole(UserRole.ROOT),
+                                          userDirectory.findByRole(UserRole.ADMIN));
+            case ROOT  -> userDirectory.findByRole(UserRole.ROOT);
+            case ADMIN -> userDirectory.findByRole(UserRole.ADMIN);
             case USER  -> resolveSingleUser(req.getTargetUserId());
-            case ORGANIZATION_ALL -> userRepository.findByOrganizationId(requireOrg(req));
+            case ORGANIZATION_ALL -> userDirectory.findByOrganizationId(requireOrg(req));
             case ORGANIZATION_ADMINS ->
-                    userRepository.findByRoleAndOrganizationId(UserRole.ORGANIZER_ADMIN, requireOrg(req));
+                    userDirectory.findByRoleAndOrganizationId(UserRole.ORGANIZER_ADMIN, requireOrg(req));
             case ORGANIZATION_STAFF -> {
                 Long orgId = requireOrg(req);
-                yield dedup(userRepository.findByRoleAndOrganizationId(UserRole.ORGANIZER_ADMIN, orgId),
-                            userRepository.findByRoleAndOrganizationId(UserRole.ORGANIZER_USER, orgId));
+                yield dedup(userDirectory.findByRoleAndOrganizationId(UserRole.ORGANIZER_ADMIN, orgId),
+                            userDirectory.findByRoleAndOrganizationId(UserRole.ORGANIZER_USER, orgId));
             }
             case ORGANIZATION_DISTRIBUTORS ->
-                    userRepository.findByRoleAndOrganizationId(UserRole.DISTRIBUTOR, requireOrg(req));
+                    userDirectory.findByRoleAndOrganizationId(UserRole.DISTRIBUTOR, requireOrg(req));
         };
     }
 
@@ -53,7 +53,7 @@ public class NotificationRecipientResolver {
         if (userId == null) {
             throw new IllegalArgumentException("targetUserId is required for the USER audience");
         }
-        return userRepository.findById(userId).map(List::of).orElseGet(List::of);
+        return userDirectory.findById(userId).map(List::of).orElseGet(List::of);
     }
 
     @SafeVarargs

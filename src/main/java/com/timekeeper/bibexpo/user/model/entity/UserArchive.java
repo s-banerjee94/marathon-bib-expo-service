@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.entity;
+package com.timekeeper.bibexpo.user.model.entity;
 
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.shared.security.UserRole;

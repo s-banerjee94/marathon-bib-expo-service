@@ -2,8 +2,8 @@ package com.timekeeper.bibexpo.invitation.controller;
 
 import com.timekeeper.bibexpo.invitation.model.dto.request.AcceptInvitationRequest;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationDetailsResponse;
-import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

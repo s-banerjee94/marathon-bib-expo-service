@@ -4,8 +4,8 @@ import com.timekeeper.bibexpo.importer.model.dto.response.BatchImportResponse;
 import com.timekeeper.bibexpo.importer.model.dto.response.BatchJobStatusResponse;
 import com.timekeeper.bibexpo.importer.model.dto.response.ImportErrorListResponse;
 import com.timekeeper.bibexpo.importer.model.dto.response.ImportFieldResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;

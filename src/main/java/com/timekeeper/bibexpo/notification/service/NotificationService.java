@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.notification.service;
 
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.dto.response.NotificationListResponse;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 /**
  * In-app notifications: stored in DynamoDB (auto-expiring), targeted at an audience, and read by

@@ -1,12 +1,12 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.user.service.impl;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.organization.api.OrganizationMemberPurger;
-import com.timekeeper.bibexpo.repository.UserArchiveRepository;
-import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.service.UserProfileMediaService;
-import com.timekeeper.bibexpo.service.cache.AuthUserCache;
+import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.repository.UserArchiveRepository;
+import com.timekeeper.bibexpo.user.repository.UserRepository;
+import com.timekeeper.bibexpo.user.service.cache.AuthUserCache;
+import com.timekeeper.bibexpo.user.service.UserProfileMediaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

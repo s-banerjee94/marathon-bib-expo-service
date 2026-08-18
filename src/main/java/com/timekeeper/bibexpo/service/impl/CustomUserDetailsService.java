@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.service.cache.AuthUserCache;
+import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.service.cache.AuthUserCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

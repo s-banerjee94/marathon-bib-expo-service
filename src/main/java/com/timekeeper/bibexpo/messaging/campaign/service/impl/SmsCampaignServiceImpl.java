@@ -23,11 +23,11 @@ import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingVal
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

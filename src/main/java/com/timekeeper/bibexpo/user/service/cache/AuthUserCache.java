@@ -1,8 +1,8 @@
-package com.timekeeper.bibexpo.service.cache;
+package com.timekeeper.bibexpo.user.service.cache;
 
 import com.timekeeper.bibexpo.bootstrap.CacheConfig;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.repository.UserRepository;
+import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;

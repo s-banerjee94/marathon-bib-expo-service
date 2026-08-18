@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.participant.controller;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.exception.BibNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.participant.exception.ChipNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.participant.exception.ParticipantDeletionNotAllowedException;
@@ -16,6 +15,7 @@ import com.timekeeper.bibexpo.participant.model.enums.SearchType;
 import com.timekeeper.bibexpo.participant.service.ParticipantExportService;
 import com.timekeeper.bibexpo.participant.service.ParticipantService;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;

@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.billing.service;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillGenerationResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
 import com.timekeeper.bibexpo.billing.model.entity.InvoiceStatus;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
 

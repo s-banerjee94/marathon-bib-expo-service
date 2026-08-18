@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.participant.service;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.model.enums.ExportField;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
 

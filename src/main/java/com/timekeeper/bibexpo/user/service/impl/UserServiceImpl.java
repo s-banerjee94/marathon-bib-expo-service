@@ -1,35 +1,35 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.user.service.impl;
 
 import com.timekeeper.bibexpo.audit.api.Auditable;
 import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.UserAlreadyExistsException;
-import com.timekeeper.bibexpo.exception.UserNotFoundException;
-import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
-import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
-import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
-import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserArchive;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.organization.api.OrganizationSeatQuota;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.UserArchiveRepository;
-import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.service.cache.AuthUserCache;
-import com.timekeeper.bibexpo.service.UserProfileMediaService;
-import com.timekeeper.bibexpo.service.UserService;
-import com.timekeeper.bibexpo.service.util.UserResponseMapper;
-import com.timekeeper.bibexpo.service.validator.UserAccessPolicy;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.security.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.exception.UserAlreadyExistsException;
+import com.timekeeper.bibexpo.user.exception.UserNotFoundException;
+import com.timekeeper.bibexpo.user.model.dto.request.ChangePasswordRequest;
+import com.timekeeper.bibexpo.user.model.dto.request.CreateUserRequest;
+import com.timekeeper.bibexpo.user.model.dto.request.UpdateUserRequest;
+import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.UserArchive;
+import com.timekeeper.bibexpo.user.repository.UserArchiveRepository;
+import com.timekeeper.bibexpo.user.repository.UserRepository;
+import com.timekeeper.bibexpo.user.service.cache.AuthUserCache;
+import com.timekeeper.bibexpo.user.service.UserProfileMediaService;
+import com.timekeeper.bibexpo.user.service.UserService;
+import com.timekeeper.bibexpo.user.service.util.UserResponseMapper;
+import com.timekeeper.bibexpo.user.service.validator.UserAccessPolicy;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -359,10 +359,24 @@ public class UserServiceImpl implements UserService {
             throw new InvalidUserDataException("Your new password must be different from your current password.");
         }
 
-        currentUser.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(currentUser);
-        authUserCache.evict(currentUser.getUsername());
+        storeNewPassword(currentUser, request.getNewPassword());
         log.info("Password changed for user ID: {}", currentUser.getId());
+    }
+
+    @Override
+    @Transactional
+    public void applyNewPassword(Long userId, String rawPassword) {
+        storeNewPassword(fetchTargetUser(userId), rawPassword);
+    }
+
+    /**
+     * The three steps every password change shares: encode, persist, and drop the stale principal
+     * so the old password cannot keep authenticating from the cache.
+     */
+    private void storeNewPassword(User user, String rawPassword) {
+        user.setPassword(passwordEncoder.encode(rawPassword));
+        userRepository.save(user);
+        authUserCache.evict(user.getUsername());
     }
 
     @Override

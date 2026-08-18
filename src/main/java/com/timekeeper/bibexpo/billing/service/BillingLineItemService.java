@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.billing.service;
 import com.timekeeper.bibexpo.billing.model.dto.request.LineItemRequest;
 import com.timekeeper.bibexpo.billing.model.dto.request.ParticipantLineRequest;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 /**
  * Edit side of event billing: manual line items (extra charges and adjustments) on a

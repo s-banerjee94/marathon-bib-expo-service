@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.participant.controller;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.model.dto.request.BulkDeleteParticipantsRequest;
 import com.timekeeper.bibexpo.participant.model.dto.request.CreateParticipantRequest;
 import com.timekeeper.bibexpo.participant.model.dto.request.UpdateParticipantRequest;
@@ -10,6 +9,7 @@ import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantResponse
 import com.timekeeper.bibexpo.participant.model.enums.ExportField;
 import com.timekeeper.bibexpo.participant.model.enums.SearchType;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

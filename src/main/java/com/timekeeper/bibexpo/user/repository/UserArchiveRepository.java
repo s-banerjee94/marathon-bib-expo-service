@@ -1,7 +1,7 @@
-package com.timekeeper.bibexpo.repository;
+package com.timekeeper.bibexpo.user.repository;
 
-import com.timekeeper.bibexpo.model.entity.UserArchive;
 import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.model.entity.UserArchive;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;

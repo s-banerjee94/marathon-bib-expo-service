@@ -4,7 +4,7 @@ import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignNotFoundEx
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateSmsCampaignRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateSmsCampaignRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsCampaignResponse;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import java.util.List;
 
 public interface SmsCampaignService {

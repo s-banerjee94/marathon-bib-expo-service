@@ -2,8 +2,8 @@ package com.timekeeper.bibexpo.controller;
 
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventLimitRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventLimitResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.service.EventLimitService;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

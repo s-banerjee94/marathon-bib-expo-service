@@ -8,7 +8,6 @@ import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardRespons
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse.RaceStat;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventDashboardResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.enums.EventActivityRange;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
@@ -16,6 +15,7 @@ import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

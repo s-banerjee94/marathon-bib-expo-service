@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.participant.service;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantStatisticsResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 /**
  * Read-side aggregation of an event's participant statistics from the

@@ -5,8 +5,8 @@ import com.timekeeper.bibexpo.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.model.dto.response.CategoryResponse;
 import com.timekeeper.bibexpo.model.entity.Gender;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
 

@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.bootstrap;
 
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
