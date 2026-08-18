@@ -1,29 +1,27 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.organization.service.impl;
 
 import com.timekeeper.bibexpo.audit.api.Auditable;
 import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
-import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
-import com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException;
-import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.exception.UserLimitReductionException;
-import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.request.UserQuotaRequest;
-import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
-import com.timekeeper.bibexpo.model.entity.Organization;
-import com.timekeeper.bibexpo.model.entity.OrganizationLimit;
+import com.timekeeper.bibexpo.organization.api.OrganizationMemberPurger;
+import com.timekeeper.bibexpo.organization.exception.OrganizationAlreadyExistsException;
+import com.timekeeper.bibexpo.organization.exception.OrganizationDeletionNotAllowedException;
+import com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException;
+import com.timekeeper.bibexpo.organization.exception.UserLimitReductionException;
+import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UserQuotaRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
+import com.timekeeper.bibexpo.organization.model.entity.Organization;
+import com.timekeeper.bibexpo.organization.model.entity.OrganizationLimit;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.SubscriptionTier;
+import com.timekeeper.bibexpo.organization.model.enums.SubscriptionTier;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
-import com.timekeeper.bibexpo.repository.UserRepository;
-import com.timekeeper.bibexpo.service.cache.AuthUserCache;
-import com.timekeeper.bibexpo.service.cache.OrganizationCache;
-import com.timekeeper.bibexpo.service.OrganizationService;
-import com.timekeeper.bibexpo.service.UserService;
+import com.timekeeper.bibexpo.organization.repository.OrganizationLimitRepository;
+import com.timekeeper.bibexpo.organization.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.organization.service.cache.OrganizationCache;
+import com.timekeeper.bibexpo.organization.service.OrganizationService;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
@@ -66,12 +64,10 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
-    private final UserRepository userRepository;
     private final EventRepository eventRepository;
-    private final UserService userService;
+    private final OrganizationMemberPurger memberPurger;
     private final StorageService storageService;
     private final OrganizationCache organizationCache;
-    private final AuthUserCache authUserCache;
 
     @Override
     @Transactional(readOnly = true)
@@ -275,24 +271,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         // Cascading behavior: Only disable users when organization is being disabled
         if (Boolean.FALSE.equals(enabled)) {
-            // Disable all users in this organization
-            List<User> organizationUsers = userRepository.findByOrganizationId(id);
-
-            if (!organizationUsers.isEmpty()) {
-                log.info("Disabling {} users for organization ID: {}", organizationUsers.size(), id);
-
-                organizationUsers.forEach(user -> {
-                    user.setEnabled(false);
-                    log.debug("Disabling user: {} (ID: {})", user.getUsername(), user.getId());
-                });
-
-                userRepository.saveAll(organizationUsers);
-                // Drop the disabled users from the auth cache so they cannot keep authenticating.
-                organizationUsers.forEach(user -> authUserCache.evict(user.getUsername()));
-                log.info("Successfully disabled all users for organization ID: {}", id);
-            } else {
-                log.info("No users found for organization ID: {}", id);
-            }
+            memberPurger.disableMembers(id);
         } else {
             // When enabling organization, do NOT automatically enable users
             log.info("Organization ID: {} enabled. Users remain in their current state (not automatically enabled).", id);
@@ -323,7 +302,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         AuditContextHolder.setOrganizationId(organization.getId());
 
         String logoKey = organization.getLogoKey();
-        userService.purgeUsersForOrganization(id);
+        memberPurger.purgeMembers(id);
 
         // The organization_limits row shares the organization's PK via an FK with no cascade, so it
         // must be removed (and flushed) before the organization itself to avoid a constraint violation.
@@ -494,7 +473,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse getOrganizationById(Long id, User currentUser) {
         log.info("Fetching organization by ID: {} for user: {}", id, currentUser.getUsername());
 
-        Organization organization = organizationCache.findActiveById(id);
+        Organization organization = organizationCache.findById(id);
         if (organization == null) {
             throw new OrganizationNotFoundException(THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST);
         }
@@ -522,7 +501,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
         Long organizationId = currentUser.getOrganization().getId();
 
-        Organization organization = organizationCache.findActiveById(organizationId);
+        Organization organization = organizationCache.findById(organizationId);
         if (organization == null) {
             throw new OrganizationNotFoundException(THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST);
         }

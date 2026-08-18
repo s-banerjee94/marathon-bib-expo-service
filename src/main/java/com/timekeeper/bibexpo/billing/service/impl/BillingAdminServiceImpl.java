@@ -15,9 +15,8 @@ import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
 import com.timekeeper.bibexpo.billing.repository.InvoiceRepository;
 import com.timekeeper.bibexpo.billing.service.BillingAdminService;
 import com.timekeeper.bibexpo.billing.service.BillStatsTriggerService;
-import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.storage.service.StorageService;
@@ -43,14 +42,14 @@ import java.util.List;
 public class BillingAdminServiceImpl implements BillingAdminService {
 
     private final InvoiceRepository invoiceRepository;
-    private final OrganizationRepository organizationRepository;
+    private final OrganizationDirectory organizationDirectory;
     private final StorageService storageService;
     private final BillStatsTriggerService billStatsTriggerService;
 
     @Override
     public OrganizationBillingResponse listOrganizationBills(Long organizationId, User currentUser) {
         authorizeOrgAccess(currentUser, organizationId);
-        organizationRepository.findById(organizationId).orElseThrow(OrganizationNotFoundException::new);
+        organizationDirectory.requireById(organizationId);
 
         List<Invoice> invoices = invoiceRepository.findByOrganizationIdOrderByCreatedAtDesc(organizationId);
         // Only issued (FINAL) bills are real money; drafts are still listed but never summed.

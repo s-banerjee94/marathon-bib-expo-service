@@ -28,7 +28,7 @@ public interface UserService {
      * @return the created user response
      * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if username or email already exists
      * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if validation fails or limits exceeded
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if organization is required but not found
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if organization is required but not found
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if user lacks permission to create requested role
      */
     UserResponse createUser(CreateUserRequest request, CurrentActor actor);
@@ -47,7 +47,7 @@ public interface UserService {
      * @param actor the authenticated user issuing the invite
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the role is not creatable by the caller
      * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the organization is required but missing or disabled, or the event is required but missing or has ended
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if the organization does not exist
      * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
      */
     void assertCanCreateUser(UserRole role, Long organizationId, Long eventId, CurrentActor actor);
@@ -63,7 +63,7 @@ public interface UserService {
      * @return the created user response
      * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if username, email, or phone already exists
      * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if validation fails or limits exceeded
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization no longer exists
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if the organization no longer exists
      */
     UserResponse createInvitedUser(CreateUserRequest request);
 
@@ -254,15 +254,4 @@ public interface UserService {
      *         or target user is ROOT
      */
     void deleteUser(Long userId, CurrentActor actor);
-
-    /**
-     * Permanently delete every user of an organization, with no archival. For each user the
-     * notifications and profile picture are removed and the auth cache is evicted; any archived
-     * user records for the organization are dropped too. Intended for organization deletion,
-     * where retaining user records has no value.
-     *
-     * @param organizationId the organization whose users are being purged
-     * @return the number of live users deleted
-     */
-    int purgeUsersForOrganization(Long organizationId);
 }

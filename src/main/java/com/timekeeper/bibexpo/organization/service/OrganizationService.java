@@ -1,9 +1,9 @@
-package com.timekeeper.bibexpo.service;
+package com.timekeeper.bibexpo.organization.service;
 
-import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -54,8 +54,8 @@ public interface OrganizationService {
      * organization are permanently deleted along with it.
      * @param id The organization ID
      * @param currentUser The authenticated user
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
-     * @throws com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException if the organization still has events
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if not found or deleted
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationDeletionNotAllowedException if the organization still has events
      */
     void deleteOrganization(Long id, User currentUser);
 
@@ -84,7 +84,7 @@ public interface OrganizationService {
      * @param contentType MIME type of the file (validated against allowed image types)
      * @param currentUser The authenticated user
      * @return the presigned upload URL plus the object key to attach afterwards
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if not found or deleted
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the caller lacks permission
      * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the content type is not allowed
      */
@@ -98,7 +98,7 @@ public interface OrganizationService {
      * @param objectKey The object key returned by the presign step
      * @param currentUser The authenticated user
      * @return the updated organization response (with a fresh presigned logo URL)
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if not found or deleted
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the caller lacks permission
      * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the key is invalid or the object is missing
      */
@@ -109,7 +109,7 @@ public interface OrganizationService {
      * @param id The organization ID
      * @param currentUser The authenticated user
      * @return the updated organization response
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if not found or deleted
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if not found or deleted
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the caller lacks permission
      */
     OrganizationResponse removeLogo(Long id, User currentUser);

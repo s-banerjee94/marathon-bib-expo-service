@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.service.dashboard;
 
 import com.timekeeper.bibexpo.model.dto.response.dashboard.OrgDashboardResponse;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.OrgInfoDto;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.organization.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

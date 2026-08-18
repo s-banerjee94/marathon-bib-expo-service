@@ -1,8 +1,8 @@
-package com.timekeeper.bibexpo.service.cache;
+package com.timekeeper.bibexpo.organization.service.cache;
 
 import com.timekeeper.bibexpo.bootstrap.CacheConfig;
-import com.timekeeper.bibexpo.model.entity.Organization;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.organization.model.entity.Organization;
+import com.timekeeper.bibexpo.organization.repository.OrganizationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -31,7 +31,7 @@ public class OrganizationCache {
      * @return the organization, or null
      */
     @Cacheable(value = CacheConfig.ORGANIZATIONS_CACHE, key = "#id", unless = "#result == null")
-    public Organization findActiveById(Long id) {
+    public Organization findById(Long id) {
         return organizationRepository.findById(id).orElse(null);
     }
 

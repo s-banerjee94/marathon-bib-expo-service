@@ -1,10 +1,10 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
-import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.service.OrganizationService;
+import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
+import com.timekeeper.bibexpo.organization.service.OrganizationService;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import jakarta.validation.Validator;
@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

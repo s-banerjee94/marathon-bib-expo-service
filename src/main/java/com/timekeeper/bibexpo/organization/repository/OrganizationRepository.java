@@ -1,6 +1,6 @@
-package com.timekeeper.bibexpo.repository;
+package com.timekeeper.bibexpo.organization.repository;
 
-import com.timekeeper.bibexpo.model.entity.Organization;
+import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;

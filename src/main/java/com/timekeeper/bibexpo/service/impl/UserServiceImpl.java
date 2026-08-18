@@ -5,7 +5,6 @@ import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.exception.UserAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.UserNotFoundException;
 import com.timekeeper.bibexpo.model.dto.request.ChangePasswordRequest;
@@ -14,13 +13,13 @@ import com.timekeeper.bibexpo.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
-import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.entity.UserArchive;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
+import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
+import com.timekeeper.bibexpo.organization.api.OrganizationSeatQuota;
+import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.OrganizationLimitRepository;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.repository.UserRepository;
 import com.timekeeper.bibexpo.service.cache.AuthUserCache;
@@ -56,8 +55,8 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserArchiveRepository userArchiveRepository;
     private final NotificationService notificationService;
-    private final OrganizationRepository organizationRepository;
-    private final OrganizationLimitRepository organizationLimitRepository;
+    private final OrganizationDirectory organizationDirectory;
+    private final OrganizationSeatQuota seatQuota;
     private final EventRepository eventRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthUserCache authUserCache;
@@ -207,11 +206,7 @@ public class UserServiceImpl implements UserService {
             throw new InvalidUserDataException("Organization is required.");
         }
 
-        Organization organization = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> {
-                    log.error("Organization not found with ID: {}", organizationId);
-                    return new OrganizationNotFoundException();
-                });
+        Organization organization = organizationDirectory.requireById(organizationId);
 
         if (Boolean.FALSE.equals(organization.getEnabled())) {
             log.error("Cannot create user for disabled organization ID: {}", organizationId);
@@ -297,33 +292,7 @@ public class UserServiceImpl implements UserService {
             // System-level roles are not organization-scoped
             return;
         }
-
-        Long orgId = organization.getId();
-        boolean reserved;
-        String limitMessage;
-
-        switch (requestedRole) {
-            case ORGANIZER_ADMIN -> {
-                reserved = organizationLimitRepository.tryIncrementAdmins(orgId) > 0;
-                limitMessage = "Your organization has reached the maximum number of administrators.";
-            }
-            case ORGANIZER_USER -> {
-                reserved = organizationLimitRepository.tryIncrementOrganizerUsers(orgId) > 0;
-                limitMessage = "Your organization has reached the maximum number of organizer users.";
-            }
-            case DISTRIBUTOR -> {
-                reserved = organizationLimitRepository.tryIncrementDistributors(orgId) > 0;
-                limitMessage = "Your organization has reached the maximum number of distributors.";
-            }
-            default -> {
-                return;
-            }
-        }
-
-        if (!reserved) {
-            log.error("Organization {} has reached its {} limit", orgId, requestedRole);
-            throw new InvalidUserDataException(limitMessage);
-        }
+        seatQuota.reserveSeat(organization.getId(), requestedRole);
     }
 
     /**
@@ -337,14 +306,7 @@ public class UserServiceImpl implements UserService {
         if (organization == null) {
             return;
         }
-
-        Long orgId = organization.getId();
-        switch (role) {
-            case ORGANIZER_ADMIN -> organizationLimitRepository.decrementAdmins(orgId);
-            case ORGANIZER_USER -> organizationLimitRepository.decrementOrganizerUsers(orgId);
-            case DISTRIBUTOR -> organizationLimitRepository.decrementDistributors(orgId);
-            default -> { /* system roles are not organization-scoped */ }
-        }
+        seatQuota.releaseSeat(organization.getId(), role);
     }
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.UPDATE)
@@ -639,23 +601,6 @@ public class UserServiceImpl implements UserService {
         profileMediaService.deletePictureQuietly(pictureKey);
 
         log.info("Successfully archived user ID: {} (username: {})", userId, username);
-    }
-
-    @Override
-    @Transactional
-    public int purgeUsersForOrganization(Long organizationId) {
-        List<User> users = userRepository.findByOrganizationId(organizationId);
-        for (User user : users) {
-            notificationService.deleteAllForUser(user.getId());
-            authUserCache.evict(user.getUsername());
-            profileMediaService.deletePictureQuietly(user.getProfilePictureKey());
-        }
-        userRepository.deleteAll(users);
-        // Archived (former) users still FK the organization, so drop those rows before it is removed.
-        userArchiveRepository.deleteByOrganizationId(organizationId);
-        userRepository.flush();
-        log.info("Purged {} users for organization ID: {}", users.size(), organizationId);
-        return users.size();
     }
 
     private UserArchive buildArchiveFromUser(User user, String archivedBy) {

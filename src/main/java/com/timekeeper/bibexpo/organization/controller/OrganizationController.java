@@ -1,14 +1,14 @@
-package com.timekeeper.bibexpo.controller;
+package com.timekeeper.bibexpo.organization.controller;
 
 
-import com.timekeeper.bibexpo.exception.OrganizationAlreadyExistsException;
-import com.timekeeper.bibexpo.exception.OrganizationDeletionNotAllowedException;
-import com.timekeeper.bibexpo.exception.UserLimitReductionException;
-import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.service.OrganizationService;
+import com.timekeeper.bibexpo.organization.exception.OrganizationAlreadyExistsException;
+import com.timekeeper.bibexpo.organization.exception.OrganizationDeletionNotAllowedException;
+import com.timekeeper.bibexpo.organization.exception.UserLimitReductionException;
+import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
+import com.timekeeper.bibexpo.organization.service.OrganizationService;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;

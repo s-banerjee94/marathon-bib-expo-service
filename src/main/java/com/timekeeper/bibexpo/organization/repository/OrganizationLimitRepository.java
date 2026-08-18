@@ -1,6 +1,6 @@
-package com.timekeeper.bibexpo.repository;
+package com.timekeeper.bibexpo.organization.repository;
 
-import com.timekeeper.bibexpo.model.entity.OrganizationLimit;
+import com.timekeeper.bibexpo.organization.model.entity.OrganizationLimit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

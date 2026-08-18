@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.service.dashboard;
 
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.organization.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.PlatformDailyStatsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

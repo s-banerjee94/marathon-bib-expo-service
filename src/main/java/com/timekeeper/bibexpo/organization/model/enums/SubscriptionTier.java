@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.enums;
+package com.timekeeper.bibexpo.organization.model.enums;
 
 /**
  * The subscription plans an organization can be on. An organization with no tier assigned

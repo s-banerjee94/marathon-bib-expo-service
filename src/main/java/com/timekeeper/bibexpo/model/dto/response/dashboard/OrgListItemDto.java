@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.model.dto.response.dashboard;
 
-import com.timekeeper.bibexpo.model.entity.Organization;
+import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

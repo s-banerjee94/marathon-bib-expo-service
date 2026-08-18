@@ -1,6 +1,6 @@
-package com.timekeeper.bibexpo.model.dto.response;
+package com.timekeeper.bibexpo.organization.model.dto.response;
 
-import com.timekeeper.bibexpo.model.entity.OrganizationLimit;
+import com.timekeeper.bibexpo.organization.model.entity.OrganizationLimit;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

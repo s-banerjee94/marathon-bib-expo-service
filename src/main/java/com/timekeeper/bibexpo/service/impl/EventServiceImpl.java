@@ -8,23 +8,22 @@ import com.timekeeper.bibexpo.exception.EventAlreadyExistsException;
 import com.timekeeper.bibexpo.exception.EventDeletionNotAllowedException;
 import com.timekeeper.bibexpo.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.model.dto.request.UpdateEventRequest;
 import com.timekeeper.bibexpo.model.dto.response.EventResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.EventStatus;
-import com.timekeeper.bibexpo.model.entity.Organization;
 import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.model.event.EventStatusChangedEvent;
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
+import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
+import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.service.EventBillingGuard;
 import com.timekeeper.bibexpo.service.EventDeletionGuard;
@@ -66,7 +65,7 @@ import java.util.List;
 public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepository;
-    private final OrganizationRepository organizationRepository;
+    private final OrganizationDirectory organizationDirectory;
     private final EventLimitRepository eventLimitRepository;
     private final RaceRepository raceRepository;
     private final EventAccessValidator eventAccessValidator;
@@ -114,8 +113,7 @@ public class EventServiceImpl implements EventService {
         log.info("Creating event: {} for organization ID: {} by user: {}",
                 request.getEventName(), request.getOrganizationId(), currentUser.getUsername());
 
-        Organization organization = organizationRepository.findById(request.getOrganizationId())
-                .orElseThrow(OrganizationNotFoundException::new);
+        Organization organization = organizationDirectory.requireById(request.getOrganizationId());
 
         validateUserAuthorization(currentUser, organization);
 

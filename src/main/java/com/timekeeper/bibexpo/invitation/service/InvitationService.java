@@ -23,7 +23,7 @@ public interface InvitationService {
      * @return the link to share with the invitee
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the caller cannot create that role
      * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the organization is required but missing or disabled
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if the organization does not exist
      */
     InvitationLinkResponse createInvitation(CreateInvitationRequest request, CurrentActor actor);
 

@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.entity;
+package com.timekeeper.bibexpo.organization.model.entity;
 
 import com.timekeeper.bibexpo.shared.web.EmptyStringToNullConverter;
 import jakarta.persistence.*;
@@ -15,8 +15,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.io.Serializable;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "organizations",
@@ -115,14 +113,4 @@ public class Organization implements Serializable {
 
     @LastModifiedBy
     private String lastModifiedBy;
-
-    // Bidirectional relationship with Users
-    @OneToMany(mappedBy = "organization", cascade = CascadeType.ALL)
-    @Builder.Default
-    private List<User> users = new ArrayList<>();
-
-    // Bidirectional relationship with Events
-    @OneToMany(mappedBy = "organization", cascade = CascadeType.ALL)
-    @Builder.Default
-    private List<Event> events = new ArrayList<>();
 }

@@ -14,13 +14,11 @@ import com.timekeeper.bibexpo.messaging.delivery.DeliveryResult;
 import com.timekeeper.bibexpo.messaging.delivery.SystemMessageDispatcher;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
-import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
 import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.Organization;
+import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.service.UserService;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.security.CurrentActor;
@@ -44,7 +42,7 @@ public class InvitationServiceImpl implements InvitationService {
 
     private final InvitationStore invitationStore;
     private final UserService userService;
-    private final OrganizationRepository organizationRepository;
+    private final OrganizationDirectory organizationDirectory;
     private final EventRepository eventRepository;
     private final InviteProperties inviteProperties;
     private final SystemMessageDispatcher systemMessageDispatcher;
@@ -92,7 +90,7 @@ public class InvitationServiceImpl implements InvitationService {
         return InvitationDetailsResponse.builder()
                 .role(invitation.getRole().name())
                 .organizationId(invitation.getOrganizationId())
-                .organizationName(resolveOrganizationName(invitation.getOrganizationId()))
+                .organizationName(organizationDirectory.findOrganizerName(invitation.getOrganizationId()))
                 .eventId(invitation.getEventId())
                 .eventName(resolveEventName(invitation.getEventId()))
                 .recipientPhone(invitation.getRecipientPhone())
@@ -140,7 +138,7 @@ public class InvitationServiceImpl implements InvitationService {
     private InviteMessageContext buildContext(UserRole role, Long organizationId, String inviteUrl) {
         return InviteMessageContext.builder()
                 .role(humanizeRole(role))
-                .organizationName(resolveOrganizationName(organizationId))
+                .organizationName(organizationDirectory.findOrganizerName(organizationId))
                 .inviteUrl(inviteUrl)
                 .build();
     }
@@ -150,15 +148,6 @@ public class InvitationServiceImpl implements InvitationService {
         return Arrays.stream(role.name().toLowerCase().split("_"))
                 .map(part -> Character.toUpperCase(part.charAt(0)) + part.substring(1))
                 .collect(Collectors.joining(" "));
-    }
-
-    private String resolveOrganizationName(Long organizationId) {
-        if (organizationId == null) {
-            return null;
-        }
-        return organizationRepository.findById(organizationId)
-                .map(Organization::getOrganizerName)
-                .orElse(null);
     }
 
     private String resolveEventName(Long eventId) {
