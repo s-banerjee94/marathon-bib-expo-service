@@ -1,24 +1,23 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.identity.service.impl;
 
 import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.audit.api.AuditEvent;
 import com.timekeeper.bibexpo.audit.api.AuditPublisher;
-import com.timekeeper.bibexpo.config.JwtConfig;
-import com.timekeeper.bibexpo.exception.AccountDisabledException;
-import com.timekeeper.bibexpo.exception.CsrfValidationException;
-import com.timekeeper.bibexpo.exception.InvalidCredentialsException;
-import com.timekeeper.bibexpo.exception.JwtAuthenticationException;
-import com.timekeeper.bibexpo.model.dto.request.LoginRequest;
-import com.timekeeper.bibexpo.model.dto.response.LoginResponse;
-import com.timekeeper.bibexpo.model.dto.response.RefreshResponse;
-import com.timekeeper.bibexpo.service.AuthService;
-import com.timekeeper.bibexpo.service.CsrfTokenService;
-import com.timekeeper.bibexpo.service.JwtService;
-import com.timekeeper.bibexpo.service.SessionService;
+import com.timekeeper.bibexpo.identity.config.JwtConfig;
+import com.timekeeper.bibexpo.identity.exception.AccountDisabledException;
+import com.timekeeper.bibexpo.identity.exception.CsrfValidationException;
+import com.timekeeper.bibexpo.identity.exception.InvalidCredentialsException;
+import com.timekeeper.bibexpo.identity.exception.JwtAuthenticationException;
+import com.timekeeper.bibexpo.identity.model.dto.request.LoginRequest;
+import com.timekeeper.bibexpo.identity.model.dto.response.LoginResponse;
+import com.timekeeper.bibexpo.identity.model.dto.response.RefreshResponse;
+import com.timekeeper.bibexpo.identity.service.AuthService;
+import com.timekeeper.bibexpo.identity.service.CsrfTokenService;
+import com.timekeeper.bibexpo.identity.service.JwtService;
+import com.timekeeper.bibexpo.identity.service.SessionService;
+import com.timekeeper.bibexpo.user.api.AuthUserDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
-import com.timekeeper.bibexpo.user.repository.UserRepository;
-import com.timekeeper.bibexpo.user.service.cache.AuthUserCache;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -44,12 +43,11 @@ public class AuthServiceImpl implements AuthService {
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final UserRepository userRepository;
     private final JwtConfig jwtConfig;
     private final SessionService sessionService;
     private final CsrfTokenService csrfTokenService;
     private final AuditPublisher auditPublisher;
-    private final AuthUserCache authUserCache;
+    private final AuthUserDirectory authUserDirectory;
     private final UserDetailsChecker accountStatusChecker = new AccountStatusUserDetailsChecker();
 
     @Override
@@ -61,11 +59,14 @@ public class AuthServiceImpl implements AuthService {
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
 
-            User user = userRepository.findByUsername(request.getUsername())
-                    .orElseThrow(() -> new InvalidCredentialsException("Invalid username or password"));
+            // Loaded and cached by the authentication above, so this is a hit, not a query.
+            User user = authUserDirectory.findByUsername(request.getUsername());
+            if (user == null) {
+                throw new InvalidCredentialsException("Invalid username or password");
+            }
 
             String deviceInfo = buildDeviceInfo(httpRequest);
-            String sid = sessionService.startSession(user, deviceInfo);
+            String sid = sessionService.startSession(user.getUsername(), deviceInfo);
 
             String accessToken = jwtService.generateAccessToken(user, sid);
             String refreshToken = jwtService.generateRefreshToken(user, sid);
@@ -120,7 +121,7 @@ public class AuthServiceImpl implements AuthService {
             throw new JwtAuthenticationException("Invalid session. Please log in again.");
         }
 
-        User user = authUserCache.findByUsername(username);
+        User user = authUserDirectory.findByUsername(username);
         if (user == null) {
             throw new JwtAuthenticationException("Your session has expired. Please log in again.");
         }
@@ -128,7 +129,7 @@ public class AuthServiceImpl implements AuthService {
         try {
             accountStatusChecker.check(user);
         } catch (AccountStatusException e) {
-            sessionService.endSession(user);
+            sessionService.endSession(user.getUsername());
             clearAuthCookies(httpResponse);
             throw new AccountDisabledException(
                     e instanceof LockedException ? "Account is locked" : "Account is disabled");
@@ -140,7 +141,7 @@ public class AuthServiceImpl implements AuthService {
             throw new JwtAuthenticationException("Your session has been signed out. Please log in again.");
         }
 
-        sessionService.extendSession(user);
+        sessionService.extendSession(user.getUsername());
 
         String newAccessToken = jwtService.generateAccessToken(user, oldSid);
         String newRefreshToken = jwtService.generateRefreshToken(user, oldSid);
@@ -187,49 +188,35 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void writeRefreshCookie(HttpServletResponse response, String value) {
-        long maxAgeSec = jwtService.getRefreshTokenExpirationMs() / 1000;
-        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(jwtConfig.getRefreshCookieName(), value)
-                .httpOnly(true)
-                .secure(Boolean.TRUE.equals(jwtConfig.getCookieSecure()))
-                .path("/")
-                .sameSite("Lax")
-                .maxAge(maxAgeSec);
-        if (jwtConfig.getCookieDomain() != null && !jwtConfig.getCookieDomain().isBlank()) {
-            b.domain(jwtConfig.getCookieDomain());
-        }
-        response.addHeader("Set-Cookie", b.build().toString());
+        setCookie(response, jwtConfig.getRefreshCookieName(), value, true, refreshCookieMaxAgeSec());
     }
 
     private void writeCsrfCookie(HttpServletResponse response, String value) {
-        long maxAgeSec = jwtService.getRefreshTokenExpirationMs() / 1000;
-        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(jwtConfig.getCsrfCookieName(), value)
-                .httpOnly(false) // frontend JS must read it
-                .secure(Boolean.TRUE.equals(jwtConfig.getCookieSecure()))
-                .path("/")
-                .sameSite("Lax")
-                .maxAge(maxAgeSec);
-        if (jwtConfig.getCookieDomain() != null && !jwtConfig.getCookieDomain().isBlank()) {
-            b.domain(jwtConfig.getCookieDomain());
-        }
-        response.addHeader("Set-Cookie", b.build().toString());
+        // Not httpOnly: the frontend has to read this one back to echo it as the CSRF header.
+        setCookie(response, jwtConfig.getCsrfCookieName(), value, false, refreshCookieMaxAgeSec());
+    }
+
+    private long refreshCookieMaxAgeSec() {
+        return jwtService.getRefreshTokenExpirationMs() / 1000;
     }
 
     private void clearAuthCookies(HttpServletResponse response) {
-        clearCookie(response, jwtConfig.getRefreshCookieName(), true);
-        clearCookie(response, jwtConfig.getCsrfCookieName(), false);
+        setCookie(response, jwtConfig.getRefreshCookieName(), "", true, 0);
+        setCookie(response, jwtConfig.getCsrfCookieName(), "", false, 0);
     }
 
-    private void clearCookie(HttpServletResponse response, String name, boolean httpOnly) {
-        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(name, "")
+    private void setCookie(HttpServletResponse response, String name, String value,
+                           boolean httpOnly, long maxAgeSec) {
+        ResponseCookie.ResponseCookieBuilder cookie = ResponseCookie.from(name, value)
                 .httpOnly(httpOnly)
                 .secure(Boolean.TRUE.equals(jwtConfig.getCookieSecure()))
                 .path("/")
                 .sameSite("Lax")
-                .maxAge(0);
+                .maxAge(maxAgeSec);
         if (jwtConfig.getCookieDomain() != null && !jwtConfig.getCookieDomain().isBlank()) {
-            b.domain(jwtConfig.getCookieDomain());
+            cookie.domain(jwtConfig.getCookieDomain());
         }
-        response.addHeader("Set-Cookie", b.build().toString());
+        response.addHeader("Set-Cookie", cookie.build().toString());
     }
 
     private void publishLoginAudit(User user) {

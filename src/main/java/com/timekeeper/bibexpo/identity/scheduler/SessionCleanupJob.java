@@ -1,6 +1,6 @@
-package com.timekeeper.bibexpo.scheduler;
+package com.timekeeper.bibexpo.identity.scheduler;
 
-import com.timekeeper.bibexpo.repository.ActiveSessionRepository;
+import com.timekeeper.bibexpo.identity.repository.ActiveSessionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

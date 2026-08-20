@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.service;
+package com.timekeeper.bibexpo.identity.service;
 
 /**
  * Stateless double-submit CSRF token utility.

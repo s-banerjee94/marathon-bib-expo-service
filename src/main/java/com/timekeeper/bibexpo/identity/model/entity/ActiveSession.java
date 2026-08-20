@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.model.entity;
+package com.timekeeper.bibexpo.identity.model.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -1,38 +1,35 @@
-package com.timekeeper.bibexpo.security;
+package com.timekeeper.bibexpo.identity.security;
 
-import com.timekeeper.bibexpo.service.JwtService;
-import com.timekeeper.bibexpo.service.SessionService;
+import com.timekeeper.bibexpo.identity.service.JwtService;
+import com.timekeeper.bibexpo.identity.service.SessionService;
+import com.timekeeper.bibexpo.shared.error.AuthErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsChecker;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 
-/**
- * Authenticates the Python agent on the MCP routes ({@code /sse}, {@code /mcp/message}).
- *
- * <p>Accepts only the user's own {@code type=access} token, which the Python agent forwards
- * unchanged (browser → agent → MCP). The single-session {@code sid} check is enforced so a token
- * from a superseded login cannot keep acting. It loads the real user and applies their account
- * status and authorities, so server-side RBAC is unchanged. An invalid or missing token leaves the
- * context unauthenticated, so the chain's entry point returns 401.
- */
+@Component
 @RequiredArgsConstructor
 @Slf4j
-public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
@@ -47,6 +44,7 @@ public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         final String authHeader = request.getHeader("Authorization");
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -59,27 +57,34 @@ public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                // Only the user's own access token is accepted (the Python agent forwards it
-                // unchanged). isTokenValid still checks signature, username and expiry.
-                final String tokenType = jwtService.extractTokenType(jwt);
-                if (!JwtService.TYPE_ACCESS.equals(tokenType)
-                        || !jwtService.isTokenValid(jwt, userDetails, tokenType)) {
-                    log.debug("Invalid agent token (type={}) for user: {}", tokenType, username);
+                if (!jwtService.isTokenValid(jwt, userDetails, JwtService.TYPE_ACCESS)) {
+                    log.debug("Invalid access token for user: {}", username);
                     filterChain.doFilter(request, response);
                     return;
                 }
 
-                // The access token carries a browser session id: honour single-session logout so a
-                // token from a superseded login cannot keep acting.
                 String tokenSid = jwtService.extractSid(jwt);
-                if (tokenSid == null || !tokenSid.equals(sessionService.getActiveSid(username))) {
-                    log.debug("Stale access token (sid mismatch) on MCP route for user: {}", username);
-                    filterChain.doFilter(request, response);
+                String activeSid = sessionService.getActiveSid(username);
+                if (tokenSid == null || !tokenSid.equals(activeSid)) {
+                    // A stale token is expected traffic after an eviction — reject it without touching
+                    // the session row, which now belongs to the newer login (do not end it here).
+                    log.info("Stale session token for user {} (sid mismatch) — rejecting request", username);
+                    writeUnauthorized(request, response, AuthErrorCode.SESSION_INVALIDATED,
+                            "Session invalidated by another login. Please log in again.");
                     return;
                 }
 
-                // Block locked/disabled users from acting through the agent.
-                accountStatusChecker.check(userDetails);
+                try {
+                    accountStatusChecker.check(userDetails);
+                } catch (AccountStatusException e) {
+                    log.info("Blocking request for {} — {}", username, e.getMessage());
+                    boolean locked = e instanceof LockedException;
+                    writeUnauthorized(request, response,
+                            locked ? AuthErrorCode.ACCOUNT_LOCKED : AuthErrorCode.ACCOUNT_DISABLED,
+                            locked ? "Your account has been locked. Please contact an platform administrator."
+                                    : "Your account has been disabled. Please contact an administrator.");
+                    return;
+                }
 
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
@@ -88,14 +93,23 @@ public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
                 );
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
-                log.debug("Authenticated MCP agent for user: {}", username);
+                log.debug("Successfully authenticated user: {}", username);
             }
-        } catch (AccountStatusException e) {
-            log.info("Blocking MCP request — {}", e.getMessage());
         } catch (Exception e) {
-            log.error("MCP token authentication error: {}", e.getMessage());
+            log.error("JWT authentication error: {}", e.getMessage());
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void writeUnauthorized(HttpServletRequest request, HttpServletResponse response,
+                                   String code, String message) throws IOException {
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        String body = String.format(
+                "{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Unauthorized\",\"code\":\"%s\",\"message\":\"%s\",\"path\":\"%s\"}",
+                Instant.now(), code, message, request.getRequestURI()
+        );
+        response.getWriter().write(body);
     }
 }

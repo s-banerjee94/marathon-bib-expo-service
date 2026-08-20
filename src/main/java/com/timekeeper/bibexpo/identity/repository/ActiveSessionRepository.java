@@ -1,6 +1,6 @@
-package com.timekeeper.bibexpo.repository;
+package com.timekeeper.bibexpo.identity.repository;
 
-import com.timekeeper.bibexpo.model.entity.ActiveSession;
+import com.timekeeper.bibexpo.identity.model.entity.ActiveSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

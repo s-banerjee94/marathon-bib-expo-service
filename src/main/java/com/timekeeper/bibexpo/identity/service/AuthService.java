@@ -1,8 +1,8 @@
-package com.timekeeper.bibexpo.service;
+package com.timekeeper.bibexpo.identity.service;
 
-import com.timekeeper.bibexpo.model.dto.request.LoginRequest;
-import com.timekeeper.bibexpo.model.dto.response.LoginResponse;
-import com.timekeeper.bibexpo.model.dto.response.RefreshResponse;
+import com.timekeeper.bibexpo.identity.model.dto.request.LoginRequest;
+import com.timekeeper.bibexpo.identity.model.dto.response.LoginResponse;
+import com.timekeeper.bibexpo.identity.model.dto.response.RefreshResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 

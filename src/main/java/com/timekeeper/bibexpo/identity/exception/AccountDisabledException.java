@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.exception;
+package com.timekeeper.bibexpo.identity.exception;
 
 public class AccountDisabledException extends RuntimeException {
 

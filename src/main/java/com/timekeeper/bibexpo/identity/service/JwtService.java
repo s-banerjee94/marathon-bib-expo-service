@@ -1,7 +1,6 @@
-package com.timekeeper.bibexpo.service;
+package com.timekeeper.bibexpo.identity.service;
 
 import com.timekeeper.bibexpo.user.model.entity.User;
-import io.jsonwebtoken.Claims;
 import org.springframework.security.core.userdetails.UserDetails;
 
 public interface JwtService {
@@ -40,27 +39,6 @@ public interface JwtService {
      * @param expectedType either {@link #TYPE_ACCESS} or {@link #TYPE_REFRESH}
      */
     boolean isTokenValid(String token, UserDetails userDetails, String expectedType);
-
-    /**
-     * Extract all claims from a token. Throws {@code JwtAuthenticationException}
-     * on parse or signature errors.
-     */
-    Claims extractAllClaims(String token);
-
-    /**
-     * Extract role claim.
-     */
-    String extractRole(String token);
-
-    /**
-     * Extract organizationId claim (may be null for system-level roles).
-     */
-    Long extractOrganizationId(String token);
-
-    /**
-     * Extract userId claim.
-     */
-    Long extractUserId(String token);
 
     /**
      * Extract sid (session id) claim.

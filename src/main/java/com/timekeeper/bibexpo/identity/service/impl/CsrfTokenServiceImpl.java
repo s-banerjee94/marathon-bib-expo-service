@@ -1,6 +1,6 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.identity.service.impl;
 
-import com.timekeeper.bibexpo.service.CsrfTokenService;
+import com.timekeeper.bibexpo.identity.service.CsrfTokenService;
 import org.springframework.stereotype.Service;
 
 import java.security.MessageDigest;

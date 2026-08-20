@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.exception;
+package com.timekeeper.bibexpo.identity.exception;
 
 import com.timekeeper.bibexpo.shared.error.ApiException;
 import org.springframework.http.HttpStatus;

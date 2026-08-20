@@ -1,22 +1,23 @@
-package com.timekeeper.bibexpo.service;
-
-import com.timekeeper.bibexpo.user.model.entity.User;
+package com.timekeeper.bibexpo.identity.service;
 
 /**
  * Manages single-device user sessions backed by the {@code active_sessions} table.
  * Each user has at most one active session id ({@code sid}); a new login
  * overwrites any prior session atomically (single-device enforcement).
+ * <p>
+ * A session is keyed by username alone, which is all the {@code active_sessions}
+ * row holds — nothing here needs the user record itself.
  */
 public interface SessionService {
 
     /**
      * Starts a brand-new session for the user, overwriting any existing one.
      *
-     * @param user       authenticated user
+     * @param username   the authenticated user's username
      * @param deviceInfo optional User-Agent + IP string for diagnostics
      * @return the newly generated session id (UUID)
      */
-    String startSession(User user, String deviceInfo);
+    String startSession(String username, String deviceInfo);
 
     /**
      * Returns the currently active sid for the user, or {@code null} if none.
@@ -33,18 +34,11 @@ public interface SessionService {
      * refresh-token flow so multiple tabs sharing the same refresh cookie
      * remain on the same sid and don't invalidate each other.
      */
-    void extendSession(User user);
+    void extendSession(String username);
 
     /**
-     * Ends the user's session: deletes the DB row, evicts the cache entry,
-     * and closes any open SSE emitters for that user.
-     */
-    void endSession(User user);
-
-    /**
-     * Same as {@link #endSession(User)} but used when only the username is
-     * available — e.g. the logout flow, which resolves the user from the
-     * refresh cookie rather than an authenticated principal.
+     * Ends the user's session: deletes the row and evicts the cached sid, so the
+     * next request carrying a token for it is rejected.
      */
     void endSession(String username);
 }

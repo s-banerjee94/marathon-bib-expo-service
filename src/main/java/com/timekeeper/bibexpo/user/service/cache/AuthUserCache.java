@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.user.service.cache;
 
 import com.timekeeper.bibexpo.bootstrap.CacheConfig;
+import com.timekeeper.bibexpo.user.api.AuthUserDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import com.timekeeper.bibexpo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,11 +20,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  */
 @Component
 @RequiredArgsConstructor
-public class AuthUserCache {
+public class AuthUserCache implements AuthUserDirectory {
 
     private final UserRepository userRepository;
     private final CacheManager cacheManager;
 
+    @Override
     @Cacheable(value = CacheConfig.USER_DETAILS_CACHE, key = "#username", unless = "#result == null")
     public User findByUsername(String username) {
         return userRepository.findByUsernameWithOrganizationAndEvent(username).orElse(null);

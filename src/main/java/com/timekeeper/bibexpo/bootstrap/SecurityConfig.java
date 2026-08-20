@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.bootstrap;
 
-import com.timekeeper.bibexpo.security.JwtAuthenticationFilter;
-import com.timekeeper.bibexpo.security.McpTokenAuthenticationFilter;
-import com.timekeeper.bibexpo.service.JwtService;
-import com.timekeeper.bibexpo.service.SessionService;
+import com.timekeeper.bibexpo.identity.security.JwtAuthenticationFilter;
+import com.timekeeper.bibexpo.identity.security.McpTokenAuthenticationFilter;
+import com.timekeeper.bibexpo.identity.service.JwtService;
+import com.timekeeper.bibexpo.identity.service.SessionService;
 import com.timekeeper.bibexpo.shared.security.JwtAccessDeniedHandler;
 import com.timekeeper.bibexpo.shared.security.JwtAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;

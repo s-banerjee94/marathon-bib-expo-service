@@ -1,11 +1,10 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.identity.service.impl;
 
 import com.timekeeper.bibexpo.bootstrap.CacheConfig;
-import com.timekeeper.bibexpo.config.JwtConfig;
-import com.timekeeper.bibexpo.model.entity.ActiveSession;
-import com.timekeeper.bibexpo.repository.ActiveSessionRepository;
-import com.timekeeper.bibexpo.service.SessionService;
-import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.identity.config.JwtConfig;
+import com.timekeeper.bibexpo.identity.model.entity.ActiveSession;
+import com.timekeeper.bibexpo.identity.repository.ActiveSessionRepository;
+import com.timekeeper.bibexpo.identity.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -26,15 +25,15 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    @CacheEvict(value = CacheConfig.ACTIVE_SESSIONS_CACHE, key = "#user.username")
-    public String startSession(User user, String deviceInfo) {
+    @CacheEvict(value = CacheConfig.ACTIVE_SESSIONS_CACHE, key = "#username")
+    public String startSession(String username, String deviceInfo) {
         String sid = UUID.randomUUID().toString();
         Instant now = Instant.now();
         Instant expiresAt = now.plusMillis(jwtConfig.getRefreshTokenExpiration());
 
-        activeSessionRepository.upsert(user.getUsername(), sid, expiresAt, now, deviceInfo);
+        activeSessionRepository.upsert(username, sid, expiresAt, now, deviceInfo);
 
-        log.info("Session started for user {} (sid={})", user.getUsername(), sid);
+        log.info("Session started for user {} (sid={})", username, sid);
         return sid;
     }
 
@@ -49,18 +48,10 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    public void extendSession(User user) {
+    public void extendSession(String username) {
         Instant expiresAt = Instant.now().plusMillis(jwtConfig.getRefreshTokenExpiration());
-        activeSessionRepository.extendExpiry(user.getUsername(), expiresAt);
-        log.debug("Session extended for user {}", user.getUsername());
-    }
-
-    @Override
-    @Transactional
-    @CacheEvict(value = CacheConfig.ACTIVE_SESSIONS_CACHE, key = "#user.username")
-    public void endSession(User user) {
-        activeSessionRepository.deleteByUsername(user.getUsername());
-        log.info("Session ended for user {}", user.getUsername());
+        activeSessionRepository.extendExpiry(username, expiresAt);
+        log.debug("Session extended for user {}", username);
     }
 
     @Override

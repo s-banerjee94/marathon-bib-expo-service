@@ -1,8 +1,8 @@
-package com.timekeeper.bibexpo.service.impl;
+package com.timekeeper.bibexpo.identity.service.impl;
 
-import com.timekeeper.bibexpo.config.JwtConfig;
-import com.timekeeper.bibexpo.exception.JwtAuthenticationException;
-import com.timekeeper.bibexpo.service.JwtService;
+import com.timekeeper.bibexpo.identity.config.JwtConfig;
+import com.timekeeper.bibexpo.identity.exception.JwtAuthenticationException;
+import com.timekeeper.bibexpo.identity.service.JwtService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -124,8 +124,7 @@ public class JwtServiceImpl implements JwtService {
         }
     }
 
-    @Override
-    public Claims extractAllClaims(String token) {
+    private Claims extractAllClaims(String token) {
         try {
             return Jwts.parser()
                     .verifyWith(publicKey)
@@ -148,21 +147,6 @@ public class JwtServiceImpl implements JwtService {
     }
 
     @Override
-    public String extractRole(String token) {
-        return extractAllClaims(token).get("role", String.class);
-    }
-
-    @Override
-    public Long extractOrganizationId(String token) {
-        return toLong(extractAllClaims(token).get("organizationId"));
-    }
-
-    @Override
-    public Long extractUserId(String token) {
-        return toLong(extractAllClaims(token).get("userId"));
-    }
-
-    @Override
     public String extractSid(String token) {
         return extractAllClaims(token).get("sid", String.class);
     }
@@ -180,12 +164,6 @@ public class JwtServiceImpl implements JwtService {
     @Override
     public long getRefreshTokenExpirationMs() {
         return jwtConfig.getRefreshTokenExpiration();
-    }
-
-    private Long toLong(Object value) {
-        if (value == null) return null;
-        if (value instanceof Integer i) return i.longValue();
-        return (Long) value;
     }
 
     private byte[] readDer(Resource location, String label) {
