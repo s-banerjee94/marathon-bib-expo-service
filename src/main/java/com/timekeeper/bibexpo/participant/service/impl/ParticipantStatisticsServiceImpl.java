@@ -1,29 +1,45 @@
 package com.timekeeper.bibexpo.participant.service.impl;
 
-import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
+import com.timekeeper.bibexpo.event.api.EventStatsQuery;
+import com.timekeeper.bibexpo.event.api.EventStatsRebuild;
+import com.timekeeper.bibexpo.event.api.EventStatsRecorder;
+import com.timekeeper.bibexpo.event.api.ParticipantCounters;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantStatisticsResponse;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
+import com.timekeeper.bibexpo.participant.repository.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
+import com.timekeeper.bibexpo.participant.service.util.ParticipantCountersMapper;
 import com.timekeeper.bibexpo.participant.service.validator.ParticipantAccessGuard;
-import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsService {
 
+    private static final int PARTICIPANT_PAGE_SIZE = 100;
+
     private final ParticipantAccessGuard accessGuard;
-    private final EventStatsDDBRepository eventStatsRepo;
+    private final ParticipantDDBRepository participantRepository;
+    private final EventStatsQuery eventStatsQuery;
+    private final EventStatsRecorder eventStatsRecorder;
     private final RaceCategoryNameResolver nameResolver;
 
     @Override
@@ -32,14 +48,34 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
 
         accessGuard.forRead(eventId, currentUser);
 
-        List<EventStatsDDB> rows = eventStatsRepo.queryAll(eventId.toString());
+        List<EventStatsDDB> rows = eventStatsQuery.counters(eventId);
         if (rows.isEmpty()) {
             log.warn("No stats counters found for event {} — counters are built on participant writes "
-                    + "and rebuilt by EventStatsService.reconcile after a batch import", eventId);
+                    + "and rebuilt by reconcile after a batch import", eventId);
             return emptyStatistics(eventId);
         }
 
         return buildStatisticsFromRows(eventId, rows, nameResolver.forEvent(eventId));
+    }
+
+    @Override
+    public void reconcile(Long eventId, User currentUser) {
+        log.info("Reconciling event stats for event ID: {} by user: {}", eventId, currentUser.getUsername());
+
+        Event event = accessGuard.forRead(eventId, currentUser);
+        ZoneId zone = EventTimeUtil.zoneOf(event.getTimezone());
+
+        EventStatsRebuild result = eventStatsRecorder.rebuild(eventId, zone, roster(eventId));
+
+        log.info("Reconciled event {}: total={} bibCollected={} statRows={}",
+                eventId, result.participants(), result.bibCollected(), result.counterRows());
+    }
+
+    private Stream<ParticipantCounters> roster(Long eventId) {
+        Iterable<Page<ParticipantDDB>> pages = participantRepository.findPagesByEventId(eventId, PARTICIPANT_PAGE_SIZE);
+        return StreamSupport.stream(pages.spliterator(), false)
+                .flatMap(page -> page.items().stream())
+                .map(ParticipantCountersMapper::of);
     }
 
     private ParticipantStatisticsResponse buildStatisticsFromRows(Long eventId, List<EventStatsDDB> rows, EventNames names) {

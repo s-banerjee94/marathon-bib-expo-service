@@ -4,8 +4,8 @@ import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantStatisti
 import com.timekeeper.bibexpo.user.model.entity.User;
 
 /**
- * Read-side aggregation of an event's participant statistics from the
- * pre-maintained stats counters.
+ * Aggregation of an event's participant statistics from the pre-maintained stats counters, and
+ * the rebuild of those counters from the roster they count.
  */
 public interface ParticipantStatisticsService {
 
@@ -17,4 +17,13 @@ public interface ParticipantStatisticsService {
      * @return Participant statistics
      */
     ParticipantStatisticsResponse getParticipantStatistics(Long eventId, User currentUser);
+
+    /**
+     * Rebuild the counters this service reads from the participant rows themselves.
+     * Used after a batch import, which writes participants without going through the per-write
+     * counters, and as the recovery path when the counters have drifted.
+     * @param eventId The event whose counters to rebuild
+     * @param currentUser The authenticated user
+     */
+    void reconcile(Long eventId, User currentUser);
 }

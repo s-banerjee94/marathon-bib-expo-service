@@ -7,7 +7,7 @@ import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
 import com.timekeeper.bibexpo.repository.CategoryRepository;
-import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
+import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.shared.util.NameNormalizer;
@@ -43,7 +43,7 @@ public class CsvPreflightScanner {
     private final CsvParserUtil csvParserUtil;
     private final RaceRepository raceRepository;
     private final CategoryRepository categoryRepository;
-    private final EventStatsDDBRepository eventStatsRepo;
+    private final EventStatsQuery eventStatsQuery;
     private final EventQuota eventQuota;
 
     /**
@@ -68,7 +68,7 @@ public class CsvPreflightScanner {
 
     private void checkParticipantLimit(int csvRowCount, Long eventId, ImportMode mode, EventLimits limits) {
         long existingCount = (mode == ImportMode.ADD_ON)
-                ? eventStatsRepo.getTotalParticipantCount(eventId.toString())
+                ? eventStatsQuery.participantCount(eventId)
                 : 0L;
         if (existingCount + csvRowCount > limits.maxParticipants()) {
             throw new EventLimitExceededException(

@@ -1,45 +1,43 @@
-package com.timekeeper.bibexpo.service;
-
-import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
-import com.timekeeper.bibexpo.user.model.entity.User;
+package com.timekeeper.bibexpo.event.api;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Maintains pre-aggregated counter rows in the marathon-event-stats DynamoDB table so the event
- * dashboard rollup can be served without scanning participants on every read.
+ * dashboard rollup and the participant statistics can be served without scanning participants on
+ * every read.
  * <p>
  * All on* methods are best-effort: counter failures are logged but never propagated to
  * the caller, so a failed counter update does not break the user-facing operation.
- * Drift is healed by the reconciler.
+ * Drift is healed by {@link #rebuild}.
  */
-public interface EventStatsService {
+public interface EventStatsRecorder {
 
     /**
      * Increment counters for a newly created participant.
      * Updates TOTAL, RACE#&lt;id&gt;, CATEGORY#&lt;id&gt;, GENDER#&lt;g&gt;.
      * @param participant The newly created participant
      */
-    void onParticipantCreated(ParticipantDDB participant);
+    void onParticipantCreated(ParticipantCounters participant);
 
     /**
      * Decrement counters for a deleted participant.
      * Mirrors the dimensions decremented by onParticipantCreated, plus the collected
      * dimensions and goodies counters if the participant had collected their bib.
-     * @param participant The participant that was deleted (must be the row as it existed pre-delete)
+     * @param participant The participant that was deleted, as it existed pre-delete
      */
-    void onParticipantDeleted(ParticipantDDB participant);
+    void onParticipantDeleted(ParticipantCounters participant);
 
     /**
      * Apply counter deltas for a participant whose raceId, categoryId, or gender changed.
      * Decrements the old dimension keys and increments the new ones. No-op if none of these
      * three fields changed.
-     * @param before The participant row before the update
-     * @param after  The participant row after the update
+     * @param before The participant before the update
+     * @param after  The participant after the update
      */
-    void onParticipantUpdated(ParticipantDDB before, ParticipantDDB after);
+    void onParticipantUpdated(ParticipantCounters before, ParticipantCounters after);
 
     /**
      * Increment bib-collected counters for a participant whose bib was just collected.
@@ -51,17 +49,17 @@ public interface EventStatsService {
      * @param goodiesDistributed  Names of goodies distributed alongside the bib (may be empty)
      * @param eventZone           The event's time zone, used to bucket the collection by local date and hour
      */
-    void onBibCollected(ParticipantDDB participant, List<String> goodiesDistributed, ZoneId eventZone);
+    void onBibCollected(ParticipantCounters participant, List<String> goodiesDistributed, ZoneId eventZone);
 
     /**
      * Decrement bib-collected counters for a participant whose bib collection was undone.
-     * The participant snapshot must be captured BEFORE the undo mutation, since undoBib
-     * clears bibCollectedAt and goodiesDistribution from the row. Reverses the range-scoped
-     * activity counters using the snapshot's original collection time.
-     * @param participantBefore The participant snapshot taken before the undo write
+     * The snapshot must be taken BEFORE the undo mutation, since undoBib clears bibCollectedAt
+     * and the goodies from the row. Reverses the range-scoped activity counters using the
+     * snapshot's original collection time and distributor.
+     * @param participantBefore The participant as it was before the undo write
      * @param eventZone         The event's time zone, used to locate the original activity bucket
      */
-    void onBibUndone(ParticipantDDB participantBefore, ZoneId eventZone);
+    void onBibUndone(ParticipantCounters participantBefore, ZoneId eventZone);
 
     /**
      * Increment goodie-distribution counters when goodies are distributed without a
@@ -69,21 +67,29 @@ public interface EventStatsService {
      * @param participant The participant after the distribute-goodies write
      * @param items       Names of goodies distributed in this operation
      */
-    void onGoodiesDistributed(ParticipantDDB participant, List<String> items);
+    void onGoodiesDistributed(ParticipantCounters participant, List<String> items);
 
     /**
      * Decrement counters for a batch of participants deleted via bulk delete.
-     * @param participants The participants that were deleted (must be the rows as they existed pre-delete)
+     * @param participants The participants that were deleted, as they existed pre-delete
      */
-    void onBulkDeleted(List<ParticipantDDB> participants);
+    void onBulkDeleted(List<ParticipantCounters> participants);
 
     /**
-     * Rebuild the entire counter table for an event from the source-of-truth participant rows.
-     * Wipes existing counter rows for the event, queries all participants, aggregates in memory,
-     * and writes fresh counter rows. Used after batch import and as a drift recovery tool.
-     * Read the rebuilt figures back through {@code ParticipantStatisticsService}.
-     * @param eventId     The event whose counters to rebuild
-     * @param currentUser The authenticated user (used for authorization and event-enabled checks)
+     * Drop every counter row for an event, for the caller that has just emptied its roster.
+     * @param eventId The event whose counters are now meaningless
      */
-    void reconcile(Long eventId, User currentUser);
+    void onAllDeleted(Long eventId);
+
+    /**
+     * Rebuild the entire counter table for an event from the source-of-truth roster.
+     * Wipes the existing counter rows, aggregates the supplied participants in memory, and writes
+     * fresh rows. Used after batch import and as a drift recovery tool. Unlike the on* methods this
+     * one reports failure to its caller.
+     * @param eventId   The event whose counters to rebuild
+     * @param eventZone The event's time zone, used to bucket collections by local date and hour
+     * @param roster    Every participant of the event, consumed once
+     * @return what was walked and written
+     */
+    EventStatsRebuild rebuild(Long eventId, ZoneId eventZone, Stream<ParticipantCounters> roster);
 }

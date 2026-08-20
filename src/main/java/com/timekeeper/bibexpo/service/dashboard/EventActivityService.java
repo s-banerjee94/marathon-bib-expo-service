@@ -7,10 +7,10 @@ import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse.Series;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse.Timeline;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse;
-import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
+import com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB;
 import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.model.enums.EventActivityRange;
-import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
+import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import com.timekeeper.bibexpo.user.repository.UserRepository;
@@ -48,7 +48,7 @@ public class EventActivityService {
     private static final int DEFAULT_TOP_DISTRIBUTORS = 8;
     private static final DateTimeFormatter LABEL_FMT = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
 
-    private final EventStatsDDBRepository statsRepo;
+    private final EventStatsQuery eventStatsQuery;
     private final UserRepository userRepository;
 
     /**
@@ -64,7 +64,7 @@ public class EventActivityService {
         LocalDate today = now.toLocalDate();
         LocalDate expoStartDate = localDate(event.getEventStartDate(), zone, today);
 
-        ParsedStats stats = parseStats(String.valueOf(event.getId()));
+        ParsedStats stats = parseStats(event.getId());
 
         List<Series> series = new ArrayList<>();
         ZonedDateTime windowStart;
@@ -116,9 +116,9 @@ public class EventActivityService {
                 .build();
     }
 
-    private ParsedStats parseStats(String eventId) {
+    private ParsedStats parseStats(Long eventId) {
         ParsedStats parsed = new ParsedStats();
-        for (EventStatsDDB row : statsRepo.queryAll(eventId)) {
+        for (EventStatsDDB row : eventStatsQuery.counters(eventId)) {
             String key = row.getStatKey();
             long count = row.getCount() != null ? row.getCount() : 0L;
             if (EventStatsDDB.KEY_TOTAL.equals(key)) {

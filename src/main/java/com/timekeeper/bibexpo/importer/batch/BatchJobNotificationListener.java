@@ -14,7 +14,7 @@ import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.event.api.EventStore;
-import com.timekeeper.bibexpo.service.EventStatsService;
+import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.user.api.UserDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -39,7 +39,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private final ParticipantStore participantStore;
     private final EventStore eventStore;
     private final UserDirectory userDirectory;
-    private final EventStatsService eventStatsService;
+    private final ParticipantStatisticsService participantStatisticsService;
     private final ObjectMapper objectMapper;
     private final EventQuota eventQuota;
     private final RaceCategoryNameResolver nameResolver;
@@ -167,7 +167,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
                         jobExecutionId, eventId);
                 return;
             }
-            eventStatsService.reconcile(eventId, user);
+            participantStatisticsService.reconcile(eventId, user);
             log.info("Reconciled stats counters after batch import job {} for event {}", jobExecutionId, eventId);
         } catch (Exception e) {
             log.error("Failed to reconcile stats counters after batch import job {} for event {}",

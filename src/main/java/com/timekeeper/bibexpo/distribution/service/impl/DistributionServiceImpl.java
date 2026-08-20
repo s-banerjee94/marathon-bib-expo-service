@@ -29,8 +29,10 @@ import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.service.util.DistributorStamp;
+import com.timekeeper.bibexpo.participant.service.util.ParticipantCountersMapper;
+import com.timekeeper.bibexpo.event.api.EventStatsRecorder;
 import com.timekeeper.bibexpo.event.api.EventStore;
-import com.timekeeper.bibexpo.service.EventStatsService;
+import com.timekeeper.bibexpo.event.api.ParticipantCounters;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.shared.error.ApiException;
@@ -70,7 +72,7 @@ public class DistributionServiceImpl implements DistributionService {
     private final DistributionValidator validator;
     private final ParticipantEventSmsService participantEventSmsService;
     private final ParticipantEventWhatsAppService participantEventWhatsAppService;
-    private final EventStatsService eventStatsService;
+    private final EventStatsRecorder eventStatsRecorder;
     private final RaceCategoryNameResolver nameResolver;
 
     @Override
@@ -129,7 +131,8 @@ public class DistributionServiceImpl implements DistributionService {
         }
 
         participantStore.save(participant);
-        eventStatsService.onBibCollected(participant, goodiesDistributed, EventTimeUtil.zoneOf(event.getTimezone()));
+        eventStatsRecorder.onBibCollected(ParticipantCountersMapper.of(participant), goodiesDistributed,
+                EventTimeUtil.zoneOf(event.getTimezone()));
         markDistributionStarted(event);
 
         logDistributionAction(String.valueOf(eventId), bibNumber,
@@ -166,7 +169,7 @@ public class DistributionServiceImpl implements DistributionService {
             throw new BibNotCollectedException();
         }
 
-        ParticipantDDB beforeSnapshot = snapshotForStats(participant);
+        ParticipantCounters beforeSnapshot = ParticipantCountersMapper.of(participant);
 
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         String undoneBy = DistributorStamp.of(currentUser.getId(), currentUser.getUsername());
@@ -180,7 +183,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedBy(currentUser.getUsername());
 
         participantStore.save(participant);
-        eventStatsService.onBibUndone(beforeSnapshot, EventTimeUtil.zoneOf(event.getTimezone()));
+        eventStatsRecorder.onBibUndone(beforeSnapshot, EventTimeUtil.zoneOf(event.getTimezone()));
 
         logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_BIB_UNDONE,
@@ -243,7 +246,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedBy(currentUser.getUsername());
 
         participantStore.save(participant);
-        eventStatsService.onGoodiesDistributed(participant, itemsDistributed);
+        eventStatsRecorder.onGoodiesDistributed(ParticipantCountersMapper.of(participant), itemsDistributed);
         markDistributionStarted(event);
 
         return GoodiesDistributionResponse.builder()
@@ -536,21 +539,6 @@ public class DistributionServiceImpl implements DistributionService {
                 .lastEvaluatedKey(newLastEvaluatedKey)
                 .count(logs.size())
                 .hasMore(newLastEvaluatedKey != null)
-                .build();
-    }
-
-    private ParticipantDDB snapshotForStats(ParticipantDDB p) {
-        Map<String, String> goodiesCopy = p.getGoodiesDistribution() != null
-                ? new HashMap<>(p.getGoodiesDistribution())
-                : null;
-        return ParticipantDDB.builder()
-                .eventId(p.getEventId())
-                .bibNumber(p.getBibNumber())
-                .raceId(p.getRaceId())
-                .categoryId(p.getCategoryId())
-                .gender(p.getGender())
-                .bibCollectedAt(p.getBibCollectedAt())
-                .goodiesDistribution(goodiesCopy)
                 .build();
     }
 

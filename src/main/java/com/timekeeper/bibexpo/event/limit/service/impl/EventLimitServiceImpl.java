@@ -8,7 +8,7 @@ import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.event.limit.model.entity.EventLimit;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.repository.CategoryRepository;
-import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
+import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.limit.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.event.repository.EventRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;
@@ -37,7 +37,7 @@ public class EventLimitServiceImpl implements EventLimitService {
     private final CategoryRepository categoryRepository;
     private final EventCampaignUsage eventCampaignUsage;
     private final EventImportUsage eventImportUsage;
-    private final EventStatsDDBRepository eventStatsRepo;
+    private final EventStatsQuery eventStatsQuery;
     private final EventGoodiesReader goodiesReader;
 
     @Override
@@ -60,7 +60,7 @@ public class EventLimitServiceImpl implements EventLimitService {
                 .orElseGet(() -> EventLimit.builder().build());
 
         applyLimit(request.getMaxParticipants(),
-                () -> eventStatsRepo.getTotalParticipantCount(eventId.toString()),
+                () -> eventStatsQuery.participantCount(eventId),
                 limits::setMaxParticipants,
                 "You cannot set the participant limit below the current number of participants (%d).");
 

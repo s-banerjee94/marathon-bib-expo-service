@@ -6,7 +6,7 @@ import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
+import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.user.api.UserDirectory;
@@ -38,7 +38,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
     private final UserDirectory userDirectory;
     private final BatchReferenceDataService referenceDataService;
     private final EventQuota eventQuota;
-    private final EventStatsDDBRepository eventStatsRepo;
+    private final EventStatsQuery eventStatsQuery;
 
     @Value("#{jobParameters['eventId']}")
     private String eventIdParam;
@@ -106,7 +106,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
             if (isAddOn) {
                 EventLimits limits = eventQuota.forEvent(eventId);
                 participantLimit = limits.maxParticipants();
-                initialParticipantCount = eventStatsRepo.getTotalParticipantCount(eventId.toString());
+                initialParticipantCount = eventStatsQuery.participantCount(eventId);
                 processedThisJob = 0;
                 log.info("ADD_ON import: existingCount={}, limit={}", initialParticipantCount, participantLimit);
             }

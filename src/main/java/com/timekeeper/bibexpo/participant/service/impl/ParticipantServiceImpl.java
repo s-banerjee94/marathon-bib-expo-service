@@ -18,11 +18,13 @@ import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.model.enums.SearchType;
 import com.timekeeper.bibexpo.participant.repository.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.participant.service.ParticipantService;
+import com.timekeeper.bibexpo.participant.service.util.ParticipantCountersMapper;
 import com.timekeeper.bibexpo.participant.service.validator.ParticipantAccessGuard;
-import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
+import com.timekeeper.bibexpo.event.api.EventStatsQuery;
+import com.timekeeper.bibexpo.event.api.EventStatsRecorder;
+import com.timekeeper.bibexpo.event.api.ParticipantCounters;
 import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.service.CategoryService;
-import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.RaceService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
@@ -60,8 +62,8 @@ public class ParticipantServiceImpl implements ParticipantService {
     private final CategoryService categoryService;
     private final ParticipantAccessGuard accessGuard;
     private final DynamoDBPaginationCodec paginationCodec;
-    private final EventStatsDDBRepository eventStatsRepo;
-    private final EventStatsService eventStatsService;
+    private final EventStatsQuery eventStatsQuery;
+    private final EventStatsRecorder eventStatsRecorder;
     private final RaceCategoryNameResolver nameResolver;
     private final EventQuota eventQuota;
 
@@ -75,7 +77,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         accessGuard.forWrite(eventId, currentUser);
 
         EventLimits limits = eventQuota.forEvent(eventId);
-        long currentCount = eventStatsRepo.getTotalParticipantCount(eventId.toString());
+        long currentCount = eventStatsQuery.participantCount(eventId);
         if (currentCount >= limits.maxParticipants()) {
             throw new EventLimitExceededException("You have reached the maximum number of participants allowed for this event.");
         }
@@ -121,7 +123,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .build();
 
         participantRepository.save(participant);
-        eventStatsService.onParticipantCreated(participant);
+        eventStatsRecorder.onParticipantCreated(ParticipantCountersMapper.of(participant));
 
         log.info("Successfully created participant with BIB {} for event ID: {}", request.getBibNumber(), eventId);
 
@@ -169,7 +171,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
-        ParticipantDDB beforeSnapshot = snapshotForStats(participant);
+        ParticipantCounters beforeSnapshot = ParticipantCountersMapper.of(participant);
 
         boolean bibNumberChanged = false;
         String newBibNumber = bibNumber;
@@ -233,7 +235,7 @@ public class ParticipantServiceImpl implements ParticipantService {
             log.info("Successfully updated participant BIB {} for event ID: {}", bibNumber, eventId);
         }
 
-        eventStatsService.onParticipantUpdated(beforeSnapshot, participant);
+        eventStatsRecorder.onParticipantUpdated(beforeSnapshot, ParticipantCountersMapper.of(participant));
 
         return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
@@ -244,7 +246,7 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         accessGuard.forRead(eventId, currentUser);
 
-        long count = eventStatsRepo.getTotalParticipantCount(eventId.toString());
+        long count = eventStatsQuery.participantCount(eventId);
 
         log.info("Found {} participants for event ID: {}", count, eventId);
         return count;
@@ -319,7 +321,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
 
         participantRepository.deleteByEventAndBib(eventId, bibNumber);
-        eventStatsService.onParticipantDeleted(participant);
+        eventStatsRecorder.onParticipantDeleted(ParticipantCountersMapper.of(participant));
 
         String message = String.format("Successfully deleted participant with bib %s from event '%s'", bibNumber, event.getEventName());
         log.info(message);
@@ -340,7 +342,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         Event event = accessGuard.forDelete(eventId, currentUser);
 
         int deletedCount = participantRepository.deleteAllByEventId(eventId.toString());
-        eventStatsRepo.deleteAllByEventId(eventId.toString());
+        eventStatsRecorder.onAllDeleted(eventId);
 
         String message = String.format("Successfully deleted %d participants for event '%s'", deletedCount, event.getEventName());
         log.info(message);
@@ -385,7 +387,7 @@ public class ParticipantServiceImpl implements ParticipantService {
             try {
                 deletedCount = participantRepository.deleteAll(participantsToDelete);
                 failedCount += participantsToDelete.size() - deletedCount;
-                eventStatsService.onBulkDeleted(participantsToDelete);
+                eventStatsRecorder.onBulkDeleted(ParticipantCountersMapper.of(participantsToDelete));
             } catch (Exception e) {
                 log.error("Failed to delete participants in bulk for event {}", eventId, e);
                 throw new ParticipantDeletionFailedException(e);
@@ -618,24 +620,6 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     private static String trim(String value) {
         return value == null ? null : value.trim();
-    }
-
-    /**
-     * Carries exactly the fields the stats counters read when they reverse a participant's
-     * contribution. goodiesDistribution was missing, so every edit of a participant who had already
-     * collected goodies re-counted each of them.
-     */
-    private ParticipantDDB snapshotForStats(ParticipantDDB p) {
-        return ParticipantDDB.builder()
-                .eventId(p.getEventId())
-                .bibNumber(p.getBibNumber())
-                .raceId(p.getRaceId())
-                .categoryId(p.getCategoryId())
-                .gender(p.getGender())
-                .bibCollectedAt(p.getBibCollectedAt())
-                .goodiesDistribution(p.getGoodiesDistribution() == null
-                        ? null : new HashMap<>(p.getGoodiesDistribution()))
-                .build();
     }
 
     @Override

@@ -16,9 +16,10 @@ import org.springframework.stereotype.Component;
  * Resolves an event and enforces the participant-management preconditions for one intent.
  *
  * <p>Each entry method loads the event, applies organization/availability gating through
- * {@link EventAccessValidator}, and layers the status rule for that intent. {@link #forDelete}
- * returns the resolved event for callers that reuse it; the others are pure guards. Callers
- * replace the repeated find-then-check preamble with a single line.
+ * {@link EventAccessValidator}, and layers the status rule for that intent. {@link #forRead} and
+ * {@link #forDelete} hand back the resolved event so callers that need it do not load it twice;
+ * {@link #forWrite} is a pure guard. Callers replace the repeated find-then-check preamble with a
+ * single line.
  */
 @Component
 @RequiredArgsConstructor
@@ -33,10 +34,12 @@ public class ParticipantAccessGuard {
      *
      * @param eventId     the event being accessed
      * @param currentUser the authenticated user
+     * @return the resolved event
      */
-    public void forRead(Long eventId, User currentUser) {
+    public Event forRead(Long eventId, User currentUser) {
         Event event = findEvent(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        return event;
     }
 
     /**

@@ -4,9 +4,9 @@ package com.timekeeper.bibexpo.participant.service.util;
  * Encodes and decodes {@code ParticipantDDB.bibDistributedBy}, the {@code <userId>__|__<username>}
  * stamp written when a bib is handed out.
  *
- * <p>It lives with the participant record that carries the field rather than with either of the two
- * modules that touch it: distribution writes the stamp and event stats reads the id back out, so
- * letting distribution own the format would point event at distribution.
+ * <p>It lives with the participant record that carries the field rather than with distribution,
+ * which writes it: the id is also read back out here, on the way into the event-stats activity
+ * counters, and pointing that path at distribution would be the wrong direction.
  */
 public final class DistributorStamp {
 
