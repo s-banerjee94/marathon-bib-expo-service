@@ -22,9 +22,9 @@ import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingVal
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +43,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
     private static final int CONSECUTIVE_FAILURE_THRESHOLD = 5;
 
     private final WhatsAppCampaignRepository campaignRepository;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final CampaignProviderResolver campaignProviderResolver;
     private final MessagingProviderClient messagingProviderClient;
     private final WhatsAppSchedulerProperties schedulerProperties;
@@ -62,7 +62,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
         }
 
         // The slice stores plain IDs; the event is fetched only for template-variable rendering
-        Event event = eventRepository.findById(campaign.getEventId()).orElse(null);
+        Event event = eventStore.findById(campaign.getEventId()).orElse(null);
         if (event == null) {
             log.warn("Event ID: {} not found for WhatsApp campaign ID: {} — skipping", campaign.getEventId(), campaignId);
             return;

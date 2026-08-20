@@ -8,7 +8,7 @@ import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse.Timeline;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.EventActivityResponse;
 import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.model.enums.EventActivityRange;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;

@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.importer.batch;
 
 import com.timekeeper.bibexpo.model.entity.Category;
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.repository.CategoryRepository;
 import com.timekeeper.bibexpo.repository.RaceRepository;

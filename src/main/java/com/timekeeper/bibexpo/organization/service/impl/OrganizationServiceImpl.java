@@ -20,7 +20,7 @@ import com.timekeeper.bibexpo.organization.repository.OrganizationLimitRepositor
 import com.timekeeper.bibexpo.organization.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.organization.service.cache.OrganizationCache;
 import com.timekeeper.bibexpo.organization.service.OrganizationService;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.security.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
@@ -64,7 +64,7 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     private final OrganizationRepository organizationRepository;
     private final OrganizationLimitRepository organizationLimitRepository;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final OrganizationMemberPurger memberPurger;
     private final StorageService storageService;
     private final OrganizationCache organizationCache;
@@ -293,7 +293,7 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .orElseThrow(() -> new OrganizationNotFoundException(
                         THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
 
-        if (eventRepository.countByOrganizationId(id) > 0) {
+        if (eventStore.countByOrganizationId(id) > 0) {
             throw new OrganizationDeletionNotAllowedException(
                     "You cannot delete this organization while it still has events. Delete them first.");
         }

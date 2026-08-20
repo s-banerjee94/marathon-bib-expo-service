@@ -4,7 +4,7 @@ import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepositor
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsTemplateRepository;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppTemplateRepository;
-import com.timekeeper.bibexpo.service.EventDeletionGuard;
+import com.timekeeper.bibexpo.event.api.EventDeletionGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

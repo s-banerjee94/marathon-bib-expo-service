@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 import com.timekeeper.bibexpo.audit.api.Auditable;
 import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
-import com.timekeeper.bibexpo.exception.EventLimitExceededException;
+import com.timekeeper.bibexpo.event.limit.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsCampaignException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignAlreadyActiveException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsCampaignNotFoundException;
@@ -21,12 +21,12 @@ import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
 import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventLimit;
-import com.timekeeper.bibexpo.repository.EventLimitRepository;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
-import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventLimits;
+import com.timekeeper.bibexpo.event.api.EventQuota;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,19 +39,19 @@ public class SmsCampaignServiceImpl
         implements SmsCampaignService {
 
     private final SmsTemplateRepository smsTemplateRepository;
-    private final EventLimitRepository eventLimitRepository;
+    private final EventQuota eventQuota;
 
     public SmsCampaignServiceImpl(SmsCampaignRepository smsCampaignRepository,
                                   SmsTemplateRepository smsTemplateRepository,
-                                  EventRepository eventRepository,
+                                  EventStore eventStore,
                                   EventAccessValidator eventAccessValidator,
-                                  EventLimitRepository eventLimitRepository,
+                                  EventQuota eventQuota,
                                   EventOperationGuard eventOperationGuard,
                                   CampaignCompatibilityGuard compatibilityGuard) {
-        super("SMS", smsCampaignRepository, eventRepository, eventAccessValidator, eventOperationGuard,
+        super("SMS", smsCampaignRepository, eventStore, eventAccessValidator, eventOperationGuard,
                 compatibilityGuard);
         this.smsTemplateRepository = smsTemplateRepository;
-        this.eventLimitRepository = eventLimitRepository;
+        this.eventQuota = eventQuota;
     }
 
     @Auditable(entityType = AuditEntityType.SMS_CAMPAIGN, action = AuditAction.CREATE)
@@ -131,9 +131,8 @@ public class SmsCampaignServiceImpl
 
     @Override
     protected void enforceCreateLimit(Long eventId) {
-        EventLimit limits = eventLimitRepository.findByEventId(eventId)
-                .orElseGet(() -> EventLimit.builder().build());
-        if (campaignRepository.countByEventId(eventId) >= limits.getMaxSmsCampaigns()) {
+        EventLimits limits = eventQuota.forEvent(eventId);
+        if (campaignRepository.countByEventId(eventId) >= limits.maxSmsCampaigns()) {
             throw new EventLimitExceededException("You have reached the maximum number of SMS campaigns allowed for this event.");
         }
     }

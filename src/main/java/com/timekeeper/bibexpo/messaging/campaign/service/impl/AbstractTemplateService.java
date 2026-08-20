@@ -1,14 +1,13 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.TemplateEntity;
 import com.timekeeper.bibexpo.messaging.campaign.repository.TemplateBaseRepository;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.enums.EventOperation;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
-import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.enums.EventOperation;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
@@ -38,18 +37,18 @@ public abstract class AbstractTemplateService<T extends TemplateEntity, R> {
     private final String channelLabel;
 
     protected final TemplateBaseRepository<T> templateRepository;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final EventOperationGuard eventOperationGuard;
 
     protected AbstractTemplateService(String channelLabel,
                                       TemplateBaseRepository<T> templateRepository,
-                                      EventRepository eventRepository,
+                                      EventStore eventStore,
                                       EventAccessValidator eventAccessValidator,
                                       EventOperationGuard eventOperationGuard) {
         this.channelLabel = channelLabel;
         this.templateRepository = templateRepository;
-        this.eventRepository = eventRepository;
+        this.eventStore = eventStore;
         this.eventAccessValidator = eventAccessValidator;
         this.eventOperationGuard = eventOperationGuard;
     }
@@ -109,8 +108,7 @@ public abstract class AbstractTemplateService<T extends TemplateEntity, R> {
     }
 
     protected final Event validateEventAccess(Long eventId, User currentUser) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 

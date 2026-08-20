@@ -1,16 +1,16 @@
 package com.timekeeper.bibexpo.service.impl;
 
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.event.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.model.dynamodb.EventStatsDDB;
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.service.util.DistributorStamp;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository.CounterDelta;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.repository.EventRepository;
 import com.timekeeper.bibexpo.service.EventStatsService;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;

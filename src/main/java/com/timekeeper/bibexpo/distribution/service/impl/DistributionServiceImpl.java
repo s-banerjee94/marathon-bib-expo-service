@@ -22,15 +22,14 @@ import com.timekeeper.bibexpo.distribution.repository.DistributionLogDDBReposito
 import com.timekeeper.bibexpo.distribution.service.DistributionService;
 import com.timekeeper.bibexpo.distribution.service.util.DistributionConstants;
 import com.timekeeper.bibexpo.distribution.service.validator.DistributionValidator;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventSmsService;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventWhatsAppService;
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.service.util.DistributorStamp;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
@@ -64,7 +63,7 @@ public class DistributionServiceImpl implements DistributionService {
     private static final int DEFAULT_PAGE_SIZE = 50;
     private static final int MAX_PAGE_SIZE = 100;
 
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final ParticipantStore participantStore;
     private final DistributionLogDDBRepository logRepository;
     private final DynamoDBPaginationCodec paginationCodec;
@@ -566,14 +565,13 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     private Event findEventOrThrow(Long eventId) {
-        return eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
+        return eventStore.requireById(eventId);
     }
 
     private void markDistributionStarted(Event event) {
         if (!Boolean.TRUE.equals(event.getDistributionStarted())) {
             event.setDistributionStarted(true);
-            eventRepository.save(event);
+            eventStore.markDistributionStarted(event.getId());
         }
     }
 

@@ -5,15 +5,15 @@ import com.timekeeper.bibexpo.importer.model.dto.response.ErrorSummary;
 import com.timekeeper.bibexpo.importer.model.entity.ImportJob;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
 import com.timekeeper.bibexpo.importer.repository.ImportJobRepository;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
-import com.timekeeper.bibexpo.repository.EventLimitRepository;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.api.EventQuota;
+import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.user.api.UserDirectory;
@@ -37,11 +37,11 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private final NotificationService notificationService;
     private final ImportJobRepository importJobRepository;
     private final ParticipantStore participantStore;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final UserDirectory userDirectory;
     private final EventStatsService eventStatsService;
     private final ObjectMapper objectMapper;
-    private final EventLimitRepository eventLimitRepository;
+    private final EventQuota eventQuota;
     private final RaceCategoryNameResolver nameResolver;
 
     @Override
@@ -232,7 +232,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
         String goodiesColumns = jobExecution.getExecutionContext().getString("goodiesColumns", null);
         if (goodiesColumns == null || goodiesColumns.isBlank()) return;
 
-        Event event = eventRepository.findById(eventId).orElse(null);
+        Event event = eventStore.findById(eventId).orElse(null);
         if (event == null) {
             log.warn("Event {} not found when updating goodies", eventId);
             return;
@@ -240,15 +240,13 @@ public class BatchJobNotificationListener implements JobExecutionListener {
 
         try {
             List<String> goodiesList = List.of(goodiesColumns.split(","));
-            EventLimit limits = eventLimitRepository.findByEventId(eventId)
-                    .orElseGet(() -> EventLimit.builder().build());
-            if (goodiesList.size() > limits.getMaxGoodies()) {
+            EventLimits limits = eventQuota.forEvent(eventId);
+            if (goodiesList.size() > limits.maxGoodies()) {
                 log.warn("Skipping goodies update for event {}: CSV has {} goodies columns but limit is {}",
-                        eventId, goodiesList.size(), limits.getMaxGoodies());
+                        eventId, goodiesList.size(), limits.maxGoodies());
                 return;
             }
-            event.setEventGoodies(objectMapper.writeValueAsString(goodiesList));
-            eventRepository.save(event);
+            eventStore.updateGoodies(eventId, objectMapper.writeValueAsString(goodiesList));
             log.info("Updated event {} goodies: {}", eventId, goodiesColumns);
         } catch (Exception e) {
             log.error("Failed to serialize goodies for event {}", eventId, e);

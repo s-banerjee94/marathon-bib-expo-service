@@ -4,9 +4,8 @@ import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.audit.api.AuditEvent;
 import com.timekeeper.bibexpo.audit.api.AuditPublisher;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.exception.InvalidQrCodeException;
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
@@ -21,10 +20,10 @@ import com.timekeeper.bibexpo.participantaccess.service.ParticipantAccessService
 import com.timekeeper.bibexpo.participantaccess.util.QrImageGenerator;
 import com.timekeeper.bibexpo.participantaccess.util.QrTokenCodec;
 import com.timekeeper.bibexpo.participantaccess.util.ShortCodeGenerator;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
 import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +39,7 @@ import java.time.temporal.ChronoUnit;
 @Slf4j
 public class ParticipantAccessServiceImpl implements ParticipantAccessService {
 
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final ParticipantStore participantStore;
     private final ShortUrlDDBRepository shortUrlRepository;
@@ -224,6 +223,6 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     }
 
     private Event findEventOrThrow(Long eventId) {
-        return eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        return eventStore.requireById(eventId);
     }
 }

@@ -1,11 +1,11 @@
 package com.timekeeper.bibexpo.distribution.service.validator;
 
-import com.timekeeper.bibexpo.exception.EventDisabledException;
-import com.timekeeper.bibexpo.exception.EventOperationNotAllowedException;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventStatus;
-import com.timekeeper.bibexpo.service.EventBillingGuard;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.exception.EventDisabledException;
+import com.timekeeper.bibexpo.event.exception.EventOperationNotAllowedException;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.EventStatus;
+import com.timekeeper.bibexpo.event.api.EventBillingGuard;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;

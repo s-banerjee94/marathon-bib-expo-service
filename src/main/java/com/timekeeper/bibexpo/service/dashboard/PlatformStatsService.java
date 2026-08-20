@@ -7,11 +7,11 @@ import com.timekeeper.bibexpo.model.dto.response.dashboard.PlatformOrganizations
 import com.timekeeper.bibexpo.model.dto.response.dashboard.PlatformUsersDto;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.TopOrgDto;
 import com.timekeeper.bibexpo.model.dto.response.dashboard.UpcomingEventDto;
-import com.timekeeper.bibexpo.model.entity.EventStatus;
+import com.timekeeper.bibexpo.event.model.entity.EventStatus;
 import com.timekeeper.bibexpo.model.enums.DashboardRange;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.organization.repository.OrganizationRepository;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.repository.EventRepository;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;

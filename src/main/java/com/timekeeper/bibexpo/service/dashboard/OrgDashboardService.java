@@ -23,7 +23,7 @@ public class OrgDashboardService {
             + "+ ':' + #query.citiesRange + ':' + #query.trendBuckets + ':' + #query.trendInterval + ':' + #query.topCities";
 
     private final OrganizationRepository organizationRepository;
-    private final EventStatsService eventStatsService;
+    private final DashboardEventStatsService eventStatsService;
     private final UserStatsService userStatsService;
     private final TrendsService trendsService;
     private final StorageService storageService;

@@ -1,14 +1,14 @@
 package com.timekeeper.bibexpo.importer.batch;
 
-import com.timekeeper.bibexpo.exception.EventLimitExceededException;
+import com.timekeeper.bibexpo.event.limit.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.importer.model.dto.request.ImportMappingRequest;
 import com.timekeeper.bibexpo.model.entity.Category;
-import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
 import com.timekeeper.bibexpo.repository.CategoryRepository;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
-import com.timekeeper.bibexpo.repository.EventLimitRepository;
+import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.repository.RaceRepository;
 import com.timekeeper.bibexpo.shared.util.NameNormalizer;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +44,7 @@ public class CsvPreflightScanner {
     private final RaceRepository raceRepository;
     private final CategoryRepository categoryRepository;
     private final EventStatsDDBRepository eventStatsRepo;
-    private final EventLimitRepository eventLimitRepository;
+    private final EventQuota eventQuota;
 
     /**
      * Scans the CSV for resource limit violations before the batch job is launched.
@@ -52,8 +52,7 @@ public class CsvPreflightScanner {
      * @throws EventLimitExceededException if the import would breach any configured limit
      */
     public void scan(Path csvPath, ImportMappingRequest mapping, Long eventId, ImportMode mode) {
-        EventLimit limits = eventLimitRepository.findByEventId(eventId)
-                .orElseGet(() -> EventLimit.builder().build());
+        EventLimits limits = eventQuota.forEvent(eventId);
 
         ScanResult result = scanCsv(csvPath, mapping);
         if (result == null) {
@@ -67,17 +66,17 @@ public class CsvPreflightScanner {
         log.info("Pre-flight scan passed for event {}: {} rows, {} unique races", eventId, result.rowCount, result.categoriesByRace.size());
     }
 
-    private void checkParticipantLimit(int csvRowCount, Long eventId, ImportMode mode, EventLimit limits) {
+    private void checkParticipantLimit(int csvRowCount, Long eventId, ImportMode mode, EventLimits limits) {
         long existingCount = (mode == ImportMode.ADD_ON)
                 ? eventStatsRepo.getTotalParticipantCount(eventId.toString())
                 : 0L;
-        if (existingCount + csvRowCount > limits.getMaxParticipants()) {
+        if (existingCount + csvRowCount > limits.maxParticipants()) {
             throw new EventLimitExceededException(
                     "This import would exceed the maximum number of participants allowed for this event.");
         }
     }
 
-    private Map<String, Long> checkRaceLimit(Set<String> rawRaceNames, Long eventId, EventLimit limits) {
+    private Map<String, Long> checkRaceLimit(Set<String> rawRaceNames, Long eventId, EventLimits limits) {
         int currentRaceCount = raceRepository.countByEventIdAndDeletedFalse(eventId);
         Map<String, Long> raceIdByRawName = new HashMap<>();
         int netNewRaces = 0;
@@ -93,7 +92,7 @@ public class CsvPreflightScanner {
             }
         }
 
-        if (currentRaceCount + netNewRaces > limits.getMaxRaces()) {
+        if (currentRaceCount + netNewRaces > limits.maxRaces()) {
             throw new EventLimitExceededException(
                     "This import would exceed the maximum number of races allowed for this event.");
         }
@@ -102,7 +101,7 @@ public class CsvPreflightScanner {
 
     private void checkCategoryLimits(Map<String, Set<String>> categoriesByRace,
                                      Map<String, Long> raceIdByRawName,
-                                     EventLimit limits) {
+                                     EventLimits limits) {
         for (Map.Entry<String, Set<String>> entry : categoriesByRace.entrySet()) {
             Long raceId = raceIdByRawName.get(entry.getKey());
 
@@ -119,7 +118,7 @@ public class CsvPreflightScanner {
             int currentCount = existingNormalized.size();
             long netNew = csvNormalized.stream().filter(n -> !existingNormalized.contains(n)).count();
 
-            if (currentCount + netNew > limits.getMaxCategoriesPerRace()) {
+            if (currentCount + netNew > limits.maxCategoriesPerRace()) {
                 throw new EventLimitExceededException(
                         "This import would exceed the maximum number of categories allowed per race.");
             }

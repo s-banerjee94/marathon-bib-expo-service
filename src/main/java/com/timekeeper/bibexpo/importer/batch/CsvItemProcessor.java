@@ -1,15 +1,14 @@
 package com.timekeeper.bibexpo.importer.batch;
 
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
 import com.timekeeper.bibexpo.model.entity.Category;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
-import com.timekeeper.bibexpo.repository.EventLimitRepository;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.api.EventQuota;
+import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.user.api.UserDirectory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,10 +34,10 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     private final CsvRowValidator csvRowValidator;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final UserDirectory userDirectory;
     private final BatchReferenceDataService referenceDataService;
-    private final EventLimitRepository eventLimitRepository;
+    private final EventQuota eventQuota;
     private final EventStatsDDBRepository eventStatsRepo;
 
     @Value("#{jobParameters['eventId']}")
@@ -96,8 +95,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
     private void initIfNeeded() {
         if (eventId == null) {
             eventId = Long.parseLong(eventIdParam);
-            event = eventRepository.findById(eventId)
-                    .orElseThrow(() -> new EventNotFoundException());
+            event = eventStore.requireById(eventId);
             if (userIdParam != null) {
                 username = userDirectory.findUsername(Long.parseLong(userIdParam)).orElse("batch-import");
             } else {
@@ -106,9 +104,8 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
 
             isAddOn = ImportMode.ADD_ON.name().equals(modeParam);
             if (isAddOn) {
-                EventLimit limits = eventLimitRepository.findByEventId(eventId)
-                        .orElseGet(() -> EventLimit.builder().build());
-                participantLimit = limits.getMaxParticipants();
+                EventLimits limits = eventQuota.forEvent(eventId);
+                participantLimit = limits.maxParticipants();
                 initialParticipantCount = eventStatsRepo.getTotalParticipantCount(eventId.toString());
                 processedThisJob = 0;
                 log.info("ADD_ON import: existingCount={}, limit={}", initialParticipantCount, participantLimit);

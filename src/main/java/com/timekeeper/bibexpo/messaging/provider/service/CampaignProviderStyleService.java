@@ -1,11 +1,10 @@
 package com.timekeeper.bibexpo.messaging.provider.service;
 
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.response.CampaignProviderStyleResponse;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,14 +19,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CampaignProviderStyleService {
 
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final CampaignProviderResolver campaignProviderResolver;
 
     @Transactional(readOnly = true)
     public CampaignProviderStyleResponse getStyle(Long eventId, MessageChannel channel, User currentUser) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserOrganizationAccess(currentUser, event);
 
         Long organizationId = event.getOrganization() != null ? event.getOrganization().getId() : null;

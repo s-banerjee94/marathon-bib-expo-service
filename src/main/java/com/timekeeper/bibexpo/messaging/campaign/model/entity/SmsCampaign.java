@@ -1,5 +1,5 @@
 package com.timekeeper.bibexpo.messaging.campaign.model.entity;
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTargetFilter;

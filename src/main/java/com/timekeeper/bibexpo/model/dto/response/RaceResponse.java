@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.model.dto.response;
 
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.shared.util.EventDateTimeUtil;
 import io.swagger.v3.oas.annotations.media.Schema;

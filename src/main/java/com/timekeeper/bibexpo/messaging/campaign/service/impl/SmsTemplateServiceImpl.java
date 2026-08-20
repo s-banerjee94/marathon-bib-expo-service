@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 import com.timekeeper.bibexpo.audit.api.Auditable;
 import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
-import com.timekeeper.bibexpo.exception.EventLimitExceededException;
+import com.timekeeper.bibexpo.event.limit.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidSmsTemplateException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateAlreadyExistsException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
@@ -20,12 +20,12 @@ import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventLimit;
-import com.timekeeper.bibexpo.repository.EventLimitRepository;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
-import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventLimits;
+import com.timekeeper.bibexpo.event.api.EventQuota;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -43,20 +43,20 @@ public class SmsTemplateServiceImpl
 
     private final SmsTemplateRepository smsTemplateRepository;
     private final SmsCampaignRepository smsCampaignRepository;
-    private final EventLimitRepository eventLimitRepository;
+    private final EventQuota eventQuota;
     private final TemplateSenderStamp senderStamp;
 
     public SmsTemplateServiceImpl(SmsTemplateRepository smsTemplateRepository,
                                   SmsCampaignRepository smsCampaignRepository,
-                                  EventRepository eventRepository,
+                                  EventStore eventStore,
                                   EventAccessValidator eventAccessValidator,
-                                  EventLimitRepository eventLimitRepository,
+                                  EventQuota eventQuota,
                                   EventOperationGuard eventOperationGuard,
                                   TemplateSenderStamp senderStamp) {
-        super("SMS", smsTemplateRepository, eventRepository, eventAccessValidator, eventOperationGuard);
+        super("SMS", smsTemplateRepository, eventStore, eventAccessValidator, eventOperationGuard);
         this.smsTemplateRepository = smsTemplateRepository;
         this.smsCampaignRepository = smsCampaignRepository;
-        this.eventLimitRepository = eventLimitRepository;
+        this.eventQuota = eventQuota;
         this.senderStamp = senderStamp;
     }
 
@@ -69,9 +69,8 @@ public class SmsTemplateServiceImpl
         Event event = validateEventAccess(eventId, currentUser);
         requireTemplateWriteAllowed(event);
 
-        EventLimit limits = eventLimitRepository.findByEventId(eventId)
-                .orElseGet(() -> EventLimit.builder().build());
-        if (smsTemplateRepository.countByEventId(eventId) >= limits.getMaxSmsTemplates()) {
+        EventLimits limits = eventQuota.forEvent(eventId);
+        if (smsTemplateRepository.countByEventId(eventId) >= limits.maxSmsTemplates()) {
             throw new EventLimitExceededException("You have reached the maximum number of SMS templates allowed for this event.");
         }
 

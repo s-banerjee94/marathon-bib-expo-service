@@ -4,14 +4,14 @@ import com.timekeeper.bibexpo.audit.api.Auditable;
 import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventStatus;
+import com.timekeeper.bibexpo.event.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.EventStatus;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.organization.api.OrganizationSeatQuota;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.security.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
@@ -57,7 +57,7 @@ public class UserServiceImpl implements UserService {
     private final NotificationService notificationService;
     private final OrganizationDirectory organizationDirectory;
     private final OrganizationSeatQuota seatQuota;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final PasswordEncoder passwordEncoder;
     private final AuthUserCache authUserCache;
     private final UserAccessPolicy accessPolicy;
@@ -228,7 +228,7 @@ public class UserServiceImpl implements UserService {
         if (eventId == null) {
             throw new InvalidUserDataException("An event is required for a distributor.");
         }
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         // Events outside the distributor's organization are reported as not found so their
         // existence is not disclosed across organizations.
         if (organization == null || !event.getOrganization().getId().equals(organization.getId())) {

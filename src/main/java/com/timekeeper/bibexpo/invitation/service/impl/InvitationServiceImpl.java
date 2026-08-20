@@ -14,9 +14,9 @@ import com.timekeeper.bibexpo.messaging.delivery.DeliveryResult;
 import com.timekeeper.bibexpo.messaging.delivery.SystemMessageDispatcher;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.security.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
@@ -43,7 +43,7 @@ public class InvitationServiceImpl implements InvitationService {
     private final InvitationStore invitationStore;
     private final UserService userService;
     private final OrganizationDirectory organizationDirectory;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final InviteProperties inviteProperties;
     private final SystemMessageDispatcher systemMessageDispatcher;
 
@@ -154,7 +154,7 @@ public class InvitationServiceImpl implements InvitationService {
         if (eventId == null) {
             return null;
         }
-        return eventRepository.findById(eventId)
+        return eventStore.findById(eventId)
                 .map(Event::getEventName)
                 .orElse(null);
     }

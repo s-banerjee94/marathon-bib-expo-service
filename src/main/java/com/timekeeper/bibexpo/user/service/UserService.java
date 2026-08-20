@@ -48,7 +48,7 @@ public interface UserService {
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the role is not creatable by the caller
      * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the organization is required but missing or disabled, or the event is required but missing or has ended
      * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if the organization does not exist
-     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
+     * @throws com.timekeeper.bibexpo.event.exception.EventNotFoundException if the event does not exist or is outside the organization
      */
     void assertCanCreateUser(UserRole role, Long organizationId, Long eventId, CurrentActor actor);
 
@@ -144,7 +144,7 @@ public interface UserService {
      * @return the updated user response
      * @throws com.timekeeper.bibexpo.user.exception.UserNotFoundException if the user does not exist
      * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the target is not a distributor, or the event is missing or has ended
-     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException if the event does not exist or is outside the organization
+     * @throws com.timekeeper.bibexpo.event.exception.EventNotFoundException if the event does not exist or is outside the organization
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the caller lacks permission
      */
     UserResponse reassignDistributorEvent(Long userId, Long eventId, CurrentActor actor);

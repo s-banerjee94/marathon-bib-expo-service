@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.participant.service.impl;
 
 import com.timekeeper.bibexpo.exception.CategoryNotFoundException;
-import com.timekeeper.bibexpo.exception.EventLimitExceededException;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventLimit;
+import com.timekeeper.bibexpo.event.limit.exception.EventLimitExceededException;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.participant.exception.BibNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.participant.exception.ChipNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.participant.exception.ParticipantDeletionFailedException;
@@ -20,7 +20,7 @@ import com.timekeeper.bibexpo.participant.repository.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.participant.service.ParticipantService;
 import com.timekeeper.bibexpo.participant.service.validator.ParticipantAccessGuard;
 import com.timekeeper.bibexpo.repository.dynamodb.EventStatsDDBRepository;
-import com.timekeeper.bibexpo.repository.EventLimitRepository;
+import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.service.CategoryService;
 import com.timekeeper.bibexpo.service.EventStatsService;
 import com.timekeeper.bibexpo.service.RaceService;
@@ -63,7 +63,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     private final EventStatsDDBRepository eventStatsRepo;
     private final EventStatsService eventStatsService;
     private final RaceCategoryNameResolver nameResolver;
-    private final EventLimitRepository eventLimitRepository;
+    private final EventQuota eventQuota;
 
     @Override
     public ParticipantResponse createParticipant(Long eventId, CreateParticipantRequest request, User currentUser) {
@@ -74,10 +74,9 @@ public class ParticipantServiceImpl implements ParticipantService {
 
         accessGuard.forWrite(eventId, currentUser);
 
-        EventLimit limits = eventLimitRepository.findByEventId(eventId)
-                .orElseGet(() -> EventLimit.builder().build());
+        EventLimits limits = eventQuota.forEvent(eventId);
         long currentCount = eventStatsRepo.getTotalParticipantCount(eventId.toString());
-        if (currentCount >= limits.getMaxParticipants()) {
+        if (currentCount >= limits.maxParticipants()) {
             throw new EventLimitExceededException("You have reached the maximum number of participants allowed for this event.");
         }
 

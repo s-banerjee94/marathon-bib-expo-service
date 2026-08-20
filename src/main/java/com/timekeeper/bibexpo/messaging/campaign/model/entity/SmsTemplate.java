@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.messaging.campaign.model.entity;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
 
 import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.shared.web.EmptyStringToNullConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

@@ -18,10 +18,9 @@ import com.timekeeper.bibexpo.billing.repository.InvoiceLineItemRepository;
 import com.timekeeper.bibexpo.billing.repository.InvoiceRepository;
 import com.timekeeper.bibexpo.billing.service.BillingLineItemService;
 import com.timekeeper.bibexpo.billing.service.util.BillTotalsCalculator;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.storage.service.StorageService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +40,7 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
 
     private final InvoiceRepository invoiceRepository;
     private final InvoiceLineItemRepository invoiceLineItemRepository;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final StorageService storageService;
 
@@ -147,7 +146,7 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
         if (!invoice.getEventId().equals(eventId)) {
             throw new BillNotFoundException("The bill you requested does not exist.");
         }
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserOrganizationAccess(currentUser, event);
         if (invoice.getStatus() != InvoiceStatus.DRAFT) {
             throw new BillNotAllowedException("A finalized bill can no longer be changed.");

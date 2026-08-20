@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.messaging.campaign.service;
 
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 
 public interface ParticipantEventSmsService {

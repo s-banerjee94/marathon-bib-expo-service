@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.user.model.entity;
 
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.shared.web.EmptyStringToNullConverter;

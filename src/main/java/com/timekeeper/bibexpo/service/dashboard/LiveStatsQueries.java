@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.service.dashboard;
 
-import com.timekeeper.bibexpo.model.entity.EventStatus;
-import com.timekeeper.bibexpo.repository.EventRepository;
+import com.timekeeper.bibexpo.event.model.entity.EventStatus;
+import com.timekeeper.bibexpo.event.repository.EventRepository;
 import com.timekeeper.bibexpo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

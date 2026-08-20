@@ -24,7 +24,7 @@ public interface BillingLineItemService {
      * @return the bill with the new line and its current line items
      * @throws com.timekeeper.bibexpo.billing.exception.BillNotFoundException  if the bill does not exist under the event
      * @throws com.timekeeper.bibexpo.billing.exception.BillNotAllowedException if the bill is final
-     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException         if the event does not exist or is outside the caller's organization
+     * @throws com.timekeeper.bibexpo.event.exception.EventNotFoundException         if the event does not exist or is outside the caller's organization
      */
     BillResponse addLineItem(Long eventId, String invoiceId, LineItemRequest request, User currentUser);
 
@@ -39,7 +39,7 @@ public interface BillingLineItemService {
      * @return the bill with the updated line and its current line items
      * @throws com.timekeeper.bibexpo.billing.exception.BillNotFoundException  if the bill or line does not exist under the event
      * @throws com.timekeeper.bibexpo.billing.exception.BillNotAllowedException if the bill is final or the line is system-managed
-     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException         if the event does not exist or is outside the caller's organization
+     * @throws com.timekeeper.bibexpo.event.exception.EventNotFoundException         if the event does not exist or is outside the caller's organization
      */
     BillResponse updateLineItem(Long eventId, String invoiceId, Long lineItemId, LineItemRequest request, User currentUser);
 
@@ -55,7 +55,7 @@ public interface BillingLineItemService {
      * @return the bill with the updated participant line and its current line items
      * @throws com.timekeeper.bibexpo.billing.exception.BillNotFoundException  if the bill or its participant line does not exist under the event
      * @throws com.timekeeper.bibexpo.billing.exception.BillNotAllowedException if the bill is final or neither field is provided
-     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException         if the event does not exist or is outside the caller's organization
+     * @throws com.timekeeper.bibexpo.event.exception.EventNotFoundException         if the event does not exist or is outside the caller's organization
      */
     BillResponse updateParticipantLine(Long eventId, String invoiceId, ParticipantLineRequest request, User currentUser);
 
@@ -69,7 +69,7 @@ public interface BillingLineItemService {
      * @return the bill without the line and its remaining line items
      * @throws com.timekeeper.bibexpo.billing.exception.BillNotFoundException  if the bill or line does not exist under the event
      * @throws com.timekeeper.bibexpo.billing.exception.BillNotAllowedException if the bill is final or the line is system-managed
-     * @throws com.timekeeper.bibexpo.exception.EventNotFoundException         if the event does not exist or is outside the caller's organization
+     * @throws com.timekeeper.bibexpo.event.exception.EventNotFoundException         if the event does not exist or is outside the caller's organization
      */
     BillResponse deleteLineItem(Long eventId, String invoiceId, Long lineItemId, User currentUser);
 }

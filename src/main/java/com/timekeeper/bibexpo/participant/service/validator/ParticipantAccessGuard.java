@@ -1,14 +1,13 @@
 package com.timekeeper.bibexpo.participant.service.validator;
 
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.EventOperationNotAllowedException;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventStatus;
+import com.timekeeper.bibexpo.event.exception.EventOperationNotAllowedException;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.EventStatus;
 import com.timekeeper.bibexpo.participant.exception.ParticipantDeletionNotAllowedException;
 import com.timekeeper.bibexpo.participant.exception.ParticipantModificationNotAllowedException;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.EventBillingGuard;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.api.EventBillingGuard;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -25,7 +24,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ParticipantAccessGuard {
 
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final EventBillingGuard billingGuard;
 
@@ -70,7 +69,7 @@ public class ParticipantAccessGuard {
     }
 
     private Event findEvent(Long eventId) {
-        return eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        return eventStore.requireById(eventId);
     }
 
     private void requireNotBillFinalized(Event event) {

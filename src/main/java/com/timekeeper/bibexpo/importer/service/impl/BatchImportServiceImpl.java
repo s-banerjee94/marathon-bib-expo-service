@@ -5,8 +5,7 @@ import com.timekeeper.bibexpo.audit.api.Auditable;
 import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
-import com.timekeeper.bibexpo.exception.EventLimitExceededException;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.event.limit.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.importer.batch.CsvPreflightScanner;
 import com.timekeeper.bibexpo.importer.exception.CsvImportException;
 import com.timekeeper.bibexpo.importer.exception.ImportAlreadyRunningException;
@@ -26,13 +25,13 @@ import com.timekeeper.bibexpo.importer.model.enums.ParticipantImportField;
 import com.timekeeper.bibexpo.importer.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.importer.repository.ImportRowErrorRepository;
 import com.timekeeper.bibexpo.importer.service.BatchImportService;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventLimit;
-import com.timekeeper.bibexpo.model.enums.EventOperation;
-import com.timekeeper.bibexpo.repository.EventLimitRepository;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
-import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventLimits;
+import com.timekeeper.bibexpo.event.model.enums.EventOperation;
+import com.timekeeper.bibexpo.event.api.EventQuota;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -69,20 +68,19 @@ public class BatchImportServiceImpl implements BatchImportService {
     private final JobOperator jobOperator;
     private final Job csvImportJob;
     private final JobExplorer jobExplorer;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final ObjectMapper objectMapper;
     private final ImportJobRepository importJobRepository;
     private final ImportRowErrorRepository importRowErrorRepository;
-    private final EventLimitRepository eventLimitRepository;
+    private final EventQuota eventQuota;
     private final EventOperationGuard eventOperationGuard;
     private final CsvPreflightScanner preflightScanner;
 
     @Override
     @Auditable(entityType = AuditEntityType.PARTICIPANT, action = AuditAction.IMPORT)
     public BatchImportResponse launchImport(Long eventId, MultipartFile file, String mappingJson, ImportMode mode, User currentUser) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new EventNotFoundException());
+        Event event = eventStore.requireById(eventId);
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
@@ -94,14 +92,13 @@ public class BatchImportServiceImpl implements BatchImportService {
             throw new ImportAlreadyRunningException("An import is already running for this event.");
         }
 
-        EventLimit limits = eventLimitRepository.findByEventId(eventId)
-                .orElseGet(() -> EventLimit.builder().build());
+        EventLimits limits = eventQuota.forEvent(eventId);
         if (effectiveMode == ImportMode.IMPORT) {
-            if (importJobRepository.countByEventIdAndMode(eventId, ImportMode.IMPORT) >= limits.getMaxImports()) {
+            if (importJobRepository.countByEventIdAndMode(eventId, ImportMode.IMPORT) >= limits.maxImports()) {
                 throw new EventLimitExceededException("You have reached the maximum number of full imports allowed for this event.");
             }
         } else {
-            if (importJobRepository.countByEventIdAndMode(eventId, ImportMode.ADD_ON) >= limits.getMaxAddOns()) {
+            if (importJobRepository.countByEventIdAndMode(eventId, ImportMode.ADD_ON) >= limits.maxAddOns()) {
                 throw new EventLimitExceededException("You have reached the maximum number of add-on imports allowed for this event.");
             }
         }
@@ -247,8 +244,7 @@ public class BatchImportServiceImpl implements BatchImportService {
 
     @Override
     public BatchJobStatusResponse stopImport(Long eventId, Long jobExecutionId, User currentUser) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
         ImportJob job = importJobRepository.findByJobExecutionIdAndEventId(jobExecutionId, eventId)
@@ -271,7 +267,7 @@ public class BatchImportServiceImpl implements BatchImportService {
 
     @Override
     public BatchJobStatusResponse getJobStatus(Long eventId, Long jobExecutionId, User currentUser) {
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserOrganizationAccess(currentUser, event);
 
         JobExecution execution = jobExplorer.getJobExecution(jobExecutionId);
@@ -304,7 +300,7 @@ public class BatchImportServiceImpl implements BatchImportService {
     @Override
     public ImportErrorListResponse getLatestBatchImportErrors(Long eventId, int limit, String lastEvaluatedKey,
                                                              User currentUser) {
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserOrganizationAccess(currentUser, event);
         // DynamoDB rejects a non-positive limit, and the raw ValidationException surfaced as a 500.
         if (limit < 1) {
@@ -365,7 +361,7 @@ public class BatchImportServiceImpl implements BatchImportService {
 
     @Override
     public List<ImportFieldResponse> getImportFields(Long eventId, User currentUser) {
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserOrganizationAccess(currentUser, event);
 
         return Arrays.stream(ParticipantImportField.values())
