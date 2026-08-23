@@ -12,8 +12,8 @@ import com.timekeeper.bibexpo.model.enums.EventActivityRange;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
 import com.timekeeper.bibexpo.event.repository.EventRepository;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +41,7 @@ public class EventDashboardService {
     private final ParticipantStatisticsService participantStatisticsService;
     private final EventActivityService eventActivityService;
     private final EventRepository eventRepository;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
 
     /**
      * Loads the full dashboard for one event and window. Access control and event existence are

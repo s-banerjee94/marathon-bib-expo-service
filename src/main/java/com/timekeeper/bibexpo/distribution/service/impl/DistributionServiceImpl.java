@@ -33,8 +33,8 @@ import com.timekeeper.bibexpo.participant.service.util.ParticipantCountersMapper
 import com.timekeeper.bibexpo.event.api.EventStatsRecorder;
 import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.event.api.ParticipantCounters;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import com.timekeeper.bibexpo.shared.error.ApiException;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDBPaginationCodec;
@@ -73,7 +73,7 @@ public class DistributionServiceImpl implements DistributionService {
     private final ParticipantEventSmsService participantEventSmsService;
     private final ParticipantEventWhatsAppService participantEventWhatsAppService;
     private final EventStatsRecorder eventStatsRecorder;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
 
     @Override
     public BibDistributionResponse collectBib(Long eventId, String bibNumber, CollectBibRequest request, User currentUser) {

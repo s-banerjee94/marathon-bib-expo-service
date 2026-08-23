@@ -2,14 +2,11 @@ package com.timekeeper.bibexpo.importer.batch;
 
 import com.timekeeper.bibexpo.event.limit.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.importer.model.dto.request.ImportMappingRequest;
-import com.timekeeper.bibexpo.model.entity.Category;
 import com.timekeeper.bibexpo.event.api.EventLimits;
-import com.timekeeper.bibexpo.model.entity.Race;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
-import com.timekeeper.bibexpo.repository.CategoryRepository;
 import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.api.EventQuota;
-import com.timekeeper.bibexpo.repository.RaceRepository;
+import com.timekeeper.bibexpo.event.api.RaceCategoryStore;
 import com.timekeeper.bibexpo.shared.util.NameNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +20,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,8 +37,7 @@ public class CsvPreflightScanner {
     private static final String BLANK_CATEGORY = "Blank Category";
 
     private final CsvParserUtil csvParserUtil;
-    private final RaceRepository raceRepository;
-    private final CategoryRepository categoryRepository;
+    private final RaceCategoryStore raceCategoryStore;
     private final EventStatsQuery eventStatsQuery;
     private final EventQuota eventQuota;
 
@@ -77,19 +72,16 @@ public class CsvPreflightScanner {
     }
 
     private Map<String, Long> checkRaceLimit(Set<String> rawRaceNames, Long eventId, EventLimits limits) {
-        int currentRaceCount = raceRepository.countByEventIdAndDeletedFalse(eventId);
+        int currentRaceCount = raceCategoryStore.countRaces(eventId);
         Map<String, Long> raceIdByRawName = new HashMap<>();
         int netNewRaces = 0;
 
         for (String rawName : rawRaceNames) {
-            String normalized = NameNormalizer.toStoredName(rawName);
-            Optional<Race> existing = raceRepository.findByRaceNameAndEventIdAndDeletedFalse(normalized, eventId);
-            if (existing.isPresent()) {
-                raceIdByRawName.put(rawName, existing.get().getId());
-            } else {
+            Long existingId = raceCategoryStore.findRaceId(eventId, rawName);
+            if (existingId == null) {
                 netNewRaces++;
-                raceIdByRawName.put(rawName, null);
             }
+            raceIdByRawName.put(rawName, existingId);
         }
 
         if (currentRaceCount + netNewRaces > limits.maxRaces()) {
@@ -106,9 +98,7 @@ public class CsvPreflightScanner {
             Long raceId = raceIdByRawName.get(entry.getKey());
 
             Set<String> existingNormalized = raceId != null
-                    ? categoryRepository.findByRaceId(raceId).stream()
-                            .map(Category::getCategoryName)
-                            .collect(Collectors.toSet())
+                    ? raceCategoryStore.categoryNames(raceId)
                     : Set.of();
 
             Set<String> csvNormalized = entry.getValue().stream()

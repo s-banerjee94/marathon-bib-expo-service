@@ -40,8 +40,8 @@ import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.participant.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.event.api.EventStore;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -70,7 +70,7 @@ public class ParticipantMessageServiceImpl implements ParticipantMessageService 
     private final WhatsAppCampaignRepository whatsAppCampaignRepository;
     private final CampaignProviderResolver campaignProviderResolver;
     private final MessagingProviderClient messagingProviderClient;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
     private final CampaignCompatibilityGuard compatibilityGuard;
 
     /** The resolved template, what it can supply, and how it turns a participant into a payload. */

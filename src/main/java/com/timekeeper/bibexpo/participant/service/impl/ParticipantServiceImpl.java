@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.participant.service.impl;
 
-import com.timekeeper.bibexpo.exception.CategoryNotFoundException;
+import com.timekeeper.bibexpo.event.race.category.exception.CategoryNotFoundException;
 import com.timekeeper.bibexpo.event.limit.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.event.api.EventLimits;
@@ -24,10 +24,10 @@ import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.api.EventStatsRecorder;
 import com.timekeeper.bibexpo.event.api.ParticipantCounters;
 import com.timekeeper.bibexpo.event.api.EventQuota;
-import com.timekeeper.bibexpo.service.CategoryService;
-import com.timekeeper.bibexpo.service.RaceService;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.event.race.category.service.CategoryService;
+import com.timekeeper.bibexpo.event.race.service.RaceService;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
@@ -64,7 +64,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     private final DynamoDBPaginationCodec paginationCodec;
     private final EventStatsQuery eventStatsQuery;
     private final EventStatsRecorder eventStatsRecorder;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
     private final EventQuota eventQuota;
 
     @Override
@@ -620,15 +620,5 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     private static String trim(String value) {
         return value == null ? null : value.trim();
-    }
-
-    @Override
-    public long countParticipantsByCategoryId(Long eventId, Long categoryId) {
-        log.info("Counting participants for event ID: {} and category ID: {}", eventId, categoryId);
-
-        long count = participantRepository.countByEventAndCategory(eventId, categoryId);
-
-        log.info("Found {} participants for category ID: {} in event ID: {}", count, categoryId, eventId);
-        return count;
     }
 }

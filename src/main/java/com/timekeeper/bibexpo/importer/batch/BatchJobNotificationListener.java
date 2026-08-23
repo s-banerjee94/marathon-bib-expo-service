@@ -15,7 +15,6 @@ import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.user.api.UserDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +41,6 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private final ParticipantStatisticsService participantStatisticsService;
     private final ObjectMapper objectMapper;
     private final EventQuota eventQuota;
-    private final RaceCategoryNameResolver nameResolver;
 
     @Override
     public void beforeJob(JobExecution jobExecution) {
@@ -78,9 +76,6 @@ public class BatchJobNotificationListener implements JobExecutionListener {
 
         Long userId = Long.parseLong(userIdParam);
         Long eventId = Long.parseLong(eventIdParam);
-
-        // The import may have auto-created races/categories, so drop the cached name maps for the event.
-        nameResolver.evict(eventId);
 
         Long jobExecutionId = jobExecution.getId();
         String jobStatus = jobExecution.getStatus().toString();

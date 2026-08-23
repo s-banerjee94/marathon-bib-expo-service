@@ -23,7 +23,7 @@ import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.event.limit.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.event.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.RaceRepository;
+import com.timekeeper.bibexpo.event.race.repository.RaceRepository;
 import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.event.api.EventBillingGuard;
 import com.timekeeper.bibexpo.event.api.EventDeletionGuard;

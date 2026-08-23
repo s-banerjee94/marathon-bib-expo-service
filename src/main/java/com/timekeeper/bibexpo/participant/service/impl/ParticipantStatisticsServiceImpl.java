@@ -12,8 +12,8 @@ import com.timekeeper.bibexpo.participant.repository.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
 import com.timekeeper.bibexpo.participant.service.util.ParticipantCountersMapper;
 import com.timekeeper.bibexpo.participant.service.validator.ParticipantAccessGuard;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +40,7 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
     private final ParticipantDDBRepository participantRepository;
     private final EventStatsQuery eventStatsQuery;
     private final EventStatsRecorder eventStatsRecorder;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
 
     @Override
     public ParticipantStatisticsResponse getParticipantStatistics(Long eventId, User currentUser) {

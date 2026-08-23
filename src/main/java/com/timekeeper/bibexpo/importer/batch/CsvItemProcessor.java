@@ -1,14 +1,15 @@
 package com.timekeeper.bibexpo.importer.batch;
 
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
-import com.timekeeper.bibexpo.model.entity.Category;
+import com.timekeeper.bibexpo.event.race.category.model.entity.Category;
 import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.event.api.EventLimits;
-import com.timekeeper.bibexpo.model.entity.Race;
+import com.timekeeper.bibexpo.event.race.model.entity.Race;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.api.RaceCategoryStore;
 import com.timekeeper.bibexpo.user.api.UserDirectory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +37,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
     private final CsvRowValidator csvRowValidator;
     private final EventStore eventStore;
     private final UserDirectory userDirectory;
-    private final BatchReferenceDataService referenceDataService;
+    private final RaceCategoryStore raceCategoryStore;
     private final EventQuota eventQuota;
     private final EventStatsQuery eventStatsQuery;
 
@@ -151,7 +152,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
         Race cached = raceCache.get(raceName);
         if (cached != null) return cached;
 
-        Race race = referenceDataService.findOrCreateRace(raceName, eventId, event);
+        Race race = raceCategoryStore.findOrCreateRace(raceName, eventId, event);
         raceCache.put(raceName, race);
         return race;
     }
@@ -161,7 +162,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
         Category cached = categoryCache.get(key);
         if (cached != null) return cached;
 
-        Category category = referenceDataService.findOrCreateCategory(categoryName, race);
+        Category category = raceCategoryStore.findOrCreateCategory(categoryName, eventId, race);
         categoryCache.put(key, category);
         return category;
     }

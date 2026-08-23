@@ -6,12 +6,12 @@ import com.timekeeper.bibexpo.event.limit.model.dto.request.UpdateEventLimitRequ
 import com.timekeeper.bibexpo.event.limit.model.dto.response.EventLimitResponse;
 import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.event.limit.model.entity.EventLimit;
-import com.timekeeper.bibexpo.model.entity.Race;
-import com.timekeeper.bibexpo.repository.CategoryRepository;
+import com.timekeeper.bibexpo.event.race.model.entity.Race;
+import com.timekeeper.bibexpo.event.race.category.repository.CategoryRepository;
 import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.limit.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.event.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.RaceRepository;
+import com.timekeeper.bibexpo.event.race.repository.RaceRepository;
 import com.timekeeper.bibexpo.event.api.EventCampaignUsage;
 import com.timekeeper.bibexpo.event.api.EventImportUsage;
 import com.timekeeper.bibexpo.event.limit.service.EventLimitService;

@@ -1,10 +1,10 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
-import com.timekeeper.bibexpo.model.dto.request.CreateCategoryRequest;
-import com.timekeeper.bibexpo.model.dto.request.UpdateCategoryRequest;
-import com.timekeeper.bibexpo.model.dto.response.CategoryResponse;
-import com.timekeeper.bibexpo.model.entity.Gender;
-import com.timekeeper.bibexpo.service.CategoryService;
+import com.timekeeper.bibexpo.event.race.category.model.dto.request.CreateCategoryRequest;
+import com.timekeeper.bibexpo.event.race.category.model.dto.request.UpdateCategoryRequest;
+import com.timekeeper.bibexpo.event.race.category.model.dto.response.CategoryResponse;
+import com.timekeeper.bibexpo.event.race.category.model.enums.Gender;
+import com.timekeeper.bibexpo.event.race.category.service.CategoryService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;

@@ -21,8 +21,8 @@ import com.timekeeper.bibexpo.participantaccess.util.QrImageGenerator;
 import com.timekeeper.bibexpo.participantaccess.util.QrTokenCodec;
 import com.timekeeper.bibexpo.participantaccess.util.ShortCodeGenerator;
 import com.timekeeper.bibexpo.event.api.EventStore;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +48,7 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     private final QrImageGenerator qrImageGenerator;
     private final NotificationService notificationService;
     private final AuditPublisher auditPublisher;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
 
     private static final int MAX_CODE_ATTEMPTS = 5;
     private static final int SHORT_URL_TTL_DAYS_AFTER_EVENT_END = 3;

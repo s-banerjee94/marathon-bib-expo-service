@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.participant.exception;
 
-import com.timekeeper.bibexpo.exception.CategoryNotFoundException;
+import com.timekeeper.bibexpo.event.race.category.exception.CategoryNotFoundException;
 import com.timekeeper.bibexpo.shared.error.ApiException;
 import org.springframework.http.HttpStatus;
 

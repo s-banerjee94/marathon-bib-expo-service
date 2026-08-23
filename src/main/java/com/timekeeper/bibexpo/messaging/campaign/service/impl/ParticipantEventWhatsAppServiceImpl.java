@@ -17,8 +17,8 @@ import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
 import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class ParticipantEventWhatsAppServiceImpl implements ParticipantEventWhat
     private final WhatsAppCampaignRepository campaignRepository;
     private final CampaignProviderResolver campaignProviderResolver;
     private final MessagingProviderClient messagingProviderClient;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
     private final CampaignCompatibilityGuard compatibilityGuard;
 
     @Override

@@ -6,8 +6,8 @@ import com.timekeeper.bibexpo.participant.model.enums.ExportField;
 import com.timekeeper.bibexpo.participant.repository.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.participant.service.ParticipantExportService;
 import com.timekeeper.bibexpo.participant.service.validator.ParticipantAccessGuard;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +33,7 @@ public class ParticipantExportServiceImpl implements ParticipantExportService {
 
     private final ParticipantDDBRepository participantRepository;
     private final ParticipantAccessGuard accessGuard;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
 
     @Override
     public byte[] exportParticipantsToCsv(Long eventId, List<ExportField> fields, User currentUser) {
