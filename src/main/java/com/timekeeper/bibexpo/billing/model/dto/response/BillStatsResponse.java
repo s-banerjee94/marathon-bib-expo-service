@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.billing.model.dto.response;
 
-import com.timekeeper.bibexpo.model.enums.DashboardRange;
+import com.timekeeper.bibexpo.shared.model.enums.DashboardRange;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

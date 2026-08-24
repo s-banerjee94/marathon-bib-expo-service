@@ -11,7 +11,7 @@ import java.util.Map;
  * Jackson shape of the JSON blob the billing-stats Lambda writes into
  * {@code billing_stats_snapshot.snapshot_data}. The Lambda precomputes all range windows in one
  * blob so the read endpoint never has to recompute; {@code ranges} is keyed by
- * {@link com.timekeeper.bibexpo.model.enums.DashboardRange} name (ALL / YEAR / MONTH) and each
+ * {@link com.timekeeper.bibexpo.shared.model.enums.DashboardRange} name (ALL / YEAR / MONTH) and each
  * value is a fully-populated {@link BillStatsResponse} slice. Internal — never returned directly.
  */
 @Data

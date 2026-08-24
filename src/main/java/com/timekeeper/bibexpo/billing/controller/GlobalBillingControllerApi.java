@@ -5,7 +5,7 @@ import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsRefreshResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsResponse;
 import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
-import com.timekeeper.bibexpo.model.enums.DashboardRange;
+import com.timekeeper.bibexpo.shared.model.enums.DashboardRange;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import io.swagger.v3.oas.annotations.Operation;

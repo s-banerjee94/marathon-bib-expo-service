@@ -7,7 +7,7 @@ import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsResponse;
 import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
 import com.timekeeper.bibexpo.billing.service.BillingAdminService;
 import com.timekeeper.bibexpo.billing.service.BillStatsService;
-import com.timekeeper.bibexpo.model.enums.DashboardRange;
+import com.timekeeper.bibexpo.shared.model.enums.DashboardRange;
 import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

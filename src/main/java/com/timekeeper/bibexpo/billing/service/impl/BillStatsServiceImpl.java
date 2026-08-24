@@ -16,7 +16,7 @@ import com.timekeeper.bibexpo.billing.model.entity.BillingStatsSnapshot;
 import com.timekeeper.bibexpo.billing.repository.BillingStatsSnapshotRepository;
 import com.timekeeper.bibexpo.billing.service.BillStatsService;
 import com.timekeeper.bibexpo.billing.service.BillStatsTriggerService;
-import com.timekeeper.bibexpo.model.enums.DashboardRange;
+import com.timekeeper.bibexpo.shared.model.enums.DashboardRange;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

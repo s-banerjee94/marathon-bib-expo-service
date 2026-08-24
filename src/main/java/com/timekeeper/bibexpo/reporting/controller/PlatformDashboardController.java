@@ -1,0 +1,78 @@
+package com.timekeeper.bibexpo.reporting.controller;
+
+import com.timekeeper.bibexpo.reporting.model.dto.response.PlatformDashboardResponse;
+import com.timekeeper.bibexpo.reporting.model.dto.response.PlatformRevenueResponse;
+import com.timekeeper.bibexpo.shared.model.enums.DashboardRange;
+import com.timekeeper.bibexpo.reporting.model.enums.TrendInterval;
+import com.timekeeper.bibexpo.reporting.service.DashboardQueryLimits;
+import com.timekeeper.bibexpo.reporting.service.PlatformDashboardQuery;
+import com.timekeeper.bibexpo.reporting.service.PlatformDashboardService;
+import com.timekeeper.bibexpo.reporting.service.PlatformRevenueService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * REST controller for the global ROOT/ADMIN platform overview dashboard.
+ */
+@RestController
+@RequiredArgsConstructor
+@Slf4j
+public class PlatformDashboardController implements PlatformDashboardControllerApi {
+
+    private final PlatformDashboardService platformDashboardService;
+    private final PlatformRevenueService platformRevenueService;
+
+    @Override
+    public ResponseEntity<PlatformDashboardResponse> getDashboard(
+            DashboardRange range, DashboardRange tierRange, DashboardRange statusRange, DashboardRange citiesRange,
+            int trendBuckets, TrendInterval trendInterval, int topCities, int topOrgs, Long organizationId) {
+        rejectOrgIdParam(organizationId);
+        PlatformDashboardQuery query = buildQuery(range, tierRange, statusRange, citiesRange,
+                trendBuckets, trendInterval, topCities, topOrgs);
+        log.info("GET /dashboard/platform — range: {}", range);
+        return ResponseEntity.ok(platformDashboardService.loadFor(query));
+    }
+
+    @Override
+    public ResponseEntity<PlatformDashboardResponse> refreshDashboard(
+            DashboardRange range, DashboardRange tierRange, DashboardRange statusRange, DashboardRange citiesRange,
+            int trendBuckets, TrendInterval trendInterval, int topCities, int topOrgs, Long organizationId) {
+        rejectOrgIdParam(organizationId);
+        PlatformDashboardQuery query = buildQuery(range, tierRange, statusRange, citiesRange,
+                trendBuckets, trendInterval, topCities, topOrgs);
+        log.info("POST /dashboard/platform/refresh — range: {}", range);
+        return ResponseEntity.ok(platformDashboardService.refreshFor(query));
+    }
+
+    @Override
+    public ResponseEntity<PlatformRevenueResponse> getRevenue(
+            DashboardRange range, int trendBuckets, TrendInterval trendInterval) {
+        log.info("GET /dashboard/platform/revenue — range: {}", range);
+        return ResponseEntity.ok(platformRevenueService.buildRevenue(
+                range, DashboardQueryLimits.trendBuckets(trendBuckets), trendInterval));
+    }
+
+    private PlatformDashboardQuery buildQuery(DashboardRange range, DashboardRange tierRange,
+                                              DashboardRange statusRange, DashboardRange citiesRange,
+                                              int trendBuckets, TrendInterval trendInterval,
+                                              int topCities, int topOrgs) {
+        return PlatformDashboardQuery.builder()
+                .range(range)
+                .tierRange(tierRange != null ? tierRange : range)
+                .statusRange(statusRange != null ? statusRange : range)
+                .citiesRange(citiesRange != null ? citiesRange : range)
+                .trendBuckets(DashboardQueryLimits.trendBuckets(trendBuckets))
+                .trendInterval(trendInterval)
+                .topCities(DashboardQueryLimits.topN(topCities))
+                .topOrgs(DashboardQueryLimits.topN(topOrgs))
+                .build();
+    }
+
+    private void rejectOrgIdParam(Long organizationId) {
+        if (organizationId != null) {
+            throw new IllegalArgumentException("organizationId is not a valid parameter for the platform dashboard; it is always global.");
+        }
+    }
+}

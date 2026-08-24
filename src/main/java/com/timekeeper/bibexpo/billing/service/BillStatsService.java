@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.billing.service;
 
 import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsRefreshResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsResponse;
-import com.timekeeper.bibexpo.model.enums.DashboardRange;
+import com.timekeeper.bibexpo.shared.model.enums.DashboardRange;
 
 /**
  * Read side of platform billing statistics. The figures are computed entirely by the dedicated
