@@ -4,7 +4,6 @@ import com.timekeeper.bibexpo.event.race.category.exception.CategoryNotFoundExce
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.response.CategoryResponse;
-import com.timekeeper.bibexpo.event.race.category.model.entity.Category;
 import com.timekeeper.bibexpo.event.race.category.model.enums.Gender;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -79,13 +78,4 @@ public interface CategoryService {
      * @throws AccessForbiddenException if the user is not authorized
      */
     void deleteCategory(Long eventId, Long raceId, Long categoryId, User currentUser);
-
-    /**
-     * Find category by race ID and category name
-     * @param raceId The race ID
-     * @param categoryName The category name
-     * @param currentUser The authenticated user
-     * @return The category entity
-     */
-    Category findByRaceIdAndCategoryName(Long raceId, String categoryName, User currentUser);
 }

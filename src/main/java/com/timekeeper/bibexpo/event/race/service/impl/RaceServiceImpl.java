@@ -215,21 +215,6 @@ public class RaceServiceImpl implements RaceService {
                 raceId, currentUser.getUsername());
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Race findByEventIdAndRaceName(Long eventId, String raceName, User currentUser) {
-        log.info("Finding race by event ID: {} and race name: {} by user: {}",
-                eventId, raceName, currentUser.getUsername());
-
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
-
-        return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)
-                .orElseThrow(RaceNotFoundException::new);
-    }
-
     private Instant resolveReportingInstant(Event event, String date, String time) {
         if (date == null && time == null) {
             return null;

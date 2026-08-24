@@ -152,7 +152,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
         Race cached = raceCache.get(raceName);
         if (cached != null) return cached;
 
-        Race race = raceCategoryStore.findOrCreateRace(raceName, eventId, event);
+        Race race = raceCategoryStore.findOrCreateRace(raceName, event);
         raceCache.put(raceName, race);
         return race;
     }

@@ -2,8 +2,10 @@ package com.timekeeper.bibexpo.event.race.service;
 
 import com.timekeeper.bibexpo.event.race.model.dto.request.CreateRaceRequest;
 import com.timekeeper.bibexpo.event.race.model.dto.request.UpdateRaceRequest;
+import com.timekeeper.bibexpo.event.race.exception.RaceDeletionNotAllowedException;
+import com.timekeeper.bibexpo.event.race.exception.RaceNotFoundException;
 import com.timekeeper.bibexpo.event.race.model.dto.response.RaceResponse;
-import com.timekeeper.bibexpo.event.race.model.entity.Race;
+import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
@@ -73,13 +75,4 @@ public interface RaceService {
      * @throws AccessForbiddenException if the user is not authorized
      */
     void deleteRace(Long eventId, Long raceId, User currentUser);
-
-    /**
-     * Find race by event ID and race name
-     * @param eventId The event ID
-     * @param raceName The race name
-     * @param currentUser The authenticated user
-     * @return The race entity
-     */
-    Race findByEventIdAndRaceName(Long eventId, String raceName, User currentUser);
 }

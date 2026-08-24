@@ -89,7 +89,7 @@ public interface ParticipantService {
      * @param currentUser The authenticated user
      * @return Delete result with count
      */
-    DeleteParticipantsResponse deleteBulkParticipants(Long eventId, java.util.List<String> bibNumbers, User currentUser);
+    DeleteParticipantsResponse deleteBulkParticipants(Long eventId, List<String> bibNumbers, User currentUser);
 
     /**
      * Lookup participants using DynamoDB LSI (cost-efficient Query operation)

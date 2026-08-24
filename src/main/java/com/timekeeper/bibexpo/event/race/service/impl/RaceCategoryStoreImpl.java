@@ -28,7 +28,8 @@ public class RaceCategoryStoreImpl implements RaceCategoryStore {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Race findOrCreateRace(String rawName, Long eventId, Event event) {
+    public Race findOrCreateRace(String rawName, Event event) {
+        Long eventId = event.getId();
         String normalizedName = NameNormalizer.toStoredName(rawName);
         return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(normalizedName, eventId)
                 .orElseGet(() -> {

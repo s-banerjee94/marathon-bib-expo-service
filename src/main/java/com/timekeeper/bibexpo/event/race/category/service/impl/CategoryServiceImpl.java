@@ -98,12 +98,7 @@ public class CategoryServiceImpl implements CategoryService {
         Race updateRace = validateRaceAndEvent(eventId, raceId, currentUser);
         eventOperationGuard.requireAllowed(updateRace.getEvent(), EventOperation.CATEGORY_WRITE);
 
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(CategoryNotFoundException::new);
-
-        if (!category.getRace().getId().equals(raceId)) {
-            throw new CategoryNotFoundException();
-        }
+        Category category = loadCategoryOfRace(categoryId, raceId);
 
         String newCategoryName = NameNormalizer.toStoredName(request.getCategoryName());
         if (newCategoryName != null && !newCategoryName.isBlank() &&
@@ -134,12 +129,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         validateRaceAndEvent(eventId, raceId, currentUser);
 
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(CategoryNotFoundException::new);
-
-        if (!category.getRace().getId().equals(raceId)) {
-            throw new CategoryNotFoundException();
-        }
+        Category category = loadCategoryOfRace(categoryId, raceId);
 
         log.info("Successfully fetched category with ID: {} for user: {}",
                 category.getId(), currentUser.getUsername());
@@ -177,12 +167,7 @@ public class CategoryServiceImpl implements CategoryService {
         Race race = validateRaceAndEvent(eventId, raceId, currentUser);
         eventOperationGuard.requireAllowed(race.getEvent(), EventOperation.CATEGORY_WRITE);
 
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(CategoryNotFoundException::new);
-
-        if (!category.getRace().getId().equals(raceId)) {
-            throw new CategoryNotFoundException();
-        }
+        Category category = loadCategoryOfRace(categoryId, raceId);
 
         long participantCount = categoryUsage.countParticipants(eventId, categoryId);
         if (participantCount > 0) {
@@ -219,21 +204,17 @@ public class CategoryServiceImpl implements CategoryService {
         return race;
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Category findByRaceIdAndCategoryName(Long raceId, String categoryName, User currentUser) {
-        log.info("Finding category by race ID: {} and category name: {} by user: {}",
-                raceId, categoryName, currentUser.getUsername());
-
-        Race race = raceRepository.findById(raceId)
-                .orElseThrow(RaceNotFoundException::new);
-
-        Event event = eventRepository.findById(race.getEvent().getId())
-                .orElseThrow(EventNotFoundException::new);
-
-        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
-
-        return categoryRepository.findByCategoryNameAndRaceId(categoryName, raceId)
+    // A category belonging to another race reads as not found, so the response never confirms that
+    // an id exists outside the race the caller asked about.
+    private Category loadCategoryOfRace(Long categoryId, Long raceId) {
+        Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(CategoryNotFoundException::new);
+
+        if (!category.getRace().getId().equals(raceId)) {
+            throw new CategoryNotFoundException();
+        }
+
+        return category;
     }
+
 }

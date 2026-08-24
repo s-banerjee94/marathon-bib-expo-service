@@ -24,11 +24,10 @@ public interface RaceCategoryStore {
      * Returns the event's race of that name, creating it when the event has none.
      *
      * @param rawName the race name as it appeared in the CSV
-     * @param eventId the owning event
      * @param event   the owning event, for the new race's association
      * @return the existing or newly created race
      */
-    Race findOrCreateRace(String rawName, Long eventId, Event event);
+    Race findOrCreateRace(String rawName, Event event);
 
     /**
      * Returns the race's category of that name, creating it when the race has none.
