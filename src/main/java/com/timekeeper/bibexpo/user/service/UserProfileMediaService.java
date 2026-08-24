@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.user.service;
 
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 

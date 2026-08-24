@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.exception;
+package com.timekeeper.bibexpo.participantaccess.exception;
 
 public class InvalidQrCodeException extends RuntimeException {
 

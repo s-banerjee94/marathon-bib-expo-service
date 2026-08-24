@@ -5,7 +5,7 @@ import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationR
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.organization.service.OrganizationService;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;

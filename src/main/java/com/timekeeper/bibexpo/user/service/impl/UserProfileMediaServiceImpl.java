@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.user.service.impl;
 
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.storage.exception.InvalidFileException;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.storage.model.enums.UploadCategory;

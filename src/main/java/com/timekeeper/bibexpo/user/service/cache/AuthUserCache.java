@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.user.service.cache;
 
-import com.timekeeper.bibexpo.bootstrap.CacheConfig;
+import com.timekeeper.bibexpo.shared.cache.CacheNames;
 import com.timekeeper.bibexpo.user.api.AuthUserDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import com.timekeeper.bibexpo.user.repository.UserRepository;
@@ -26,7 +26,7 @@ public class AuthUserCache implements AuthUserDirectory {
     private final CacheManager cacheManager;
 
     @Override
-    @Cacheable(value = CacheConfig.USER_DETAILS_CACHE, key = "#username", unless = "#result == null")
+    @Cacheable(value = CacheNames.USER_DETAILS_CACHE, key = "#username", unless = "#result == null")
     public User findByUsername(String username) {
         return userRepository.findByUsernameWithOrganizationAndEvent(username).orElse(null);
     }
@@ -54,7 +54,7 @@ public class AuthUserCache implements AuthUserDirectory {
     }
 
     private void evictNow(String username) {
-        Cache cache = cacheManager.getCache(CacheConfig.USER_DETAILS_CACHE);
+        Cache cache = cacheManager.getCache(CacheNames.USER_DETAILS_CACHE);
         if (cache != null) {
             cache.evict(username);
         }

@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.participantaccess.controller;
 
-import com.timekeeper.bibexpo.exception.InvalidQrCodeException;
+import com.timekeeper.bibexpo.participantaccess.exception.InvalidQrCodeException;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.participantaccess.model.dto.request.ScanQrRequest;
 import com.timekeeper.bibexpo.participantaccess.service.ParticipantAccessService;

@@ -5,7 +5,7 @@ import com.timekeeper.bibexpo.passwordreset.model.dto.request.ForgotPasswordRequ
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.IssueResetLinkRequest;
 import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetLinkResponse;
 import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetTokenStatusResponse;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 
 /**
  * Issues and completes short-lived, single-use password-reset links. A link may originate from an

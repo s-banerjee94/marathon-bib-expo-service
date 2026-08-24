@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.organization.service;
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

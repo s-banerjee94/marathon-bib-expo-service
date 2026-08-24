@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.event.race.service.util;
 
-import com.timekeeper.bibexpo.bootstrap.CacheConfig;
+import com.timekeeper.bibexpo.shared.cache.CacheNames;
 import com.timekeeper.bibexpo.event.api.EventNames;
 import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import com.timekeeper.bibexpo.event.race.category.repository.CategoryRepository;
@@ -35,7 +35,7 @@ public class RaceCategoryNameResolver implements RaceCategoryNameQuery {
     private final CacheManager cacheManager;
 
     @Override
-    @Cacheable(value = CacheConfig.EVENT_NAMES_CACHE, key = "#eventId")
+    @Cacheable(value = CacheNames.EVENT_NAMES_CACHE, key = "#eventId")
     public EventNames forEvent(Long eventId) {
         Map<String, String> raceNames = new HashMap<>();
         Map<String, Instant> raceReportingTimes = new HashMap<>();
@@ -84,7 +84,7 @@ public class RaceCategoryNameResolver implements RaceCategoryNameQuery {
     }
 
     private void evictNow(Long eventId) {
-        Cache cache = cacheManager.getCache(CacheConfig.EVENT_NAMES_CACHE);
+        Cache cache = cacheManager.getCache(CacheNames.EVENT_NAMES_CACHE);
         if (cache != null) {
             cache.evict(eventId);
         }

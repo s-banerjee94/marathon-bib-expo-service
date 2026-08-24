@@ -4,7 +4,7 @@ import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.audit.api.AuditEvent;
 import com.timekeeper.bibexpo.audit.api.AuditPublisher;
-import com.timekeeper.bibexpo.exception.InvalidQrCodeException;
+import com.timekeeper.bibexpo.participantaccess.exception.InvalidQrCodeException;
 import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;

@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.identity.service.impl;
 
-import com.timekeeper.bibexpo.bootstrap.CacheConfig;
+import com.timekeeper.bibexpo.shared.cache.CacheNames;
 import com.timekeeper.bibexpo.identity.config.JwtConfig;
 import com.timekeeper.bibexpo.identity.model.entity.ActiveSession;
 import com.timekeeper.bibexpo.identity.repository.ActiveSessionRepository;
@@ -25,7 +25,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    @CacheEvict(value = CacheConfig.ACTIVE_SESSIONS_CACHE, key = "#username")
+    @CacheEvict(value = CacheNames.ACTIVE_SESSIONS_CACHE, key = "#username")
     public String startSession(String username, String deviceInfo) {
         String sid = UUID.randomUUID().toString();
         Instant now = Instant.now();
@@ -38,7 +38,7 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    @Cacheable(value = CacheConfig.ACTIVE_SESSIONS_CACHE, key = "#username", unless = "#result == null")
+    @Cacheable(value = CacheNames.ACTIVE_SESSIONS_CACHE, key = "#username", unless = "#result == null")
     public String getActiveSid(String username) {
         return activeSessionRepository.findByUsername(username)
                 .filter(s -> s.getExpiresAt().isAfter(Instant.now()))
@@ -56,7 +56,7 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    @CacheEvict(value = CacheConfig.ACTIVE_SESSIONS_CACHE, key = "#username")
+    @CacheEvict(value = CacheNames.ACTIVE_SESSIONS_CACHE, key = "#username")
     public void endSession(String username) {
         activeSessionRepository.deleteByUsername(username);
         log.info("Session ended for user {}", username);

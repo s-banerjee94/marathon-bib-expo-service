@@ -20,7 +20,7 @@ import com.timekeeper.bibexpo.passwordreset.model.PasswordResetToken;
 import com.timekeeper.bibexpo.passwordreset.service.PasswordResetService;
 import com.timekeeper.bibexpo.passwordreset.store.PasswordResetStore;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.user.api.UserDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import com.timekeeper.bibexpo.user.service.UserService;

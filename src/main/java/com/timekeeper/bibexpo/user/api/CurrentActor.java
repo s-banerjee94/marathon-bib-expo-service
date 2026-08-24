@@ -1,5 +1,6 @@
-package com.timekeeper.bibexpo.shared.security;
+package com.timekeeper.bibexpo.user.api;
 
+import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
 
 /**

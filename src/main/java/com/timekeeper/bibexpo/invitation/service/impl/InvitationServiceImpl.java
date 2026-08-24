@@ -18,7 +18,7 @@ import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;

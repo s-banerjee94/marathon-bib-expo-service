@@ -13,7 +13,7 @@ import com.timekeeper.bibexpo.organization.api.OrganizationSeatQuota;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.exception.UserAlreadyExistsException;
 import com.timekeeper.bibexpo.user.exception.UserNotFoundException;

@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.user.service.validator;
 
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.extern.slf4j.Slf4j;

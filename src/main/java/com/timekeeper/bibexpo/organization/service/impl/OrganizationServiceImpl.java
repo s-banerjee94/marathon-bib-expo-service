@@ -22,7 +22,7 @@ import com.timekeeper.bibexpo.organization.service.cache.OrganizationCache;
 import com.timekeeper.bibexpo.organization.service.OrganizationService;
 import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.storage.exception.InvalidFileException;

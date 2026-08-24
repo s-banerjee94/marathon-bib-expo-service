@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.passwordreset.controller;
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.IssueResetLinkRequest;
 import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetLinkResponse;
 import com.timekeeper.bibexpo.passwordreset.service.PasswordResetService;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

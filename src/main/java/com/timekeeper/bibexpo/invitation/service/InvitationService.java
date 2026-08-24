@@ -4,7 +4,7 @@ import com.timekeeper.bibexpo.invitation.model.dto.request.AcceptInvitationReque
 import com.timekeeper.bibexpo.invitation.model.dto.request.CreateInvitationRequest;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationDetailsResponse;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 
 /**

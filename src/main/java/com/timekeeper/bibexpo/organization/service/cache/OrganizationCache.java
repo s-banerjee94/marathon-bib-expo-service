@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.organization.service.cache;
 
-import com.timekeeper.bibexpo.bootstrap.CacheConfig;
+import com.timekeeper.bibexpo.shared.cache.CacheNames;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.organization.repository.OrganizationRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +30,7 @@ public class OrganizationCache {
      * @param id the organization id
      * @return the organization, or null
      */
-    @Cacheable(value = CacheConfig.ORGANIZATIONS_CACHE, key = "#id", unless = "#result == null")
+    @Cacheable(value = CacheNames.ORGANIZATIONS_CACHE, key = "#id", unless = "#result == null")
     public Organization findById(Long id) {
         return organizationRepository.findById(id).orElse(null);
     }
@@ -58,7 +58,7 @@ public class OrganizationCache {
     }
 
     private void evictNow(Long id) {
-        Cache cache = cacheManager.getCache(CacheConfig.ORGANIZATIONS_CACHE);
+        Cache cache = cacheManager.getCache(CacheNames.ORGANIZATIONS_CACHE);
         if (cache != null) {
             cache.evict(id);
         }

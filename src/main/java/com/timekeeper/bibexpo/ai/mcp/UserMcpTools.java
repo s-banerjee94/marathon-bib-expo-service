@@ -4,7 +4,7 @@ import com.timekeeper.bibexpo.invitation.model.dto.request.CreateInvitationReque
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
 import com.timekeeper.bibexpo.invitation.service.InvitationService;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
-import com.timekeeper.bibexpo.shared.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;

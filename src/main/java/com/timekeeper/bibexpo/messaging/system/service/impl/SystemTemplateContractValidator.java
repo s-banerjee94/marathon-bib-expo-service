@@ -1,4 +1,4 @@
-package com.timekeeper.bibexpo.config;
+package com.timekeeper.bibexpo.messaging.system.service.impl;
 
 import com.timekeeper.bibexpo.invitation.model.InviteMessageContext;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
