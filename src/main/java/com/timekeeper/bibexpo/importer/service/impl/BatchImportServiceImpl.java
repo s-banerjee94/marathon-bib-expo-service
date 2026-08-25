@@ -94,11 +94,11 @@ public class BatchImportServiceImpl implements BatchImportService {
 
         EventLimits limits = eventQuota.forEvent(eventId);
         if (effectiveMode == ImportMode.IMPORT) {
-            if (importJobRepository.countByEventIdAndMode(eventId, ImportMode.IMPORT) >= limits.maxImports()) {
+            if (limits.usedImports() >= limits.maxImports()) {
                 throw new EventLimitExceededException("You have reached the maximum number of full imports allowed for this event.");
             }
         } else {
-            if (importJobRepository.countByEventIdAndMode(eventId, ImportMode.ADD_ON) >= limits.maxAddOns()) {
+            if (limits.usedAddOns() >= limits.maxAddOns()) {
                 throw new EventLimitExceededException("You have reached the maximum number of add-on imports allowed for this event.");
             }
         }

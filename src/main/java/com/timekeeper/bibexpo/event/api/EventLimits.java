@@ -12,5 +12,7 @@ public record EventLimits(
         int maxSmsTemplates,
         int maxSmsCampaigns,
         int maxImports,
-        int maxAddOns) {
+        int maxAddOns,
+        int usedImports,
+        int usedAddOns) {
 }

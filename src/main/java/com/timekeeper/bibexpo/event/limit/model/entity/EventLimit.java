@@ -67,4 +67,12 @@ public class EventLimit implements Serializable {
     @Column(name = "max_add_ons", nullable = false)
     @Builder.Default
     private Integer maxAddOns = 5;
+
+    @Column(name = "used_imports", nullable = false)
+    @Builder.Default
+    private Integer usedImports = 0;
+
+    @Column(name = "used_add_ons", nullable = false)
+    @Builder.Default
+    private Integer usedAddOns = 0;
 }

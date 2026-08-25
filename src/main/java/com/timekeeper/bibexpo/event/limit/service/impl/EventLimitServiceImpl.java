@@ -13,7 +13,6 @@ import com.timekeeper.bibexpo.event.limit.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.event.repository.EventRepository;
 import com.timekeeper.bibexpo.event.race.repository.RaceRepository;
 import com.timekeeper.bibexpo.event.api.EventCampaignUsage;
-import com.timekeeper.bibexpo.event.api.EventImportUsage;
 import com.timekeeper.bibexpo.event.limit.service.EventLimitService;
 import com.timekeeper.bibexpo.event.service.util.EventGoodiesReader;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -36,7 +35,6 @@ public class EventLimitServiceImpl implements EventLimitService {
     private final RaceRepository raceRepository;
     private final CategoryRepository categoryRepository;
     private final EventCampaignUsage eventCampaignUsage;
-    private final EventImportUsage eventImportUsage;
     private final EventStatsQuery eventStatsQuery;
     private final EventGoodiesReader goodiesReader;
 
@@ -90,12 +88,12 @@ public class EventLimitServiceImpl implements EventLimitService {
                 "You cannot set the campaign limit below the current number of campaigns (%d).");
 
         applyLimit(request.getMaxImports(),
-                () -> eventImportUsage.countFullImports(eventId),
+                limits::getUsedImports,
                 limits::setMaxImports,
                 "You cannot set the import limit below the number of full imports already run (%d).");
 
         applyLimit(request.getMaxAddOns(),
-                () -> eventImportUsage.countAddOnImports(eventId),
+                limits::getUsedAddOns,
                 limits::setMaxAddOns,
                 "You cannot set the add-on limit below the number of add-on imports already run (%d).");
 

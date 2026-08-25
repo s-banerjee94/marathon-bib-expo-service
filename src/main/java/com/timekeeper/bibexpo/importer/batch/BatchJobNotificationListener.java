@@ -220,6 +220,16 @@ public class BatchJobNotificationListener implements JobExecutionListener {
         importJob.setImportedBy(userId);
 
         importJobRepository.save(importJob);
+
+        // The allowance is spent here rather than at launch, so a failed or abandoned run costs
+        // the customer nothing.
+        if (status == ImportJob.ImportStatus.COMPLETED) {
+            if (mode == ImportMode.ADD_ON) {
+                eventQuota.recordAddOnImport(eventId);
+            } else {
+                eventQuota.recordFullImport(eventId);
+            }
+        }
         log.info("Saved ImportJob {} for event {} status={}", importId, eventId, status);
     }
 

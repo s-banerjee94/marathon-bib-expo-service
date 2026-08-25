@@ -17,4 +17,20 @@ public interface EventQuota {
      * @return the event's limits, or the platform defaults when the event has no limits row
      */
     EventLimits forEvent(Long eventId);
+
+    /**
+     * Records that a full import finished successfully, spending one of the event's import
+     * allowance. Called once the run completes, so a failed or abandoned import costs nothing.
+     *
+     * @param eventId the event that was imported into
+     */
+    void recordFullImport(Long eventId);
+
+    /**
+     * Records that an add-on import finished successfully, spending one of the event's add-on
+     * allowance.
+     *
+     * @param eventId the event that was imported into
+     */
+    void recordAddOnImport(Long eventId);
 }
