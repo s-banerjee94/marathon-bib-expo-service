@@ -39,11 +39,9 @@ public class Organization implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Organizer Information
     @Column(nullable = false)
     private String organizerName;
 
-    // Contact Information
     @Column(nullable = false)
     private String email;
 
@@ -53,7 +51,6 @@ public class Organization implements Serializable {
     @Convert(converter = EmptyStringToNullConverter.class)
     private String website;
 
-    // Address Information
     private String addressLine1;
 
     private String addressLine2;
@@ -66,7 +63,6 @@ public class Organization implements Serializable {
 
     private String country;
 
-    // Tax & Legal Information
     @Convert(converter = EmptyStringToNullConverter.class)
     private String taxId;
 
