@@ -288,9 +288,10 @@ and the Swagger paths. Everything else requires a Bearer access token.
 
 ## Environment Variables
 
-The active profile defaults to `local`. `application-local.yaml` is gitignored and holds local-only
-secrets (such as the OpenAI key used by Spring AI); `application-prod.yaml` carries the production
-overrides and deliberately gives its secrets no defaults so the app fails fast when they are missing.
+The active profile defaults to `local` and needs no file of its own — local values come from the
+`${ENV:default}` placeholders in `application.yaml`, overridden through `.env`. `application-prod.yaml`
+carries the production overrides and deliberately gives its secrets no defaults so the app fails fast
+when they are missing.
 
 Common variables (see `.env.example` and `application.yaml` for the full list and defaults). The
 committed defaults point at the shared LAN Docker host — override them in `.env` if your
