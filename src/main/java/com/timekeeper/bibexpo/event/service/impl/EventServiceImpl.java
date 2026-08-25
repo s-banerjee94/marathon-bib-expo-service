@@ -26,6 +26,7 @@ import com.timekeeper.bibexpo.event.repository.EventRepository;
 import com.timekeeper.bibexpo.event.race.repository.RaceRepository;
 import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.event.api.EventBillingGuard;
+import com.timekeeper.bibexpo.event.api.EventDeletionCleaner;
 import com.timekeeper.bibexpo.event.api.EventDeletionGuard;
 import com.timekeeper.bibexpo.event.service.EventService;
 import com.timekeeper.bibexpo.event.service.util.EventGoodiesReader;
@@ -72,6 +73,7 @@ public class EventServiceImpl implements EventService {
     private final EventStatusTransitionValidator statusTransitionValidator;
     private final EventBillingGuard eventBillingGuard;
     private final List<EventDeletionGuard> eventDeletionGuards;
+    private final List<EventDeletionCleaner> eventDeletionCleaners;
     private final StorageService storageService;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
@@ -499,6 +501,9 @@ public class EventServiceImpl implements EventService {
         AuditContextHolder.setOrganizationId(event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         String logoKey = event.getLogoObjectKey();
+        for (EventDeletionCleaner cleaner : eventDeletionCleaners) {
+            cleaner.purgeForEvent(id);
+        }
         // The event_limits row carries an FK to the event with no cascade, so it must be removed
         // (and flushed) before the event itself to avoid a constraint violation.
         eventLimitRepository.deleteById(id);

@@ -87,8 +87,8 @@ The AI assistant is a standalone Python service under [`ai-agent/`](ai-agent/) t
 
 The application uses a **dual-database architecture**:
 
-- **MySQL** — relational storage for organizations, users, events, races, categories, billing invoices, messaging providers/templates, and daily statistics
-- **DynamoDB** — NoSQL storage for participants, distribution logs, import errors, event stats, notifications, the audit log, and participant short links (table names are individually overridable and can be namespaced at once with `AWS_DYNAMODB_TABLE_PREFIX`)
+- **MySQL** — relational storage for organizations, users, events, races, categories, import jobs and their per-row errors, billing invoices, messaging providers/templates, and daily statistics
+- **DynamoDB** — NoSQL storage for participants, distribution logs, event stats, notifications, the audit log, and participant short links (table names are individually overridable and can be namespaced at once with `AWS_DYNAMODB_TABLE_PREFIX`)
 - **S3** — object storage for profile pictures, organization/event logos, AI media attachments, and generated invoice PDFs
 
 ### Modular monolith
@@ -140,8 +140,8 @@ port for others to call.
 Reading another module's types is deliberately legal — entities, DTOs, enums and exceptions cross
 freely, and many modules read the `User` entity. Only *behaviour* carries direction, so a module
 that needs to **call** another does it through a published port (`*Store`/`*Recorder` write,
-`*Query`/`*Directory` read, `*Guard` decides, `*Usage` counts). Writes to another module's entity
-still go through the owning module's service.
+`*Query`/`*Directory` read, `*Guard` decides, `*Usage` counts, `*Cleaner` purges on delete).
+Writes to another module's entity still go through the owning module's service.
 
 ---
 
