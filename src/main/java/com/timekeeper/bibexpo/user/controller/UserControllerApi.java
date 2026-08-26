@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.user.controller;
 
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.request.PresignUploadRequest;
@@ -33,6 +34,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+
+import java.util.List;
 
 /**
  * API interface for user management operations
@@ -447,7 +450,9 @@ public interface UserControllerApi {
                     Retrieves users with optional filtering, searching, and pagination. \
                     ROOT and ADMIN: full access across all organizations, organizationId param honored. \
                     ORGANIZER_ADMIN and ORGANIZER_USER: automatically scoped to their own organization, \
-                    organizationId param is ignored."""
+                    organizationId param is ignored. \
+                    The role filter accepts several roles at once and matches a user holding any of \
+                    them, so role=ROOT,ADMIN returns the platform users only. All filters combine with AND."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -470,8 +475,10 @@ public interface UserControllerApi {
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     ResponseEntity<PageableResponse<UserResponse>> getUsers(
-            @Parameter(description = "Filter by user role")
-            @RequestParam(required = false) com.timekeeper.bibexpo.shared.security.UserRole role,
+            @Parameter(description = "Filter by one or more user roles; matches a user holding any of them. "
+                    + "Repeat the parameter or pass a comma-separated list, e.g. role=ROOT,ADMIN for platform "
+                    + "users only, or role=ORGANIZER_USER,DISTRIBUTOR. Combines with organizationId and eventId.")
+            @RequestParam(name = "role", required = false) List<UserRole> roles,
 
             @Parameter(description = "Filter by organization ID (ROOT/ADMIN only)")
             @RequestParam(required = false) Long organizationId,

@@ -21,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * REST Controller for user management operations
  */
@@ -92,12 +94,12 @@ public class UserController implements UserControllerApi {
     }
 
     @Override
-    public ResponseEntity<PageableResponse<UserResponse>> getUsers(UserRole role, Long organizationId,
+    public ResponseEntity<PageableResponse<UserResponse>> getUsers(List<UserRole> roles, Long organizationId,
                                                                     Long eventId, Boolean enabled, String search,
                                                                     Pageable pageable, User currentUser) {
         log.info("Request to get users by: {}", currentUser.getUsername());
         return ResponseEntity.ok(PageableResponse.of(
-                userService.getUsers(role, organizationId, eventId, enabled, search, pageable,
+                userService.getUsers(roles, organizationId, eventId, enabled, search, pageable,
                         CurrentActor.from(currentUser))));
     }
 

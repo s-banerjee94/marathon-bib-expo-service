@@ -9,6 +9,8 @@ import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
+
 /**
  * Service interface for user management operations
  */
@@ -221,7 +223,7 @@ public interface UserService {
      * ROOT/ADMIN: full access, organizationId honored.
      * ORGANIZER_ADMIN/ORGANIZER_USER/DISTRIBUTOR: auto-scoped to own org, organizationId ignored.
      *
-     * @param role optional role filter
+     * @param roles optional role filter; a user matches if their role is any one of these
      * @param organizationId optional organization filter (ROOT/ADMIN only)
      * @param eventId optional event filter (matches distributors assigned to that event)
      * @param enabled optional enabled status filter
@@ -231,7 +233,7 @@ public interface UserService {
      * @return page of user responses matching filters
      * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if user lacks permission
      */
-    Page<UserResponse> getUsers(UserRole role, Long organizationId, Long eventId, Boolean enabled,
+    Page<UserResponse> getUsers(List<UserRole> roles, Long organizationId, Long eventId, Boolean enabled,
                                 String search, Pageable pageable,
                                 CurrentActor actor);
 

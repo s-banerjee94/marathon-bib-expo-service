@@ -43,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Implementation of UserService for user management operations
@@ -518,11 +519,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<UserResponse> getUsers(UserRole role, Long organizationId, Long eventId, Boolean enabled,
+    public Page<UserResponse> getUsers(List<UserRole> roles, Long organizationId, Long eventId, Boolean enabled,
                                        String search, Pageable pageable,
                                        CurrentActor actor) {
-        log.info("Getting users - role: {}, orgId: {}, eventId: {}, enabled: {}, search: {} by: {}",
-                role, organizationId, eventId, enabled, search, actor.username());
+        log.info("Getting users - roles: {}, orgId: {}, eventId: {}, enabled: {}, search: {} by: {}",
+                roles, organizationId, eventId, enabled, search, actor.username());
 
         UserRole currentRole = actor.role();
 
@@ -533,7 +534,7 @@ public class UserServiceImpl implements UserService {
             scopedOrgId = actor.organizationId();
         }
 
-        Specification<User> spec = buildUserSpecification(role, scopedOrgId, eventId, enabled, search);
+        Specification<User> spec = buildUserSpecification(roles, scopedOrgId, eventId, enabled, search);
         Page<UserResponse> responsePage = userRepository.findAll(spec, pageable).map(responseMapper::toResponse);
 
         log.info("Successfully retrieved {} users (page {} of {})",
@@ -542,12 +543,16 @@ public class UserServiceImpl implements UserService {
     }
 
     private Specification<User> buildUserSpecification(
-            UserRole role, Long organizationId, Long eventId, Boolean enabled, String search) {
+            List<UserRole> roles, Long organizationId, Long eventId, Boolean enabled, String search) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (role != null) {
-                predicates.add(cb.equal(root.get("role"), role));
+            // Blank entries in the query string ("role=ROOT,") arrive as nulls; an IN list holding
+            // one would silently match no user at all, so they are dropped before the predicate.
+            List<UserRole> wantedRoles = roles == null ? List.of()
+                    : roles.stream().filter(Objects::nonNull).toList();
+            if (!wantedRoles.isEmpty()) {
+                predicates.add(root.get("role").in(wantedRoles));
             }
             if (organizationId != null) {
                 predicates.add(cb.equal(root.get("organization").get("id"), organizationId));
