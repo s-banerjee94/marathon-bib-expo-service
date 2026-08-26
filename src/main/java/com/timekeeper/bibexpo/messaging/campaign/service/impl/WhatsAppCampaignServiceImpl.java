@@ -1,6 +1,8 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidWhatsAppCampaignException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppCampaignAlreadyActiveException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppCampaignNotFoundException;
@@ -18,13 +20,11 @@ import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
 import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
-import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,11 +41,11 @@ public class WhatsAppCampaignServiceImpl
 
     public WhatsAppCampaignServiceImpl(WhatsAppCampaignRepository campaignRepository,
                                        WhatsAppTemplateRepository templateRepository,
-                                       EventRepository eventRepository,
+                                       EventStore eventStore,
                                        EventAccessValidator eventAccessValidator,
                                        EventOperationGuard eventOperationGuard,
                                        CampaignCompatibilityGuard compatibilityGuard) {
-        super("WhatsApp", campaignRepository, eventRepository, eventAccessValidator, eventOperationGuard,
+        super("WhatsApp", campaignRepository, eventStore, eventAccessValidator, eventOperationGuard,
                 compatibilityGuard);
         this.templateRepository = templateRepository;
     }

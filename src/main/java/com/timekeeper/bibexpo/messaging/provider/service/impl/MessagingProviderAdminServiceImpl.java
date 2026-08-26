@@ -1,25 +1,24 @@
 package com.timekeeper.bibexpo.messaging.provider.service.impl;
 
-import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
+import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderInUseException;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.ProviderTestSendRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.SaveMessagingProviderRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.response.MessagingProviderResponse;
-import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderInUseException;
 import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
-import com.timekeeper.bibexpo.messaging.provider.service.ActiveCampaignCounter;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.MessageContentType;
 import com.timekeeper.bibexpo.messaging.provider.repository.MessagingProviderRepository;
+import com.timekeeper.bibexpo.messaging.provider.service.ActiveCampaignCounter;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderAdminService;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderCache;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
 import com.timekeeper.bibexpo.messaging.shared.exception.MessagingConfigNotFoundException;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
+import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
+import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
+import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,7 +34,7 @@ import java.util.Optional;
 public class MessagingProviderAdminServiceImpl implements MessagingProviderAdminService {
 
     private final MessagingProviderRepository providerRepository;
-    private final OrganizationRepository organizationRepository;
+    private final OrganizationDirectory organizationDirectory;
     private final MessagingProviderClient messagingProviderClient;
     private final MessagingProviderCache providerCache;
     private final ProviderMappingValidator mappingValidator;
@@ -241,8 +240,7 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
         if (organizationId == null) {
             return;
         }
-        organizationRepository.findById(organizationId)
-                .orElseThrow(OrganizationNotFoundException::new);
+        organizationDirectory.requireById(organizationId);
     }
 
     private boolean isPresent(String value) {

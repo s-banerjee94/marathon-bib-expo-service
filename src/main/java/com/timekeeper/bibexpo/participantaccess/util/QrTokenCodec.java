@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.participantaccess.util;
 
-import com.timekeeper.bibexpo.exception.InvalidQrCodeException;
+import com.timekeeper.bibexpo.participantaccess.exception.InvalidQrCodeException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 

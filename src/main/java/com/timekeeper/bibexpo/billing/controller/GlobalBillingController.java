@@ -2,13 +2,13 @@ package com.timekeeper.bibexpo.billing.controller;
 
 import com.timekeeper.bibexpo.billing.model.dto.request.UpdatePaymentStatusRequest;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
-import com.timekeeper.bibexpo.model.dto.response.PageableResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsRefreshResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillStatsResponse;
 import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
-import com.timekeeper.bibexpo.model.enums.DashboardRange;
-import com.timekeeper.bibexpo.billing.service.BillStatsService;
 import com.timekeeper.bibexpo.billing.service.BillingAdminService;
+import com.timekeeper.bibexpo.billing.service.BillStatsService;
+import com.timekeeper.bibexpo.shared.model.enums.DashboardRange;
+import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

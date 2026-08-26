@@ -1,7 +1,5 @@
 package com.timekeeper.bibexpo.messaging.campaign.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidWhatsAppCampaignException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppCampaignAlreadyActiveException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppCampaignNotFoundException;
@@ -9,6 +7,8 @@ import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateWhatsAp
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateWhatsAppCampaignRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.WhatsAppCampaignResponse;
 import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppCampaignService;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

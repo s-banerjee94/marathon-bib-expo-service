@@ -77,6 +77,7 @@ The AI assistant is a standalone Python service under [`ai-agent/`](ai-agent/) t
 | Caching | Caffeine |
 | API Docs | SpringDoc OpenAPI 2.7.0 (Swagger UI) |
 | Metrics | Spring Boot Actuator + Micrometer (Prometheus) |
+| Architecture Tests | ArchUnit 1.4.1 (module boundary rules) |
 | Boilerplate | Lombok |
 | Monitoring | Prometheus + Grafana |
 
@@ -86,43 +87,61 @@ The AI assistant is a standalone Python service under [`ai-agent/`](ai-agent/) t
 
 The application uses a **dual-database architecture**:
 
-- **MySQL** — relational storage for organizations, users, events, races, categories, billing invoices, messaging providers/templates, and daily statistics
-- **DynamoDB** — NoSQL storage for participants, distribution logs, import errors, event stats, notifications, the audit log, and participant short links (table names are individually overridable and can be namespaced at once with `AWS_DYNAMODB_TABLE_PREFIX`)
+- **MySQL** — relational storage for organizations, users, events, races, categories, import jobs and their per-row errors, billing invoices, messaging providers/templates, and daily statistics
+- **DynamoDB** — NoSQL storage for participants, distribution logs, event stats, notifications, the audit log, and participant short links (table names are individually overridable and can be namespaced at once with `AWS_DYNAMODB_TABLE_PREFIX`)
 - **S3** — object storage for profile pictures, organization/event logos, AI media attachments, and generated invoice PDFs
+
+### Modular monolith
+
+One Maven module, one jar, with boundaries drawn at the package level. Every direct sub-package of
+`com.timekeeper.bibexpo` is a module that owns its own controllers, services, repositories, DTOs and
+exceptions. Modules are listed below in dependency order — **a module may only depend on one above
+it**:
 
 ```
 src/main/java/com/timekeeper/bibexpo/
-├── ai/                 # Spring AI MCP server + tools (ai.mcp) wrapping existing services
-├── annotation/         # Custom annotations
-├── aspect/             # AOP aspects (cross-cutting concerns)
-├── batch/              # Spring Batch jobs for async CSV imports
-├── billing/            # Usage-based billing: invoices, GST PDFs, Lambda/Scheduler wiring
-├── config/             # Spring configuration (Security, CORS, DynamoDB, JPA, Cache, OpenAPI)
-├── controller/         # REST controllers + API interface definitions (*ControllerApi.java)
-├── demo/               # Public landing-page live QR demo (SSE, in-memory session store)
-├── exception/          # ApiException hierarchy and GlobalExceptionHandler
-├── invitation/         # User invitation flow (token store + delivery)
-├── messaging/          # SMS/WhatsApp: campaign, delivery, direct, provider, shared, system
-├── model/
-│   ├── dto/            # Request/response DTOs
-│   ├── entity/         # JPA entities (MySQL)
-│   ├── dynamodb/       # DynamoDB entity mappings
-│   ├── enums/          # Domain enums (SubscriptionTier, DashboardRange, AuditAction, ...)
-│   └── event/          # Spring application events
-├── notification/       # In-app notifications (DynamoDB-backed, polled by clients)
-├── participantaccess/  # Participant self-service access via signed QR links
-├── passwordreset/      # Self-service & admin-issued password reset flow
-├── repository/         # JPA repositories (MySQL) + DynamoDB repositories
-├── scheduler/          # Scheduled jobs (e.g. session cleanup)
-├── security/           # JWT filters, MCP token filter, entry point, access handlers
-├── service/            # Business logic (interfaces + impl/, cache/, dashboard/, audit/, validator/)
-├── util/               # Generic helpers (text, event date/time, name normalization)
-└── validation/         # Custom bean validators (@ValidEnum, @ValidCreateParticipant)
+├── shared/            # kernel: error envelope, security primitives, persistence + AWS config,
+│                      #   web, validation, cache names, dependency-free utils
+├── audit/             # @Auditable AOP capture of actor/action/entity into DynamoDB
+├── notification/      # in-app notifications, DynamoDB-backed and polled by clients
+├── storage/           # S3 uploads: presigned PUT, attach, delete
+├── demo/              # public landing-page live QR demo (SSE, in-memory session store)
+├── organization/      # tenants, subscription tiers, seat and event quotas
+├── event/             # the event aggregate, with internal slices:
+│                      #   limit/, stats/, race/, race/category/
+├── user/              # accounts, roles, access policy, profile media
+├── participant/       # participant CRUD, search, CSV export, statistics
+├── billing/           # usage-based billing: invoices, GST PDFs, Lambda/Scheduler wiring
+├── identity/          # login, JWT mint/verify, refresh rotation, active sessions
+├── importer/          # Spring Batch CSV import pipeline
+├── messaging/         # SMS/WhatsApp: campaign/, delivery/, direct/, provider/, shared/, system/
+├── participantaccess/ # participant self-service via signed QR short links
+├── reporting/         # event/org/platform dashboards, daily-stats snapshots, trends
+├── distribution/      # bib and goodies collection, undo, staff attribution, log search
+├── invitation/        # user invitation flow (token store + delivery)
+├── passwordreset/     # self-service and admin-issued password reset
+├── ai/                # Spring AI MCP server + tools over the published module APIs
+└── bootstrap/         # composition root: Security, Cache, CORS, OpenAPI, Async config
 ```
 
-Core domains use a layered structure; newer domains (`billing/`, `messaging/`, `notification/`,
-`invitation/`, `passwordreset/`, `participantaccess/`, `demo/`) are organized package-by-feature,
-each with its own controller/service/model/repository. New features follow the latter.
+Inside a module: `controller/`, `service/` + `service/impl/`, `repository/` (or `store/`),
+`model/{dto,entity,dynamodb,enums,event}/`, `exception/`, and `api/` when the module publishes a
+port for others to call.
+
+**The boundaries are enforced, not just documented.** `ModuleBoundaryRulesTest` fails the build when:
+
+- `shared` references any module — it is the leaf every module builds on
+- a module's `repository/`, `service/impl/`, `service/cache/` or `store/` is reached from outside it;
+  cross-module access goes through `api/`, a `service/` interface, `model/` or `exception/`
+- anything depends on `bootstrap` or `ai`, or anything but those two depends on `reporting`
+- a behavioural dependency forms a cycle or points at an equal-or-higher layer
+- a class turns up in a top-level package that has not been declared as a module
+
+Reading another module's types is deliberately legal — entities, DTOs, enums and exceptions cross
+freely, and many modules read the `User` entity. Only *behaviour* carries direction, so a module
+that needs to **call** another does it through a published port (`*Store`/`*Recorder` write,
+`*Query`/`*Directory` read, `*Guard` decides, `*Usage` counts, `*Cleaner` purges on delete).
+Writes to another module's entity still go through the owning module's service.
 
 ---
 
@@ -269,9 +288,10 @@ and the Swagger paths. Everything else requires a Bearer access token.
 
 ## Environment Variables
 
-The active profile defaults to `local`. `application-local.yaml` is gitignored and holds local-only
-secrets (such as the OpenAI key used by Spring AI); `application-prod.yaml` carries the production
-overrides and deliberately gives its secrets no defaults so the app fails fast when they are missing.
+The active profile defaults to `local` and needs no file of its own — local values come from the
+`${ENV:default}` placeholders in `application.yaml`, overridden through `.env`. `application-prod.yaml`
+carries the production overrides and deliberately gives its secrets no defaults so the app fails fast
+when they are missing.
 
 Common variables (see `.env.example` and `application.yaml` for the full list and defaults). The
 committed defaults point at the shared LAN Docker host — override them in `.env` if your
@@ -319,6 +339,17 @@ infrastructure runs elsewhere:
 ```bash
 ./mvnw test
 ```
+
+Two tests run: `MarathonBibExpoApplicationTests` boots the Spring context (needs MySQL and
+LocalStack reachable), and `ModuleBoundaryRulesTest` checks the module boundaries described
+under [Architecture](#modular-monolith) and needs no infrastructure at all:
+
+```bash
+./mvnw test -Dtest=ModuleBoundaryRulesTest
+```
+
+> Beyond those two, unit tests are not written for this project; changes are verified with a
+> live end-to-end smoke against a running instance.
 
 ### Run a Single Test Class
 ```bash

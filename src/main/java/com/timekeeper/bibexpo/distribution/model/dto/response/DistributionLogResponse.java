@@ -1,0 +1,57 @@
+package com.timekeeper.bibexpo.distribution.model.dto.response;
+
+import com.timekeeper.bibexpo.distribution.model.dynamodb.DistributionLogDDB;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Builder;
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+@Builder
+@Schema(description = "Distribution event log details")
+public class DistributionLogResponse {
+
+    @Schema(description = "Event ID", example = "1")
+    private String eventId;
+
+    @Schema(description = "Timestamp when the action was performed", example = "2024-01-15T10:30:00")
+    private String timestamp;
+
+    @Schema(description = "Bib number", example = "3001")
+    private String bibNumber;
+
+    @Schema(description = "Action type: BIB_COLLECTED, BIB_UNDONE, GOODIES_DISTRIBUTED, GOODIES_UNDONE",
+            example = "BIB_COLLECTED")
+    private String action;
+
+    @Schema(description = "Goodies item names distributed in this action (null for bib actions)", example = "[\"T-Shirt\", \"Medal\"]")
+    private List<String> itemNames;
+
+    @Schema(description = "Staff member who performed the action (format: ID__|__Username)",
+            example = "123__|__john_doe")
+    private String performedBy;
+
+    @Schema(description = "Name of person who collected (for bib actions)", example = "John Doe")
+    private String collectorName;
+
+    @Schema(description = "Phone number of person who collected (for bib actions)", example = "+919876543210")
+    private String collectorPhone;
+
+    @Schema(description = "Additional details about the action", example = "Bib collection undone. All goodies distribution reset.")
+    private String details;
+
+    public static DistributionLogResponse from(DistributionLogDDB logEntry) {
+        return DistributionLogResponse.builder()
+                .eventId(logEntry.getEventId())
+                .timestamp(logEntry.getTimestamp())
+                .bibNumber(logEntry.getBibNumber())
+                .action(logEntry.getAction())
+                .itemNames(logEntry.getItemNames())
+                .performedBy(logEntry.getPerformedBy())
+                .collectorName(logEntry.getCollectorName())
+                .collectorPhone(logEntry.getCollectorPhone())
+                .details(logEntry.getDetails())
+                .build();
+    }
+}

@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 
-import com.timekeeper.bibexpo.aspect.AuditContextHolder;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CampaignWriteRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.CampaignEntity;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
@@ -12,12 +11,12 @@ import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard
 import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
 import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.EventOperation;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
-import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.enums.EventOperation;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,20 +56,20 @@ public abstract class AbstractCampaignService<
     private final String channelLabel;
 
     protected final CampaignBaseRepository<C> campaignRepository;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final EventOperationGuard eventOperationGuard;
     private final CampaignCompatibilityGuard compatibilityGuard;
 
     protected AbstractCampaignService(String channelLabel,
                                       CampaignBaseRepository<C> campaignRepository,
-                                      EventRepository eventRepository,
+                                      EventStore eventStore,
                                       EventAccessValidator eventAccessValidator,
                                       EventOperationGuard eventOperationGuard,
                                       CampaignCompatibilityGuard compatibilityGuard) {
         this.channelLabel = channelLabel;
         this.campaignRepository = campaignRepository;
-        this.eventRepository = eventRepository;
+        this.eventStore = eventStore;
         this.eventAccessValidator = eventAccessValidator;
         this.eventOperationGuard = eventOperationGuard;
         this.compatibilityGuard = compatibilityGuard;
@@ -197,6 +196,7 @@ public abstract class AbstractCampaignService<
             throw invalidCampaign("Only draft campaigns can be deleted.");
         }
 
+        AuditContextHolder.setEntityId(String.valueOf(campaignId));
         AuditContextHolder.setEntityLabel(campaign.getName());
         AuditContextHolder.setOrganizationId(
                 event.getOrganization() != null ? event.getOrganization().getId() : null);
@@ -261,8 +261,7 @@ public abstract class AbstractCampaignService<
     }
 
     protected final Event validateEventAccess(Long eventId, User currentUser) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 

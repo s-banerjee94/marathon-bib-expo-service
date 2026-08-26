@@ -2,32 +2,31 @@ package com.timekeeper.bibexpo.billing.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.billing.config.BillingProperties;
 import com.timekeeper.bibexpo.billing.exception.BillGenerationException;
 import com.timekeeper.bibexpo.billing.exception.BillNotAllowedException;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillGenerationResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.EventStatus;
 import com.timekeeper.bibexpo.billing.model.entity.Invoice;
 import com.timekeeper.bibexpo.billing.model.entity.InvoiceLineItem;
 import com.timekeeper.bibexpo.billing.model.entity.InvoiceStatus;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
-import com.timekeeper.bibexpo.repository.EventRepository;
 import com.timekeeper.bibexpo.billing.repository.InvoiceLineItemRepository;
 import com.timekeeper.bibexpo.billing.repository.InvoiceRepository;
-import com.timekeeper.bibexpo.service.StorageService;
-import com.timekeeper.bibexpo.billing.service.BillStatsTriggerService;
 import com.timekeeper.bibexpo.billing.service.BillingQuotaService;
 import com.timekeeper.bibexpo.billing.service.BillingScheduleService;
 import com.timekeeper.bibexpo.billing.service.BillingService;
+import com.timekeeper.bibexpo.billing.service.BillStatsTriggerService;
 import com.timekeeper.bibexpo.billing.service.QuotaClaimResult;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.EventStatus;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.storage.service.StorageService;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -53,7 +52,7 @@ public class BillingServiceImpl implements BillingService {
     // Lambda's small JSON response.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final InvoiceRepository invoiceRepository;
     private final InvoiceLineItemRepository invoiceLineItemRepository;
@@ -213,7 +212,7 @@ public class BillingServiceImpl implements BillingService {
     }
 
     private Event loadAndAuthorize(Long eventId, User currentUser) {
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserOrganizationAccess(currentUser, event);
         return event;
     }

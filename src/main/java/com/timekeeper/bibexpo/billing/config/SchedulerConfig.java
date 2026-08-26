@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.billing.config;
 
-import com.timekeeper.bibexpo.config.AwsProperties;
+import com.timekeeper.bibexpo.shared.persistence.AwsProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,7 +12,7 @@ import java.net.URI;
 
 /**
  * EventBridge Scheduler client used to arm/cancel the deferred auto-bill timer.
- * Mirrors {@link com.timekeeper.bibexpo.config.DynamoDBConfig}: an endpoint override
+ * Mirrors {@link com.timekeeper.bibexpo.shared.persistence.DynamoDBConfig}: an endpoint override
  * (LocalStack) uses the static test credentials; otherwise it targets real AWS via the
  * default credentials provider (EC2 instance role).
  */

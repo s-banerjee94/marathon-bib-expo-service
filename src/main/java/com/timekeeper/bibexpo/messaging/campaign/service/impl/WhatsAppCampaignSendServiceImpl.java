@@ -1,32 +1,32 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 
-import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
-import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderException;
-import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
-import com.timekeeper.bibexpo.messaging.provider.service.CampaignProviderResolver;
-import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
-import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
-import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTargetFilter;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher;
-import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchOutcome;
-import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchRequest;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
 import com.timekeeper.bibexpo.messaging.campaign.config.WhatsAppSchedulerProperties;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppSendException;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppCampaign;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppTemplate;
+import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
+import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTargetFilter;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppCampaignSendService;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchOutcome;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher.DispatchRequest;
+import com.timekeeper.bibexpo.messaging.campaign.util.CampaignDispatcher;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignNotifier;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
+import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
+import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderException;
+import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
+import com.timekeeper.bibexpo.messaging.provider.service.CampaignProviderResolver;
 import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
+import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -43,11 +43,11 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
     private static final int CONSECUTIVE_FAILURE_THRESHOLD = 5;
 
     private final WhatsAppCampaignRepository campaignRepository;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final CampaignProviderResolver campaignProviderResolver;
     private final MessagingProviderClient messagingProviderClient;
     private final WhatsAppSchedulerProperties schedulerProperties;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
     private final CampaignDispatcher campaignDispatcher;
     private final CampaignNotifier campaignNotifier;
     private final CampaignCompatibilityGuard compatibilityGuard;
@@ -62,7 +62,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
         }
 
         // The slice stores plain IDs; the event is fetched only for template-variable rendering
-        Event event = eventRepository.findById(campaign.getEventId()).orElse(null);
+        Event event = eventStore.findById(campaign.getEventId()).orElse(null);
         if (event == null) {
             log.warn("Event ID: {} not found for WhatsApp campaign ID: {} — skipping", campaign.getEventId(), campaignId);
             return;

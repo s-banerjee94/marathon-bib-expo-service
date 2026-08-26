@@ -1,11 +1,11 @@
 package com.timekeeper.bibexpo.passwordreset.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.passwordreset.exception.PasswordResetInvalidException;
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.CompletePasswordResetRequest;
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.ForgotPasswordRequest;
 import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetTokenStatusResponse;
 import com.timekeeper.bibexpo.passwordreset.service.PasswordResetService;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

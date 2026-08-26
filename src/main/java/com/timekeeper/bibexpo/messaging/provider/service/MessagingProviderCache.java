@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.messaging.provider.service;
 
-import com.timekeeper.bibexpo.config.CacheConfig;
+import com.timekeeper.bibexpo.shared.cache.CacheNames;
 import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
 import com.timekeeper.bibexpo.messaging.provider.repository.MessagingProviderRepository;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
@@ -29,17 +29,17 @@ public class MessagingProviderCache {
     private final MessagingProviderRepository providerRepository;
     private final CacheManager cacheManager;
 
-    @Cacheable(value = CacheConfig.MESSAGING_PROVIDERS_CACHE, key = "'CO:' + #channel + ':' + #organizationId")
+    @Cacheable(value = CacheNames.MESSAGING_PROVIDERS_CACHE, key = "'CO:' + #channel + ':' + #organizationId")
     public Optional<MessagingProvider> findCampaignOverride(MessageChannel channel, Long organizationId) {
         return providerRepository.findByUsageAndChannelAndOrganizationId(MessageUsage.CAMPAIGN, channel, organizationId);
     }
 
-    @Cacheable(value = CacheConfig.MESSAGING_PROVIDERS_CACHE, key = "'CD:' + #channel")
+    @Cacheable(value = CacheNames.MESSAGING_PROVIDERS_CACHE, key = "'CD:' + #channel")
     public Optional<MessagingProvider> findCampaignDefault(MessageChannel channel) {
         return providerRepository.findByUsageAndChannelAndOrganizationIdIsNull(MessageUsage.CAMPAIGN, channel);
     }
 
-    @Cacheable(value = CacheConfig.MESSAGING_PROVIDERS_CACHE, key = "'SYS:' + #channel")
+    @Cacheable(value = CacheNames.MESSAGING_PROVIDERS_CACHE, key = "'SYS:' + #channel")
     public Optional<MessagingProvider> findSystem(MessageChannel channel) {
         return providerRepository.findByUsageAndChannelAndOrganizationIdIsNull(MessageUsage.SYSTEM, channel);
     }
@@ -70,7 +70,7 @@ public class MessagingProviderCache {
     }
 
     private void evictNow(String key) {
-        Cache cache = cacheManager.getCache(CacheConfig.MESSAGING_PROVIDERS_CACHE);
+        Cache cache = cacheManager.getCache(CacheNames.MESSAGING_PROVIDERS_CACHE);
         if (cache != null) {
             cache.evict(key);
         }

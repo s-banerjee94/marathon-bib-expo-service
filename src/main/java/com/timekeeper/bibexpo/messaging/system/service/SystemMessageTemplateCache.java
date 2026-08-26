@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.messaging.system.service;
 
-import com.timekeeper.bibexpo.config.CacheConfig;
+import com.timekeeper.bibexpo.shared.cache.CacheNames;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
 import com.timekeeper.bibexpo.messaging.system.model.entity.SystemMessageTemplate;
@@ -27,7 +27,7 @@ public class SystemMessageTemplateCache {
     private final SystemMessageTemplateRepository templateRepository;
     private final CacheManager cacheManager;
 
-    @Cacheable(value = CacheConfig.SYSTEM_TEMPLATES_CACHE, key = "#purpose + ':' + #channel")
+    @Cacheable(value = CacheNames.SYSTEM_TEMPLATES_CACHE, key = "#purpose + ':' + #channel")
     public Optional<SystemMessageTemplate> findByPurposeAndChannel(SystemTemplatePurpose purpose, MessageChannel channel) {
         return templateRepository.findByPurposeAndChannel(purpose, channel);
     }
@@ -47,7 +47,7 @@ public class SystemMessageTemplateCache {
     }
 
     private void evictNow(String key) {
-        Cache cache = cacheManager.getCache(CacheConfig.SYSTEM_TEMPLATES_CACHE);
+        Cache cache = cacheManager.getCache(CacheNames.SYSTEM_TEMPLATES_CACHE);
         if (cache != null) {
             cache.evict(key);
         }

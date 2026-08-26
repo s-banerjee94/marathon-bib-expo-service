@@ -1,0 +1,245 @@
+package com.timekeeper.bibexpo.identity.service.impl;
+
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
+import com.timekeeper.bibexpo.audit.api.AuditEvent;
+import com.timekeeper.bibexpo.audit.api.AuditPublisher;
+import com.timekeeper.bibexpo.identity.config.JwtConfig;
+import com.timekeeper.bibexpo.identity.exception.AccountDisabledException;
+import com.timekeeper.bibexpo.identity.exception.CsrfValidationException;
+import com.timekeeper.bibexpo.identity.exception.InvalidCredentialsException;
+import com.timekeeper.bibexpo.identity.exception.JwtAuthenticationException;
+import com.timekeeper.bibexpo.identity.model.dto.request.LoginRequest;
+import com.timekeeper.bibexpo.identity.model.dto.response.LoginResponse;
+import com.timekeeper.bibexpo.identity.model.dto.response.RefreshResponse;
+import com.timekeeper.bibexpo.identity.service.AuthService;
+import com.timekeeper.bibexpo.identity.service.CsrfTokenService;
+import com.timekeeper.bibexpo.identity.service.JwtService;
+import com.timekeeper.bibexpo.identity.service.SessionService;
+import com.timekeeper.bibexpo.user.api.AuthUserDirectory;
+import com.timekeeper.bibexpo.user.model.entity.User;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseCookie;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetailsChecker;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class AuthServiceImpl implements AuthService {
+
+    private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
+    private final JwtConfig jwtConfig;
+    private final SessionService sessionService;
+    private final CsrfTokenService csrfTokenService;
+    private final AuditPublisher auditPublisher;
+    private final AuthUserDirectory authUserDirectory;
+    private final UserDetailsChecker accountStatusChecker = new AccountStatusUserDetailsChecker();
+
+    @Override
+    public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        log.info("Login attempt for user: {}", request.getUsername());
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+            );
+
+            // Loaded and cached by the authentication above, so this is a hit, not a query.
+            User user = authUserDirectory.findByUsername(request.getUsername());
+            if (user == null) {
+                throw new InvalidCredentialsException("Invalid username or password");
+            }
+
+            String deviceInfo = buildDeviceInfo(httpRequest);
+            String sid = sessionService.startSession(user.getUsername(), deviceInfo);
+
+            String accessToken = jwtService.generateAccessToken(user, sid);
+            String refreshToken = jwtService.generateRefreshToken(user, sid);
+            String csrfToken = csrfTokenService.generate();
+
+            writeRefreshCookie(httpResponse, refreshToken);
+            writeCsrfCookie(httpResponse, csrfToken);
+
+            log.info("Login successful for user: {}", request.getUsername());
+
+            publishLoginAudit(user);
+
+            return LoginResponse.builder()
+                    .accessToken(accessToken)
+                    .expiresInMs(jwtService.getAccessTokenExpirationMs())
+                    .userId(user.getId())
+                    .username(user.getUsername())
+                    .role(user.getRole().name())
+                    .organizationId(user.getOrganization() != null ? user.getOrganization().getId() : null)
+                    .build();
+
+        } catch (BadCredentialsException e) {
+            log.error("Invalid credentials for user: {}", request.getUsername());
+            throw new InvalidCredentialsException("Invalid username or password");
+        } catch (DisabledException e) {
+            log.warn("Account disabled: {}", request.getUsername());
+            throw new AccountDisabledException("Account is disabled");
+        } catch (LockedException e) {
+            log.warn("Account locked: {}", request.getUsername());
+            throw new AccountDisabledException("Account is locked");
+        }
+    }
+
+    @Override
+    public RefreshResponse refresh(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String csrfHeader = httpRequest.getHeader("X-CSRF-Token");
+        String csrfCookie = readCookie(httpRequest, jwtConfig.getCsrfCookieName());
+        if (!csrfTokenService.matches(csrfHeader, csrfCookie)) {
+            throw new CsrfValidationException("Invalid request. Please refresh and try again.");
+        }
+
+        String refreshToken = readCookie(httpRequest, jwtConfig.getRefreshCookieName());
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new JwtAuthenticationException("Your session has expired. Please log in again.");
+        }
+
+        String username = jwtService.extractUsername(refreshToken);
+        String tokenType = jwtService.extractTokenType(refreshToken);
+        String oldSid = jwtService.extractSid(refreshToken);
+
+        if (!JwtService.TYPE_REFRESH.equals(tokenType)) {
+            throw new JwtAuthenticationException("Invalid session. Please log in again.");
+        }
+
+        User user = authUserDirectory.findByUsername(username);
+        if (user == null) {
+            throw new JwtAuthenticationException("Your session has expired. Please log in again.");
+        }
+
+        try {
+            accountStatusChecker.check(user);
+        } catch (AccountStatusException e) {
+            sessionService.endSession(user.getUsername());
+            clearAuthCookies(httpResponse);
+            throw new AccountDisabledException(
+                    e instanceof LockedException ? "Account is locked" : "Account is disabled");
+        }
+
+        String activeSid = sessionService.getActiveSid(username);
+        if (activeSid == null || !activeSid.equals(oldSid)) {
+            log.warn("Invalid refresh token for user {} — request dropped", username);
+            throw new JwtAuthenticationException("Your session has been signed out. Please log in again.");
+        }
+
+        sessionService.extendSession(user.getUsername());
+
+        String newAccessToken = jwtService.generateAccessToken(user, oldSid);
+        String newRefreshToken = jwtService.generateRefreshToken(user, oldSid);
+
+        writeRefreshCookie(httpResponse, newRefreshToken);
+
+        return RefreshResponse.builder()
+                .accessToken(newAccessToken)
+                .expiresInMs(jwtService.getAccessTokenExpirationMs())
+                .build();
+    }
+
+    @Override
+    public void logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String csrfHeader = httpRequest.getHeader("X-CSRF-Token");
+        String csrfCookie = readCookie(httpRequest, jwtConfig.getCsrfCookieName());
+        if (!csrfTokenService.matches(csrfHeader, csrfCookie)) {
+            throw new CsrfValidationException("Invalid request. Please refresh and try again.");
+        }
+
+        String refreshToken = readCookie(httpRequest, jwtConfig.getRefreshCookieName());
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            try {
+                String username = jwtService.extractUsername(refreshToken);
+                if (username != null) {
+                    sessionService.endSession(username);
+                    log.info("User {} logged out", username);
+                }
+            } catch (Exception e) {
+                log.debug("Logout: could not end session from refresh token — {}", e.getMessage());
+            }
+        }
+        // Always clear the cookies so the client is signed out even if the session was already gone.
+        clearAuthCookies(httpResponse);
+    }
+
+    private String readCookie(HttpServletRequest request, String name) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) return null;
+        for (Cookie c : cookies) {
+            if (name.equals(c.getName())) return c.getValue();
+        }
+        return null;
+    }
+
+    private void writeRefreshCookie(HttpServletResponse response, String value) {
+        setCookie(response, jwtConfig.getRefreshCookieName(), value, true, refreshCookieMaxAgeSec());
+    }
+
+    private void writeCsrfCookie(HttpServletResponse response, String value) {
+        // Not httpOnly: the frontend has to read this one back to echo it as the CSRF header.
+        setCookie(response, jwtConfig.getCsrfCookieName(), value, false, refreshCookieMaxAgeSec());
+    }
+
+    private long refreshCookieMaxAgeSec() {
+        return jwtService.getRefreshTokenExpirationMs() / 1000;
+    }
+
+    private void clearAuthCookies(HttpServletResponse response) {
+        setCookie(response, jwtConfig.getRefreshCookieName(), "", true, 0);
+        setCookie(response, jwtConfig.getCsrfCookieName(), "", false, 0);
+    }
+
+    private void setCookie(HttpServletResponse response, String name, String value,
+                           boolean httpOnly, long maxAgeSec) {
+        ResponseCookie.ResponseCookieBuilder cookie = ResponseCookie.from(name, value)
+                .httpOnly(httpOnly)
+                .secure(Boolean.TRUE.equals(jwtConfig.getCookieSecure()))
+                .path("/")
+                .sameSite("Lax")
+                .maxAge(maxAgeSec);
+        if (jwtConfig.getCookieDomain() != null && !jwtConfig.getCookieDomain().isBlank()) {
+            cookie.domain(jwtConfig.getCookieDomain());
+        }
+        response.addHeader("Set-Cookie", cookie.build().toString());
+    }
+
+    private void publishLoginAudit(User user) {
+        String label = (user.getFullName() != null && !user.getFullName().isBlank())
+                ? user.getFullName() : user.getUsername();
+        auditPublisher.publish(AuditEvent.builder()
+                .organizationId(user.getOrganization() != null ? user.getOrganization().getId() : 0L)
+                .actorUserId(user.getId())
+                .actorName(user.getUsername())
+                .action(AuditAction.LOGIN)
+                .entityType(AuditEntityType.USER)
+                .entityId(user.getId().toString())
+                .entityLabel(label)
+                .description(label + " logged in")
+                .occurredAt(Instant.now())
+                .build());
+    }
+
+    private String buildDeviceInfo(HttpServletRequest request) {
+        if (request == null) return null;
+        String ua = request.getHeader("User-Agent");
+        String ip = request.getRemoteAddr();
+        String combined = (ua == null ? "" : ua) + " | " + (ip == null ? "" : ip);
+        return combined.length() > 500 ? combined.substring(0, 500) : combined;
+    }
+}

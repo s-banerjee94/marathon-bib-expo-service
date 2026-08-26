@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.messaging.campaign.model.dto.response;
 
-import com.timekeeper.bibexpo.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTargetFilter;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType;

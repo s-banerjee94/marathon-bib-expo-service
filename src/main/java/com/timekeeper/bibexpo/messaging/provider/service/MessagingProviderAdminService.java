@@ -1,10 +1,10 @@
 package com.timekeeper.bibexpo.messaging.provider.service;
 
-import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.ProviderTestSendRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.request.SaveMessagingProviderRequest;
 import com.timekeeper.bibexpo.messaging.provider.model.dto.response.MessagingProviderResponse;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
 

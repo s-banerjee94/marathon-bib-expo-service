@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.billing.service;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.OrganizationBillingResponse;
 import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -22,8 +22,8 @@ public interface BillingAdminService {
      * @param organizationId the organization whose bills to list
      * @param currentUser    the authenticated caller (ORGANIZER_ADMIN limited to their own organization)
      * @return the organization's bills plus the summed total
-     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if an ORGANIZER_ADMIN requests another organization
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
+     * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if an ORGANIZER_ADMIN requests another organization
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if the organization does not exist
      */
     OrganizationBillingResponse listOrganizationBills(Long organizationId, User currentUser);
 

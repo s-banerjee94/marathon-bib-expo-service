@@ -64,8 +64,9 @@ public class SaveMessagingProviderRequest {
     @Size(max = 6, message = "Country code must not exceed 6 characters")
     @Pattern(regexp = "^\\+?[0-9]{1,5}$", message = "Country code must be digits, optionally prefixed with +")
     @Schema(description = "Country calling code prefixed by {{RECIPIENT_E164}} when a number is not already "
-            + "international. Defaults to 91 when omitted", example = "91",
-            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+            + "international. Required when the request mapping uses {{RECIPIENT_E164}} or {{RECIPIENT_CC}}; "
+            + "a provider that sends numbers exactly as stored, through {{RECIPIENT}}, needs none",
+            example = "91", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String defaultCountryCode;
 
     @Size(max = 200, message = "Success marker must not exceed 200 characters")

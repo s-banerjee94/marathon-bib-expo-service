@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.springframework.security.core.Authentication;
