@@ -107,6 +107,13 @@ jwt:
   csrf-cookie-name: ${JWT_CSRF_COOKIE_NAME:csrfToken}
   cookie-secure: ${JWT_COOKIE_SECURE:false}                           # local default false (plain HTTP/LAN IP); MUST set JWT_COOKIE_SECURE=true in production (HTTPS)
 
+# Concurrent signed-in devices per user. Any role not named here gets default-max-devices.
+session:
+  default-max-devices: ${SESSION_DEFAULT_MAX_DEVICES:1}
+  max-devices:
+    ROOT: ${SESSION_MAX_DEVICES_ROOT:3}
+    ADMIN: ${SESSION_MAX_DEVICES_ADMIN:3}
+
 logging:
   level:
     root: INFO

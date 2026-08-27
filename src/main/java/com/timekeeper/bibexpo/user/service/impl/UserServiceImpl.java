@@ -22,6 +22,7 @@ import com.timekeeper.bibexpo.user.model.dto.request.CreateUserRequest;
 import com.timekeeper.bibexpo.user.model.dto.request.UpdateUserRequest;
 import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.model.event.PasswordChangedEvent;
 import com.timekeeper.bibexpo.user.model.entity.UserArchive;
 import com.timekeeper.bibexpo.user.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.user.repository.UserRepository;
@@ -33,6 +34,7 @@ import com.timekeeper.bibexpo.user.service.validator.UserAccessPolicy;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -64,6 +66,7 @@ public class UserServiceImpl implements UserService {
     private final UserAccessPolicy accessPolicy;
     private final UserResponseMapper responseMapper;
     private final UserProfileMediaService profileMediaService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.CREATE)
     @Override
@@ -371,13 +374,15 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * The three steps every password change shares: encode, persist, and drop the stale principal
-     * so the old password cannot keep authenticating from the cache.
+     * The four steps every password change shares: encode, persist, drop the stale principal so the
+     * old password cannot keep authenticating from the cache, and announce the change so identity
+     * can sign out the devices still holding a session from the old one.
      */
     private void storeNewPassword(User user, String rawPassword) {
         user.setPassword(passwordEncoder.encode(rawPassword));
         userRepository.save(user);
         authUserCache.evict(user.getUsername());
+        eventPublisher.publishEvent(new PasswordChangedEvent(user.getUsername()));
     }
 
     @Override

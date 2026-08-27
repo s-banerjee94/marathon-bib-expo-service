@@ -64,13 +64,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
 
                 String tokenSid = jwtService.extractSid(jwt);
-                String activeSid = sessionService.getActiveSid(username);
-                if (tokenSid == null || !tokenSid.equals(activeSid)) {
-                    // A stale token is expected traffic after an eviction — reject it without touching
-                    // the session row, which now belongs to the newer login (do not end it here).
-                    log.info("Stale session token for user {} (sid mismatch) — rejecting request", username);
+                if (tokenSid == null || !sessionService.getActiveSids(username).contains(tokenSid)) {
+                    // A stale token is expected traffic after a device is revoked or evicted — reject
+                    // it without touching the rows, which belong to the user's other devices.
+                    log.info("Stale session token for user {} (sid not active) — rejecting request", username);
                     writeUnauthorized(request, response, AuthErrorCode.SESSION_INVALIDATED,
-                            "Session invalidated by another login. Please log in again.");
+                            "This device has been signed out. Please log in again.");
                     return;
                 }
 

@@ -9,6 +9,7 @@ import com.timekeeper.bibexpo.identity.exception.AccountDisabledException;
 import com.timekeeper.bibexpo.identity.exception.CsrfValidationException;
 import com.timekeeper.bibexpo.identity.exception.InvalidCredentialsException;
 import com.timekeeper.bibexpo.identity.exception.JwtAuthenticationException;
+import com.timekeeper.bibexpo.identity.model.DeviceDetails;
 import com.timekeeper.bibexpo.identity.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.identity.model.dto.response.LoginResponse;
 import com.timekeeper.bibexpo.identity.model.dto.response.RefreshResponse;
@@ -16,6 +17,7 @@ import com.timekeeper.bibexpo.identity.service.AuthService;
 import com.timekeeper.bibexpo.identity.service.CsrfTokenService;
 import com.timekeeper.bibexpo.identity.service.JwtService;
 import com.timekeeper.bibexpo.identity.service.SessionService;
+import com.timekeeper.bibexpo.identity.service.util.DeviceDetailsResolver;
 import com.timekeeper.bibexpo.user.api.AuthUserDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.servlet.http.Cookie;
@@ -65,8 +67,8 @@ public class AuthServiceImpl implements AuthService {
                 throw new InvalidCredentialsException("Invalid username or password");
             }
 
-            String deviceInfo = buildDeviceInfo(httpRequest);
-            String sid = sessionService.startSession(user.getUsername(), deviceInfo);
+            DeviceDetails device = DeviceDetailsResolver.resolve(httpRequest);
+            String sid = sessionService.startSession(user.getUsername(), user.getRole(), device);
 
             String accessToken = jwtService.generateAccessToken(user, sid);
             String refreshToken = jwtService.generateRefreshToken(user, sid);
@@ -129,19 +131,18 @@ public class AuthServiceImpl implements AuthService {
         try {
             accountStatusChecker.check(user);
         } catch (AccountStatusException e) {
-            sessionService.endSession(user.getUsername());
+            sessionService.endAllSessions(user.getUsername());
             clearAuthCookies(httpResponse);
             throw new AccountDisabledException(
                     e instanceof LockedException ? "Account is locked" : "Account is disabled");
         }
 
-        String activeSid = sessionService.getActiveSid(username);
-        if (activeSid == null || !activeSid.equals(oldSid)) {
+        if (oldSid == null || !sessionService.getActiveSids(username).contains(oldSid)) {
             log.warn("Invalid refresh token for user {} — request dropped", username);
             throw new JwtAuthenticationException("Your session has been signed out. Please log in again.");
         }
 
-        sessionService.extendSession(user.getUsername());
+        sessionService.extendSession(user.getUsername(), oldSid);
 
         String newAccessToken = jwtService.generateAccessToken(user, oldSid);
         String newRefreshToken = jwtService.generateRefreshToken(user, oldSid);
@@ -166,9 +167,10 @@ public class AuthServiceImpl implements AuthService {
         if (refreshToken != null && !refreshToken.isBlank()) {
             try {
                 String username = jwtService.extractUsername(refreshToken);
-                if (username != null) {
-                    sessionService.endSession(username);
-                    log.info("User {} logged out", username);
+                String sid = jwtService.extractSid(refreshToken);
+                if (username != null && sid != null) {
+                    sessionService.endSession(username, sid);
+                    log.info("User {} logged out (sid={})", username, sid);
                 }
             } catch (Exception e) {
                 log.debug("Logout: could not end session from refresh token — {}", e.getMessage());
@@ -233,13 +235,5 @@ public class AuthServiceImpl implements AuthService {
                 .description(label + " logged in")
                 .occurredAt(Instant.now())
                 .build());
-    }
-
-    private String buildDeviceInfo(HttpServletRequest request) {
-        if (request == null) return null;
-        String ua = request.getHeader("User-Agent");
-        String ip = request.getRemoteAddr();
-        String combined = (ua == null ? "" : ua) + " | " + (ip == null ? "" : ip);
-        return combined.length() > 500 ? combined.substring(0, 500) : combined;
     }
 }

@@ -25,8 +25,8 @@ import java.io.IOException;
  * Authenticates the Python agent on the MCP routes ({@code /sse}, {@code /mcp/message}).
  *
  * <p>Accepts only the user's own {@code type=access} token, which the Python agent forwards
- * unchanged (browser → agent → MCP). The single-session {@code sid} check is enforced so a token
- * from a superseded login cannot keep acting. It loads the real user and applies their account
+ * unchanged (browser → agent → MCP). The {@code sid} check is enforced so a token from a device
+ * that has since been signed out cannot keep acting. It loads the real user and applies their account
  * status and authorities, so server-side RBAC is unchanged. An invalid or missing token leaves the
  * context unauthenticated, so the chain's entry point returns 401.
  */
@@ -69,11 +69,11 @@ public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
 
-                // The access token carries a browser session id: honour single-session logout so a
-                // token from a superseded login cannot keep acting.
+                // The access token carries a browser session id: honour session revocation so a
+                // token from a signed-out device cannot keep acting.
                 String tokenSid = jwtService.extractSid(jwt);
-                if (tokenSid == null || !tokenSid.equals(sessionService.getActiveSid(username))) {
-                    log.debug("Stale access token (sid mismatch) on MCP route for user: {}", username);
+                if (tokenSid == null || !sessionService.getActiveSids(username).contains(tokenSid)) {
+                    log.debug("Stale access token (sid not active) on MCP route for user: {}", username);
                     filterChain.doFilter(request, response);
                     return;
                 }

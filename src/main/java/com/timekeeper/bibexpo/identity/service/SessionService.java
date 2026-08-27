@@ -1,44 +1,77 @@
 package com.timekeeper.bibexpo.identity.service;
 
+import com.timekeeper.bibexpo.identity.model.DeviceDetails;
+import com.timekeeper.bibexpo.identity.model.dto.response.SessionResponse;
+import com.timekeeper.bibexpo.shared.security.UserRole;
+
+import java.util.List;
+import java.util.Set;
+
 /**
- * Manages single-device user sessions backed by the {@code active_sessions} table.
- * Each user has at most one active session id ({@code sid}); a new login
- * overwrites any prior session atomically (single-device enforcement).
+ * Manages multi-device user sessions backed by the {@code active_sessions} table.
+ * Each signed-in device holds its own session id ({@code sid}); how many a user may hold at
+ * once is a per-role limit from {@code session.max-devices}, and a login past that limit signs
+ * out their least recently used device.
  * <p>
- * A session is keyed by username alone, which is all the {@code active_sessions}
- * row holds — nothing here needs the user record itself.
+ * Every method is keyed by username as well as sid, which is all the {@code active_sessions}
+ * row holds — nothing here needs the user record itself. Scoping the writes by username is also
+ * what stops one account from ending another's session.
  */
 public interface SessionService {
 
     /**
-     * Starts a brand-new session for the user, overwriting any existing one.
+     * Starts a session for a newly authenticated device, evicting the user's least recently used
+     * device when this login takes them past their role's limit.
      *
-     * @param username   the authenticated user's username
-     * @param deviceInfo optional User-Agent + IP string for diagnostics
+     * @param username the authenticated user's username
+     * @param role     the user's role, which selects the device limit
+     * @param device   the details of the device logging in, never null
      * @return the newly generated session id (UUID)
      */
-    String startSession(String username, String deviceInfo);
+    String startSession(String username, UserRole role, DeviceDetails device);
 
     /**
-     * Returns the currently active sid for the user, or {@code null} if none.
+     * Returns every sid the user may currently authenticate with, empty when they hold none.
      * Cached for short windows to avoid hitting MySQL on every request.
      * <p>
-     * Callers compare the value themselves rather than going through a helper —
-     * this keeps the cache lookup on the external call path (Spring AOP proxies
-     * only intercept calls that come from outside the bean).
+     * Callers test membership themselves rather than going through a helper — this keeps the
+     * cache lookup on the external call path (Spring AOP proxies only intercept calls that come
+     * from outside the bean).
      */
-    String getActiveSid(String username);
+    Set<String> getActiveSids(String username);
 
     /**
-     * Extends the user's session expiry without changing the sid. Used by the
-     * refresh-token flow so multiple tabs sharing the same refresh cookie
-     * remain on the same sid and don't invalidate each other.
+     * Extends one device's refresh window and marks it as just used. Used by the refresh-token
+     * flow, so the least-recently-used eviction measures real activity rather than login age.
      */
-    void extendSession(String username);
+    void extendSession(String username, String sid);
 
     /**
-     * Ends the user's session: deletes the row and evicts the cached sid, so the
+     * Ends one of the user's own sessions: deletes the row and evicts the cached sids, so the
      * next request carrying a token for it is rejected.
+     *
+     * @return true when a session was ended, false when the sid was not theirs or already gone
      */
-    void endSession(String username);
+    boolean endSession(String username, String sid);
+
+    /**
+     * Ends every session the user holds except the one making the request.
+     *
+     * @return how many devices were signed out
+     */
+    int endOtherSessions(String username, String keepSid);
+
+    /**
+     * Ends every session the user holds, on every device. Used when the account itself can no
+     * longer be trusted — a disabled account, or a changed password.
+     */
+    void endAllSessions(String username);
+
+    /**
+     * The user's signed-in devices, most recently used first.
+     *
+     * @param currentSid the sid of the device asking, so the list can mark itself
+     * @return one entry per signed-in device, never null
+     */
+    List<SessionResponse> listSessions(String username, String currentSid);
 }

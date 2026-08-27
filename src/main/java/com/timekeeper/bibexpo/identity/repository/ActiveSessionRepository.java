@@ -8,44 +8,51 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
-import java.util.Optional;
+import java.util.List;
 
 /**
- * Single-row-per-user session store. The {@code username} PK enforces
- * single-device login: a new login overwrites any prior session atomically.
+ * One row per signed-in device, keyed by session id ({@code sid}). A user may hold several rows
+ * at once; how many is a per-role limit applied by the service, not by the schema.
  */
 @Repository
 public interface ActiveSessionRepository extends JpaRepository<ActiveSession, String> {
 
     /**
-     * Atomic upsert. MySQL-specific {@code ON DUPLICATE KEY UPDATE} guarantees
-     * a concurrent second login cannot leave two rows for the same user.
+     * The user's devices, most recently used first — the order the eviction and the device
+     * list both read.
      */
-    @Modifying
-    @Query(value = """
-            INSERT INTO active_sessions (username, sid, expires_at, created_at, device_info)
-            VALUES (:username, :sid, :expiresAt, :createdAt, :deviceInfo)
-            ON DUPLICATE KEY UPDATE
-              sid = VALUES(sid),
-              expires_at = VALUES(expires_at),
-              created_at = VALUES(created_at),
-              device_info = VALUES(device_info)
-            """, nativeQuery = true)
-    void upsert(@Param("username") String username,
-                @Param("sid") String sid,
-                @Param("expiresAt") Instant expiresAt,
-                @Param("createdAt") Instant createdAt,
-                @Param("deviceInfo") String deviceInfo);
-
-    Optional<ActiveSession> findByUsername(String username);
+    List<ActiveSession> findByUsernameOrderByLastSeenAtDesc(String username);
 
     /**
-     * Extends the session expiry without touching the sid. Used by the refresh
-     * flow so that multiple tabs sharing the refresh cookie stay on the same sid.
+     * The sids the user may currently authenticate with. Expired rows are excluded here rather
+     * than relied on being purged, so a lapsed device stops working the moment it lapses.
+     */
+    @Query("SELECT s.sid FROM ActiveSession s WHERE s.username = :username AND s.expiresAt > :now")
+    List<String> findActiveSids(@Param("username") String username, @Param("now") Instant now);
+
+    /**
+     * Extends one device's refresh window and marks it as just used. Scoped by username as well
+     * as sid so a token for another account can never move someone else's row.
      */
     @Modifying
-    @Query("UPDATE ActiveSession s SET s.expiresAt = :expiresAt WHERE s.username = :username")
-    int extendExpiry(@Param("username") String username, @Param("expiresAt") Instant expiresAt);
+    @Query("""
+            UPDATE ActiveSession s SET s.expiresAt = :expiresAt, s.lastSeenAt = :lastSeenAt
+            WHERE s.sid = :sid AND s.username = :username
+            """)
+    int touch(@Param("username") String username,
+              @Param("sid") String sid,
+              @Param("expiresAt") Instant expiresAt,
+              @Param("lastSeenAt") Instant lastSeenAt);
+
+    /** Signs out one device. Username-scoped so a caller can only revoke their own session. */
+    @Modifying
+    @Query("DELETE FROM ActiveSession s WHERE s.sid = :sid AND s.username = :username")
+    int deleteBySidAndUsername(@Param("username") String username, @Param("sid") String sid);
+
+    /** Signs out every device except the one making the request. */
+    @Modifying
+    @Query("DELETE FROM ActiveSession s WHERE s.username = :username AND s.sid <> :keepSid")
+    int deleteByUsernameExcept(@Param("username") String username, @Param("keepSid") String keepSid);
 
     @Modifying
     @Query("DELETE FROM ActiveSession s WHERE s.username = :username")
