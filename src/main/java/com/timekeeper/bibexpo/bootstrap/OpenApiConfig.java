@@ -68,7 +68,7 @@ public class OpenApiConfig {
     @Bean
     public GroupedOpenApi authenticationDoc() {
         return group("01-authentication", "Authentication & User Management",
-                match("/api/auth/**", "/api/users/**"),
+                match("/api/auth/**", "/api/users/**", "/api/sessions/**"),
                 exclude("/api/users/invitations/**", "/api/auth/invitations/**"));
     }
 
