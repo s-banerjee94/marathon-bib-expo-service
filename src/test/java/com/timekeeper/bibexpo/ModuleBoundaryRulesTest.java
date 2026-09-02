@@ -59,6 +59,7 @@ class ModuleBoundaryRulesTest {
             Map.entry("billing", 4),
             Map.entry("identity", 5),
             Map.entry("importer", 5),
+            Map.entry("inventory", 5),
             Map.entry("messaging", 5),
             Map.entry("participantaccess", 5),
             Map.entry("reporting", 5),

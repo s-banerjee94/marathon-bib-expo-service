@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 
 /**
- * Per-organization user limits and live usage counters.
+ * Per-organization limits and live usage counters.
  * Shares its primary key with {@link Organization} (one row per organization).
  * Usage counters are maintained atomically on user create/delete.
  */
@@ -47,6 +47,11 @@ public class OrganizationLimit implements Serializable {
     @Column(name = "max_distributors", nullable = false)
     @Builder.Default
     private Integer maxDistributors = 3;
+
+    // TODO: read by the inventory module, but no admin endpoint changes it yet.
+    @Column(name = "max_inventory_terms", nullable = false)
+    @Builder.Default
+    private Integer maxInventoryTerms = 50;
 
     @Column(name = "used_admins", nullable = false)
     @Builder.Default
