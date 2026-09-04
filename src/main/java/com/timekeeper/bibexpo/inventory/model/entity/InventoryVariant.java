@@ -22,40 +22,40 @@ import java.io.Serializable;
 import java.time.Instant;
 
 /**
- * A thing an organization stocks — a t-shirt, a medal, a roll of barricade tape. Always
- * organization-scoped.
+ * A size, colour or flavour of an {@link InventoryItem}. Stock is always counted per variant; an
+ * item with no real variants still gets exactly one, carrying no attribute values, so every code
+ * path has a variant to work with.
+ *
+ * <p>{@code combinationKey} is the variant's only identity &mdash; its selected attribute/value id
+ * pairs, sorted by {@code attributeId} and joined into one string. It is null just for the single
+ * attribute-less variant such an item gets, and an item may hold at most one of those.</p>
  */
 @Entity
-@Table(name = "inventory_items",
+@Table(name = "inventory_variants",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_inventory_item_org_name",
-                        columnNames = {"organization_id", "name"})
+                @UniqueConstraint(name = "uk_inventory_variant_item_combination",
+                        columnNames = {"item_id", "combination_key"})
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InventoryItem implements Serializable {
+public class InventoryVariant implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "organization_id", nullable = false)
-    private Long organizationId;
+    @Column(name = "item_id", nullable = false)
+    private Long itemId;
 
-    @Column(nullable = false, length = 150)
-    private String name;
+    @Column(name = "combination_key", length = 255)
+    private String combinationKey;
 
-    @Column(name = "category_id", nullable = false)
-    private Long categoryId;
-
-    @Column(name = "unit_id", nullable = false)
-    private Long unitId;
-
-    @Column(name = "low_stock_threshold")
-    private Integer lowStockThreshold;
+    // S3 object key under UploadCategory.INVENTORY_VARIANT_IMAGE, null until an image is attached
+    @Column(name = "image_key", length = 512)
+    private String imageKey;
 
     @CreatedDate
     @Column(updatable = false)

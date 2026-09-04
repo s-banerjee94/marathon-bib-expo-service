@@ -17,7 +17,8 @@ public enum UploadCategory {
 
     PROFILE_PICTURE("users", "profile", Rules.IMAGE_TYPES, Rules.IMAGE_MAX_BYTES),
     ORGANIZATION_LOGO("organizations", "logo", Rules.IMAGE_TYPES, Rules.IMAGE_MAX_BYTES),
-    EVENT_LOGO("events", "logo", Rules.IMAGE_TYPES, Rules.IMAGE_MAX_BYTES);
+    EVENT_LOGO("events", "logo", Rules.IMAGE_TYPES, Rules.IMAGE_MAX_BYTES),
+    INVENTORY_VARIANT_IMAGE("inventory-variants", "image", Rules.IMAGE_TYPES, Rules.IMAGE_MAX_BYTES);
 
     private final String ownerRoot;
     private final String leaf;

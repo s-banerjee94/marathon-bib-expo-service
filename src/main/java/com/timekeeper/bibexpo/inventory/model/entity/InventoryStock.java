@@ -19,43 +19,47 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * A thing an organization stocks — a t-shirt, a medal, a roll of barricade tape. Always
- * organization-scoped.
+ * The fast-read balance for one variant at one location. Derived from {@link InventoryMovement} —
+ * {@link com.timekeeper.bibexpo.inventory.service.StockService} is the only class allowed to write
+ * it, and always in the same transaction as the ledger line that caused the change.
  */
 @Entity
-@Table(name = "inventory_items",
+@Table(name = "inventory_stock",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_inventory_item_org_name",
-                        columnNames = {"organization_id", "name"})
+                @UniqueConstraint(name = "uk_inventory_stock_variant_location",
+                        columnNames = {"variant_id", "location_id"})
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InventoryItem implements Serializable {
+public class InventoryStock implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "organization_id", nullable = false)
-    private Long organizationId;
+    @Column(name = "variant_id", nullable = false)
+    private Long variantId;
 
-    @Column(nullable = false, length = 150)
-    private String name;
+    @Column(name = "location_id", nullable = false)
+    private Long locationId;
 
-    @Column(name = "category_id", nullable = false)
-    private Long categoryId;
+    @Column(name = "on_hand", nullable = false)
+    @Builder.Default
+    private Integer onHand = 0;
 
-    @Column(name = "unit_id", nullable = false)
-    private Long unitId;
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer reserved = 0;
 
-    @Column(name = "low_stock_threshold")
-    private Integer lowStockThreshold;
+    @Column(name = "avg_unit_cost", precision = 14, scale = 2)
+    private BigDecimal avgUnitCost;
 
     @CreatedDate
     @Column(updatable = false)

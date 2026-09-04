@@ -13,5 +13,6 @@ public enum AuditEntityType {
     VERIFICATION_LINK,
     PARTICIPANT,
     PARTICIPANT_MESSAGE,
-    INVOICE
+    INVOICE,
+    INVENTORY_ITEM
 }

@@ -1,0 +1,100 @@
+package com.timekeeper.bibexpo.inventory.service;
+
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemAlreadyExistsException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryVariantAlreadyExistsException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryVariantInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryVariantNotFoundException;
+import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryItemRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryVariantRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryItemRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemResponse;
+import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
+
+import java.util.List;
+
+/**
+ * Manages items (the things an organization stocks) and their variants (size, colour, flavour).
+ * An item always carries at least one variant — {@code DEFAULT} when none is given — so every
+ * stock-writing path always has a variant to work with.
+ *
+ * <p>Organization-scoped only.
+ */
+public interface InventoryItemService {
+
+    /** Every item the organization owns. */
+    List<InventoryItemResponse> listItems(Long organizationId, User currentUser);
+
+    InventoryItemResponse getItem(Long organizationId, Long itemId, User currentUser);
+
+    /**
+     * Adds a new item.
+     *
+     * @throws InventoryTermNotFoundException if the category or unit term is not visible to this organization
+     * @throws InventoryItemAlreadyExistsException if an item with this name already exists
+     */
+    InventoryItemResponse createItem(Long organizationId, CreateInventoryItemRequest request, User currentUser);
+
+    /**
+     * Updates an item's name, category, unit, or low-stock threshold. Fields left out of the
+     * request are unchanged.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     * @throws InventoryTermNotFoundException if a new category or unit term is not visible to this organization
+     * @throws InventoryItemAlreadyExistsException if the new name collides with another item
+     */
+    InventoryItemResponse updateItem(Long organizationId, Long itemId, UpdateInventoryItemRequest request, User currentUser);
+
+    /**
+     * Deletes an item and its variants.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     * @throws InventoryItemInUseException if any variant still has stock on hand
+     */
+    void deleteItem(Long organizationId, Long itemId, User currentUser);
+
+    /**
+     * Adds a variant to an existing item.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     * @throws InventoryVariantAlreadyExistsException if a variant with these attribute values already exists on the item
+     */
+    InventoryItemResponse addVariant(Long organizationId, Long itemId, CreateInventoryVariantRequest request, User currentUser);
+
+    /**
+     * Removes a variant. An item must always keep at least one.
+     *
+     * @throws InventoryVariantNotFoundException if the variant does not belong to this item
+     * @throws InventoryVariantInUseException if the variant still has stock on hand
+     */
+    InventoryItemResponse removeVariant(Long organizationId, Long itemId, Long variantId, User currentUser);
+
+    /**
+     * Generates a presigned upload URL for a variant's image.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     * @throws InventoryVariantNotFoundException if the variant does not belong to this item
+     */
+    PresignUploadResponse createVariantImageUploadUrl(Long organizationId, Long itemId, Long variantId,
+                                                        String contentType, User currentUser);
+
+    /**
+     * Attaches a previously uploaded image to a variant, replacing any existing one.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     * @throws InventoryVariantNotFoundException if the variant does not belong to this item
+     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the object does not belong to this variant or was not uploaded
+     */
+    InventoryItemResponse attachVariantImage(Long organizationId, Long itemId, Long variantId, String objectKey, User currentUser);
+
+    /**
+     * Removes a variant's image, if any.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     * @throws InventoryVariantNotFoundException if the variant does not belong to this item
+     */
+    InventoryItemResponse removeVariantImage(Long organizationId, Long itemId, Long variantId, User currentUser);
+}
