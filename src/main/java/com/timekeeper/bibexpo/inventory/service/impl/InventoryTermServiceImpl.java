@@ -14,9 +14,8 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryItemRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryLocationRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryTermService;
+import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
-import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
-import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,12 +34,13 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
     private final OrganizationDirectory organizationDirectory;
+    private final InventoryAccessGuard accessGuard;
 
     @Override
     @Transactional(readOnly = true)
     public InventoryTermListResponse listVisible(Long organizationId, TermKind kind, User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
             return toScopedResponse(termRepository.findVisible(kind, organizationId));
         }
         return toScopedResponse(termRepository.findByKindAndOrganizationIdIsNullOrderByName(kind));
@@ -50,7 +50,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     @Transactional(readOnly = true)
     public InventoryTermResponse getTerm(Long organizationId, Long termId, User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
         return InventoryTermResponse.fromEntity(requireTermInScope(termId, organizationId));
     }
@@ -60,7 +60,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     public InventoryTermResponse createTerm(Long organizationId, TermKind kind,
                                              CreateInventoryTermRequest request, User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
             enforceTermLimit(organizationId);
         }
 
@@ -84,7 +84,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     public InventoryTermResponse updateTerm(Long organizationId, Long termId,
                                              UpdateInventoryTermRequest request, User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
         InventoryTerm term = requireTermInScope(termId, organizationId);
 
@@ -94,7 +94,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
         }
         term.setName(name);
 
-        InventoryTerm saved = termRepository.save(term);
+        InventoryTerm saved = termRepository.saveAndFlush(term);
         log.info("Renamed inventory term {} to '{}' for organization {}", termId, name, organizationId);
         return InventoryTermResponse.fromEntity(saved);
     }
@@ -103,7 +103,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     @Transactional
     public void deleteTerm(Long organizationId, Long termId, User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
         InventoryTerm term = requireTermInScope(termId, organizationId);
 
@@ -158,18 +158,6 @@ public class InventoryTermServiceImpl implements InventoryTermService {
                 >= organizationDirectory.inventoryLimits(organizationId).maxTerms()) {
             log.error("Organization {} has reached its inventory term limit", organizationId);
             throw new InventoryTermLimitReachedException();
-        }
-    }
-
-    private void authorizeOrgAccess(User currentUser, Long organizationId) {
-        organizationDirectory.requireById(organizationId);
-        UserRole role = currentUser.getRole();
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
-            return;
-        }
-        if (currentUser.getOrganization() == null
-                || !currentUser.getOrganization().getId().equals(organizationId)) {
-            throw new AccessForbiddenException("You do not have access to this organization's inventory.");
         }
     }
 }

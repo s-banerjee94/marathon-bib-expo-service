@@ -55,7 +55,7 @@ public interface InventoryAttributeControllerApi {
 
     @Operation(
             summary = "Get one attribute",
-            description = "@throws InventoryAttributeNotFoundException if no such attribute exists for this organization"
+            description = "Returns one attribute with its allowed values, whether it is a platform default or this organization's own."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Attribute retrieved successfully",
@@ -74,7 +74,7 @@ public interface InventoryAttributeControllerApi {
 
     @Operation(
             summary = "Add an attribute",
-            description = "@throws InventoryAttributeAlreadyExistsException if an attribute with this name already exists"
+            description = "Adds an attribute to this organization's own set. Names must be unique, and only a SELECT attribute may define variants."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Attribute created successfully",
@@ -96,10 +96,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Rename an attribute or change whether it is required",
             description = """
-                    type and variantAttribute cannot be changed after creation.
-
-                    @throws InventoryAttributeNotFoundException if no such attribute exists for this organization
-                    @throws InventoryAttributeAlreadyExistsException if the new name collides with another attribute"""
+                    Renames one of this organization's own attributes or changes whether it is required. \
+                    Its type and whether it defines variants are fixed at creation."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Attribute updated successfully",
@@ -124,8 +122,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Delete an attribute",
             description = """
-                    @throws InventoryAttributeNotFoundException if no such attribute exists for this organization
-                    @throws InventoryAttributeInUseException if an item or variant still references it"""
+                    Removes one of this organization's own attributes. An attribute an item or a variant \
+                    still uses cannot be removed."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Attribute deleted successfully"),
@@ -146,11 +144,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Add an allowed value",
             description = """
-                    Only a SELECT attribute can have a list of allowed values.
-
-                    @throws InventoryAttributeNotFoundException if no such attribute exists for this organization
-                    @throws InventoryAttributeOptionAlreadyExistsException if this value already exists for the attribute
-                    @throws InventoryAttributeOptionLimitReachedException if the attribute has no value slots left"""
+                    Adds a value to a SELECT attribute's choice list. Values must be unique within the \
+                    attribute, and each attribute has a limited number of value slots."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Value added successfully",
@@ -175,8 +170,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Rename an allowed value",
             description = """
-                    @throws InventoryAttributeOptionNotFoundException if the value does not belong to this attribute
-                    @throws InventoryAttributeOptionAlreadyExistsException if the new value collides with another on the attribute"""
+                    Renames one value in a SELECT attribute's choice list. The new value must be unique \
+                    within the attribute."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Value renamed successfully",
@@ -202,8 +197,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Remove an allowed value",
             description = """
-                    @throws InventoryAttributeOptionNotFoundException if the value does not belong to this attribute
-                    @throws InventoryAttributeOptionInUseException if any item or variant still carries this value"""
+                    Removes one value from a SELECT attribute's choice list. A value an item or a variant \
+                    still carries cannot be removed."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Value removed successfully",

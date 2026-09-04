@@ -57,7 +57,7 @@ public interface InventoryTermControllerApi {
 
     @Operation(
             summary = "Get one term",
-            description = "@throws InventoryTermNotFoundException if no such term exists for this organization"
+            description = "Returns one term, whether it is a platform default or this organization's own."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Term retrieved successfully",
@@ -77,8 +77,8 @@ public interface InventoryTermControllerApi {
     @Operation(
             summary = "Add a term",
             description = """
-                    @throws InventoryTermAlreadyExistsException if a term of this kind with this name already exists
-                    @throws InventoryTermLimitReachedException if the organization has no term slots left"""
+                    Adds a term to this organization's own vocabulary. Names must be unique within the \
+                    kind, and each organization has a limited number of term slots."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Term created successfully",
@@ -102,8 +102,8 @@ public interface InventoryTermControllerApi {
     @Operation(
             summary = "Rename a term",
             description = """
-                    @throws InventoryTermNotFoundException if no such term exists for this organization
-                    @throws InventoryTermAlreadyExistsException if the new name collides with another term of the same kind"""
+                    Renames one of this organization's own terms. Platform defaults are shared and \
+                    cannot be renamed here."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Term renamed successfully",
@@ -128,8 +128,8 @@ public interface InventoryTermControllerApi {
     @Operation(
             summary = "Delete a term",
             description = """
-                    @throws InventoryTermNotFoundException if no such term exists for this organization
-                    @throws InventoryTermInUseException if an item or location still references this term"""
+                    Removes one of this organization's own terms. A term an item or a location still \
+                    points at cannot be removed."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Term deleted successfully"),

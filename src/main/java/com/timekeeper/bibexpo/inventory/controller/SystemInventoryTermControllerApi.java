@@ -48,7 +48,7 @@ public interface SystemInventoryTermControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(summary = "Get one platform default term",
-            description = "@throws InventoryTermNotFoundException if no such platform default exists")
+            description = "Root only. Returns one platform default term.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Term retrieved successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryTermResponse.class))),
@@ -63,9 +63,8 @@ public interface SystemInventoryTermControllerApi {
 
     @Operation(summary = "Add a platform default term",
             description = """
-                    Root only. \
-
-                    @throws InventoryTermAlreadyExistsException if a platform default of this kind with this name already exists""")
+                    Root only. Adds a term every organization can use. Names must be unique within \
+                    the kind.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Term created successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryTermResponse.class))),
@@ -84,10 +83,7 @@ public interface SystemInventoryTermControllerApi {
 
     @Operation(summary = "Rename a platform default term",
             description = """
-                    Root only. \
-
-                    @throws InventoryTermNotFoundException if no such platform default exists
-                    @throws InventoryTermAlreadyExistsException if the new name collides with another platform default of the same kind""")
+                    Root only. Renames a term every organization can use.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Term renamed successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryTermResponse.class))),
@@ -107,10 +103,8 @@ public interface SystemInventoryTermControllerApi {
 
     @Operation(summary = "Delete a platform default term",
             description = """
-                    Root only. \
-
-                    @throws InventoryTermNotFoundException if no such platform default exists
-                    @throws InventoryTermInUseException if an item or location still references this term""")
+                    Root only. Removes a platform default term. One an item or a location still points \
+                    at cannot be removed.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Term deleted successfully"),
             @ApiResponse(responseCode = "404", description = "Term not found",

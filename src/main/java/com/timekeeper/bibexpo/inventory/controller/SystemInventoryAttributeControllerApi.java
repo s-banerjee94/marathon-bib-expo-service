@@ -46,7 +46,7 @@ public interface SystemInventoryAttributeControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(summary = "Get one platform default attribute",
-            description = "@throws InventoryAttributeNotFoundException if no such platform default exists")
+            description = "Root only. Returns one platform default attribute with its allowed values.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Attribute retrieved successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryAttributeResponse.class))),
@@ -61,9 +61,8 @@ public interface SystemInventoryAttributeControllerApi {
 
     @Operation(summary = "Add a platform default attribute",
             description = """
-                    Root only. \
-
-                    @throws InventoryAttributeAlreadyExistsException if a platform default with this name already exists""")
+                    Root only. Adds an attribute every organization can use. Names must be unique, and \
+                    only a SELECT attribute may define variants.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Attribute created successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryAttributeResponse.class))),
@@ -80,10 +79,8 @@ public interface SystemInventoryAttributeControllerApi {
 
     @Operation(summary = "Rename a platform default attribute or change whether it is required",
             description = """
-                    Root only. type and variantAttribute cannot be changed after creation.
-
-                    @throws InventoryAttributeNotFoundException if no such platform default exists
-                    @throws InventoryAttributeAlreadyExistsException if the new name collides with another platform default""")
+                    Root only. Renames a platform default attribute or changes whether it is required. \
+                    Its type and whether it defines variants are fixed at creation.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Attribute updated successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryAttributeResponse.class))),
@@ -103,10 +100,8 @@ public interface SystemInventoryAttributeControllerApi {
 
     @Operation(summary = "Delete a platform default attribute",
             description = """
-                    Root only. \
-
-                    @throws InventoryAttributeNotFoundException if no such platform default exists
-                    @throws InventoryAttributeInUseException if an item or variant still references it""")
+                    Root only. Removes a platform default attribute. One an item or a variant still \
+                    uses cannot be removed.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Attribute deleted successfully"),
             @ApiResponse(responseCode = "404", description = "Attribute not found",
@@ -122,10 +117,8 @@ public interface SystemInventoryAttributeControllerApi {
 
     @Operation(summary = "Add an allowed value to a platform default attribute",
             description = """
-                    Root only. Only a SELECT attribute can have a list of allowed values.
-
-                    @throws InventoryAttributeNotFoundException if no such platform default exists
-                    @throws InventoryAttributeOptionAlreadyExistsException if this value already exists for the attribute""")
+                    Root only. Adds a value to a platform default SELECT attribute's choice list. \
+                    Values must be unique within the attribute.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Value added successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryAttributeResponse.class))),
@@ -145,10 +138,8 @@ public interface SystemInventoryAttributeControllerApi {
 
     @Operation(summary = "Rename an allowed value on a platform default attribute",
             description = """
-                    Root only. \
-
-                    @throws InventoryAttributeOptionNotFoundException if the value does not belong to this attribute
-                    @throws InventoryAttributeOptionAlreadyExistsException if the new value collides with another on the attribute""")
+                    Root only. Renames one value in a platform default attribute's choice list. The new \
+                    value must be unique within the attribute.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Value renamed successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryAttributeResponse.class))),
@@ -169,10 +160,8 @@ public interface SystemInventoryAttributeControllerApi {
 
     @Operation(summary = "Remove an allowed value from a platform default attribute",
             description = """
-                    Root only. \
-
-                    @throws InventoryAttributeOptionNotFoundException if the value does not belong to this attribute
-                    @throws InventoryAttributeOptionInUseException if any item or variant still carries this value""")
+                    Root only. Removes one value from a platform default attribute's choice list. A value \
+                    an item or a variant still carries cannot be removed.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Value removed successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryAttributeResponse.class))),

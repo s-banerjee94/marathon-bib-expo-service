@@ -21,10 +21,9 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryAttributeOptionRepos
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryAttributeService;
+import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
-import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
-import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,12 +45,13 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     private final InventoryItemAttributeValueRepository itemAttributeValueRepository;
     private final InventoryVariantAttributeValueRepository variantAttributeValueRepository;
     private final OrganizationDirectory organizationDirectory;
+    private final InventoryAccessGuard accessGuard;
 
     @Override
     @Transactional(readOnly = true)
     public InventoryAttributeListResponse listVisible(Long organizationId, User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
             return toScopedResponse(attributeRepository.findVisible(organizationId));
         }
         return toScopedResponse(attributeRepository.findByOrganizationIdIsNullOrderByName());
@@ -61,7 +61,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     @Transactional(readOnly = true)
     public InventoryAttributeResponse getAttribute(Long organizationId, Long attributeId, User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
         return toResponse(requireAttributeInScope(attributeId, organizationId));
     }
@@ -72,7 +72,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                                                                    CreateInventoryAttributeRequest request,
                                                                    User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
 
         // Only a fixed choice list keeps variant keys deduplicated; free text would let "Red" and
@@ -104,7 +104,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                                                                    UpdateInventoryAttributeRequest request,
                                                                    User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
 
@@ -119,7 +119,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
             attribute.setRequired(request.getRequired());
         }
 
-        InventoryAttribute saved = attributeRepository.save(attribute);
+        InventoryAttribute saved = attributeRepository.saveAndFlush(attribute);
         log.info("Updated inventory attribute {} for organization {}", attributeId, organizationId);
         return toResponse(saved);
     }
@@ -128,7 +128,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     @Transactional
     public void deleteAttribute(Long organizationId, Long attributeId, User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
 
@@ -149,7 +149,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                                                            CreateInventoryAttributeOptionRequest request,
                                                            User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
         requireSelectType(attribute);
@@ -176,7 +176,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                                                               UpdateInventoryAttributeOptionRequest request,
                                                               User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
         InventoryAttributeOption option = requireOptionOfAttribute(optionId, attributeId);
@@ -187,7 +187,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
             throw new InventoryAttributeOptionAlreadyExistsException();
         }
         option.setValue(value);
-        optionRepository.save(option);
+        optionRepository.saveAndFlush(option);
 
         log.info("Renamed value {} to '{}' on inventory attribute {} for organization {}",
                 optionId, value, attributeId, organizationId);
@@ -199,7 +199,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     public InventoryAttributeResponse removeOption(Long organizationId, Long attributeId, Long optionId,
                                                               User currentUser) {
         if (organizationId != null) {
-            authorizeOrgAccess(currentUser, organizationId);
+            accessGuard.requireOrgAccess(currentUser, organizationId);
         }
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
         InventoryAttributeOption option = requireOptionOfAttribute(optionId, attributeId);
@@ -286,19 +286,5 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                 .map(a -> InventoryAttributeResponse.fromEntity(a,
                         optionsByAttribute.getOrDefault(a.getId(), List.of())))
                 .toList();
-    }
-
-    // ---- access ----------------------------------------------------------------
-
-    private void authorizeOrgAccess(User currentUser, Long organizationId) {
-        organizationDirectory.requireById(organizationId);
-        UserRole role = currentUser.getRole();
-        if (role == UserRole.ROOT || role == UserRole.ADMIN) {
-            return;
-        }
-        if (currentUser.getOrganization() == null
-                || !currentUser.getOrganization().getId().equals(organizationId)) {
-            throw new AccessForbiddenException("You do not have access to this organization's inventory.");
-        }
     }
 }
