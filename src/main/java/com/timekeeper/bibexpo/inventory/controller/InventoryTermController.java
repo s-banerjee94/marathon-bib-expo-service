@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.inventory.controller;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermLimitReachedException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryTermRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryTermRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryTermListResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryTermResponse;
 import com.timekeeper.bibexpo.inventory.model.enums.TermKind;
 import com.timekeeper.bibexpo.inventory.service.InventoryTermService;
@@ -22,8 +23,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.WebRequest;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/organizations/{organizationId}/inventory/terms")
 @RequiredArgsConstructor
@@ -33,7 +32,7 @@ public class InventoryTermController implements InventoryTermControllerApi {
     private final InventoryTermService termService;
 
     @Override
-    public ResponseEntity<List<InventoryTermResponse>> listTerms(
+    public ResponseEntity<InventoryTermListResponse> listTerms(
             @PathVariable Long organizationId,
             @RequestParam TermKind kind,
             @AuthenticationPrincipal User currentUser) {

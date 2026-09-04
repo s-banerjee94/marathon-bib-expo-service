@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.organization.service.impl;
 
+import com.timekeeper.bibexpo.organization.api.InventoryLimits;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
-import com.timekeeper.bibexpo.organization.model.entity.OrganizationLimit;
 import com.timekeeper.bibexpo.organization.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.organization.service.cache.OrganizationCache;
 import lombok.RequiredArgsConstructor;
@@ -32,10 +32,13 @@ public class OrganizationDirectoryImpl implements OrganizationDirectory {
     }
 
     @Override
-    public int maxInventoryTerms(Long organizationId) {
+    public InventoryLimits inventoryLimits(Long organizationId) {
         return organizationLimitRepository.findById(organizationId)
-                .map(OrganizationLimit::getMaxInventoryTerms)
-                .orElse(0);
+                .map(limit -> new InventoryLimits(limit.getMaxInventoryTerms(),
+                        limit.getMaxInventoryAttributeOptions(),
+                        limit.getMaxVariantAttributesPerItem(),
+                        limit.getMaxItemVariants()))
+                .orElse(new InventoryLimits(0, 0, 0, 0));
     }
 
     private Organization findOrNull(Long organizationId) {

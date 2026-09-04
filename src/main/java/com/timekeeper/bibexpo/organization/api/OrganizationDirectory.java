@@ -30,11 +30,11 @@ public interface OrganizationDirectory {
     String findOrganizerName(Long organizationId);
 
     /**
-     * Returns how many inventory terms the given organization may own. Platform defaults are not
-     * the organization's and do not count against it.
+     * Returns the inventory caps for the given organization. Platform defaults are not the
+     * organization's and do not count against any of them.
      *
      * @param organizationId the organization id
-     * @return the cap, or {@code 0} when the organization has no limit row, which denies creation
+     * @return the caps, all {@code 0} when the organization has no limit row, which denies creation
      */
-    int maxInventoryTerms(Long organizationId);
+    InventoryLimits inventoryLimits(Long organizationId);
 }

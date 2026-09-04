@@ -30,7 +30,7 @@ public class SystemInventoryTermController implements SystemInventoryTermControl
     public ResponseEntity<List<InventoryTermResponse>> listTerms(
             @RequestParam TermKind kind,
             @AuthenticationPrincipal User currentUser) {
-        return ResponseEntity.ok(termService.listVisible(null, kind, currentUser));
+        return ResponseEntity.ok(termService.listVisible(null, kind, currentUser).getPlatformDefaults());
     }
 
     @Override

@@ -33,6 +33,8 @@ public class OpenApiConfig {
     private static final String ORG_CAMPAIGN_PROVIDERS = "/api/organizations/{organizationId}/campaign-providers/**";
     private static final String SYSTEM_CAMPAIGN_PROVIDERS = "/api/system/campaign-providers/**";
     private static final String CAMPAIGN_PROVIDER_STYLE = "/api/events/{eventId}/campaign-provider-style/**";
+    private static final String ORG_INVENTORY = "/api/organizations/{organizationId}/inventory/**";
+    private static final String SYSTEM_INVENTORY = "/api/system/inventory/**";
 
     // ---- Base document ----
 
@@ -82,7 +84,7 @@ public class OpenApiConfig {
     public GroupedOpenApi organizationDoc() {
         return group("03-organizations", "Organization Management",
                 match("/api/organizations/**"),
-                exclude(ORG_BILLING, ORG_CAMPAIGN_PROVIDERS));
+                exclude(ORG_BILLING, ORG_CAMPAIGN_PROVIDERS, ORG_INVENTORY));
     }
 
     @Bean
@@ -159,6 +161,11 @@ public class OpenApiConfig {
     @Bean
     public GroupedOpenApi landingDemoDoc() {
         return group("17-landing-demo", "Landing Page Live Demo (Public)", "/api/public/demo/**");
+    }
+
+    @Bean
+    public GroupedOpenApi inventoryDoc() {
+        return group("18-inventory", "Inventory Management", ORG_INVENTORY, SYSTEM_INVENTORY);
     }
 
     // ---- helpers ----

@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.inventory.exception.InventoryTermLimitReachedExcep
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryTermRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryTermRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryTermListResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryTermResponse;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryTerm;
 import com.timekeeper.bibexpo.inventory.model.enums.TermKind;
@@ -37,12 +38,12 @@ public class InventoryTermServiceImpl implements InventoryTermService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryTermResponse> listVisible(Long organizationId, TermKind kind, User currentUser) {
+    public InventoryTermListResponse listVisible(Long organizationId, TermKind kind, User currentUser) {
         if (organizationId != null) {
             authorizeOrgAccess(currentUser, organizationId);
-            return toResponses(termRepository.findVisible(kind, organizationId));
+            return toScopedResponse(termRepository.findVisible(kind, organizationId));
         }
-        return toResponses(termRepository.findByKindAndOrganizationIdIsNullOrderByName(kind));
+        return toScopedResponse(termRepository.findByKindAndOrganizationIdIsNullOrderByName(kind));
     }
 
     @Override
@@ -140,13 +141,21 @@ public class InventoryTermServiceImpl implements InventoryTermService {
         return terms.stream().map(InventoryTermResponse::fromEntity).toList();
     }
 
+    private InventoryTermListResponse toScopedResponse(List<InventoryTerm> terms) {
+        List<InventoryTermResponse> all = toResponses(terms);
+        return InventoryTermListResponse.builder()
+                .platformDefaults(all.stream().filter(t -> t.getOrganizationId() == null).toList())
+                .organizationTerms(all.stream().filter(t -> t.getOrganizationId() != null).toList())
+                .build();
+    }
+
     // ---- access ----------------------------------------------------------------
 
     // Check-then-act rather than an atomic reserve like OrganizationSeatQuota: terms are not
     // billable, so a double-click racing past the cap by one costs nothing worth a counter column.
     private void enforceTermLimit(Long organizationId) {
         if (termRepository.countByOrganizationId(organizationId)
-                >= organizationDirectory.maxInventoryTerms(organizationId)) {
+                >= organizationDirectory.inventoryLimits(organizationId).maxTerms()) {
             log.error("Organization {} has reached its inventory term limit", organizationId);
             throw new InventoryTermLimitReachedException();
         }

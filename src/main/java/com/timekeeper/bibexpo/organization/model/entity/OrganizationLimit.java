@@ -48,10 +48,23 @@ public class OrganizationLimit implements Serializable {
     @Builder.Default
     private Integer maxDistributors = 3;
 
-    // TODO: read by the inventory module, but no admin endpoint changes it yet.
+    // TODO: the four inventory caps below are read by the inventory module, but no admin
+    // endpoint changes them yet.
     @Column(name = "max_inventory_terms", nullable = false)
     @Builder.Default
-    private Integer maxInventoryTerms = 50;
+    private Integer maxInventoryTerms = 30;
+
+    @Column(name = "max_inventory_attribute_options", nullable = false)
+    @Builder.Default
+    private Integer maxInventoryAttributeOptions = 30;
+
+    @Column(name = "max_variant_attributes_per_item", nullable = false)
+    @Builder.Default
+    private Integer maxVariantAttributesPerItem = 2;
+
+    @Column(name = "max_item_variants", nullable = false)
+    @Builder.Default
+    private Integer maxItemVariants = 30;
 
     @Column(name = "used_admins", nullable = false)
     @Builder.Default

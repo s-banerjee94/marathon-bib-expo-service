@@ -2,13 +2,13 @@ package com.timekeeper.bibexpo.inventory.controller;
 
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryTermRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryTermRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryTermListResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryTermResponse;
 import com.timekeeper.bibexpo.inventory.model.enums.TermKind;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -27,8 +27,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.List;
-
 @Tag(name = "Inventory Terms",
         description = "An organization's own vocabulary for item categories, location types and units")
 @SecurityRequirement(name = "bearerAuth")
@@ -36,12 +34,14 @@ public interface InventoryTermControllerApi {
 
     @Operation(
             summary = "List terms of one kind",
-            description = "Returns the platform defaults plus this organization's own terms of the given kind."
+            description = """
+                    Returns two lists of the given kind: the platform defaults every organization shares, \
+                    and this organization's own terms. Each list is sorted by name."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Terms retrieved successfully",
                     content = @Content(mediaType = "application/json",
-                            array = @ArraySchema(schema = @Schema(implementation = InventoryTermResponse.class)))),
+                            schema = @Schema(implementation = InventoryTermListResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization not found",
@@ -49,7 +49,7 @@ public interface InventoryTermControllerApi {
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<List<InventoryTermResponse>> listTerms(
+    ResponseEntity<InventoryTermListResponse> listTerms(
             @PathVariable Long organizationId,
             @Parameter(description = "Which vocabulary to list", required = true)
             @RequestParam TermKind kind,

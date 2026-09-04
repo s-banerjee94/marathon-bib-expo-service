@@ -5,11 +5,10 @@ import com.timekeeper.bibexpo.inventory.exception.InventoryTermInUseException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryTermRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryTermRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryTermListResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryTermResponse;
 import com.timekeeper.bibexpo.inventory.model.enums.TermKind;
 import com.timekeeper.bibexpo.user.model.entity.User;
-
-import java.util.List;
 
 /**
  * Manages the vocabulary that fills an item's category, a location's type, and an item's unit.
@@ -22,10 +21,11 @@ import java.util.List;
 public interface InventoryTermService {
 
     /**
-     * Lists the terms of one kind a caller can pick from: an organization sees the platform
-     * defaults plus its own; the platform view sees only the defaults.
+     * Lists the terms of one kind a caller can pick from, kept in two groups: the platform
+     * defaults every organization shares, and the organization's own. Each group is sorted by
+     * name. The platform view fills only the defaults, since it owns no organization terms.
      */
-    List<InventoryTermResponse> listVisible(Long organizationId, TermKind kind, User currentUser);
+    InventoryTermListResponse listVisible(Long organizationId, TermKind kind, User currentUser);
 
     /**
      * Fetches one term.
