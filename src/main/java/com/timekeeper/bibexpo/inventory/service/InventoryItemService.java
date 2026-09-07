@@ -11,10 +11,13 @@ import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryItemReq
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryVariantRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryItemRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemSummaryResponse;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
-import java.util.List;
+import java.time.Instant;
 
 /**
  * Manages items (the things an organization stocks) and their variants (size, colour, flavour).
@@ -25,9 +28,24 @@ import java.util.List;
  */
 public interface InventoryItemService {
 
-    /** Every item the organization owns. */
-    List<InventoryItemResponse> listItems(Long organizationId, User currentUser);
+    /**
+     * One page of the organization's items, without their attributes or variants — those grow with
+     * the catalogue and belong to {@link #getItem}, which fetches them for a single item.
+     *
+     * <p>Every filter is optional and they combine: a name fragment matched anywhere in the name
+     * and ignoring case, one category, and a closed range over the day the item was added. Each
+     * one left out narrows nothing.
+     *
+     * <p>Newest first unless the caller asks for another order, so paging through the list twice
+     * sees the same rows in the same places.
+     *
+     * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the range starts after it ends
+     */
+    Page<InventoryItemSummaryResponse> listItems(Long organizationId, String name, Long categoryId,
+                                                 Instant createdFrom, Instant createdTo,
+                                                 Pageable pageable, User currentUser);
 
+    /** One item with its attributes, its variants and their attribute values. */
     InventoryItemResponse getItem(Long organizationId, Long itemId, User currentUser);
 
     /**
@@ -39,8 +57,8 @@ public interface InventoryItemService {
     InventoryItemResponse createItem(Long organizationId, CreateInventoryItemRequest request, User currentUser);
 
     /**
-     * Updates an item's name, category, unit, or low-stock threshold. Fields left out of the
-     * request are unchanged.
+     * Updates an item's name, category, unit, low-stock threshold, or note. Fields left out of the
+     * request are unchanged; a blank note clears it.
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
      * @throws InventoryTermNotFoundException if a new category or unit term is not visible to this organization

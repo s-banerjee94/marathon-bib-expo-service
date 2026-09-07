@@ -5,8 +5,10 @@ import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryItemReq
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryVariantRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryItemRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemSummaryResponse;
 import com.timekeeper.bibexpo.inventory.service.InventoryItemService;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
@@ -14,6 +16,7 @@ import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,7 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.WebRequest;
 
-import java.util.List;
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/organizations/{organizationId}/inventory/items")
@@ -35,10 +38,16 @@ public class InventoryItemController implements InventoryItemControllerApi {
     private final InventoryItemService itemService;
 
     @Override
-    public ResponseEntity<List<InventoryItemResponse>> listItems(
+    public ResponseEntity<PageableResponse<InventoryItemSummaryResponse>> listItems(
             @PathVariable Long organizationId,
+            String name,
+            Long categoryId,
+            Instant createdFrom,
+            Instant createdTo,
+            Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        return ResponseEntity.ok(itemService.listItems(organizationId, currentUser));
+        return ResponseEntity.ok(PageableResponse.of(itemService.listItems(
+                organizationId, name, categoryId, createdFrom, createdTo, pageable, currentUser)));
     }
 
     @Override

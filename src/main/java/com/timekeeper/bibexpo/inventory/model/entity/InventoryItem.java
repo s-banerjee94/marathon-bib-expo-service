@@ -6,6 +6,7 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -30,6 +31,15 @@ import java.time.Instant;
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_inventory_item_org_name",
                         columnNames = {"organization_id", "name"})
+        },
+        // The list is always one organization's, newest first, so both indexes end on created_at:
+        // the database walks them backwards and stops at the page size instead of sorting the
+        // whole catalogue. The second one carries the category filter into the same walk.
+        indexes = {
+                @Index(name = "idx_inventory_item_org_created",
+                        columnList = "organization_id, created_at"),
+                @Index(name = "idx_inventory_item_org_category_created",
+                        columnList = "organization_id, category_id, created_at")
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data
@@ -56,6 +66,17 @@ public class InventoryItem implements Serializable {
 
     @Column(name = "low_stock_threshold")
     private Integer lowStockThreshold;
+
+    // A free-text warning for whoever opens this item next — not a property of the product itself,
+    // which belongs in an attribute. Blank is stored as null, so a stale note can be removed.
+    @Column(length = 500)
+    private String note;
+
+    // Kept in step by InventoryItemService, the only writer of variants, so the item list can show
+    // the count without querying the variants of every row.
+    @Column(name = "variant_count", nullable = false)
+    @Builder.Default
+    private Integer variantCount = 0;
 
     @CreatedDate
     @Column(updatable = false)

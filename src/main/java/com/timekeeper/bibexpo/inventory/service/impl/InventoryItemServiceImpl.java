@@ -19,6 +19,7 @@ import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryVariant
 import com.timekeeper.bibexpo.inventory.model.dto.request.ItemAttributeValueRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryItemRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemSummaryResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryVariantResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.ItemAttributeValueResponse;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryAttribute;
@@ -50,10 +51,15 @@ import com.timekeeper.bibexpo.storage.service.StorageService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -88,11 +94,20 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryItemResponse> listItems(Long organizationId, User currentUser) {
+    public Page<InventoryItemSummaryResponse> listItems(Long organizationId, String name, Long categoryId,
+                                                        Instant createdFrom, Instant createdTo,
+                                                        Pageable pageable, User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        return itemRepository.findByOrganizationId(organizationId).stream()
-                .map(item -> toItemResponse(item, variantRepository.findByItemId(item.getId())))
-                .toList();
+        if (createdFrom != null && createdTo != null && createdFrom.isAfter(createdTo)) {
+            throw new InvalidUserDataException("The start of the date range must come before its end.");
+        }
+        // Without an order the database may return the same rows in a different order on the next
+        // request, so a row could land on two pages or on none. The id breaks ties on the instant.
+        Pageable effective = pageable.getSort().isSorted() ? pageable
+                : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                        Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        return itemRepository.search(organizationId, blankToNull(name), categoryId, createdFrom, createdTo, effective)
+                .map(InventoryItemSummaryResponse::fromEntity);
     }
 
     @Override
@@ -137,6 +152,9 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         }
         if (request.getLowStockThreshold() != null) {
             item.setLowStockThreshold(request.getLowStockThreshold());
+        }
+        if (request.getNote() != null) {
+            item.setNote(blankToNull(request.getNote()));
         }
 
         InventoryItem saved = itemRepository.saveAndFlush(item);
@@ -193,8 +211,11 @@ public class InventoryItemServiceImpl implements InventoryItemService {
                 .itemId(itemId).combinationKey(combinationKey).build());
         saveVariantAttributeValues(variant.getId(), resolved);
 
+        List<InventoryVariant> variants = variantRepository.findByItemId(itemId);
+        syncVariantCount(item, variants);
+
         log.info("Added variant {} to inventory item {} for organization {}", variant.getId(), itemId, organizationId);
-        return toItemResponse(item, variantRepository.findByItemId(itemId));
+        return toItemResponse(item, variants);
     }
 
     @Auditable(entityType = AuditEntityType.INVENTORY_ITEM, action = AuditAction.UPDATE)
@@ -216,8 +237,11 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         variantRepository.delete(variant);
         deleteImageQuietly(variant.getImageKey());
 
+        List<InventoryVariant> remaining = variantRepository.findByItemId(itemId);
+        syncVariantCount(item, remaining);
+
         log.info("Removed variant {} from inventory item {} for organization {}", variantId, itemId, organizationId);
-        return toItemResponse(item, variantRepository.findByItemId(itemId));
+        return toItemResponse(item, remaining);
     }
 
     @Override
@@ -299,12 +323,14 @@ public class InventoryItemServiceImpl implements InventoryItemService {
                 .categoryId(request.getCategoryId())
                 .unitId(request.getUnitId())
                 .lowStockThreshold(request.getLowStockThreshold())
+                .note(blankToNull(request.getNote()))
                 .build());
 
         List<ResolvedAttributeValue> itemAttributes = resolveAttributeValues(request.getAttributes(), false, organizationId);
         saveItemAttributes(item.getId(), itemAttributes);
 
         List<InventoryVariant> variants = createVariants(item.getId(), organizationId, request.getVariants());
+        syncVariantCount(item, variants);
 
         log.info("Created inventory item '{}' for organization {}", name, organizationId);
         return toItemResponse(item, variants);
@@ -475,6 +501,19 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     }
 
     // ---- response assembly ----------------------------------------------------------------
+
+    // A blank note is stored as absent, so clearing one and never writing one look the same to
+    // every reader; a blank search term is likewise no search at all.
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    // Set from the variants just read, never incremented, so the stored count cannot drift away
+    // from the rows it counts.
+    private void syncVariantCount(InventoryItem item, List<InventoryVariant> variants) {
+        item.setVariantCount(variants.size());
+        itemRepository.saveAndFlush(item);
+    }
 
     private InventoryItemResponse toItemResponse(InventoryItem item, List<InventoryVariant> variants) {
         List<InventoryItemAttributeValue> itemAttributes = itemAttributeValueRepository.findByItemId(item.getId());

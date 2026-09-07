@@ -8,14 +8,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
-import java.util.List;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "A thing the organization stocks, with its variants")
-public class InventoryItemResponse {
+@Schema(description = "One row of the item list — the item itself, without its attributes or variants")
+public class InventoryItemSummaryResponse {
 
     @Schema(description = "Item ID", example = "1")
     private Long id;
@@ -39,11 +38,8 @@ public class InventoryItemResponse {
             example = "Reserved for the sponsor lounge — do not hand out at the counter.")
     private String note;
 
-    @Schema(description = "Values for this item's non-variant-defining attributes, applied once to the whole item")
-    private List<ItemAttributeValueResponse> attributes;
-
-    @Schema(description = "This item's variants")
-    private List<InventoryVariantResponse> variants;
+    @Schema(description = "How many variants this item has", example = "3")
+    private Integer variantCount;
 
     @Schema(description = "When this item was added")
     private Instant createdAt;
@@ -57,9 +53,8 @@ public class InventoryItemResponse {
     @Schema(description = "Who last changed this item", example = "organizer1")
     private String updatedBy;
 
-    public static InventoryItemResponse fromEntity(InventoryItem item, List<InventoryVariantResponse> variants,
-                                                     List<ItemAttributeValueResponse> attributes) {
-        return InventoryItemResponse.builder()
+    public static InventoryItemSummaryResponse fromEntity(InventoryItem item) {
+        return InventoryItemSummaryResponse.builder()
                 .id(item.getId())
                 .organizationId(item.getOrganizationId())
                 .name(item.getName())
@@ -67,8 +62,7 @@ public class InventoryItemResponse {
                 .unitId(item.getUnitId())
                 .lowStockThreshold(item.getLowStockThreshold())
                 .note(item.getNote())
-                .attributes(attributes)
-                .variants(variants)
+                .variantCount(item.getVariantCount())
                 .createdAt(item.getCreatedAt())
                 .createdBy(item.getCreatedBy())
                 .updatedAt(item.getUpdatedAt())

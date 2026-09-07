@@ -4,14 +4,15 @@ import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryItemReq
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryVariantRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryItemRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemSummaryResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -19,6 +20,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,8 +32,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.List;
+import java.time.Instant;
 
 @Tag(name = "Inventory Items", description = "The things an organization stocks, and their variants")
 @SecurityRequirement(name = "bearerAuth")
@@ -38,12 +42,22 @@ public interface InventoryItemControllerApi {
 
     @Operation(
             summary = "List items",
-            description = "Every item the organization owns."
+            description = """
+                    One page of the organization's items. Each row carries the item alone — its name, \
+                    category, unit, note and how many variants it has — but not the attributes or the
+                    variants themselves. Fetch one item to see those.
+
+                    Every filter is optional and they combine. Filtering happens in the database, so \
+                    the page totals describe the filtered set, not the whole catalogue.
+
+                    Newest first — by <code>createdAt</code> descending — unless a <code>sort</code> \
+                    is given, which replaces it."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Items retrieved successfully",
-                    content = @Content(mediaType = "application/json",
-                            array = @ArraySchema(schema = @Schema(implementation = InventoryItemResponse.class)))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PageableResponse.class))),
+            @ApiResponse(responseCode = "400", description = "The date range starts after it ends",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization not found",
@@ -51,13 +65,32 @@ public interface InventoryItemControllerApi {
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<List<InventoryItemResponse>> listItems(
+    ResponseEntity<PageableResponse<InventoryItemSummaryResponse>> listItems(
             @PathVariable Long organizationId,
+
+            @Parameter(description = "Name fragment, matched anywhere in the name and ignoring case.",
+                    example = "shirt")
+            @RequestParam(required = false) String name,
+
+            @Parameter(description = "Keep only items in this category term.", example = "12")
+            @RequestParam(required = false) Long categoryId,
+
+            @Parameter(description = "Keep only items added on or after this instant, ISO-8601.",
+                    example = "2026-09-01T00:00:00Z")
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+
+            @Parameter(description = "Keep only items added on or before this instant, ISO-8601. Must not be before <code>createdFrom</code>.",
+                    example = "2026-09-30T23:59:59Z")
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo,
+
+            @Parameter(description = "Pagination parameters") Pageable pageable,
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
             summary = "Get one item",
-            description = "Returns one item with its variants and their attribute values."
+            description = "Returns one item with its own attribute values, its variants and theirs."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Item retrieved successfully",
@@ -103,8 +136,9 @@ public interface InventoryItemControllerApi {
     @Operation(
             summary = "Update an item",
             description = """
-                    Updates an item's name, category, unit, or low-stock threshold. Fields left out of \
-                    the request are unchanged. Variants are changed through their own endpoints."""
+                    Updates an item's name, category, unit, low-stock threshold, or note. Fields left out \
+                    of the request are unchanged, and an empty note clears the one already there.
+                    Variants are changed through their own endpoints."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Item updated successfully",

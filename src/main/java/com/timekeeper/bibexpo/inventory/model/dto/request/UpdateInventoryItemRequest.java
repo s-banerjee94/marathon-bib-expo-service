@@ -23,4 +23,10 @@ public class UpdateInventoryItemRequest {
     @Schema(description = "New balance at or below which the item is considered low on stock", example = "50",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Integer lowStockThreshold;
+
+    @Size(max = 500, message = "Note must be at most 500 characters")
+    @Schema(description = "New note for whoever works with this item next. Send an empty string to clear it",
+            example = "Reserved for the sponsor lounge — do not hand out at the counter.",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private String note;
 }
