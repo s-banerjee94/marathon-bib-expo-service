@@ -58,6 +58,10 @@ public class OrganizationLimit implements Serializable {
     @Builder.Default
     private Integer maxInventoryAttributeOptions = 30;
 
+    @Column(name = "max_inventory_locations", nullable = false)
+    @Builder.Default
+    private Integer maxInventoryLocations = 50;
+
     @Column(name = "max_variant_attributes_per_item", nullable = false)
     @Builder.Default
     private Integer maxVariantAttributesPerItem = 2;

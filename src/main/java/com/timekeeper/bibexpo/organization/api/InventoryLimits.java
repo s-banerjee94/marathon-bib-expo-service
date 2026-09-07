@@ -8,9 +8,11 @@ package com.timekeeper.bibexpo.organization.api;
  * @param maxOptionsPerAttribute      choices on one of the organization's own attributes
  * @param maxVariantAttributesPerItem attributes one item may split its stock by
  * @param maxVariantsPerItem          variant rows one item may hold
+ * @param maxLocations                places the organization may keep stock in
  */
 public record InventoryLimits(int maxTerms,
                               int maxOptionsPerAttribute,
                               int maxVariantAttributesPerItem,
-                              int maxVariantsPerItem) {
+                              int maxVariantsPerItem,
+                              int maxLocations) {
 }

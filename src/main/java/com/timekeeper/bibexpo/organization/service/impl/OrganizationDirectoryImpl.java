@@ -37,8 +37,9 @@ public class OrganizationDirectoryImpl implements OrganizationDirectory {
                 .map(limit -> new InventoryLimits(limit.getMaxInventoryTerms(),
                         limit.getMaxInventoryAttributeOptions(),
                         limit.getMaxVariantAttributesPerItem(),
-                        limit.getMaxItemVariants()))
-                .orElse(new InventoryLimits(0, 0, 0, 0));
+                        limit.getMaxItemVariants(),
+                        limit.getMaxInventoryLocations()))
+                .orElse(new InventoryLimits(0, 0, 0, 0, 0));
     }
 
     private Organization findOrNull(Long organizationId) {

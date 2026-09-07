@@ -1,6 +1,8 @@
 package com.timekeeper.bibexpo.inventory.service.impl;
 
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationAlreadyExistsException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryLocationInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryLocationLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryLocationRequest;
@@ -10,9 +12,11 @@ import com.timekeeper.bibexpo.inventory.model.entity.InventoryLocation;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryTerm;
 import com.timekeeper.bibexpo.inventory.model.enums.TermKind;
 import com.timekeeper.bibexpo.inventory.repository.InventoryLocationRepository;
+import com.timekeeper.bibexpo.inventory.repository.InventoryMovementRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryLocationService;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
+import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,14 +31,17 @@ import java.util.List;
 public class InventoryLocationServiceImpl implements InventoryLocationService {
 
     private final InventoryLocationRepository locationRepository;
+    private final InventoryMovementRepository movementRepository;
     private final InventoryTermRepository termRepository;
     private final InventoryAccessGuard accessGuard;
+    private final OrganizationDirectory organizationDirectory;
 
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryLocationResponse> listLocations(Long organizationId, User currentUser) {
+    public List<InventoryLocationResponse> listLocations(Long organizationId, String name, Long typeId,
+                                                          User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        return locationRepository.findByOrganizationId(organizationId).stream()
+        return locationRepository.search(organizationId, blankToNull(name), typeId).stream()
                 .map(InventoryLocationResponse::fromEntity)
                 .toList();
     }
@@ -44,6 +51,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     public InventoryLocationResponse createLocation(Long organizationId, CreateInventoryLocationRequest request,
                                                       User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
+        enforceLocationLimit(organizationId);
 
         requireVisibleTerm(request.getTypeId(), organizationId);
 
@@ -88,7 +96,37 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
         return InventoryLocationResponse.fromEntity(saved);
     }
 
+    @Override
+    @Transactional
+    public void deleteLocation(Long organizationId, Long locationId, User currentUser) {
+        accessGuard.requireOrgAccess(currentUser, organizationId);
+        InventoryLocation location = locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(InventoryLocationNotFoundException::new);
+
+        // A balance row only ever appears alongside a ledger line, so this one question covers both.
+        if (movementRepository.existsForLocation(organizationId, locationId)) {
+            throw new InventoryLocationInUseException();
+        }
+
+        locationRepository.delete(location);
+        log.info("Deleted inventory location {} for organization {}", locationId, organizationId);
+    }
+
     // ---- lookups ----------------------------------------------------------------
+
+    // Check-then-act like the term and option caps: locations are not billable, so a double-click
+    // racing past the cap by one costs nothing worth a counter column.
+    private void enforceLocationLimit(Long organizationId) {
+        if (locationRepository.countByOrganizationId(organizationId)
+                >= organizationDirectory.inventoryLimits(organizationId).maxLocations()) {
+            log.error("Organization {} has reached its inventory location limit", organizationId);
+            throw new InventoryLocationLimitReachedException();
+        }
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
 
     private void requireVisibleTerm(Long termId, Long organizationId) {
         InventoryTerm term = termRepository.findById(termId)
