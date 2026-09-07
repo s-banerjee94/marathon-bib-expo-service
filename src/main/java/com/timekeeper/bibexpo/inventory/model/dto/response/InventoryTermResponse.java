@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.inventory.model.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryTerm;
 import com.timekeeper.bibexpo.inventory.model.enums.TermKind;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -29,20 +30,40 @@ public class InventoryTermResponse {
     @Schema(description = "Display name", example = "Apparel")
     private String name;
 
-    @Schema(description = "When this term was added")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(description = "When this term was added; absent on a platform default read through an organization")
     private Instant createdAt;
 
-    @Schema(description = "When this term was last renamed")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(description = "Who added this term; absent on a platform default read through an organization", example = "organizer1")
+    private String createdBy;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(description = "When this term was last renamed; absent on a platform default read through an organization")
     private Instant updatedAt;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(description = "Who last renamed this term; absent on a platform default read through an organization", example = "organizer1")
+    private String updatedBy;
+
     public static InventoryTermResponse fromEntity(InventoryTerm term) {
-        return InventoryTermResponse.builder()
+        return fromEntity(term, true);
+    }
+
+    // A platform default's audit trail is the platform administrator's, not the organization's, so
+    // an organization reading the shared vocabulary is shown the term without it.
+    public static InventoryTermResponse fromEntity(InventoryTerm term, boolean withAudit) {
+        InventoryTermResponseBuilder response = InventoryTermResponse.builder()
                 .id(term.getId())
                 .kind(term.getKind())
                 .organizationId(term.getOrganizationId())
-                .name(term.getName())
-                .createdAt(term.getCreatedAt())
-                .updatedAt(term.getUpdatedAt())
-                .build();
+                .name(term.getName());
+        if (withAudit) {
+            response.createdAt(term.getCreatedAt())
+                    .createdBy(term.getCreatedBy())
+                    .updatedAt(term.getUpdatedAt())
+                    .updatedBy(term.getLastModifiedBy());
+        }
+        return response.build();
     }
 }

@@ -52,9 +52,9 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     public InventoryAttributeListResponse listVisible(Long organizationId, User currentUser) {
         if (organizationId != null) {
             accessGuard.requireOrgAccess(currentUser, organizationId);
-            return toScopedResponse(attributeRepository.findVisible(organizationId));
+            return toScopedResponse(attributeRepository.findVisible(organizationId), false);
         }
-        return toScopedResponse(attributeRepository.findByOrganizationIdIsNullOrderByName());
+        return toScopedResponse(attributeRepository.findByOrganizationIdIsNullOrderByName(), true);
     }
 
     @Override
@@ -265,26 +265,27 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                 optionRepository.findByAttributeId(attribute.getId()));
     }
 
-    // One options query for both groups: batch first, split the responses afterwards.
-    private InventoryAttributeListResponse toScopedResponse(List<InventoryAttribute> attributes) {
-        List<InventoryAttributeResponse> all = toResponses(attributes);
+    // One options query for both groups: batch first, split the responses afterwards. A platform
+    // default's audit trail is shown only on the platform's own path; an organization browsing the
+    // shared attributes has no claim on who last changed one it does not own.
+    private InventoryAttributeListResponse toScopedResponse(List<InventoryAttribute> attributes,
+                                                            boolean showPlatformAudit) {
+        Map<Long, List<InventoryAttributeOption>> optionsByAttribute = attributes.isEmpty() ? Map.of()
+                : optionRepository
+                        .findByAttributeIdIn(attributes.stream().map(InventoryAttribute::getId).toList())
+                        .stream()
+                        .collect(Collectors.groupingBy(InventoryAttributeOption::getAttributeId));
         return InventoryAttributeListResponse.builder()
-                .platformDefaults(all.stream().filter(a -> a.getOrganizationId() == null).toList())
-                .organizationAttributes(all.stream().filter(a -> a.getOrganizationId() != null).toList())
+                .platformDefaults(attributes.stream()
+                        .filter(a -> a.getOrganizationId() == null)
+                        .map(a -> InventoryAttributeResponse.fromEntity(a,
+                                optionsByAttribute.getOrDefault(a.getId(), List.of()), showPlatformAudit))
+                        .toList())
+                .organizationAttributes(attributes.stream()
+                        .filter(a -> a.getOrganizationId() != null)
+                        .map(a -> InventoryAttributeResponse.fromEntity(a,
+                                optionsByAttribute.getOrDefault(a.getId(), List.of())))
+                        .toList())
                 .build();
-    }
-
-    private List<InventoryAttributeResponse> toResponses(List<InventoryAttribute> attributes) {
-        if (attributes.isEmpty()) {
-            return List.of();
-        }
-        Map<Long, List<InventoryAttributeOption>> optionsByAttribute = optionRepository
-                .findByAttributeIdIn(attributes.stream().map(InventoryAttribute::getId).toList())
-                .stream()
-                .collect(Collectors.groupingBy(InventoryAttributeOption::getAttributeId));
-        return attributes.stream()
-                .map(a -> InventoryAttributeResponse.fromEntity(a,
-                        optionsByAttribute.getOrDefault(a.getId(), List.of())))
-                .toList();
     }
 }

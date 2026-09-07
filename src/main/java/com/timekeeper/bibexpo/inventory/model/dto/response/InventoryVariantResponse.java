@@ -32,8 +32,14 @@ public class InventoryVariantResponse {
     @Schema(description = "When this variant was added")
     private Instant createdAt;
 
+    @Schema(description = "Who added this variant", example = "organizer1")
+    private String createdBy;
+
     @Schema(description = "When this variant was last changed")
     private Instant updatedAt;
+
+    @Schema(description = "Who last changed this variant", example = "organizer1")
+    private String updatedBy;
 
     public static InventoryVariantResponse fromEntity(InventoryVariant variant, List<ItemAttributeValueResponse> attributeValues,
                                                         String imageUrl) {
@@ -43,7 +49,9 @@ public class InventoryVariantResponse {
                 .attributeValues(attributeValues)
                 .imageUrl(imageUrl)
                 .createdAt(variant.getCreatedAt())
+                .createdBy(variant.getCreatedBy())
                 .updatedAt(variant.getUpdatedAt())
+                .updatedBy(variant.getLastModifiedBy())
                 .build();
     }
 }

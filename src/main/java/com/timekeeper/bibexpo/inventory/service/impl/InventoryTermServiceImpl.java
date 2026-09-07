@@ -41,9 +41,9 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     public InventoryTermListResponse listVisible(Long organizationId, TermKind kind, User currentUser) {
         if (organizationId != null) {
             accessGuard.requireOrgAccess(currentUser, organizationId);
-            return toScopedResponse(termRepository.findVisible(kind, organizationId));
+            return toScopedResponse(termRepository.findVisible(kind, organizationId), false);
         }
-        return toScopedResponse(termRepository.findByKindAndOrganizationIdIsNullOrderByName(kind));
+        return toScopedResponse(termRepository.findByKindAndOrganizationIdIsNullOrderByName(kind), true);
     }
 
     @Override
@@ -137,15 +137,18 @@ public class InventoryTermServiceImpl implements InventoryTermService {
                 : termRepository.existsByKindAndOrganizationIdIsNullAndName(kind, name);
     }
 
-    private List<InventoryTermResponse> toResponses(List<InventoryTerm> terms) {
-        return terms.stream().map(InventoryTermResponse::fromEntity).toList();
-    }
-
-    private InventoryTermListResponse toScopedResponse(List<InventoryTerm> terms) {
-        List<InventoryTermResponse> all = toResponses(terms);
+    // A platform default's audit trail is shown only on the platform's own path; an organization
+    // browsing the shared vocabulary has no claim on who last renamed a term it does not own.
+    private InventoryTermListResponse toScopedResponse(List<InventoryTerm> terms, boolean showPlatformAudit) {
         return InventoryTermListResponse.builder()
-                .platformDefaults(all.stream().filter(t -> t.getOrganizationId() == null).toList())
-                .organizationTerms(all.stream().filter(t -> t.getOrganizationId() != null).toList())
+                .platformDefaults(terms.stream()
+                        .filter(t -> t.getOrganizationId() == null)
+                        .map(t -> InventoryTermResponse.fromEntity(t, showPlatformAudit))
+                        .toList())
+                .organizationTerms(terms.stream()
+                        .filter(t -> t.getOrganizationId() != null)
+                        .map(InventoryTermResponse::fromEntity)
+                        .toList())
                 .build();
     }
 

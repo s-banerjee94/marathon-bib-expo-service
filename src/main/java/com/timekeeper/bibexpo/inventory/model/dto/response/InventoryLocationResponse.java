@@ -31,8 +31,14 @@ public class InventoryLocationResponse {
     @Schema(description = "When this location was added")
     private Instant createdAt;
 
+    @Schema(description = "Who added this location", example = "organizer1")
+    private String createdBy;
+
     @Schema(description = "When this location was last changed")
     private Instant updatedAt;
+
+    @Schema(description = "Who last changed this location", example = "organizer1")
+    private String updatedBy;
 
     public static InventoryLocationResponse fromEntity(InventoryLocation location) {
         return InventoryLocationResponse.builder()
@@ -41,7 +47,9 @@ public class InventoryLocationResponse {
                 .name(location.getName())
                 .typeId(location.getTypeId())
                 .createdAt(location.getCreatedAt())
+                .createdBy(location.getCreatedBy())
                 .updatedAt(location.getUpdatedAt())
+                .updatedBy(location.getLastModifiedBy())
                 .build();
     }
 }
