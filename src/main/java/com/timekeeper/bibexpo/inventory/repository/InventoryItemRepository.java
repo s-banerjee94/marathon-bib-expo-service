@@ -42,6 +42,48 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
                                @Param("createdTo") Instant createdTo,
                                Pageable pageable);
 
+    /**
+     * One page of an organization's items for the stock list. An item is kept when the search
+     * text matches its own name, one of its variants' attribute values, or the name of a location
+     * holding it — so a single box searches all three. The location filter keeps only items with a
+     * balance row there, and {@code lowOnly} keeps only those whose total has fallen to their
+     * threshold; an item with no threshold set is low only when it holds nothing.
+     *
+     * <p>Paging counts items rather than balance rows, so an item is never split across two pages.
+     */
+    @Query("""
+            SELECT i FROM InventoryItem i
+            WHERE i.organizationId = :organizationId
+              AND (:locationId IS NULL OR EXISTS (
+                    SELECT 1 FROM InventoryStock s
+                    WHERE s.locationId = :locationId
+                      AND s.variantId IN (SELECT v.id FROM InventoryVariant v WHERE v.itemId = i.id)))
+              AND (:search IS NULL
+                   OR LOWER(i.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR EXISTS (
+                        SELECT 1 FROM InventoryVariantAttributeValue av
+                        WHERE av.variantId IN (SELECT v.id FROM InventoryVariant v WHERE v.itemId = i.id)
+                          AND (LOWER(av.rawValue) LIKE LOWER(CONCAT('%', :search, '%'))
+                               OR av.optionId IN (SELECT o.id FROM InventoryAttributeOption o
+                                                  WHERE LOWER(o.value) LIKE LOWER(CONCAT('%', :search, '%')))))
+                   OR EXISTS (
+                        SELECT 1 FROM InventoryStock s
+                        WHERE s.variantId IN (SELECT v.id FROM InventoryVariant v WHERE v.itemId = i.id)
+                          AND s.locationId IN (SELECT l.id FROM InventoryLocation l
+                                               WHERE l.organizationId = :organizationId
+                                                 AND LOWER(l.name) LIKE LOWER(CONCAT('%', :search, '%')))))
+              AND (:lowOnly IS NULL OR (
+                    SELECT COALESCE(SUM(s.onHand), 0) FROM InventoryStock s
+                    WHERE s.variantId IN (SELECT v.id FROM InventoryVariant v WHERE v.itemId = i.id)
+                      AND (:locationId IS NULL OR s.locationId = :locationId)
+                  ) <= COALESCE(i.lowStockThreshold, 0))
+            """)
+    Page<InventoryItem> searchWithStock(@Param("organizationId") Long organizationId,
+                                       @Param("search") String search,
+                                       @Param("locationId") Long locationId,
+                                       @Param("lowOnly") Boolean lowOnly,
+                                       Pageable pageable);
+
     Optional<InventoryItem> findByIdAndOrganizationId(Long id, Long organizationId);
 
     long countByCategoryId(Long categoryId);
