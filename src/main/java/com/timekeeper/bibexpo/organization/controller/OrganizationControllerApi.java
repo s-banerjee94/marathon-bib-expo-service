@@ -153,7 +153,7 @@ public interface OrganizationControllerApi {
             @ApiResponse(
                     responseCode = "409",
                     description = "An organization with the same email, name, phone number, or tax ID already exists, "
-                            + "or a user limit was reduced below the number of users currently in use",
+                            + "or a limit was reduced below what is currently in use",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)

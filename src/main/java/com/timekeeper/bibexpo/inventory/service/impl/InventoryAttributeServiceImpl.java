@@ -154,7 +154,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
         requireSelectType(attribute);
         if (organizationId != null) {
-            enforceOptionLimit(organizationId, attributeId);
+            enforceOptionLimit(organizationId, attribute);
         }
 
         String value = request.getValue().trim();
@@ -167,7 +167,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                 .build());
 
         log.info("Added value '{}' to inventory attribute {} for organization {}", value, attributeId, organizationId);
-        return toResponse(attribute);
+        return toResponseCountingOptions(attribute);
     }
 
     @Override
@@ -212,7 +212,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
 
         optionRepository.delete(option);
         log.info("Removed value {} from inventory attribute {} for organization {}", optionId, attributeId, organizationId);
-        return toResponse(attribute);
+        return toResponseCountingOptions(attribute);
     }
 
     // ---- lookups ----------------------------------------------------------------
@@ -243,13 +243,14 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
         }
     }
 
-    // Check-then-act like the term cap: a double-click racing past it by one costs nothing worth
-    // a counter column. Platform defaults belong to no organization and stay uncapped.
-    private void enforceOptionLimit(Long organizationId, Long attributeId) {
-        if (optionRepository.countByAttributeId(attributeId)
+    // Check-then-act, not an atomic reserve: the ceiling is on one attribute row rather than on
+    // the organization, so a double-click racing past it by one value costs nothing. Platform
+    // defaults belong to no organization and stay uncapped.
+    private void enforceOptionLimit(Long organizationId, InventoryAttribute attribute) {
+        if (attribute.getOptionCount()
                 >= organizationDirectory.inventoryLimits(organizationId).maxOptionsPerAttribute()) {
             log.error("Organization {} has reached its value limit on inventory attribute {}",
-                    organizationId, attributeId);
+                    organizationId, attribute.getId());
             throw new InventoryAttributeOptionLimitReachedException();
         }
     }
@@ -263,6 +264,15 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     private InventoryAttributeResponse toResponse(InventoryAttribute attribute) {
         return InventoryAttributeResponse.fromEntity(attribute,
                 optionRepository.findByAttributeId(attribute.getId()));
+    }
+
+    // The response needs the option list anyway, so the stored count is set from it rather than
+    // stepped by one -- one query serves both, and the count cannot drift from the rows.
+    private InventoryAttributeResponse toResponseCountingOptions(InventoryAttribute attribute) {
+        List<InventoryAttributeOption> options = optionRepository.findByAttributeId(attribute.getId());
+        attribute.setOptionCount(options.size());
+        attributeRepository.saveAndFlush(attribute);
+        return InventoryAttributeResponse.fromEntity(attribute, options);
     }
 
     // One options query for both groups: batch first, split the responses afterwards. A platform

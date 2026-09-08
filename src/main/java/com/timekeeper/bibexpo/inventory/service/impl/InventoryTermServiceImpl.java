@@ -15,7 +15,7 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryLocationRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryTermService;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
-import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
+import com.timekeeper.bibexpo.organization.api.InventoryQuota;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +33,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     private final InventoryTermRepository termRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
-    private final OrganizationDirectory organizationDirectory;
+    private final InventoryQuota inventoryQuota;
     private final InventoryAccessGuard accessGuard;
 
     @Override
@@ -61,7 +61,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
                                              CreateInventoryTermRequest request, User currentUser) {
         if (organizationId != null) {
             accessGuard.requireOrgAccess(currentUser, organizationId);
-            enforceTermLimit(organizationId);
+            reserveTermSlot(organizationId);
         }
 
         String name = request.getName().trim();
@@ -115,6 +115,9 @@ public class InventoryTermServiceImpl implements InventoryTermService {
         }
 
         termRepository.delete(term);
+        if (organizationId != null) {
+            inventoryQuota.releaseTerm(organizationId);
+        }
         log.info("Deleted inventory term {} for organization {}", termId, organizationId);
     }
 
@@ -154,11 +157,8 @@ public class InventoryTermServiceImpl implements InventoryTermService {
 
     // ---- access ----------------------------------------------------------------
 
-    // Check-then-act rather than an atomic reserve like OrganizationSeatQuota: terms are not
-    // billable, so a double-click racing past the cap by one costs nothing worth a counter column.
-    private void enforceTermLimit(Long organizationId) {
-        if (termRepository.countByOrganizationId(organizationId)
-                >= organizationDirectory.inventoryLimits(organizationId).maxTerms()) {
+    private void reserveTermSlot(Long organizationId) {
+        if (!inventoryQuota.tryReserveTerm(organizationId)) {
             log.error("Organization {} has reached its inventory term limit", organizationId);
             throw new InventoryTermLimitReachedException();
         }

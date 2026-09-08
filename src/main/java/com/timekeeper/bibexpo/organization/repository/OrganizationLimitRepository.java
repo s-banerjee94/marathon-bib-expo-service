@@ -41,4 +41,24 @@ public interface OrganizationLimitRepository extends JpaRepository<OrganizationL
     @Modifying(flushAutomatically = true)
     @Query("UPDATE OrganizationLimit l SET l.usedDistributors = l.usedDistributors - 1 WHERE l.organizationId = :orgId AND l.usedDistributors > 0")
     int decrementDistributors(@Param("orgId") Long orgId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE OrganizationLimit l SET l.usedInventoryTerms = l.usedInventoryTerms + 1 " +
+            "WHERE l.organizationId = :orgId AND l.usedInventoryTerms < l.maxInventoryTerms")
+    int tryIncrementInventoryTerms(@Param("orgId") Long orgId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE OrganizationLimit l SET l.usedInventoryTerms = l.usedInventoryTerms - 1 " +
+            "WHERE l.organizationId = :orgId AND l.usedInventoryTerms > 0")
+    int decrementInventoryTerms(@Param("orgId") Long orgId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE OrganizationLimit l SET l.usedInventoryLocations = l.usedInventoryLocations + 1 " +
+            "WHERE l.organizationId = :orgId AND l.usedInventoryLocations < l.maxInventoryLocations")
+    int tryIncrementInventoryLocations(@Param("orgId") Long orgId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE OrganizationLimit l SET l.usedInventoryLocations = l.usedInventoryLocations - 1 " +
+            "WHERE l.organizationId = :orgId AND l.usedInventoryLocations > 0")
+    int decrementInventoryLocations(@Param("orgId") Long orgId);
 }

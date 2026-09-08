@@ -16,7 +16,7 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryMovementRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryLocationService;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
-import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
+import com.timekeeper.bibexpo.organization.api.InventoryQuota;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +34,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     private final InventoryMovementRepository movementRepository;
     private final InventoryTermRepository termRepository;
     private final InventoryAccessGuard accessGuard;
-    private final OrganizationDirectory organizationDirectory;
+    private final InventoryQuota inventoryQuota;
 
     @Override
     @Transactional(readOnly = true)
@@ -51,7 +51,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     public InventoryLocationResponse createLocation(Long organizationId, CreateInventoryLocationRequest request,
                                                       User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        enforceLocationLimit(organizationId);
+        reserveLocationSlot(organizationId);
 
         requireVisibleTerm(request.getTypeId(), organizationId);
 
@@ -109,16 +109,14 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
         }
 
         locationRepository.delete(location);
+        inventoryQuota.releaseLocation(organizationId);
         log.info("Deleted inventory location {} for organization {}", locationId, organizationId);
     }
 
     // ---- lookups ----------------------------------------------------------------
 
-    // Check-then-act like the term and option caps: locations are not billable, so a double-click
-    // racing past the cap by one costs nothing worth a counter column.
-    private void enforceLocationLimit(Long organizationId) {
-        if (locationRepository.countByOrganizationId(organizationId)
-                >= organizationDirectory.inventoryLimits(organizationId).maxLocations()) {
+    private void reserveLocationSlot(Long organizationId) {
+        if (!inventoryQuota.tryReserveLocation(organizationId)) {
             log.error("Organization {} has reached its inventory location limit", organizationId);
             throw new InventoryLocationLimitReachedException();
         }

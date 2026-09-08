@@ -28,7 +28,4 @@ public interface InventoryTermRepository extends JpaRepository<InventoryTerm, Lo
     boolean existsByKindAndOrganizationIdAndName(TermKind kind, Long organizationId, String name);
 
     boolean existsByKindAndOrganizationIdIsNullAndName(TermKind kind, String name);
-
-    /** How many terms an organization owns, across every kind. Platform defaults are excluded. */
-    long countByOrganizationId(Long organizationId);
 }

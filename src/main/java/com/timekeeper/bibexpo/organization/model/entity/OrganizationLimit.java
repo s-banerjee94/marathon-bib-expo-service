@@ -18,7 +18,8 @@ import java.io.Serializable;
 /**
  * Per-organization limits and live usage counters.
  * Shares its primary key with {@link Organization} (one row per organization).
- * Usage counters are maintained atomically on user create/delete.
+ * Usage counters are maintained atomically as the counted rows are created and deleted, never
+ * recounted on read.
  */
 @Entity
 @Table(name = "organization_limits")
@@ -48,8 +49,6 @@ public class OrganizationLimit implements Serializable {
     @Builder.Default
     private Integer maxDistributors = 3;
 
-    // TODO: the four inventory caps below are read by the inventory module, but no admin
-    // endpoint changes them yet.
     @Column(name = "max_inventory_terms", nullable = false)
     @Builder.Default
     private Integer maxInventoryTerms = 30;
@@ -81,4 +80,15 @@ public class OrganizationLimit implements Serializable {
     @Column(name = "used_distributors", nullable = false)
     @Builder.Default
     private Integer usedDistributors = 0;
+
+    // Only the two organization-wide inventory caps get a counter. The other three are ceilings on
+    // a single item or a single attribute, so their usage lives on that row, not on this one:
+    // inventory_items.variant_count and inventory_attributes.option_count.
+    @Column(name = "used_inventory_terms", nullable = false)
+    @Builder.Default
+    private Integer usedInventoryTerms = 0;
+
+    @Column(name = "used_inventory_locations", nullable = false)
+    @Builder.Default
+    private Integer usedInventoryLocations = 0;
 }

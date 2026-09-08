@@ -17,7 +17,5 @@ public interface InventoryAttributeOptionRepository extends JpaRepository<Invent
     /** Choice lists for several attributes at once, so a list endpoint stays at two queries. */
     List<InventoryAttributeOption> findByAttributeIdIn(Collection<Long> attributeIds);
 
-    long countByAttributeId(Long attributeId);
-
     boolean existsByAttributeIdAndValue(Long attributeId, String value);
 }

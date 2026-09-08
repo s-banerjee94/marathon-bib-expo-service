@@ -34,8 +34,6 @@ public interface InventoryLocationRepository extends JpaRepository<InventoryLoca
                                    @Param("name") String name,
                                    @Param("typeId") Long typeId);
 
-    long countByOrganizationId(Long organizationId);
-
     Optional<InventoryLocation> findByIdAndOrganizationId(Long id, Long organizationId);
 
     long countByTypeId(Long typeId);

@@ -6,6 +6,7 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -29,6 +30,11 @@ import java.time.Instant;
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_inventory_location_org_name",
                         columnNames = {"organization_id", "name"})
+        },
+        // The third question asked before a term is deleted, and like the two on items it spans
+        // every organization because a platform default is shared.
+        indexes = {
+                @Index(name = "idx_inventory_location_type", columnList = "type_id")
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data

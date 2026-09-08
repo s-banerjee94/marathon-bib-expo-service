@@ -38,7 +38,8 @@ import java.time.Instant;
                         columnNames = {"item_id", "attribute_id"})
         },
         indexes = {
-                @Index(name = "idx_inventory_item_attribute_value_attribute", columnList = "attribute_id")
+                @Index(name = "idx_inventory_item_attribute_value_attribute", columnList = "attribute_id"),
+                @Index(name = "idx_inventory_item_attribute_value_option", columnList = "option_id")
         })
 @Check(name = "ck_inventory_item_attribute_value_one_of", constraints = "option_id is null or raw_value is null")
 @EntityListeners(AuditingEntityListener.class)
