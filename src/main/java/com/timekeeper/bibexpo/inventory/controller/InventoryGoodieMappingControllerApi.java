@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.inventory.controller;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieMappingResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieResolutionResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,6 +55,42 @@ public interface InventoryGoodieMappingControllerApi {
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     ResponseEntity<List<InventoryGoodieMappingResponse>> listMappings(
+            @PathVariable Long organizationId,
+            @PathVariable Long eventId,
+            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
+
+    @Operation(
+            summary = "Check what an event's goodies resolve to",
+            description = """
+                    The screen an organizer works from after linking. It lists every goody the \
+                    event's roster carries, every distinct spelling under it, and how many \
+                    participants are behind each one — 812 asked for `M`, 604 for `Large`, 41 for \
+                    `xl`.
+
+                    Each spelling is read in a fixed order and never guessed. The item's own \
+                    variant values come first, then its taught spellings, then the item itself when it \
+                    varies by nothing and is handed over as it is. Whatever none of those \
+                    recognise comes back as `UNRESOLVED`, and `unresolvedParticipants` says how \
+                    many runners that leaves unaccounted for.
+
+                    A goody nothing has been linked to still appears, so a heading typed \
+                    differently from the column shows up as itself rather than as silence. The \
+                    demand comes from the event's counters, so the roster is never walked; a file \
+                    imported before those counters existed reads as empty until the event's \
+                    statistics are reconciled."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Resolution retrieved successfully",
+                    content = @Content(mediaType = "application/json",
+                            array = @ArraySchema(schema = @Schema(implementation = InventoryGoodieResolutionResponse.class)))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization or event not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/resolution")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<List<InventoryGoodieResolutionResponse>> resolveGoodies(
             @PathVariable Long organizationId,
             @PathVariable Long eventId,
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);

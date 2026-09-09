@@ -7,6 +7,7 @@ import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotMappableExcept
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieMappingResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieResolutionResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
@@ -61,4 +62,19 @@ public interface InventoryGoodieMappingService {
      * @throws InventoryGoodieMappingNotFoundException if the link does not belong to this event
      */
     void deleteMapping(Long organizationId, Long eventId, Long mappingId, User currentUser);
+
+    /**
+     * The check screen: every goody the event's roster carries, every distinct spelling under it,
+     * and what each spelling resolves to. This is where an organizer sees that 812 runners asked
+     * for {@code M} and that nothing yet knows what {@code M} means.
+     *
+     * <p>A spelling is read in a fixed order and never guessed: the item's own variant values
+     * first, then its taught spellings, then the item itself when it varies by nothing. Whatever none of
+     * those recognise is reported as needing attention, with the number of participants behind it,
+     * so the organizer can teach one spelling and clear a whole column.
+     *
+     * <p>Both sides come from a read that is already paid for — one query for the event's links and
+     * one counter read for the demand — so the roster itself is never walked.
+     */
+    List<InventoryGoodieResolutionResponse> resolveGoodies(Long organizationId, Long eventId, User currentUser);
 }
