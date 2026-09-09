@@ -164,7 +164,8 @@ public interface InventoryItemControllerApi {
             summary = "Delete an item",
             description = """
                     Deletes an item together with all of its variants. An item any of whose variants \
-                    still has stock on hand cannot be deleted."""
+                    still has stock on hand cannot be deleted, and neither can one an event goody \
+                    is handed out from — unlink the goody first."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Item deleted successfully"),
@@ -172,7 +173,7 @@ public interface InventoryItemControllerApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization or item not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "The item still has stock on hand",
+            @ApiResponse(responseCode = "409", description = "The item still has stock on hand, or an event goody is handed out from it",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @DeleteMapping("/{itemId}")

@@ -8,6 +8,7 @@ import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeNotFoundExce
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeOptionNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemLinkedToGoodieException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantAlreadyExistsException;
@@ -34,6 +35,7 @@ import com.timekeeper.bibexpo.inventory.model.enums.TermKind;
 import com.timekeeper.bibexpo.inventory.repository.InventoryAttributeRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryAttributeOptionRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemAttributeValueRepository;
+import com.timekeeper.bibexpo.inventory.repository.InventoryGoodieMappingRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryStockRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
@@ -77,6 +79,7 @@ import java.util.stream.Collectors;
 public class InventoryItemServiceImpl implements InventoryItemService {
 
     private final InventoryItemRepository itemRepository;
+    private final InventoryGoodieMappingRepository goodieMappingRepository;
     private final InventoryVariantRepository variantRepository;
     private final InventoryStockRepository stockRepository;
     private final InventoryTermRepository termRepository;
@@ -168,6 +171,10 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     public void deleteItem(Long organizationId, Long itemId, User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
         InventoryItem item = requireItemInOrg(itemId, organizationId);
+
+        if (goodieMappingRepository.existsByItemId(itemId)) {
+            throw new InventoryItemLinkedToGoodieException();
+        }
 
         List<InventoryVariant> variants = variantRepository.findByItemId(itemId);
         requireNoStock(variants, InventoryItemInUseException::new);

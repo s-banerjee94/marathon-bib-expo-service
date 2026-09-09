@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.inventory.service;
 
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemLinkedToGoodieException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantAlreadyExistsException;
@@ -71,6 +72,7 @@ public interface InventoryItemService {
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
      * @throws InventoryItemInUseException if any variant still has stock on hand
+     * @throws InventoryItemLinkedToGoodieException if an event goody is handed out from this item
      */
     void deleteItem(Long organizationId, Long itemId, User currentUser);
 

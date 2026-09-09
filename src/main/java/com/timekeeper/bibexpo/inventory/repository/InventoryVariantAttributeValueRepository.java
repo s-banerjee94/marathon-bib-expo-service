@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.inventory.repository;
 
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryVariantAttributeValue;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -14,6 +16,16 @@ public interface InventoryVariantAttributeValueRepository extends JpaRepository<
     List<InventoryVariantAttributeValue> findByVariantId(Long variantId);
 
     List<InventoryVariantAttributeValue> findByVariantIdIn(List<Long> variantIds);
+
+    /**
+     * The distinct attributes an item's variants are composed of — in other words, how many
+     * dimensions the item varies by. Empty for an item whose single variant carries no values.
+     */
+    @Query("""
+            SELECT DISTINCT av.attributeId FROM InventoryVariantAttributeValue av
+            WHERE av.variantId IN (SELECT v.id FROM InventoryVariant v WHERE v.itemId = :itemId)
+            """)
+    List<Long> findDistinctAttributeIdsByItemId(@Param("itemId") Long itemId);
 
     long countByAttributeId(Long attributeId);
 
