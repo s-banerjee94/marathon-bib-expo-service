@@ -3,29 +3,18 @@ package com.timekeeper.bibexpo.inventory.repository;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryTerm;
 import com.timekeeper.bibexpo.inventory.model.enums.TermKind;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
 /**
- * Access to term (vocabulary) rows, scoped by kind and organization.
+ * Access to term (vocabulary) rows. Every term belongs to exactly one organization, so both
+ * lookups are a prefix of {@code uk_inventory_term_kind_org_name}: the list seeks on kind and
+ * organization and takes its ordering from the index rather than sorting.
  */
 public interface InventoryTermRepository extends JpaRepository<InventoryTerm, Long> {
 
-    /** Platform defaults for a kind — {@code organizationId} is null. */
-    List<InventoryTerm> findByKindAndOrganizationIdIsNullOrderByName(TermKind kind);
-
-    /** One organization's own terms for a kind. */
+    /** One organization's terms for a kind, in name order. */
     List<InventoryTerm> findByKindAndOrganizationIdOrderByName(TermKind kind, Long organizationId);
 
-    /** Everything an organization can pick from for a kind: platform defaults plus its own terms. */
-    @Query("SELECT t FROM InventoryTerm t WHERE t.kind = :kind "
-            + "AND (t.organizationId = :organizationId OR t.organizationId IS NULL) "
-            + "ORDER BY t.name")
-    List<InventoryTerm> findVisible(@Param("kind") TermKind kind, @Param("organizationId") Long organizationId);
-
     boolean existsByKindAndOrganizationIdAndName(TermKind kind, Long organizationId, String name);
-
-    boolean existsByKindAndOrganizationIdIsNullAndName(TermKind kind, String name);
 }

@@ -12,11 +12,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "The attributes a caller can pick from, split by owner")
+@Schema(description = "The attributes this organization can pick from")
 public class InventoryAttributeListResponse {
-
-    @Schema(description = "Shared by every organization and editable only by the platform administrator")
-    private List<InventoryAttributeResponse> platformDefaults;
 
     @Schema(description = "This organization's own, which it may rename and delete")
     private List<InventoryAttributeResponse> organizationAttributes;

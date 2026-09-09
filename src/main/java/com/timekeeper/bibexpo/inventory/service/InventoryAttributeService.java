@@ -18,17 +18,14 @@ import com.timekeeper.bibexpo.user.model.entity.User;
  * Manages the reusable attributes that fill an item's variant-defining and informational
  * dimensions, and the allowed choice list for each {@code SELECT}-type one.
  *
- * <p>Every method takes {@code organizationId}: non-null scopes the call to one organization's own
- * attributes, null scopes it to the platform defaults every organization sees, editable only through
- * {@code /api/system/inventory/attributes} — {@code @PreAuthorize} on that path already restricts it
- * to {@code ROOT} before this service is reached, so no role check happens here for that case.
+ * <p>Every attribute belongs to exactly one organization. There is no shared list: an organizer
+ * defines Size, Colour and anything else their own products need, and owns every value on it —
+ * a Colour they cannot add Teal to would be no use to them.
  */
 public interface InventoryAttributeService {
 
     /**
-     * Every attribute a caller can pick from, kept in two groups: the platform defaults every
-     * organization shares, and the organization's own. Each group is sorted by name. The platform
-     * view fills only the defaults, since it owns no organization attributes.
+     * This organization's attributes, sorted by name.
      */
     InventoryAttributeListResponse listVisible(Long organizationId, User currentUser);
 

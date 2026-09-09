@@ -35,9 +35,8 @@ import java.time.Instant;
         // The list is always one organization's, newest first, so both indexes end on created_at:
         // the database walks them backwards and stops at the page size instead of sorting the
         // whole catalogue. The second one carries the category filter into the same walk.
-        // The last two answer "is this term still in use?" before a term is deleted. That question
-        // spans every organization, because a platform default is shared, so neither can ride on an
-        // index that leads with organization_id.
+        // The last two answer "is this term still in use?" before a term is deleted. That count is
+        // keyed by the term alone, so neither can ride on an index that leads with organization_id.
         indexes = {
                 @Index(name = "idx_inventory_item_org_created",
                         columnList = "organization_id, created_at"),

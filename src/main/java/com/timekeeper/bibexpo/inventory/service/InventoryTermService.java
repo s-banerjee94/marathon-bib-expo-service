@@ -13,17 +13,14 @@ import com.timekeeper.bibexpo.user.model.entity.User;
 /**
  * Manages the vocabulary that fills an item's category, a location's type, and an item's unit.
  *
- * <p>Every method takes {@code organizationId}: non-null scopes the call to one organization's own
- * terms, null scopes it to the platform defaults every organization sees, editable only through
- * {@code /api/system/inventory/terms} — {@code @PreAuthorize} on that path already restricts it to
- * {@code ROOT} before this service is reached, so no role check happens here for that case.
+ * <p>Every term belongs to exactly one organization. There is no shared vocabulary: an organizer
+ * names their own categories, units and location types, and can rename or delete any of them,
+ * because a word they cannot edit is worse than no word at all.
  */
 public interface InventoryTermService {
 
     /**
-     * Lists the terms of one kind a caller can pick from, kept in two groups: the platform
-     * defaults every organization shares, and the organization's own. Each group is sorted by
-     * name. The platform view fills only the defaults, since it owns no organization terms.
+     * This organization's terms of one kind, sorted by name.
      */
     InventoryTermListResponse listVisible(Long organizationId, TermKind kind, User currentUser);
 
@@ -42,9 +39,7 @@ public interface InventoryTermService {
     InventoryTermResponse createTerm(Long organizationId, TermKind kind, CreateInventoryTermRequest request, User currentUser);
 
     /**
-     * Renames a term. A platform default cannot be renamed through the organization-scoped path,
-     * and an organization's own term cannot be renamed through the platform path — both read as
-     * not found rather than forbidden.
+     * Renames a term. Another organization's term reads as not found rather than forbidden.
      *
      * @throws InventoryTermNotFoundException if no such term exists in this scope
      * @throws InventoryTermAlreadyExistsException if the new name collides with another term of the same kind in scope

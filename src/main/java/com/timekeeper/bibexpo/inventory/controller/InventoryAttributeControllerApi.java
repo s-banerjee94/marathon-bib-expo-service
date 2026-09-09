@@ -35,8 +35,9 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "List attributes",
             description = """
-                    Returns two lists: the platform defaults every organization shares, and this \
-                    organization's own attributes. Each list is sorted by name."""
+                    This organization's attributes, sorted by name. Every attribute belongs to one \
+                    organization: there is no shared list, so an organizer defines Size, Colour and \
+                    anything else exactly as their own products need them."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Attributes retrieved successfully",
@@ -55,7 +56,7 @@ public interface InventoryAttributeControllerApi {
 
     @Operation(
             summary = "Get one attribute",
-            description = "Returns one attribute with its allowed values, whether it is a platform default or this organization's own."
+            description = "Returns one of this organization's attributes with its allowed values."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Attribute retrieved successfully",

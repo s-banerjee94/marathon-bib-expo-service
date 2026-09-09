@@ -25,9 +25,8 @@ import java.io.Serializable;
 import java.time.Instant;
 
 /**
- * One organisation's (or the platform's) word for a category, location type or unit. Rows are
- * discriminated by {@code kind}; {@code organizationId} null is a platform default seeded at
- * startup and editable only by ROOT; a set value is one organization's own addition.
+ * One organization's word for a category, location type or unit. Rows are discriminated by
+ * {@code kind}, and every one belongs to an organization that may rename or delete it.
  */
 @Entity
 @Table(name = "inventory_terms",
@@ -50,8 +49,7 @@ public class InventoryTerm implements Serializable {
     @Column(nullable = false, length = 30)
     private TermKind kind;
 
-    // null = platform default (ROOT-managed); set = this organization's own term
-    @Column(name = "organization_id")
+    @Column(name = "organization_id", nullable = false)
     private Long organizationId;
 
     @Column(nullable = false, length = 100)

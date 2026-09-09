@@ -12,11 +12,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "The terms of one kind a caller can pick from, split by owner")
+@Schema(description = "The terms of one kind this organization can pick from")
 public class InventoryTermListResponse {
-
-    @Schema(description = "Shared by every organization and editable only by the platform administrator")
-    private List<InventoryTermResponse> platformDefaults;
 
     @Schema(description = "This organization's own, which it may rename and delete")
     private List<InventoryTermResponse> organizationTerms;

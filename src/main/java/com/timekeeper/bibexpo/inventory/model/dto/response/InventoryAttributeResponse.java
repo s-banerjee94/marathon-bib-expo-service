@@ -1,6 +1,5 @@
 package com.timekeeper.bibexpo.inventory.model.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryAttribute;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryAttributeOption;
 import com.timekeeper.bibexpo.inventory.model.enums.AttributeType;
@@ -23,7 +22,7 @@ public class InventoryAttributeResponse {
     @Schema(description = "Attribute ID", example = "1")
     private Long id;
 
-    @Schema(description = "Owning organization, null for a platform default", example = "1")
+    @Schema(description = "Owning organization", example = "1")
     private Long organizationId;
 
     @Schema(description = "Display name", example = "Size")
@@ -41,33 +40,21 @@ public class InventoryAttributeResponse {
     @Schema(description = "Allowed choices, populated for SELECT attributes")
     private List<InventoryAttributeOptionResponse> values;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @Schema(description = "When this attribute was added; absent on a platform default read through an organization")
+    @Schema(description = "When this attribute was added")
     private Instant createdAt;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @Schema(description = "Who added this attribute; absent on a platform default read through an organization", example = "organizer1")
+    @Schema(description = "Who added this attribute", example = "organizer1")
     private String createdBy;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @Schema(description = "When this attribute was last changed; absent on a platform default read through an organization")
+    @Schema(description = "When this attribute was last changed")
     private Instant updatedAt;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @Schema(description = "Who last changed this attribute; absent on a platform default read through an organization", example = "organizer1")
+    @Schema(description = "Who last changed this attribute", example = "organizer1")
     private String updatedBy;
 
     public static InventoryAttributeResponse fromEntity(InventoryAttribute attribute,
-                                                                    List<InventoryAttributeOption> values) {
-        return fromEntity(attribute, values, true);
-    }
-
-    // A platform default's audit trail is the platform administrator's, not the organization's, so
-    // an organization reading the shared attributes is shown them, and their choices, without it.
-    public static InventoryAttributeResponse fromEntity(InventoryAttribute attribute,
-                                                                    List<InventoryAttributeOption> values,
-                                                                    boolean withAudit) {
-        InventoryAttributeResponseBuilder response = InventoryAttributeResponse.builder()
+                                                        List<InventoryAttributeOption> values) {
+        return InventoryAttributeResponse.builder()
                 .id(attribute.getId())
                 .organizationId(attribute.getOrganizationId())
                 .name(attribute.getName())
@@ -75,14 +62,12 @@ public class InventoryAttributeResponse {
                 .variantAttribute(attribute.isVariantAttribute())
                 .required(attribute.isRequired())
                 .values(values.stream()
-                        .map(value -> InventoryAttributeOptionResponse.fromEntity(value, withAudit))
-                        .toList());
-        if (withAudit) {
-            response.createdAt(attribute.getCreatedAt())
-                    .createdBy(attribute.getCreatedBy())
-                    .updatedAt(attribute.getUpdatedAt())
-                    .updatedBy(attribute.getLastModifiedBy());
-        }
-        return response.build();
+                        .map(InventoryAttributeOptionResponse::fromEntity)
+                        .toList())
+                .createdAt(attribute.getCreatedAt())
+                .createdBy(attribute.getCreatedBy())
+                .updatedAt(attribute.getUpdatedAt())
+                .updatedBy(attribute.getLastModifiedBy())
+                .build();
     }
 }

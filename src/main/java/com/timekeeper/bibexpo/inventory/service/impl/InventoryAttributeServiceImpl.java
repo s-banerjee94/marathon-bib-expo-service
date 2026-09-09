@@ -32,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -50,19 +49,14 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     @Override
     @Transactional(readOnly = true)
     public InventoryAttributeListResponse listVisible(Long organizationId, User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-            return toScopedResponse(attributeRepository.findVisible(organizationId), false);
-        }
-        return toScopedResponse(attributeRepository.findByOrganizationIdIsNullOrderByName(), true);
+        accessGuard.requireOrgAccess(currentUser, organizationId);
+        return toListResponse(attributeRepository.findByOrganizationIdOrderByName(organizationId));
     }
 
     @Override
     @Transactional(readOnly = true)
     public InventoryAttributeResponse getAttribute(Long organizationId, Long attributeId, User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
         return toResponse(requireAttributeInScope(attributeId, organizationId));
     }
 
@@ -71,9 +65,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     public InventoryAttributeResponse createAttribute(Long organizationId,
                                                                    CreateInventoryAttributeRequest request,
                                                                    User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
 
         // Only a fixed choice list keeps variant keys deduplicated; free text would let "Red" and
         // "red" become two stock lines for one colour.
@@ -103,9 +95,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     public InventoryAttributeResponse updateAttribute(Long organizationId, Long attributeId,
                                                                    UpdateInventoryAttributeRequest request,
                                                                    User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
 
         if (request.getName() != null) {
@@ -127,9 +117,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     @Override
     @Transactional
     public void deleteAttribute(Long organizationId, Long attributeId, User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
 
         boolean inUse = itemAttributeValueRepository.countByAttributeId(attributeId) > 0
@@ -148,14 +136,10 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     public InventoryAttributeResponse addOption(Long organizationId, Long attributeId,
                                                            CreateInventoryAttributeOptionRequest request,
                                                            User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
         requireSelectType(attribute);
-        if (organizationId != null) {
-            enforceOptionLimit(organizationId, attribute);
-        }
+        enforceOptionLimit(organizationId, attribute);
 
         String value = request.getValue().trim();
         if (optionRepository.existsByAttributeIdAndValue(attributeId, value)) {
@@ -175,9 +159,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     public InventoryAttributeResponse updateOption(Long organizationId, Long attributeId, Long optionId,
                                                               UpdateInventoryAttributeOptionRequest request,
                                                               User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
         InventoryAttributeOption option = requireOptionOfAttribute(optionId, attributeId);
 
@@ -198,9 +180,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     @Transactional
     public InventoryAttributeResponse removeOption(Long organizationId, Long attributeId, Long optionId,
                                                               User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
         InventoryAttribute attribute = requireAttributeInScope(attributeId, organizationId);
         InventoryAttributeOption option = requireOptionOfAttribute(optionId, attributeId);
 
@@ -217,12 +197,12 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
 
     // ---- lookups ----------------------------------------------------------------
 
-    // An attribute outside the caller's scope reads as not found, so a platform default cannot be
-    // edited through the organization path, nor an organization's own attribute through the platform one.
+    // Another organization's attribute reads as not found rather than forbidden, so a caller
+    // learns nothing about attributes outside their own.
     private InventoryAttribute requireAttributeInScope(Long attributeId, Long organizationId) {
         InventoryAttribute attribute = attributeRepository.findById(attributeId)
                 .orElseThrow(InventoryAttributeNotFoundException::new);
-        if (!Objects.equals(attribute.getOrganizationId(), organizationId)) {
+        if (!organizationId.equals(attribute.getOrganizationId())) {
             throw new InventoryAttributeNotFoundException();
         }
         return attribute;
@@ -244,8 +224,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     }
 
     // Check-then-act, not an atomic reserve: the ceiling is on one attribute row rather than on
-    // the organization, so a double-click racing past it by one value costs nothing. Platform
-    // defaults belong to no organization and stay uncapped.
+    // the organization, so a double-click racing past it by one value costs nothing.
     private void enforceOptionLimit(Long organizationId, InventoryAttribute attribute) {
         if (attribute.getOptionCount()
                 >= organizationDirectory.inventoryLimits(organizationId).maxOptionsPerAttribute()) {
@@ -256,9 +235,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     }
 
     private boolean existsByName(Long organizationId, String name) {
-        return organizationId != null
-                ? attributeRepository.existsByOrganizationIdAndName(organizationId, name)
-                : attributeRepository.existsByOrganizationIdIsNullAndName(name);
+        return attributeRepository.existsByOrganizationIdAndName(organizationId, name);
     }
 
     private InventoryAttributeResponse toResponse(InventoryAttribute attribute) {
@@ -275,24 +252,15 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
         return InventoryAttributeResponse.fromEntity(attribute, options);
     }
 
-    // One options query for both groups: batch first, split the responses afterwards. A platform
-    // default's audit trail is shown only on the platform's own path; an organization browsing the
-    // shared attributes has no claim on who last changed one it does not own.
-    private InventoryAttributeListResponse toScopedResponse(List<InventoryAttribute> attributes,
-                                                            boolean showPlatformAudit) {
+    // One options query for the whole list: batch first, attach afterwards.
+    private InventoryAttributeListResponse toListResponse(List<InventoryAttribute> attributes) {
         Map<Long, List<InventoryAttributeOption>> optionsByAttribute = attributes.isEmpty() ? Map.of()
                 : optionRepository
                         .findByAttributeIdIn(attributes.stream().map(InventoryAttribute::getId).toList())
                         .stream()
                         .collect(Collectors.groupingBy(InventoryAttributeOption::getAttributeId));
         return InventoryAttributeListResponse.builder()
-                .platformDefaults(attributes.stream()
-                        .filter(a -> a.getOrganizationId() == null)
-                        .map(a -> InventoryAttributeResponse.fromEntity(a,
-                                optionsByAttribute.getOrDefault(a.getId(), List.of()), showPlatformAudit))
-                        .toList())
                 .organizationAttributes(attributes.stream()
-                        .filter(a -> a.getOrganizationId() != null)
                         .map(a -> InventoryAttributeResponse.fromEntity(a,
                                 optionsByAttribute.getOrDefault(a.getId(), List.of())))
                         .toList())

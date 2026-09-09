@@ -34,7 +34,6 @@ public class OpenApiConfig {
     private static final String SYSTEM_CAMPAIGN_PROVIDERS = "/api/system/campaign-providers/**";
     private static final String CAMPAIGN_PROVIDER_STYLE = "/api/events/{eventId}/campaign-provider-style/**";
     private static final String ORG_INVENTORY = "/api/organizations/{organizationId}/inventory/**";
-    private static final String SYSTEM_INVENTORY = "/api/system/inventory/**";
 
     // ---- Base document ----
 
@@ -168,7 +167,7 @@ public class OpenApiConfig {
 
     @Bean
     public GroupedOpenApi inventoryDoc() {
-        return group("18-inventory", "Inventory Management", ORG_INVENTORY, SYSTEM_INVENTORY);
+        return group("18-inventory", "Inventory Management", ORG_INVENTORY);
     }
 
     // ---- helpers ----

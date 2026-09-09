@@ -35,8 +35,9 @@ public interface InventoryTermControllerApi {
     @Operation(
             summary = "List terms of one kind",
             description = """
-                    Returns two lists of the given kind: the platform defaults every organization shares, \
-                    and this organization's own terms. Each list is sorted by name."""
+                    This organization's terms of the given kind, sorted by name. Every term belongs to \
+                    one organization: there is no shared vocabulary, so an organizer names their own \
+                    categories, units and location types exactly as they want them."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Terms retrieved successfully",
@@ -57,7 +58,7 @@ public interface InventoryTermControllerApi {
 
     @Operation(
             summary = "Get one term",
-            description = "Returns one term, whether it is a platform default or this organization's own."
+            description = "Returns one of this organization's terms."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Term retrieved successfully",
@@ -102,8 +103,7 @@ public interface InventoryTermControllerApi {
     @Operation(
             summary = "Rename a term",
             description = """
-                    Renames one of this organization's own terms. Platform defaults are shared and \
-                    cannot be renamed here."""
+                    Renames one of this organization's terms."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Term renamed successfully",

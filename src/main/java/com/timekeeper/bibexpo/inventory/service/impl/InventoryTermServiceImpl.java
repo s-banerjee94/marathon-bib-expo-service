@@ -23,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -39,19 +38,19 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     @Override
     @Transactional(readOnly = true)
     public InventoryTermListResponse listVisible(Long organizationId, TermKind kind, User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-            return toScopedResponse(termRepository.findVisible(kind, organizationId), false);
-        }
-        return toScopedResponse(termRepository.findByKindAndOrganizationIdIsNullOrderByName(kind), true);
+        accessGuard.requireOrgAccess(currentUser, organizationId);
+        return InventoryTermListResponse.builder()
+                .organizationTerms(termRepository.findByKindAndOrganizationIdOrderByName(kind, organizationId)
+                        .stream()
+                        .map(InventoryTermResponse::fromEntity)
+                        .toList())
+                .build();
     }
 
     @Override
     @Transactional(readOnly = true)
     public InventoryTermResponse getTerm(Long organizationId, Long termId, User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
         return InventoryTermResponse.fromEntity(requireTermInScope(termId, organizationId));
     }
 
@@ -59,10 +58,8 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     @Transactional
     public InventoryTermResponse createTerm(Long organizationId, TermKind kind,
                                              CreateInventoryTermRequest request, User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-            reserveTermSlot(organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
+        reserveTermSlot(organizationId);
 
         String name = request.getName().trim();
         if (existsByName(kind, organizationId, name)) {
@@ -83,9 +80,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     @Transactional
     public InventoryTermResponse updateTerm(Long organizationId, Long termId,
                                              UpdateInventoryTermRequest request, User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
         InventoryTerm term = requireTermInScope(termId, organizationId);
 
         String name = request.getName().trim();
@@ -102,9 +97,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
     @Override
     @Transactional
     public void deleteTerm(Long organizationId, Long termId, User currentUser) {
-        if (organizationId != null) {
-            accessGuard.requireOrgAccess(currentUser, organizationId);
-        }
+        accessGuard.requireOrgAccess(currentUser, organizationId);
         InventoryTerm term = requireTermInScope(termId, organizationId);
 
         boolean inUse = itemRepository.countByCategoryId(termId) > 0
@@ -115,44 +108,25 @@ public class InventoryTermServiceImpl implements InventoryTermService {
         }
 
         termRepository.delete(term);
-        if (organizationId != null) {
-            inventoryQuota.releaseTerm(organizationId);
-        }
+        inventoryQuota.releaseTerm(organizationId);
         log.info("Deleted inventory term {} for organization {}", termId, organizationId);
     }
 
     // ---- lookups ----------------------------------------------------------------
 
-    // A term outside the caller's scope reads as not found, so a platform default cannot be
-    // renamed through the organization path, nor an organization's term through the platform one.
+    // Another organization's term reads as not found rather than forbidden, so a caller learns
+    // nothing about vocabulary outside their own.
     private InventoryTerm requireTermInScope(Long termId, Long organizationId) {
         InventoryTerm term = termRepository.findById(termId)
                 .orElseThrow(InventoryTermNotFoundException::new);
-        if (!Objects.equals(term.getOrganizationId(), organizationId)) {
+        if (!organizationId.equals(term.getOrganizationId())) {
             throw new InventoryTermNotFoundException();
         }
         return term;
     }
 
     private boolean existsByName(TermKind kind, Long organizationId, String name) {
-        return organizationId != null
-                ? termRepository.existsByKindAndOrganizationIdAndName(kind, organizationId, name)
-                : termRepository.existsByKindAndOrganizationIdIsNullAndName(kind, name);
-    }
-
-    // A platform default's audit trail is shown only on the platform's own path; an organization
-    // browsing the shared vocabulary has no claim on who last renamed a term it does not own.
-    private InventoryTermListResponse toScopedResponse(List<InventoryTerm> terms, boolean showPlatformAudit) {
-        return InventoryTermListResponse.builder()
-                .platformDefaults(terms.stream()
-                        .filter(t -> t.getOrganizationId() == null)
-                        .map(t -> InventoryTermResponse.fromEntity(t, showPlatformAudit))
-                        .toList())
-                .organizationTerms(terms.stream()
-                        .filter(t -> t.getOrganizationId() != null)
-                        .map(InventoryTermResponse::fromEntity)
-                        .toList())
-                .build();
+        return termRepository.existsByKindAndOrganizationIdAndName(kind, organizationId, name);
     }
 
     // ---- access ----------------------------------------------------------------

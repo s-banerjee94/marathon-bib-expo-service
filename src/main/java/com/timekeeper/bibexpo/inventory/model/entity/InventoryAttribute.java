@@ -27,8 +27,8 @@ import java.time.Instant;
 /**
  * A reusable, named dimension an item can vary by, or simply carry &mdash; &ldquo;Size&rdquo;,
  * &ldquo;Colour&rdquo;, &ldquo;Recyclable&rdquo;. Defined once and reused across every item that needs
- * it, the same way {@link InventoryTerm} works: {@code organizationId} null is a platform default
- * editable only by ROOT, set is one organization's own addition.
+ * it, the same way {@link InventoryTerm} works: every attribute belongs to one organization,
+ * which owns its choices outright.
  *
  * <p>{@code variantAttribute} decides where a value ends up: {@code true} means choosing a value splits
  * stock into a separate {@link InventoryVariant}, so its values live in
@@ -52,8 +52,7 @@ public class InventoryAttribute implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // null = platform default (ROOT-managed); set = this organization's own attribute
-    @Column(name = "organization_id")
+    @Column(name = "organization_id", nullable = false)
     private Long organizationId;
 
     @Column(nullable = false, length = 100)
