@@ -11,6 +11,7 @@ import com.timekeeper.bibexpo.inventory.exception.InventoryItemInUseException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemLinkedToGoodieException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryVariantAliasedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantInUseException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantLimitReachedException;
@@ -36,6 +37,7 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryAttributeRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryAttributeOptionRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryGoodieMappingRepository;
+import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAliasRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryStockRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
@@ -80,6 +82,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
     private final InventoryItemRepository itemRepository;
     private final InventoryGoodieMappingRepository goodieMappingRepository;
+    private final InventoryVariantAliasRepository variantAliasRepository;
     private final InventoryVariantRepository variantRepository;
     private final InventoryStockRepository stockRepository;
     private final InventoryTermRepository termRepository;
@@ -186,6 +189,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         });
         variantRepository.deleteAll(variants);
         itemAttributeValueRepository.deleteAll(itemAttributeValueRepository.findByItemId(itemId));
+        variantAliasRepository.deleteByItemId(itemId);
 
         AuditContextHolder.setEntityId(String.valueOf(itemId));
         AuditContextHolder.setEntityLabel(item.getName());
@@ -238,6 +242,9 @@ public class InventoryItemServiceImpl implements InventoryItemService {
             throw new InvalidUserDataException("An item must keep at least one variant. Delete the item instead.");
         }
         requireNoStock(List.of(variant), InventoryVariantInUseException::new);
+        if (variantAliasRepository.existsByVariantId(variantId)) {
+            throw new InventoryVariantAliasedException();
+        }
 
         stockRepository.deleteAll(stockRepository.findByVariantId(variantId));
         variantAttributeValueRepository.deleteAll(variantAttributeValueRepository.findByVariantId(variantId));

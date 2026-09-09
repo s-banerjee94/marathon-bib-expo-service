@@ -215,7 +215,8 @@ public interface InventoryItemControllerApi {
             summary = "Remove a variant",
             description = """
                     Removes one variant from an item. An item must always keep at least one, and a \
-                    variant that still has stock on hand cannot be removed."""
+                    variant cannot be removed while it still has stock on hand, or while the item \
+                    still reads a roster spelling as it."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Variant removed successfully",
@@ -226,7 +227,7 @@ public interface InventoryItemControllerApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization, item, or variant not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "The variant still has stock on hand",
+            @ApiResponse(responseCode = "409", description = "The variant still has stock on hand, or the item still reads a spelling as it",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @DeleteMapping("/{itemId}/variants/{variantId}")

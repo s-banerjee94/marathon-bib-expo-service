@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.inventory.exception.InventoryItemLinkedToGoodieExc
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantAlreadyExistsException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryVariantAliasedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantInUseException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantNotFoundException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryItemRequest;
@@ -73,6 +74,7 @@ public interface InventoryItemService {
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
      * @throws InventoryItemInUseException if any variant still has stock on hand
      * @throws InventoryItemLinkedToGoodieException if an event goody is handed out from this item
+     * <p>The item's spellings go with it, since a spelling says nothing once its item is gone.
      */
     void deleteItem(Long organizationId, Long itemId, User currentUser);
 
@@ -89,6 +91,7 @@ public interface InventoryItemService {
      *
      * @throws InventoryVariantNotFoundException if the variant does not belong to this item
      * @throws InventoryVariantInUseException if the variant still has stock on hand
+     * @throws InventoryVariantAliasedException if the item still reads a roster spelling as this variant
      */
     InventoryItemResponse removeVariant(Long organizationId, Long itemId, Long variantId, User currentUser);
 
