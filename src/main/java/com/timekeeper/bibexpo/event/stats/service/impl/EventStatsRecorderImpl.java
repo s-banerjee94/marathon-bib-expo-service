@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.GENDER_F;
@@ -26,6 +28,7 @@ import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.KE
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.KEY_TOTAL;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_CATEGORY;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_DIST;
+import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_ENTITLED_OVERFLOW;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_GOODIE;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_HOUR;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_RACE;
@@ -36,6 +39,12 @@ import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.SU
 @RequiredArgsConstructor
 @Slf4j
 public class EventStatsRecorderImpl implements EventStatsRecorder {
+
+    // A goody has a handful of spellings. A column with more than this many distinct values is
+    // not a goody at all -- someone marked the wrong column on the import screen -- so its value
+    // rows are dropped for one marker row rather than let a roster's worth of them into a table
+    // every dashboard read pulls whole.
+    private static final int MAX_VALUES_PER_GOODIE = 200;
 
     private final EventStatsDDBRepository statsRepo;
 
@@ -176,10 +185,12 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
         for (String name : p.goodiesCollected()) {
             d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, sign);
         }
+        p.goodiesEntitled().forEach((name, value) ->
+                d.simple(EventStatsDDB.entitledKey(name, value), sign));
     }
 
     private static List<EventStatsDDB> toRows(String eventIdStr, DeltaBuilder accumulator) {
-        Map<String, CounterDelta> built = accumulator.build();
+        Map<String, CounterDelta> built = capEntitlementValues(accumulator.build());
         String now = Instant.now().toString();
         List<EventStatsDDB> rows = new ArrayList<>(built.size());
         built.forEach((k, v) -> rows.add(EventStatsDDB.builder()
@@ -189,6 +200,35 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
                 .updatedAt(now)
                 .build()));
         return rows;
+    }
+
+    /**
+     * Replaces the entitlement rows of any goody with more distinct values than a goody plausibly
+     * has by a single {@code ENTITLEDMANY#} row carrying how many were seen. Only the rebuild runs
+     * this: it is the one path that sees a whole roster at once, and so the only one where a
+     * mis-marked column can arrive as thousands of rows.
+     */
+    private static Map<String, CounterDelta> capEntitlementValues(Map<String, CounterDelta> built) {
+        Map<String, Integer> valuesPerGoodie = new HashMap<>();
+        built.keySet().forEach(key -> {
+            String goodie = EventStatsDDB.entitledGoodieSegment(key);
+            if (goodie != null) valuesPerGoodie.merge(goodie, 1, Integer::sum);
+        });
+        Set<String> overflowing = valuesPerGoodie.entrySet().stream()
+                .filter(e -> e.getValue() > MAX_VALUES_PER_GOODIE)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        if (overflowing.isEmpty()) return built;
+
+        Map<String, CounterDelta> kept = new HashMap<>(built);
+        kept.keySet().removeIf(key -> overflowing.contains(EventStatsDDB.entitledGoodieSegment(key)));
+        overflowing.forEach(goodie -> {
+            kept.put(PREFIX_ENTITLED_OVERFLOW + goodie, new CounterDelta(valuesPerGoodie.get(goodie)));
+            log.warn("Goody column '{}' has {} distinct values and was not counted by value; "
+                    + "the wrong column was most likely marked as goodies",
+                    EventStatsDDB.decodeSegment(goodie), valuesPerGoodie.get(goodie));
+        });
+        return kept;
     }
 
     /**

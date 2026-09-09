@@ -40,6 +40,11 @@ public class EventDashboardResponse {
     @Schema(description = "Range-scoped collection activity")
     private EventActivityResponse activity;
 
+    @Schema(description = "What the imported roster was promised, per goodies column and per "
+            + "distinct spelling of its value. Empty for an event imported before these counters "
+            + "existed, until its statistics are reconciled")
+    private List<GoodieDemandStat> goodies;
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -98,6 +103,30 @@ public class EventDashboardResponse {
 
         @Schema(description = "Other/unspecified participants", example = "130")
         private long other;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "One goodies column, one spelling of its value, and how many "
+            + "participants were promised it")
+    public static class GoodieDemandStat {
+        @Schema(description = "The goodies column heading, as the import stored it", example = "T-Shirt")
+        private String goodieName;
+
+        @Schema(description = "The cell value, exactly as imported; empty when the column held too "
+                + "many distinct values to count one by one", example = "M")
+        private String value;
+
+        @Schema(description = "Participants promised that value, or, when countedByValue is false, "
+                + "how many distinct values the column held", example = "340")
+        private long participants;
+
+        @Schema(description = "False when the column has too many distinct values to be a goody at "
+                + "all, which means the wrong column was marked as goodies on the import screen",
+                example = "true")
+        private boolean countedByValue;
     }
 
     @Data

@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.event.api;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -17,6 +18,8 @@ import java.util.Set;
  * @param bibCollectedAt   ISO-8601 instant the bib was collected, or null when it was not
  * @param bibDistributorId id of the staff member who handed the bib over, or null
  * @param goodiesCollected names of the goodies this participant has taken delivery of
+ * @param goodiesEntitled  what the roster promised this participant, goody name to the cell value
+ *                         it was imported with; never edited after the participant is created
  */
 public record ParticipantCounters(
         String eventId,
@@ -25,10 +28,12 @@ public record ParticipantCounters(
         String gender,
         String bibCollectedAt,
         String bibDistributorId,
-        Set<String> goodiesCollected) {
+        Set<String> goodiesCollected,
+        Map<String, String> goodiesEntitled) {
 
     public ParticipantCounters {
         goodiesCollected = goodiesCollected == null ? Set.of() : Set.copyOf(goodiesCollected);
+        goodiesEntitled = goodiesEntitled == null ? Map.of() : Map.copyOf(goodiesEntitled);
     }
 
     public boolean bibCollected() {

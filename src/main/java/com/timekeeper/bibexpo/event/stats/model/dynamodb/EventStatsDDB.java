@@ -9,6 +9,10 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
 
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -42,4 +46,50 @@ public class EventStatsDDB {
     public static final String GENDER_M = PREFIX_GENDER + "M";
     public static final String GENDER_F = PREFIX_GENDER + "F";
     public static final String GENDER_O = PREFIX_GENDER + "O";
+
+    // What an imported roster asked for, as opposed to PREFIX_GOODIE which counts what was handed
+    // over: ENTITLED#<goody>#<value> holds how many participants are owed that exact cell value.
+    // Both segments are percent-encoded, because a goody name and a cell value are free text and
+    // either may contain the separator.
+    public static final String PREFIX_ENTITLED = "ENTITLED#";
+
+    // Written in place of the value rows when a column holds more distinct values than a goody
+    // plausibly has, which means the wrong column was marked as goodies. Its count is how many
+    // distinct values were seen.
+    public static final String PREFIX_ENTITLED_OVERFLOW = "ENTITLEDMANY#";
+
+    /**
+     * The counter key for one goody spelled one particular way.
+     */
+    public static String entitledKey(String goodieName, String value) {
+        return PREFIX_ENTITLED + encodeSegment(goodieName) + "#" + encodeSegment(value);
+    }
+
+    /**
+     * The goody name and value behind an entitlement key, or {@code null} if the key is not one.
+     */
+    public static String[] entitledParts(String statKey) {
+        String encodedGoodie = entitledGoodieSegment(statKey);
+        if (encodedGoodie == null) return null;
+        String rest = statKey.substring(PREFIX_ENTITLED.length() + encodedGoodie.length() + 1);
+        return new String[]{decodeSegment(encodedGoodie), decodeSegment(rest)};
+    }
+
+    /**
+     * The still-encoded goody-name segment of an entitlement key, for grouping every value of one
+     * goody without decoding either half. Null when the key is not an entitlement key.
+     */
+    public static String entitledGoodieSegment(String statKey) {
+        if (statKey == null || !statKey.startsWith(PREFIX_ENTITLED)) return null;
+        int sep = statKey.indexOf('#', PREFIX_ENTITLED.length());
+        return sep < 0 ? null : statKey.substring(PREFIX_ENTITLED.length(), sep);
+    }
+
+    public static String encodeSegment(String raw) {
+        return URLEncoder.encode(raw == null ? "" : raw, StandardCharsets.UTF_8);
+    }
+
+    public static String decodeSegment(String encoded) {
+        return URLDecoder.decode(encoded, StandardCharsets.UTF_8);
+    }
 }

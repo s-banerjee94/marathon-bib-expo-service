@@ -71,6 +71,7 @@ public class EventDashboardService {
                 .gender(buildGender(stats))
                 .races(buildRaces(stats))
                 .categories(buildCategories(stats, names))
+                .goodies(buildGoodies(stats))
                 .activity(eventActivityService.computeActivity(event, range))
                 .build();
     }
@@ -97,6 +98,34 @@ public class EventDashboardService {
                 .dayCount(dayCount)
                 .currentDayIndex(currentDayIndex)
                 .build();
+    }
+
+    /**
+     * Recounts the event's counters from its roster, then loads the rollup those counters feed.
+     * Access and event existence are enforced by the reconcile itself.
+     *
+     * @param eventId     the event
+     * @param range       the activity window for the returned rollup
+     * @param currentUser the authenticated caller
+     * @return the rollup, read back after the recount
+     */
+    public EventDashboardResponse reconcileDashboard(Long eventId, EventActivityRange range,
+                                                     User currentUser) {
+        participantStatisticsService.reconcile(eventId, currentUser);
+        return loadDashboard(eventId, range, currentUser);
+    }
+
+    private static List<EventDashboardResponse.GoodieDemandStat> buildGoodies(
+            ParticipantStatisticsResponse stats) {
+        if (stats.getGoodiesBreakdown() == null) return List.of();
+        return stats.getGoodiesBreakdown().stream()
+                .map(g -> EventDashboardResponse.GoodieDemandStat.builder()
+                        .goodieName(g.getGoodieName())
+                        .value(g.getValue())
+                        .participants(g.getParticipants() == null ? 0L : g.getParticipants())
+                        .countedByValue(Boolean.TRUE.equals(g.getCountedByValue()))
+                        .build())
+                .toList();
     }
 
     private static ParticipantTotals buildParticipants(ParticipantStatisticsResponse stats) {

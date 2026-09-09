@@ -21,6 +21,7 @@ public final class ParticipantCountersMapper {
 
     public static ParticipantCounters of(ParticipantDDB participant) {
         Map<String, String> goodies = participant.getGoodiesDistribution();
+        Map<String, String> entitled = participant.getGoodies();
         return new ParticipantCounters(
                 participant.getEventId(),
                 participant.getRaceId(),
@@ -28,7 +29,8 @@ public final class ParticipantCountersMapper {
                 participant.getGender(),
                 participant.getBibCollectedAt(),
                 DistributorStamp.userIdOf(participant.getBibDistributedBy()),
-                goodies == null ? Set.of() : goodies.keySet());
+                goodies == null ? Set.of() : goodies.keySet(),
+                entitled);
     }
 
     public static List<ParticipantCounters> of(List<ParticipantDDB> participants) {

@@ -134,7 +134,10 @@ public class OpenApiConfig {
 
     @Bean
     public GroupedOpenApi dashboardDoc() {
-        return group("12-dashboard", "Dashboard", "/api/dashboard/**", "/api/events/*/dashboard");
+        // The second pattern only matches the rollup itself; its sub-paths, such as the recount,
+        // need the third or they land in the event group alone.
+        return group("12-dashboard", "Dashboard", "/api/dashboard/**",
+                "/api/events/*/dashboard", "/api/events/*/dashboard/**");
     }
 
     @Bean

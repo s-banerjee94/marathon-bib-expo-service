@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.participant.service.impl;
 
 import com.timekeeper.bibexpo.event.api.EventStatsQuery;
+import com.timekeeper.bibexpo.event.api.GoodieEntitlement;
 import com.timekeeper.bibexpo.event.api.EventStatsRebuild;
 import com.timekeeper.bibexpo.event.api.EventStatsRecorder;
 import com.timekeeper.bibexpo.event.api.ParticipantCounters;
@@ -23,9 +24,11 @@ import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -113,12 +116,33 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
                 .pendingCount(Math.max(0, total - bibCollected))
                 .raceBreakdown(new ArrayList<>(raceMap.values()))
                 .categoryBreakdown(new ArrayList<>(categoryMap.values()))
+                .goodiesBreakdown(goodiesBreakdown(rows))
                 .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
                         .male(male)
                         .female(female)
                         .other(other)
                         .build())
                 .build();
+    }
+
+    /**
+     * Reads the entitlement counters out of the rows already fetched, so the roster's demand costs
+     * this call nothing beyond the query it was going to make anyway.
+     */
+    private static List<ParticipantStatisticsResponse.GoodieDemand> goodiesBreakdown(
+            List<EventStatsDDB> rows) {
+        return rows.stream()
+                .map(GoodieEntitlement::from)
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(GoodieEntitlement::goodieName)
+                        .thenComparing(GoodieEntitlement::value))
+                .map(e -> ParticipantStatisticsResponse.GoodieDemand.builder()
+                        .goodieName(e.goodieName())
+                        .value(e.value())
+                        .participants(e.participants())
+                        .countedByValue(e.countedByValue())
+                        .build())
+                .toList();
     }
 
     private void applyDimensionRow(
@@ -223,6 +247,7 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
                 .pendingCount(0)
                 .raceBreakdown(new ArrayList<>())
                 .categoryBreakdown(new ArrayList<>())
+                .goodiesBreakdown(List.of())
                 .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
                         .male(0).female(0).other(0).build())
                 .build();

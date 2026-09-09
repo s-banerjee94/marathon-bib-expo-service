@@ -29,4 +29,17 @@ public interface EventStatsQuery {
      * @return the rows, empty when the event has never had a counter written
      */
     List<EventStatsDDB> counters(Long eventId);
+
+    /**
+     * What the event's roster was promised, one row per goody per distinct spelling.
+     *
+     * <p>Decoded here rather than left as raw rows, so a caller outside this module never has to
+     * learn how an entitlement key is spelled. Reads the same single query as {@link #counters},
+     * needs no index, and is empty for an event imported before these counters existed until its
+     * statistics are reconciled.
+     *
+     * @param eventId the event to read
+     * @return the entitlements, in goody then value order
+     */
+    List<GoodieEntitlement> entitlements(Long eventId);
 }

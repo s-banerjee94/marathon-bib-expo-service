@@ -17,6 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -72,6 +73,34 @@ public interface EventDashboardControllerApi {
             @PathVariable Long eventId,
 
             @Parameter(description = "Activity window", example = "TODAY")
+            @RequestParam(name = "range", defaultValue = "TODAY") EventActivityRange range,
+
+            @AuthenticationPrincipal User currentUser
+    );
+
+    @Operation(summary = "Recount this event's dashboard from the roster",
+            description = """
+                    Walks every participant of the event and rewrites its counters, then returns \n                    the refreshed rollup.
+
+                    The counters are normally kept in step as participants are created and \n                    deleted, and are recounted automatically at the end of an import, so this is \n                    for the two cases that leaves: an event whose roster predates a counter, and \n                    a suspicion that a number has drifted. It reads the whole roster, so it is a \n                    deliberate action rather than something to call on a timer.""")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Counters rewritten and the rollup returned",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = EventDashboardResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - user not authorized for this event",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/{eventId}/dashboard/reconcile")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
+    ResponseEntity<EventDashboardResponse> reconcileEventDashboard(
+            @Parameter(description = "Event ID", required = true, example = "1")
+            @PathVariable Long eventId,
+
+            @Parameter(description = "Activity window for the returned rollup", example = "TODAY")
             @RequestParam(name = "range", defaultValue = "TODAY") EventActivityRange range,
 
             @AuthenticationPrincipal User currentUser
