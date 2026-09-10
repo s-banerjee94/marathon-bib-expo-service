@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.participant.service;
 
+import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantStatisticsResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 
@@ -26,4 +27,11 @@ public interface ParticipantStatisticsService {
      * @param currentUser The authenticated user
      */
     void reconcile(Long eventId, User currentUser);
+
+    /**
+     * Rebuild the counters from the participant rows, for a caller that has already authorised the
+     * change that made them stale, such as removing an imported goody from every row that carries it.
+     * @param event The event whose counters to rebuild
+     */
+    void rebuild(Event event);
 }

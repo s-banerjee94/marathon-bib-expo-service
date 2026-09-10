@@ -85,7 +85,4 @@ public class CreateEventRequest {
     @Schema(description = "Organization ID that owns this event", example = "1")
     private Long organizationId;
 
-    @Schema(description = "Event goodies as JSON string", example = "{\"tshirt\": true, \"medal\": true, \"certificate\": true}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private String eventGoodies;
-
 }

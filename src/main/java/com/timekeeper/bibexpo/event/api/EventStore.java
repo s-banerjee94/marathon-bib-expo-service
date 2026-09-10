@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.event.api;
 
 import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.EventGoodie;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -53,11 +55,11 @@ public interface EventStore {
     void markDistributionStarted(Long eventId);
 
     /**
-     * Replaces the event's configured goodies list, for the importer, which learns the goodies
-     * columns only once the CSV has been read.
+     * Replaces the event's goodies list. What may be added, and what removing an imported goody
+     * has to undo, is decided by the caller; this is only where the list is kept.
      *
-     * @param eventId     the event to update
-     * @param goodiesJson the goodies list as the JSON array the event stores
+     * @param eventId the event to update
+     * @param goodies the whole list, in display order
      */
-    void updateGoodies(Long eventId, String goodiesJson);
+    void saveGoodies(Long eventId, List<EventGoodie> goodies);
 }

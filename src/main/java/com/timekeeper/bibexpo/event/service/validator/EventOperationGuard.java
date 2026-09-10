@@ -58,6 +58,8 @@ public class EventOperationGuard {
                         "Categories cannot be modified after the event has been published.");
                 case FULL_IMPORT -> throw new EventOperationNotAllowedException(
                         "A full import is only allowed while the event is in draft.");
+                case GOODIE_PURGE -> throw new EventOperationNotAllowedException(
+                        "You can only remove an imported goody while the event is in draft.");
                 default -> { /* allowed */ }
             }
         }

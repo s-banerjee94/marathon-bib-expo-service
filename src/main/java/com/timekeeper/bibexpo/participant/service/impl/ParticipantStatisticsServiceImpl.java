@@ -64,14 +64,17 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
     @Override
     public void reconcile(Long eventId, User currentUser) {
         log.info("Reconciling event stats for event ID: {} by user: {}", eventId, currentUser.getUsername());
+        rebuild(accessGuard.forRead(eventId, currentUser));
+    }
 
-        Event event = accessGuard.forRead(eventId, currentUser);
+    @Override
+    public void rebuild(Event event) {
         ZoneId zone = EventTimeUtil.zoneOf(event.getTimezone());
 
-        EventStatsRebuild result = eventStatsRecorder.rebuild(eventId, zone, roster(eventId));
+        EventStatsRebuild result = eventStatsRecorder.rebuild(event.getId(), zone, roster(event.getId()));
 
         log.info("Reconciled event {}: total={} bibCollected={} statRows={}",
-                eventId, result.participants(), result.bibCollected(), result.counterRows());
+                event.getId(), result.participants(), result.bibCollected(), result.counterRows());
     }
 
     private Stream<ParticipantCounters> roster(Long eventId) {
