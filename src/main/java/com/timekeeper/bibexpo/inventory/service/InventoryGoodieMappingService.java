@@ -1,9 +1,11 @@
 package com.timekeeper.bibexpo.inventory.service;
 
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingAlreadyExistsException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingLocationRequiredException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotMappableException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieMappingResponse;
@@ -19,6 +21,11 @@ import java.util.List;
  * out of. Nothing here changes how a file is imported, and an event whose file carried no goodies
  * columns simply has nothing to link.
  *
+ * <p>A link also carries the location the goody is handed out from, which is the stock a handover
+ * will deduct. It may be left open while the event is a draft, because the item is known as soon as
+ * the roster is imported while the counter is often chosen days before the expo, but an event
+ * cannot be published while any of its links is still missing one.</p>
+ *
  * <p>A link resolves to one variant on its own: an item that varies by nothing has a single
  * variant, and an item that varies by one attribute lets the participant's own cell value pick it.
  * Anything varying by more than one attribute is refused, since a single cell cannot say which
@@ -33,24 +40,30 @@ public interface InventoryGoodieMappingService {
     List<InventoryGoodieMappingResponse> listMappings(Long organizationId, Long eventId, User currentUser);
 
     /**
-     * Links one goodies column to the item it is handed out from. The name must match the column
-     * heading the import stored, character for character, because that is the key a participant's
-     * entitlement is held under.
+     * Links one goodies column to the item it is handed out from, and optionally to the location
+     * it leaves. The name must match the column heading the import stored, character for character,
+     * because that is the key a participant's entitlement is held under.
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
      * @throws InventoryItemNotMappableException if the item varies by more than one attribute
      * @throws InventoryGoodieMappingAlreadyExistsException if this goody is already linked for this event
+     * @throws InventoryLocationNotFoundException if the location does not belong to this organization
+     * @throws InventoryGoodieMappingLocationRequiredException if no location was given and the event
+     *         is already published
      */
     InventoryGoodieMappingResponse createMapping(Long organizationId, Long eventId,
                                                  CreateInventoryGoodieMappingRequest request, User currentUser);
 
     /**
-     * Points an existing link at a different item. The goody name is the link's identity and is
-     * never changed — remove the link and add it again to correct a heading.
+     * Points an existing link at a different item or location. The goody name is the link's
+     * identity and is never changed — remove the link and add it again to correct a heading.
      *
      * @throws InventoryGoodieMappingNotFoundException if the link does not belong to this event
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
      * @throws InventoryItemNotMappableException if the item varies by more than one attribute
+     * @throws InventoryLocationNotFoundException if the location does not belong to this organization
+     * @throws InventoryGoodieMappingLocationRequiredException if the location was cleared and the
+     *         event is already published
      */
     InventoryGoodieMappingResponse updateMapping(Long organizationId, Long eventId, Long mappingId,
                                                  UpdateInventoryGoodieMappingRequest request, User currentUser);

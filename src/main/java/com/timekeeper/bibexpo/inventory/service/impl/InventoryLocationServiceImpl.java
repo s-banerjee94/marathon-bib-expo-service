@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.inventory.service.impl;
 
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryLocationLinkedToGoodieException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
@@ -11,6 +12,7 @@ import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryLocationResp
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryLocation;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryTerm;
 import com.timekeeper.bibexpo.inventory.model.enums.TermKind;
+import com.timekeeper.bibexpo.inventory.repository.InventoryGoodieMappingRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryLocationRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryMovementRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
@@ -31,6 +33,7 @@ import java.util.List;
 public class InventoryLocationServiceImpl implements InventoryLocationService {
 
     private final InventoryLocationRepository locationRepository;
+    private final InventoryGoodieMappingRepository goodieMappingRepository;
     private final InventoryMovementRepository movementRepository;
     private final InventoryTermRepository termRepository;
     private final InventoryAccessGuard accessGuard;
@@ -106,6 +109,9 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
         // A balance row only ever appears alongside a ledger line, so this one question covers both.
         if (movementRepository.existsForLocation(organizationId, locationId)) {
             throw new InventoryLocationInUseException();
+        }
+        if (goodieMappingRepository.existsByLocationId(locationId)) {
+            throw new InventoryLocationLinkedToGoodieException();
         }
 
         locationRepository.delete(location);

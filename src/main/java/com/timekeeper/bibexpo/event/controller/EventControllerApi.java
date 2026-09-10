@@ -312,7 +312,11 @@ public interface EventControllerApi {
                     PUBLISHED to DRAFT (only before distribution and before the start date), COMPLETED, or CANCELLED. \
                     Once distribution has started or the start date has passed, the event can no longer return to DRAFT. \
                     A COMPLETED or CANCELLED event is final and can only be reopened to PUBLISHED by ROOT or ADMIN. \
-                    DISTRIBUTOR cannot change event status; ORGANIZER_ADMIN and ORGANIZER_USER are limited to events in their own organization."""
+                    DISTRIBUTOR cannot change event status; ORGANIZER_ADMIN and ORGANIZER_USER are limited to events in their own organization.
+
+                    Publishing also asks the features the organization uses whether the event is ready. \
+                    An event whose goodies are linked to inventory cannot be published until each of \
+                    those links names the location it is handed out from."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -325,7 +329,7 @@ public interface EventControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid status value, or the requested status change is not allowed",
+                    description = "Invalid status value, the requested status change is not allowed, or the event is not ready to publish",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)

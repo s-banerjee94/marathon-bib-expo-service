@@ -120,7 +120,9 @@ public interface InventoryLocationControllerApi {
             description = """
                     Removes a location no stock has ever moved through — a typo, or a place that \
                     turned out not to be needed. Once a location appears on the ledger it is kept \
-                    for good, since the history names it; rename it instead."""
+                    for good, since the history names it; rename it instead. A location an event's \
+                    goodies are handed out from is kept too, until those goodies are pointed \
+                    somewhere else."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Location deleted successfully"),
@@ -128,7 +130,7 @@ public interface InventoryLocationControllerApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization or location not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Stock has already moved through this location",
+            @ApiResponse(responseCode = "409", description = "Stock has already moved through this location, or an event's goodies are handed out from it",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @DeleteMapping("/{locationId}")

@@ -24,6 +24,14 @@ public interface InventoryGoodieMappingRepository extends JpaRepository<Inventor
 
     boolean existsByItemId(Long itemId);
 
+    boolean existsByLocationId(Long locationId);
+
+    /**
+     * Whether the event still has a linked goody with nowhere to hand it out from — the one
+     * question that holds an event in draft on inventory's account.
+     */
+    boolean existsByEventIdAndLocationIdIsNull(Long eventId);
+
     /**
      * Clears an event's mappings. The event id is a plain column with no association behind it, so
      * nothing removes these rows when the event goes.

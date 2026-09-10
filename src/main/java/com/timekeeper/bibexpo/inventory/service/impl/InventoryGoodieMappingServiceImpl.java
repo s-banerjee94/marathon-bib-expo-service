@@ -5,20 +5,25 @@ import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.event.api.GoodieEntitlement;
 import com.timekeeper.bibexpo.event.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.EventStatus;
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingAlreadyExistsException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingLocationRequiredException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotMappableException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieMappingResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieResolutionResponse;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryGoodieMapping;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryItem;
+import com.timekeeper.bibexpo.inventory.model.entity.InventoryLocation;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryVariantAlias;
 import com.timekeeper.bibexpo.inventory.model.enums.GoodieValueResolution;
 import com.timekeeper.bibexpo.inventory.repository.InventoryGoodieMappingRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemRepository;
+import com.timekeeper.bibexpo.inventory.repository.InventoryLocationRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAliasRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryGoodieMappingService;
@@ -36,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,6 +51,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
 
     private final InventoryGoodieMappingRepository mappingRepository;
     private final InventoryItemRepository itemRepository;
+    private final InventoryLocationRepository locationRepository;
     private final InventoryVariantAttributeValueRepository variantAttributeValueRepository;
     private final InventoryVariantAliasRepository aliasRepository;
     private final InventoryAccessGuard accessGuard;
@@ -66,9 +73,14 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
         Map<Long, String> itemNames = itemRepository.findAllById(
                         mappings.stream().map(InventoryGoodieMapping::getItemId).distinct().toList()).stream()
                 .collect(Collectors.toMap(InventoryItem::getId, InventoryItem::getName));
+        Map<Long, String> locationNames = locationRepository.findAllById(
+                        mappings.stream().map(InventoryGoodieMapping::getLocationId)
+                                .filter(Objects::nonNull).distinct().toList()).stream()
+                .collect(Collectors.toMap(InventoryLocation::getId, InventoryLocation::getName));
 
         return mappings.stream()
-                .map(mapping -> InventoryGoodieMappingResponse.of(mapping, itemNames.get(mapping.getItemId())))
+                .map(mapping -> InventoryGoodieMappingResponse.of(mapping, itemNames.get(mapping.getItemId()),
+                        locationNames.get(mapping.getLocationId())))
                 .toList();
     }
 
@@ -78,9 +90,10 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                                                         CreateInventoryGoodieMappingRequest request,
                                                         User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        requireEventInOrg(eventId, organizationId);
+        Event event = requireEventInOrg(eventId, organizationId);
 
         InventoryItem item = requireMappableItem(request.getItemId(), organizationId);
+        InventoryLocation location = resolveLocation(request.getLocationId(), organizationId, event);
 
         String goodieName = request.getGoodieName().trim();
         if (mappingRepository.existsByEventIdAndGoodieName(eventId, goodieName)) {
@@ -92,10 +105,13 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                 .eventId(eventId)
                 .goodieName(goodieName)
                 .itemId(item.getId())
+                .locationId(location == null ? null : location.getId())
                 .build());
 
-        log.info("Linked goody '{}' of event {} to inventory item {}", goodieName, eventId, item.getId());
-        return InventoryGoodieMappingResponse.of(mapping, item.getName());
+        log.info("Linked goody '{}' of event {} to inventory item {} at location {}",
+                goodieName, eventId, item.getId(), mapping.getLocationId());
+        return InventoryGoodieMappingResponse.of(mapping, item.getName(),
+                location == null ? null : location.getName());
     }
 
     @Override
@@ -104,17 +120,20 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                                                         UpdateInventoryGoodieMappingRequest request,
                                                         User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        requireEventInOrg(eventId, organizationId);
+        Event event = requireEventInOrg(eventId, organizationId);
 
         InventoryGoodieMapping mapping = requireMapping(mappingId, eventId, organizationId);
         InventoryItem item = requireMappableItem(request.getItemId(), organizationId);
+        InventoryLocation location = resolveLocation(request.getLocationId(), organizationId, event);
 
         mapping.setItemId(item.getId());
+        mapping.setLocationId(location == null ? null : location.getId());
         InventoryGoodieMapping saved = mappingRepository.saveAndFlush(mapping);
 
-        log.info("Goody '{}' of event {} now points at inventory item {}",
-                saved.getGoodieName(), eventId, item.getId());
-        return InventoryGoodieMappingResponse.of(saved, item.getName());
+        log.info("Goody '{}' of event {} now points at inventory item {} at location {}",
+                saved.getGoodieName(), eventId, item.getId(), saved.getLocationId());
+        return InventoryGoodieMappingResponse.of(saved, item.getName(),
+                location == null ? null : location.getName());
     }
 
     @Override
@@ -254,11 +273,29 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
      * An event another organization owns is reported as missing rather than forbidden, so a caller
      * learns nothing about events outside their own organization.
      */
-    private void requireEventInOrg(Long eventId, Long organizationId) {
+    private Event requireEventInOrg(Long eventId, Long organizationId) {
         Event event = eventStore.requireById(eventId);
         if (event.getOrganization() == null || !event.getOrganization().getId().equals(organizationId)) {
             throw new EventNotFoundException();
         }
+        return event;
+    }
+
+    /**
+     * A draft may be linked without a location and finish the decision later, which is the ordinary
+     * order of events — the item is known when the roster lands, the counter often only days before
+     * the expo. Once published that slack is gone, because a link with nowhere to deduct from would
+     * hand goodies out against nothing.
+     */
+    private InventoryLocation resolveLocation(Long locationId, Long organizationId, Event event) {
+        if (locationId == null) {
+            if (event.getStatus() == EventStatus.PUBLISHED) {
+                throw new InventoryGoodieMappingLocationRequiredException();
+            }
+            return null;
+        }
+        return locationRepository.findByIdAndOrganizationId(locationId, organizationId)
+                .orElseThrow(InventoryLocationNotFoundException::new);
     }
 
     private InventoryGoodieMapping requireMapping(Long mappingId, Long eventId, Long organizationId) {

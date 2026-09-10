@@ -96,7 +96,7 @@ public interface InventoryGoodieMappingControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
-            summary = "Link a goody to an item",
+            summary = "Link a goody to an item and a location",
             description = """
                     Points one goodies column at the item it is handed out from. The name must \
                     match the column heading the import stored, character for character, because \
@@ -107,7 +107,13 @@ public interface InventoryGoodieMappingControllerApi {
                     ignored. An item that varies by one attribute, such as a t-shirt by size, uses \
                     the runner's own cell value to pick it. An item that varies by more than one \
                     attribute is refused: a single cell cannot say which combination a runner is \
-                    owed."""
+                    owed.
+
+                    The location is where the goody physically leaves from, and is the stock a \
+                    handover will deduct. It can be left for later while the event is a draft — the \
+                    item is known as soon as the roster is imported, the counter is often chosen \
+                    days before the expo — but the event cannot be published until every link has \
+                    one."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Goody linked successfully",
@@ -116,9 +122,9 @@ public interface InventoryGoodieMappingControllerApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization, event, or item not found",
+            @ApiResponse(responseCode = "404", description = "Organization, event, item, or location not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "This goody is already linked, or the item varies by more than one attribute",
+            @ApiResponse(responseCode = "409", description = "This goody is already linked, the item varies by more than one attribute, or the published event needs a location",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping
@@ -130,11 +136,15 @@ public interface InventoryGoodieMappingControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
-            summary = "Point a goody at a different item",
+            summary = "Point a goody at a different item or location",
             description = """
-                    Changes which item a goody comes out of. The goody name is the link's identity \
-                    and is never changed here — to correct a heading, remove the link and add it \
-                    again."""
+                    Changes which item a goody comes out of, and which location it is handed out \
+                    from. Both are replaced, not merged: omitting `locationId` clears the \
+                    location, which a published event does not allow, so send the current value \
+                    back when only the item is changing.
+
+                    The goody name is the link's identity and is never changed here — to correct \
+                    a heading, remove the link and add it again."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Goody link updated successfully",
@@ -143,9 +153,9 @@ public interface InventoryGoodieMappingControllerApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization, event, goody link, or item not found",
+            @ApiResponse(responseCode = "404", description = "Organization, event, goody link, item, or location not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "The item varies by more than one attribute",
+            @ApiResponse(responseCode = "409", description = "The item varies by more than one attribute, or the published event needs a location",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PatchMapping("/{mappingId}")

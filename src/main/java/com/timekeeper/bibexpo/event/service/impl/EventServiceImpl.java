@@ -28,6 +28,7 @@ import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.event.api.EventBillingGuard;
 import com.timekeeper.bibexpo.event.api.EventDeletionCleaner;
 import com.timekeeper.bibexpo.event.api.EventDeletionGuard;
+import com.timekeeper.bibexpo.event.api.EventPublishGuard;
 import com.timekeeper.bibexpo.event.service.EventService;
 import com.timekeeper.bibexpo.event.service.util.EventGoodiesReader;
 import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
@@ -74,6 +75,7 @@ public class EventServiceImpl implements EventService {
     private final EventBillingGuard eventBillingGuard;
     private final List<EventDeletionGuard> eventDeletionGuards;
     private final List<EventDeletionCleaner> eventDeletionCleaners;
+    private final List<EventPublishGuard> eventPublishGuards;
     private final StorageService storageService;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
@@ -400,6 +402,10 @@ public class EventServiceImpl implements EventService {
                     "You cannot reopen this event because a final bill has been issued.");
         }
 
+        if (status == EventStatus.PUBLISHED && current != EventStatus.PUBLISHED) {
+            requirePublishable(id);
+        }
+
         event.setStatus(status);
 
         Event updatedEvent = eventRepository.save(event);
@@ -530,6 +536,19 @@ public class EventServiceImpl implements EventService {
     private void rejectDeletionFor(String content) {
         throw new EventDeletionNotAllowedException(
                 "You cannot delete this event while it still has " + content + ". Delete them first.");
+    }
+
+    /**
+     * Publishing is the last moment an outer slice can insist on configuration it will need once
+     * the event is live, so each one is asked through {@link EventPublishGuard}. A slice the
+     * organization does not use contributes nothing and the event publishes as it always did.
+     */
+    private void requirePublishable(Long eventId) {
+        for (EventPublishGuard guard : eventPublishGuards) {
+            guard.findBlockingReason(eventId).ifPresent(reason -> {
+                throw new InvalidUserDataException(reason);
+            });
+        }
     }
 
     private Specification<Event> buildEventSpecification(

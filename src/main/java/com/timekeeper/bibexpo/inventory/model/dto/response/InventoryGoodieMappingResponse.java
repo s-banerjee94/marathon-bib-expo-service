@@ -36,6 +36,13 @@ public class InventoryGoodieMappingResponse {
             example = "Finisher T-Shirt")
     private String itemName;
 
+    @Schema(description = "The location it is handed out from; null while the event is a draft and "
+            + "nobody has chosen one yet", example = "4")
+    private Long locationId;
+
+    @Schema(description = "Name of that location", example = "JBG Expo Venue")
+    private String locationName;
+
     @Schema(description = "When this link was created")
     private Instant createdAt;
 
@@ -48,7 +55,8 @@ public class InventoryGoodieMappingResponse {
     @Schema(description = "Who last changed this link", example = "organizer1")
     private String updatedBy;
 
-    public static InventoryGoodieMappingResponse of(InventoryGoodieMapping mapping, String itemName) {
+    public static InventoryGoodieMappingResponse of(InventoryGoodieMapping mapping, String itemName,
+                                                    String locationName) {
         return InventoryGoodieMappingResponse.builder()
                 .id(mapping.getId())
                 .organizationId(mapping.getOrganizationId())
@@ -56,6 +64,8 @@ public class InventoryGoodieMappingResponse {
                 .goodieName(mapping.getGoodieName())
                 .itemId(mapping.getItemId())
                 .itemName(itemName)
+                .locationId(mapping.getLocationId())
+                .locationName(locationName)
                 .createdAt(mapping.getCreatedAt())
                 .createdBy(mapping.getCreatedBy())
                 .updatedAt(mapping.getUpdatedAt())

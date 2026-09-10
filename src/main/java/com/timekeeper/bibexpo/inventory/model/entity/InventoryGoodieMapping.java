@@ -27,6 +27,11 @@ import java.time.Instant;
  * handed out from. {@code goodieName} is the CSV column heading exactly as the import stored it,
  * since that is the key distribution looks the participant's entitlement up by.
  *
+ * <p>It also carries the location the goody is handed out from, which is what a handover deducts
+ * against. That is a second decision, made later than the first — the item is known as soon as the
+ * roster is imported, the counter often only days before the expo — so the column is nullable here
+ * and required before the event may leave draft.</p>
+ *
  * <p>The mapping deliberately carries no variant of its own. An item either varies by nothing, in
  * which case its single variant is the one handed over, or by exactly one attribute, in which case
  * the participant's own cell value picks it. An item that varies by more than one attribute cannot
@@ -38,10 +43,11 @@ import java.time.Instant;
                 @UniqueConstraint(name = "uk_inventory_goodie_mapping_event_goodie",
                         columnNames = {"event_id", "goodie_name"})
         },
-        // Asked before an item is deleted, and that question spans every event, so it cannot ride
-        // on the unique constraint above.
+        // Both are asked before the row they name is deleted, and either question spans every
+        // event, so neither can ride on the unique constraint above.
         indexes = {
-                @Index(name = "idx_inventory_goodie_mapping_item", columnList = "item_id")
+                @Index(name = "idx_inventory_goodie_mapping_item", columnList = "item_id"),
+                @Index(name = "idx_inventory_goodie_mapping_location", columnList = "location_id")
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data
@@ -65,6 +71,11 @@ public class InventoryGoodieMapping implements Serializable {
 
     @Column(name = "item_id", nullable = false)
     private Long itemId;
+
+    // Nullable so a draft event can be linked the day its roster lands, months before anyone knows
+    // where the expo will hand things out. Required by the time the event publishes.
+    @Column(name = "location_id")
+    private Long locationId;
 
     @CreatedDate
     @Column(updatable = false)

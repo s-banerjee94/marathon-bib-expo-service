@@ -19,4 +19,10 @@ public class CreateInventoryGoodieMappingRequest {
     @NotNull(message = "Item is required")
     @Schema(description = "The inventory item this goody is handed out from", example = "12")
     private Long itemId;
+
+    @Schema(description = "The location it is handed out from, which is where a handover deducts "
+            + "stock; may be left for later while the event is still a draft, but the event cannot "
+            + "be published without it", example = "4",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private Long locationId;
 }
