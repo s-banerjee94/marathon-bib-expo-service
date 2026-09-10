@@ -51,7 +51,8 @@ public class InventoryGoodieResolutionResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
-    @Schema(description = "One spelling out of the roster, and what it resolves to")
+    @Schema(name = "InventoryGoodieResolutionValue",
+            description = "One spelling out of the roster, and what it resolves to")
     public static class Value {
 
         @Schema(description = "The cell value, exactly as imported", example = "M")

@@ -16,14 +16,17 @@ import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryGoodieM
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieMappingResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieResolutionResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieShortfallResponse;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryGoodieMapping;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryItem;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryLocation;
+import com.timekeeper.bibexpo.inventory.model.entity.InventoryStock;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryVariantAlias;
 import com.timekeeper.bibexpo.inventory.model.enums.GoodieValueResolution;
 import com.timekeeper.bibexpo.inventory.repository.InventoryGoodieMappingRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryLocationRepository;
+import com.timekeeper.bibexpo.inventory.repository.InventoryStockRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAliasRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryGoodieMappingService;
@@ -52,6 +55,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
     private final InventoryGoodieMappingRepository mappingRepository;
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
+    private final InventoryStockRepository stockRepository;
     private final InventoryVariantAttributeValueRepository variantAttributeValueRepository;
     private final InventoryVariantAliasRepository aliasRepository;
     private final InventoryAccessGuard accessGuard;
@@ -180,6 +184,112 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                 .sorted(Comparator.comparing(InventoryGoodieResolutionResponse::getGoodieName,
                         String.CASE_INSENSITIVE_ORDER))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InventoryGoodieShortfallResponse> shortfall(Long organizationId, Long eventId,
+                                                            User currentUser) {
+        List<InventoryGoodieResolutionResponse> resolved =
+                resolveGoodies(organizationId, eventId, currentUser);
+        if (resolved.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, InventoryGoodieMapping> links = mappingRepository.findByEventIdOrderByGoodieNameAsc(eventId)
+                .stream().collect(Collectors.toMap(InventoryGoodieMapping::getId, link -> link));
+        List<Long> wanted = resolved.stream()
+                .flatMap(goody -> goody.getValues().stream())
+                .map(InventoryGoodieResolutionResponse.Value::getVariantId)
+                .filter(Objects::nonNull).distinct().toList();
+        // One balance read covers every location, which is what lets a shortfall say whether the
+        // units are already somewhere else in the organization or have to be bought.
+        Map<Long, List<InventoryStock>> balances = wanted.isEmpty() ? Map.of()
+                : stockRepository.findByVariantIdIn(wanted).stream()
+                .collect(Collectors.groupingBy(InventoryStock::getVariantId));
+        Map<Long, String> locationNames = locationRepository.findAllById(
+                        links.values().stream().map(InventoryGoodieMapping::getLocationId)
+                                .filter(Objects::nonNull).distinct().toList()).stream()
+                .collect(Collectors.toMap(InventoryLocation::getId, InventoryLocation::getName));
+
+        return resolved.stream()
+                .map(goody -> shortfallFor(goody, links.get(goody.getMappingId()), balances, locationNames))
+                .toList();
+    }
+
+    private InventoryGoodieShortfallResponse shortfallFor(InventoryGoodieResolutionResponse goody,
+                                                          InventoryGoodieMapping link,
+                                                          Map<Long, List<InventoryStock>> balances,
+                                                          Map<Long, String> locationNames) {
+        Long locationId = link == null ? null : link.getLocationId();
+        InventoryGoodieShortfallResponse.InventoryGoodieShortfallResponseBuilder response =
+                InventoryGoodieShortfallResponse.builder()
+                        .goodieName(goody.getGoodieName())
+                        .mappingId(goody.getMappingId())
+                        .itemId(goody.getItemId())
+                        .itemName(goody.getItemName())
+                        .locationId(locationId)
+                        .locationName(locationId == null ? null : locationNames.get(locationId))
+                        .participants(goody.getParticipants())
+                        .unresolvedParticipants(goody.getUnresolvedParticipants())
+                        .countedByValue(goody.isCountedByValue());
+
+        // A column with too many distinct values was never counted one by one, so there is no
+        // demand to total and nothing honest to say about a shortfall.
+        if (!goody.isCountedByValue()) {
+            return response.variants(List.of()).build();
+        }
+
+        // Several spellings routinely mean one variant -- M, Medium and 38 are one shelf.
+        Map<Long, Long> demand = new LinkedHashMap<>();
+        Map<Long, String> variantLabels = new LinkedHashMap<>();
+        for (InventoryGoodieResolutionResponse.Value value : goody.getValues()) {
+            Long variantId = value.getVariantId();
+            if (variantId == null) {
+                continue;
+            }
+            demand.merge(variantId, value.getParticipants(), Long::sum);
+            variantLabels.putIfAbsent(variantId, value.getVariantLabel());
+        }
+
+        List<InventoryGoodieShortfallResponse.Variant> variants = new ArrayList<>(demand.size());
+        long needed = 0;
+        long onHand = 0;
+        long shortfall = 0;
+        long elsewhere = 0;
+        for (Map.Entry<Long, Long> entry : demand.entrySet()) {
+            Long variantId = entry.getKey();
+            long variantNeeded = entry.getValue();
+            long variantOnHand = 0;
+            long variantElsewhere = 0;
+            for (InventoryStock balance : balances.getOrDefault(variantId, List.of())) {
+                long held = balance.getOnHand() == null ? 0 : balance.getOnHand();
+                if (locationId != null && locationId.equals(balance.getLocationId())) {
+                    variantOnHand += held;
+                } else {
+                    variantElsewhere += held;
+                }
+            }
+            long variantShortfall = Math.max(0, variantNeeded - variantOnHand);
+
+            needed += variantNeeded;
+            onHand += variantOnHand;
+            shortfall += variantShortfall;
+            elsewhere += variantElsewhere;
+            variants.add(InventoryGoodieShortfallResponse.Variant.builder()
+                    .variantId(variantId)
+                    .variantLabel(variantLabels.get(variantId))
+                    .needed(variantNeeded)
+                    .onHand(variantOnHand)
+                    .shortfall(variantShortfall)
+                    .elsewhere(variantElsewhere)
+                    .build());
+        }
+        variants.sort(Comparator.comparingLong(InventoryGoodieShortfallResponse.Variant::getShortfall)
+                .thenComparing(InventoryGoodieShortfallResponse.Variant::getNeeded).reversed());
+
+        return response.needed(needed).onHand(onHand).shortfall(shortfall).elsewhere(elsewhere)
+                .variants(variants).build();
     }
 
     // ---- the check screen -------------------------------------------------------

@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryGoodieM
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieMappingResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieResolutionResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieShortfallResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -91,6 +92,51 @@ public interface InventoryGoodieMappingControllerApi {
     @GetMapping("/resolution")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     ResponseEntity<List<InventoryGoodieResolutionResponse>> resolveGoodies(
+            @PathVariable Long organizationId,
+            @PathVariable Long eventId,
+            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
+
+    @Operation(
+            summary = "See what is needed against what is on the shelf",
+            description = """
+                    The shortfall report. For every goody it totals what the roster asks for, \
+                    variant by variant, against what is on hand at the location that goody is \
+                    handed out from — 1,900 mediums needed, 1,750 at the venue, 150 short.
+
+                    The two halves arrive months apart and the report is useful with only the \
+                    first. Demand can be totalled the day the roster is imported, before anything \
+                    is ordered and before a location has been chosen, and that column on its own \
+                    is the purchase order. `onHand` and `shortfall` fill in once a location is set \
+                    and stock has arrived; until then they read zero and `shortfall` equals \
+                    `needed`.
+
+                    Demand is what the roster promised, never what turnout is expected to be. \
+                    Every registered participant owed a goody is counted, because every one of \
+                    them may walk in. Spellings nothing recognises are held apart in \
+                    `unresolvedParticipants` instead of being guessed into a variant, so they \
+                    neither inflate a shortfall nor hide one — teach those spellings on the \
+                    variant-aliases endpoint and they move into the rows here.
+
+                    Several spellings routinely mean one variant, so `M`, `Medium` and `38` are \
+                    totalled onto a single row. Each row also reports `elsewhere`, how many sit at \
+                    the organization's other locations, because a shortfall covered from another \
+                    shelf is a transfer rather than a purchase. Rows come worst shortfall first.
+
+                    A goody nothing has been linked to appears with no rows, and so does a column \
+                    that held too many distinct values to count one by one."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Shortfall retrieved successfully",
+                    content = @Content(mediaType = "application/json",
+                            array = @ArraySchema(schema = @Schema(implementation = InventoryGoodieShortfallResponse.class)))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization or event not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/shortfall")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<List<InventoryGoodieShortfallResponse>> shortfall(
             @PathVariable Long organizationId,
             @PathVariable Long eventId,
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);

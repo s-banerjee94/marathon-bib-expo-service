@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryGoodieM
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieMappingResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieResolutionResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieShortfallResponse;
 import com.timekeeper.bibexpo.inventory.service.InventoryGoodieMappingService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
@@ -41,6 +42,14 @@ public class InventoryGoodieMappingController implements InventoryGoodieMappingC
             @PathVariable Long eventId,
             @AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(goodieMappingService.resolveGoodies(organizationId, eventId, currentUser));
+    }
+
+    @Override
+    public ResponseEntity<List<InventoryGoodieShortfallResponse>> shortfall(
+            @PathVariable Long organizationId,
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(goodieMappingService.shortfall(organizationId, eventId, currentUser));
     }
 
     @Override

@@ -10,6 +10,7 @@ import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryGoodieM
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryGoodieMappingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieMappingResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieResolutionResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryGoodieShortfallResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
@@ -90,4 +91,23 @@ public interface InventoryGoodieMappingService {
      * one counter read for the demand — so the roster itself is never walked.
      */
     List<InventoryGoodieResolutionResponse> resolveGoodies(Long organizationId, Long eventId, User currentUser);
+
+    /**
+     * The shortfall report: for each goody, how many of each variant the roster asks for, and how
+     * many are on the shelf it is handed out from.
+     *
+     * <p>The two halves are answered months apart and the report is useful with only the first.
+     * Demand can be totalled as soon as the roster is imported, before anything is ordered and
+     * before a location exists, and that column alone is the purchase order. On hand and short
+     * fill in once a location is chosen and stock has arrived.
+     *
+     * <p>Demand is what the roster promised, never what turnout is expected to be: every
+     * registered participant owed a goody is counted, because every one of them may walk in.
+     * Spellings nothing recognises are counted apart in {@code unresolvedParticipants} rather than
+     * guessed into a variant, so a shortfall is never inflated or hidden by them.
+     *
+     * <p>Each goody also reports what sits at the organization's other locations, since a shortfall
+     * covered from another shelf is a transfer rather than a purchase.
+     */
+    List<InventoryGoodieShortfallResponse> shortfall(Long organizationId, Long eventId, User currentUser);
 }
