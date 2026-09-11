@@ -12,6 +12,8 @@ public interface GoodieIssueRecorder {
 
     /**
      * Takes one unit off the shelf per hand-over, each as an {@code ISSUE} line referencing the bib.
+     * The hand-over that takes a shelf below zero alerts the organization's admins and users, once:
+     * those after it stay quiet until the shelf is back at zero or above.
      *
      * @param issues    what was handed over, as {@link GoodieStockQuery#planIssue} planned it
      * @param bibNumber the participant who received them

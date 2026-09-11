@@ -4,21 +4,11 @@ import com.timekeeper.bibexpo.distribution.model.dto.request.BulkCollectBibReque
 import com.timekeeper.bibexpo.distribution.model.dto.request.BulkDistributeGoodiesRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.request.DistributeGoodiesRequest;
-import com.timekeeper.bibexpo.distribution.model.dto.response.BibDistributionResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.BulkDistributionResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionGoodieResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogListResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.PendingBibListResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.PendingGoodiesListResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.*;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
-
-import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -31,12 +21,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Tag(name = "Distribution Management", description = "APIs for managing bib and goodies distribution")
 @SecurityRequirement(name = "bearerAuth")
