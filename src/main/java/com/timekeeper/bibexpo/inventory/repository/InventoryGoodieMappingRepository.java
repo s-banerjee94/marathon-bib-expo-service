@@ -20,6 +20,8 @@ public interface InventoryGoodieMappingRepository extends JpaRepository<Inventor
 
     Optional<InventoryGoodieMapping> findByIdAndEventIdAndOrganizationId(Long id, Long eventId, Long organizationId);
 
+    Optional<InventoryGoodieMapping> findByEventIdAndGoodieName(Long eventId, String goodieName);
+
     boolean existsByEventIdAndGoodieName(Long eventId, String goodieName);
 
     boolean existsByItemId(Long itemId);

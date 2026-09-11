@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.distribution.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.request.DistributeGoodiesRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.response.BibDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.BulkDistributionResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionGoodieResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
@@ -20,6 +21,7 @@ import com.timekeeper.bibexpo.user.model.entity.User;
 import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -51,7 +53,12 @@ public interface DistributionControllerApi {
                     Optionally distribute goodies items at the same time by providing a list of item names. \
                     Staff member performing the distribution is automatically recorded. \
                     Cannot collect the same bib twice. \
-                    Goodies items must exist in participant's goodies allocation and cannot be distributed twice."""
+                    Each goody must be on the participant's own list, or be one added to the event by hand, \
+                    and cannot be handed over twice. \
+                    A goody added by hand whose inventory item comes in more than one variant needs the chosen \
+                    variant in variantIds. \
+                    A goody added by hand and linked to inventory takes one unit off its location's shelf, \
+                    which may go below zero."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -63,8 +70,16 @@ public interface DistributionControllerApi {
                     )
             ),
             @ApiResponse(
+                    responseCode = "400",
+                    description = "A goody added by hand needs its variant chosen, or the chosen variant is not its item's",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "404",
-                    description = "Participant not found or goodies item not found in participant's allocation",
+                    description = "Participant not found, or a goody is neither on their list nor added to the event by hand",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -103,7 +118,8 @@ public interface DistributionControllerApi {
             description = """
                     Undo bib collection and reset all distribution data. \
                     This will reset: bibCollectedAt, bibCollectedByName, bibCollectedByPhone, bibDistributedBy. \
-                    IMPORTANT: This will also reset ALL goodies distribution for this participant. \
+                    IMPORTANT: This will also reset ALL goodies distribution for this participant, \
+                    and put back at its location any stock those goodies took off the shelf. \
                     Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER (NOT DISTRIBUTOR). \
                     Cannot undo if bib has not been collected."""
     )
@@ -155,8 +171,12 @@ public interface DistributionControllerApi {
             description = """
                     Distribute one or more goodies items to a participant in a single operation. \
                     Requires that the bib has been collected first. \
-                    Each goodies item must exist in the participant's goodies allocation. \
-                    Each goodies item can only be distributed once. \
+                    Each goody must be on the participant's own list, or be one added to the event by hand. \
+                    Each goody can only be handed over once. \
+                    A goody added by hand whose inventory item comes in more than one variant needs the chosen \
+                    variant in variantIds; the counter gets the variants from the goodies list endpoint. \
+                    A goody added by hand and linked to inventory takes one unit off its location's shelf, \
+                    which may go below zero. \
                     Staff member performing the distribution is automatically recorded."""
     )
     @ApiResponses(value = {
@@ -170,7 +190,7 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Bib has not been collected yet",
+                    description = "Bib has not been collected yet, or a goody added by hand needs its variant chosen",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -178,7 +198,7 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Participant not found or goodies item not found in participant's allocation",
+                    description = "Participant not found, or a goody is neither on their list nor added to the event by hand",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -208,6 +228,49 @@ public interface DistributionControllerApi {
             @PathVariable String bibNumber,
             @Parameter(description = "Goodies distribution request with one or more item names", required = true)
             @RequestBody DistributeGoodiesRequest request,
+            @AuthenticationPrincipal User currentUser);
+
+    @GetMapping("/goodies")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
+    @Operation(
+            summary = "List the goodies the counter can hand out",
+            description = """
+                    Every goody on the event's list, in list order, for the counter screen. \
+                    A participant's own goodies come with their distribution status; this list adds the goodies \
+                    added to the event by hand (source MANUAL), which can be handed to any participant. \
+                    A goody linked to inventory names the item it comes out of. \
+                    A MANUAL goody whose item comes in more than one variant lists the variants to choose between; \
+                    send the chosen one in variantIds when handing it over."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "The event's goodies",
+                    content = @Content(
+                            mediaType = "application/json",
+                            array = @ArraySchema(schema = @Schema(implementation = DistributionGoodieResponse.class))
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Event not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Access forbidden - insufficient permissions",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            )
+    })
+    ResponseEntity<List<DistributionGoodieResponse>> listGoodies(
+            @Parameter(description = "Event ID", example = "1")
+            @PathVariable Long eventId,
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/pending/bib")
@@ -528,6 +591,7 @@ public interface DistributionControllerApi {
             description = """
                     Distribute goodies items to multiple participants at once. \
                     Each item in the request can be for a different participant and different goodies item. \
+                    Each item carries its own variantIds, as a single hand-over does. \
                     Requires that bibs have been collected first for all participants. \
                     Returns counts of successful and failed operations with detailed failure reasons."""
     )

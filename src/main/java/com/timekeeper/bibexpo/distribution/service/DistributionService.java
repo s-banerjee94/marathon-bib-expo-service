@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.distribution.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.request.DistributeGoodiesRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.response.BibDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.BulkDistributionResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionGoodieResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
@@ -33,7 +34,8 @@ public interface DistributionService {
 
     /**
      * Undo bib collection for a participant
-     * Resets all bib collection fields and clears all goodies distribution
+     * Resets all bib collection fields and clears all goodies distribution, putting back any stock
+     * those goodies took off the shelf
      * Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER (NOT DISTRIBUTOR)
      * @param eventId The event ID
      * @param bibNumber The bib number
@@ -43,15 +45,27 @@ public interface DistributionService {
     UndoDistributionResponse undoBib(Long eventId, String bibNumber, User currentUser);
 
     /**
-     * Distribute a goodies item to a participant
-     * Requires bib to be collected first
+     * Distribute goodies to a participant
+     * Requires bib to be collected first. Each goody is one on the participant's own list, or one added
+     * to the event by hand; one added by hand and linked to inventory also takes a unit off its
+     * location's shelf
      * @param eventId The event ID
      * @param bibNumber The bib number
-     * @param request The distribute goodies request with item name
+     * @param request The goodies to hand over, and the variant chosen for any that needs one
      * @param currentUser The authenticated staff user
      * @return Goodies distribution details
      */
     GoodiesDistributionResponse distributeGoodies(Long eventId, String bibNumber, DistributeGoodiesRequest request, User currentUser);
+
+    /**
+     * Every goody on the event's list as the counter offers it: where each came from, the inventory
+     * item it comes out of, and the variants to choose between for a goody added by hand that has
+     * more than one
+     * @param eventId The event ID
+     * @param currentUser The authenticated staff user
+     * @return The event's goodies, in list order
+     */
+    List<DistributionGoodieResponse> listGoodies(Long eventId, User currentUser);
 
     /**
      * Get paginated list of participants with pending bib collection for an event

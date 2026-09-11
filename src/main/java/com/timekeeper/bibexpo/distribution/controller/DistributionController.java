@@ -10,6 +10,7 @@ import com.timekeeper.bibexpo.distribution.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.request.DistributeGoodiesRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.response.BibDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.BulkDistributionResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionGoodieResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
@@ -90,6 +91,16 @@ public class DistributionController implements DistributionControllerApi {
                 request.getGoodiesItems(), bibNumber, eventId);
 
         return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<List<DistributionGoodieResponse>> listGoodies(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal User currentUser) {
+        log.info("Received request to list the counter's goodies for event {} by user: {}",
+                eventId, currentUser.getUsername());
+
+        return ResponseEntity.ok(distributionService.listGoodies(eventId, currentUser));
     }
 
     @Override

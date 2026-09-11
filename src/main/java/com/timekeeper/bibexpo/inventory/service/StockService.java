@@ -27,7 +27,8 @@ import java.util.List;
  * two) and moves the balance through {@code InventoryStockRepository.deduct}/{@code add}, the
  * single conditional-update pair that stops two concurrent writers from double-spending the same
  * units. A shortage under the {@code BLOCK} policy used here never overdraws a location — it
- * throws instead.
+ * throws instead. Only a counter hand-over, posted through
+ * {@link com.timekeeper.bibexpo.inventory.api.GoodieIssueRecorder}, may.
  */
 public interface StockService {
 

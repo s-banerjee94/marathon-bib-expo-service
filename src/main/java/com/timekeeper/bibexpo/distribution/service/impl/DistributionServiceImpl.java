@@ -24,7 +24,14 @@ import com.timekeeper.bibexpo.distribution.service.util.DistributionConstants;
 import com.timekeeper.bibexpo.distribution.service.validator.DistributionValidator;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventSmsService;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventWhatsAppService;
+import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionGoodieResponse;
 import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.EventGoodie;
+import com.timekeeper.bibexpo.event.model.entity.GoodieSource;
+import com.timekeeper.bibexpo.inventory.api.GoodieIssue;
+import com.timekeeper.bibexpo.inventory.api.GoodieIssueRecorder;
+import com.timekeeper.bibexpo.inventory.api.GoodieStockOption;
+import com.timekeeper.bibexpo.inventory.api.GoodieStockQuery;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
@@ -41,6 +48,8 @@ import com.timekeeper.bibexpo.shared.persistence.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.shared.util.EventTimeUtil;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -50,6 +59,7 @@ import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -74,6 +84,9 @@ public class DistributionServiceImpl implements DistributionService {
     private final ParticipantEventWhatsAppService participantEventWhatsAppService;
     private final EventStatsRecorder eventStatsRecorder;
     private final RaceCategoryNameQuery nameResolver;
+    private final GoodieStockQuery goodieStockQuery;
+    private final GoodieIssueRecorder goodieIssueRecorder;
+    private final ObjectMapper objectMapper;
 
     @Override
     public BibDistributionResponse collectBib(Long eventId, String bibNumber, CollectBibRequest request, User currentUser) {
@@ -104,36 +117,26 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedAt(now);
         participant.setUpdatedBy(currentUser.getUsername());
 
-        List<String> goodiesDistributed = new ArrayList<>();
-        if (request != null && request.getGoodiesItems() != null && !request.getGoodiesItems().isEmpty()) {
-            Map<String, String> goodiesDistribution = participant.getGoodiesDistribution();
-            if (goodiesDistribution == null) {
-                goodiesDistribution = new HashMap<>();
-            }
-
-            for (String itemName : request.getGoodiesItems()) {
-                validateGoodiesItem(participant, goodiesDistribution, itemName);
-
-                String distributionData = String.format("{\"collectedAt\":\"%s\",\"distributedBy\":\"%s\"}",
-                        now, distributedBy);
-                goodiesDistribution.put(itemName, distributionData);
-                goodiesDistributed.add(itemName);
-            }
-
+        boolean withGoodies = request != null && request.getGoodiesItems() != null
+                && !request.getGoodiesItems().isEmpty();
+        List<HandOver> handed = withGoodies
+                ? handOut(event, participant, request.getGoodiesItems(), request.getVariantIds(), now, distributedBy)
+                : List.of();
+        List<String> goodiesDistributed = handed.stream().map(HandOver::name).toList();
+        if (!goodiesDistributed.isEmpty()) {
             logDistributionAction(String.valueOf(eventId), bibNumber,
                     DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
                     goodiesDistributed, distributedBy, collectorName, collectorPhone, null);
 
             log.info("Goodies items {} distributed for bib {} in event {} by staff {}",
                     goodiesDistributed, bibNumber, eventId, distributedBy);
-
-            participant.setGoodiesDistribution(goodiesDistribution);
         }
 
         participantStore.save(participant);
         eventStatsRecorder.onBibCollected(ParticipantCountersMapper.of(participant), goodiesDistributed,
                 EventTimeUtil.zoneOf(event.getTimezone()));
         markDistributionStarted(event);
+        issueStock(eventId, bibNumber, handed, currentUser);
 
         logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_BIB_COLLECTED,
@@ -170,6 +173,7 @@ public class DistributionServiceImpl implements DistributionService {
         }
 
         ParticipantCounters beforeSnapshot = ParticipantCountersMapper.of(participant);
+        List<GoodieIssue> taken = issuesIn(participant.getGoodiesDistribution());
 
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         String undoneBy = DistributorStamp.of(currentUser.getId(), currentUser.getUsername());
@@ -184,6 +188,10 @@ public class DistributionServiceImpl implements DistributionService {
 
         participantStore.save(participant);
         eventStatsRecorder.onBibUndone(beforeSnapshot, EventTimeUtil.zoneOf(event.getTimezone()));
+        if (!taken.isEmpty()) {
+            postToInventory(eventId, bibNumber,
+                    () -> goodieIssueRecorder.reverse(taken, bibNumber, currentUser.getUsername()));
+        }
 
         logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_BIB_UNDONE,
@@ -215,23 +223,12 @@ public class DistributionServiceImpl implements DistributionService {
             throw new BibNotCollectedException();
         }
 
-        Map<String, String> goodiesDistribution = participant.getGoodiesDistribution();
-        if (goodiesDistribution == null) {
-            goodiesDistribution = new HashMap<>();
-        }
-
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         String distributedBy = DistributorStamp.of(currentUser.getId(), currentUser.getUsername());
 
-        List<String> itemsDistributed = new ArrayList<>();
-        for (String itemName : request.getGoodiesItems()) {
-            validateGoodiesItem(participant, goodiesDistribution, itemName);
-
-            String distributionData = String.format("{\"collectedAt\":\"%s\",\"distributedBy\":\"%s\"}",
-                    now, distributedBy);
-            goodiesDistribution.put(itemName, distributionData);
-            itemsDistributed.add(itemName);
-        }
+        List<HandOver> handed = handOut(event, participant, request.getGoodiesItems(), request.getVariantIds(),
+                now, distributedBy);
+        List<String> itemsDistributed = handed.stream().map(HandOver::name).toList();
 
         logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
@@ -241,13 +238,13 @@ public class DistributionServiceImpl implements DistributionService {
         log.info("Goodies items {} distributed for bib {} in event {} by staff {}",
                 itemsDistributed, bibNumber, eventId, distributedBy);
 
-        participant.setGoodiesDistribution(goodiesDistribution);
         participant.setUpdatedAt(now);
         participant.setUpdatedBy(currentUser.getUsername());
 
         participantStore.save(participant);
         eventStatsRecorder.onGoodiesDistributed(ParticipantCountersMapper.of(participant), itemsDistributed);
         markDistributionStarted(event);
+        issueStock(eventId, bibNumber, handed, currentUser);
 
         return GoodiesDistributionResponse.builder()
                 .success(true)
@@ -435,6 +432,18 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     @Override
+    public List<DistributionGoodieResponse> listGoodies(Long eventId, User currentUser) {
+        Event event = findEventOrThrow(eventId);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
+
+        Map<String, GoodieStockOption> links = new HashMap<>();
+        goodieStockQuery.optionsFor(eventId).forEach(link -> links.put(key(link.goodieName()), link));
+        return event.getEventGoodies().stream()
+                .map(goodie -> toCounterGoodie(goodie, links.get(key(goodie.name()))))
+                .toList();
+    }
+
+    @Override
     public BulkDistributionResponse bulkDistributeGoodies(Long eventId, BulkDistributeGoodiesRequest request, User currentUser) {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForEvent(currentUser, event);
@@ -447,6 +456,7 @@ public class DistributionServiceImpl implements DistributionService {
             try {
                 DistributeGoodiesRequest distributeRequest = DistributeGoodiesRequest.builder()
                         .goodiesItems(item.getGoodiesItems())
+                        .variantIds(item.getVariantIds())
                         .build();
 
                 distributeGoodies(eventId, item.getBibNumber(), distributeRequest, currentUser);
@@ -621,17 +631,10 @@ public class DistributionServiceImpl implements DistributionService {
                 .build();
     }
 
+    // Compared by name, not by count: a goody added by hand is on no participant's list, so handing one
+    // over must not hide a goody of their own that is still owed.
     private boolean hasPendingGoodies(ParticipantDDB participant) {
-        Map<String, String> goodies = participant.getGoodies();
-        Map<String, String> distribution = participant.getGoodiesDistribution();
-
-        if (goodies == null || goodies.isEmpty()) {
-            return false;
-        }
-        if (distribution == null) {
-            return true;
-        }
-        return goodies.size() > distribution.size();
+        return !calculatePendingItems(participant.getGoodies(), participant.getGoodiesDistribution()).isEmpty();
     }
 
     private PendingGoodiesListResponse.ParticipantPendingGoodies mapToParticipantPendingGoodies(
@@ -667,14 +670,120 @@ public class DistributionServiceImpl implements DistributionService {
         return pendingItems;
     }
 
-    private void validateGoodiesItem(ParticipantDDB participant, Map<String, String> goodiesDistribution,
-                                      String itemName) {
-        if (participant.getGoodies() == null || !participant.getGoodies().containsKey(itemName)) {
-            throw new GoodiesItemNotFoundException();
+    /**
+     * Records the requested goodies on the participant. Every goody is checked before any is recorded,
+     * so one that fails leaves the participant exactly as it was.
+     */
+    private List<HandOver> handOut(Event event, ParticipantDDB participant, List<String> itemNames,
+                                   Map<String, Long> variantIds, String now, String distributedBy) {
+        Map<String, String> distribution = participant.getGoodiesDistribution() == null
+                ? new HashMap<>() : participant.getGoodiesDistribution();
+
+        List<HandOver> handed = new ArrayList<>();
+        for (String requested : itemNames) {
+            HandOver handOver = planHandOver(event, participant, requested, variantIds);
+            if (distribution.containsKey(handOver.name())
+                    || handed.stream().anyMatch(h -> h.name().equals(handOver.name()))) {
+                throw new GoodiesAlreadyDistributedException(handOver.name());
+            }
+            handed.add(handOver);
         }
 
-        if (goodiesDistribution.containsKey(itemName)) {
-            throw new GoodiesAlreadyDistributedException(itemName);
+        handed.forEach(h -> distribution.put(h.name(), distributionRecord(now, distributedBy, h.issue())));
+        participant.setGoodiesDistribution(distribution);
+        return handed;
+    }
+
+    // A participant's own goodies are keyed exactly as their list spells them. A goody added by hand is on
+    // no list, so it is matched against the event's and recorded under the event's spelling.
+    private HandOver planHandOver(Event event, ParticipantDDB participant, String requested,
+                                  Map<String, Long> variantIds) {
+        if (participant.getGoodies() != null && participant.getGoodies().containsKey(requested)) {
+            return new HandOver(requested, null);
+        }
+        String wanted = requested == null ? "" : key(requested);
+        String name = event.getEventGoodies().stream()
+                .filter(goodie -> goodie.source() == GoodieSource.MANUAL && key(goodie.name()).equals(wanted))
+                .map(EventGoodie::name)
+                .findFirst()
+                .orElseThrow(GoodiesItemNotFoundException::new);
+        Long variantId = variantIds == null ? null : variantIds.get(requested);
+        return new HandOver(name, goodieStockQuery.planIssue(event.getId(), name, variantId).orElse(null));
+    }
+
+    private String distributionRecord(String collectedAt, String distributedBy, GoodieIssue issue) {
+        return objectMapper.writeValueAsString(issue == null
+                ? new DistributionRecord(collectedAt, distributedBy, null, null, null)
+                : new DistributionRecord(collectedAt, distributedBy,
+                        issue.variantId(), issue.variantLabel(), issue.locationId()));
+    }
+
+    private List<GoodieIssue> issuesIn(Map<String, String> distribution) {
+        if (distribution == null) {
+            return List.of();
+        }
+        return distribution.values().stream()
+                .map(value -> objectMapper.readValue(value, DistributionRecord.class).toIssue())
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private void issueStock(Long eventId, String bibNumber, List<HandOver> handed, User currentUser) {
+        List<GoodieIssue> issues = handed.stream().map(HandOver::issue).filter(Objects::nonNull).toList();
+        if (!issues.isEmpty()) {
+            postToInventory(eventId, bibNumber,
+                    () -> goodieIssueRecorder.issue(issues, bibNumber, currentUser.getUsername()));
+        }
+    }
+
+    // The hand-over is already saved by the time stock moves, and the counter never waits on inventory:
+    // a failure here is logged for an adjustment to correct, not shown to the runner.
+    private void postToInventory(Long eventId, String bibNumber, Runnable post) {
+        try {
+            post.run();
+        } catch (RuntimeException e) {
+            log.error("Could not post goodies stock for bib {} in event {}; the shelf needs an adjustment",
+                    bibNumber, eventId, e);
+        }
+    }
+
+    // Only a goody added by hand asks the counter which variant; an imported one is owed the variant its
+    // participant's own value names.
+    private static DistributionGoodieResponse toCounterGoodie(EventGoodie goodie, GoodieStockOption link) {
+        boolean choose = link != null && goodie.source() == GoodieSource.MANUAL && link.variants().size() > 1;
+        return DistributionGoodieResponse.builder()
+                .name(goodie.name())
+                .source(goodie.source())
+                .itemName(link == null ? null : link.itemName())
+                .variants(choose
+                        ? link.variants().stream()
+                                .map(v -> DistributionGoodieResponse.Variant.builder()
+                                        .variantId(v.variantId())
+                                        .label(v.label())
+                                        .build())
+                                .toList()
+                        : List.of())
+                .build();
+    }
+
+    private static String key(String name) {
+        return name.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /** One goody being handed over, and what it takes out of inventory; null when it takes nothing. */
+    private record HandOver(String name, GoodieIssue issue) {
+    }
+
+    // The value kept against each goody in goodiesDistribution. The variant and location are there only
+    // when the goody came out of inventory, which is what lets an undo put it back where it came from.
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record DistributionRecord(String collectedAt, String distributedBy, Long variantId, String variantLabel,
+                              Long locationId) {
+
+        GoodieIssue toIssue() {
+            return variantId == null || locationId == null ? null
+                    : new GoodieIssue(variantId, variantLabel, locationId);
         }
     }
 

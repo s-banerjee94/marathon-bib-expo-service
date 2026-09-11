@@ -4,7 +4,10 @@ import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.inventory.api.GoodieIssue;
+import com.timekeeper.bibexpo.inventory.api.GoodieIssueRecorder;
 import com.timekeeper.bibexpo.inventory.exception.InsufficientStockException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantNotFoundException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.AdjustStockRequest;
@@ -58,7 +61,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class StockServiceImpl implements StockService {
+public class StockServiceImpl implements StockService, GoodieIssueRecorder {
 
     // An adjustment explains a recount. The other reasons belong to movements no adjustment posts.
     private static final Set<MovementReason> ADJUSTMENT_REASONS =
@@ -347,6 +350,46 @@ public class StockServiceImpl implements StockService {
         log.info("Adjusted variant {} at location {} by {} for organization {}, reason {}",
                 variant.getId(), location.getId(), delta, organizationId, request.getReason());
         return StockBalanceResponse.fromEntity(reload(stockId));
+    }
+
+    @Override
+    @Transactional
+    public void issue(List<GoodieIssue> issues, String bibNumber, String actor) {
+        issues.forEach(issue -> postHandover(issue, MovementType.ISSUE, bibNumber, actor));
+    }
+
+    @Override
+    @Transactional
+    public void reverse(List<GoodieIssue> issues, String bibNumber, String actor) {
+        issues.forEach(issue -> postHandover(issue, MovementType.REVERSAL, bibNumber, actor));
+    }
+
+    // One unit per line. An issue may overdraw the shelf, since the runner is already holding the goody,
+    // and a reversal lands back on the location the unit left, wherever the goody hands out from now.
+    private void postHandover(GoodieIssue issue, MovementType type, String bibNumber, String actor) {
+        InventoryVariant variant = requireVariant(issue.variantId());
+        InventoryItem item = itemRepository.findById(variant.getItemId())
+                .orElseThrow(InventoryItemNotFoundException::new);
+        InventoryStock stock = findOrCreateStock(variant.getId(), issue.locationId());
+        Instant now = Instant.now();
+        boolean out = type == MovementType.ISSUE;
+        if (out) {
+            stockRepository.deduct(stock.getId(), 1, true, now, actor);
+        } else {
+            stockRepository.add(stock.getId(), 1, now, actor);
+        }
+
+        movementRepository.save(InventoryMovement.builder()
+                .organizationId(item.getOrganizationId())
+                .itemId(item.getId())
+                .variantId(variant.getId())
+                .type(type)
+                .fromLocationId(out ? issue.locationId() : null)
+                .toLocationId(out ? null : issue.locationId())
+                .quantity(1)
+                .reference(bibNumber)
+                .occurredAt(now)
+                .build());
     }
 
     // ---- lookups ----------------------------------------------------------------

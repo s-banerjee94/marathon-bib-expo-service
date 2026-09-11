@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
@@ -17,7 +18,12 @@ import java.util.List;
 public class DistributeGoodiesRequest {
 
     @NotEmpty(message = "At least one item is required")
-    @Schema(description = "List of goodies items to distribute",
+    @Schema(description = "Goodies to hand over: any on the participant's own list, or any added to the event by hand",
             example = "[\"T-Shirt\", \"Cap\", \"Medal\"]", required = true)
     private List<String> goodiesItems;
+
+    @Schema(description = "The variant handed over, by goody name, for a goody added to the event by hand whose "
+            + "inventory item comes in more than one variant. Leave every other goody out.",
+            example = "{\"Sipper\": 12}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private Map<String, Long> variantIds;
 }
