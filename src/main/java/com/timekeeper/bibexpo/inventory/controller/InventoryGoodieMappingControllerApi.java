@@ -171,6 +171,8 @@ public interface InventoryGoodieMappingControllerApi {
             @ApiResponse(responseCode = "404", description = "Organization, event, item, or location not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "409", description = "This goody is already linked, the item varies by more than one attribute, or the published event needs a location",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "422", description = "The event is completed or cancelled, or its bill is final",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping
@@ -202,6 +204,8 @@ public interface InventoryGoodieMappingControllerApi {
             @ApiResponse(responseCode = "404", description = "Organization, event, goody link, item, or location not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "409", description = "The item varies by more than one attribute, or the published event needs a location",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "422", description = "The event is completed or cancelled, or its bill is final",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PatchMapping("/{mappingId}")

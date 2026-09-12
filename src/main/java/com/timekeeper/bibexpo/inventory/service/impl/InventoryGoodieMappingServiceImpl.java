@@ -6,6 +6,8 @@ import com.timekeeper.bibexpo.event.api.GoodieEntitlement;
 import com.timekeeper.bibexpo.event.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.event.model.entity.EventStatus;
+import com.timekeeper.bibexpo.event.model.enums.EventOperation;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingLocationRequiredException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingNotFoundException;
@@ -62,6 +64,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
     private final VariantLabeller variantLabeller;
     private final EventStore eventStore;
     private final EventStatsQuery eventStatsQuery;
+    private final EventOperationGuard eventOperationGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -95,6 +98,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                                                         User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
         Event event = requireEventInOrg(eventId, organizationId);
+        eventOperationGuard.requireAllowed(event, EventOperation.GOODIE_LINK);
 
         InventoryItem item = requireMappableItem(request.getItemId(), organizationId);
         InventoryLocation location = resolveLocation(request.getLocationId(), organizationId, event);
@@ -125,6 +129,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                                                         User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
         Event event = requireEventInOrg(eventId, organizationId);
+        eventOperationGuard.requireAllowed(event, EventOperation.GOODIE_LINK);
 
         InventoryGoodieMapping mapping = requireMapping(mappingId, eventId, organizationId);
         InventoryItem item = requireMappableItem(request.getItemId(), organizationId);

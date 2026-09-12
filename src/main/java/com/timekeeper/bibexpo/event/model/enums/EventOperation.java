@@ -12,5 +12,7 @@ public enum EventOperation {
     /** Add a goody to the event's list, or remove one no participant record carries. */
     GOODIE_WRITE,
     /** Remove an imported goody, which rewrites every participant record that carries it. */
-    GOODIE_PURGE
+    GOODIE_PURGE,
+    /** Link a goody to the inventory item and location it is handed out from, or change that link. */
+    GOODIE_LINK
 }

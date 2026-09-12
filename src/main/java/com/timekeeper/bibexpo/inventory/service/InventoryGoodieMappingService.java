@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.inventory.service;
 
+import com.timekeeper.bibexpo.event.exception.EventOperationNotAllowedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingLocationRequiredException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryGoodieMappingNotFoundException;
@@ -51,6 +52,7 @@ public interface InventoryGoodieMappingService {
      * @throws InventoryLocationNotFoundException if the location does not belong to this organization
      * @throws InventoryGoodieMappingLocationRequiredException if no location was given and the event
      *         is already published
+     * @throws EventOperationNotAllowedException if the event is cancelled or completed, or its bill is final
      */
     InventoryGoodieMappingResponse createMapping(Long organizationId, Long eventId,
                                                  CreateInventoryGoodieMappingRequest request, User currentUser);
@@ -65,6 +67,7 @@ public interface InventoryGoodieMappingService {
      * @throws InventoryLocationNotFoundException if the location does not belong to this organization
      * @throws InventoryGoodieMappingLocationRequiredException if the location was cleared and the
      *         event is already published
+     * @throws EventOperationNotAllowedException if the event is cancelled or completed, or its bill is final
      */
     InventoryGoodieMappingResponse updateMapping(Long organizationId, Long eventId, Long mappingId,
                                                  UpdateInventoryGoodieMappingRequest request, User currentUser);
