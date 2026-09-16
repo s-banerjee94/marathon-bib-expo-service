@@ -17,9 +17,9 @@ import java.util.Map;
 @Schema(description = "Request to distribute goodies items")
 public class DistributeGoodiesRequest {
 
-    @NotEmpty(message = "At least one item is required")
+    @NotEmpty(message = "Add at least one goody to hand over.")
     @Schema(description = "Goodies to hand over: any on the participant's own list, or any added to the event by hand",
-            example = "[\"T-Shirt\", \"Cap\", \"Medal\"]", required = true)
+            example = "[\"T-Shirt\", \"Cap\", \"Medal\"]", requiredMode = Schema.RequiredMode.REQUIRED)
     private List<String> goodiesItems;
 
     @Schema(description = "The variant handed over, by goody name, for a goody added to the event by hand whose "

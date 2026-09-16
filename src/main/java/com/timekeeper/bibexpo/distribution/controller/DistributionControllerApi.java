@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.distribution.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.request.DistributeGoodiesRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.response.*;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
+import com.timekeeper.bibexpo.distribution.model.enums.PendingType;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,17 +37,21 @@ public interface DistributionControllerApi {
     @Operation(
             summary = "Collect bib for a participant",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
+
                     Record bib collection for a participant. \
-                    Optionally specify who collected the bib (defaults to participant if not provided). \
-                    Optionally distribute goodies items at the same time by providing a list of item names. \
-                    Staff member performing the distribution is automatically recorded. \
-                    Cannot collect the same bib twice. \
+                    Optionally specify who collected the bib (defaults to the participant when not provided). \
+                    Optionally hand over goodies at the same time by listing them in goodiesItems. \
+                    The staff member performing the collection is recorded automatically. \
+                    A bib cannot be collected twice. \
                     Each goody must be on the participant's own list, or be one added to the event by hand, \
-                    and cannot be handed over twice. \
+                    and cannot be handed over twice; when several goodies fail the same check, the error names \
+                    them all. \
                     A goody added by hand whose inventory item comes in more than one variant needs the chosen \
                     variant in variantIds. \
                     A goody added by hand and linked to inventory takes one unit off its location's shelf, \
-                    which may go below zero."""
+                    which may go below zero. \
+                    If any goody is refused, nothing is saved: the bib stays uncollected."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -66,7 +72,8 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Participant not found, or a goody is neither on their list nor added to the event by hand",
+                    description = "Participant not found, or goodies neither on their list nor added to the event "
+                            + "by hand (all such goodies named in one message)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -74,7 +81,8 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Bib already collected or goodies item already distributed",
+                    description = "Bib already collected, or goodies already handed over (all such goodies named in "
+                            + "one message)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -94,7 +102,7 @@ public interface DistributionControllerApi {
             @PathVariable Long eventId,
             @Parameter(description = "Bib number", example = "3001")
             @PathVariable String bibNumber,
-            @Parameter(description = "Collector details (optional - defaults to participant)")
+            @Parameter(description = "Collector details and goodies to hand over (optional - defaults to the participant)")
             @RequestBody(required = false) CollectBibRequest request,
             @AuthenticationPrincipal User currentUser);
 
@@ -103,12 +111,13 @@ public interface DistributionControllerApi {
     @Operation(
             summary = "Undo bib collection for a participant",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Undo bib collection and reset all distribution data. \
-                    This will reset: bibCollectedAt, bibCollectedByName, bibCollectedByPhone, bibDistributedBy. \
-                    IMPORTANT: This will also reset ALL goodies distribution for this participant, \
-                    and put back at its location any stock those goodies took off the shelf. \
-                    Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER (NOT DISTRIBUTOR). \
-                    Cannot undo if bib has not been collected."""
+                    This resets bibCollectedAt, bibCollectedByName, bibCollectedByPhone and bibDistributedBy. \
+                    IMPORTANT: this also resets ALL goodies distribution for this participant, \
+                    and puts back at its location any stock those goodies took off the shelf. \
+                    A bib that has not been collected cannot be undone."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -137,7 +146,7 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - only ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER can undo",
+                    description = "Access forbidden - insufficient permissions",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -156,15 +165,19 @@ public interface DistributionControllerApi {
     @Operation(
             summary = "Distribute goodies items to a participant",
             description = """
-                    Distribute one or more goodies items to a participant in a single operation. \
-                    Requires that the bib has been collected first. \
-                    Each goody must be on the participant's own list, or be one added to the event by hand. \
-                    Each goody can only be handed over once. \
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
+
+                    Hand one or more goodies to a participant in a single operation. \
+                    The bib must already be collected. \
+                    Each goody must be on the participant's own list, or be one added to the event by hand, \
+                    and can only be handed over once; when several goodies fail the same check, the error names \
+                    them all. \
                     A goody added by hand whose inventory item comes in more than one variant needs the chosen \
                     variant in variantIds; the counter gets the variants from the goodies list endpoint. \
                     A goody added by hand and linked to inventory takes one unit off its location's shelf, \
                     which may go below zero. \
-                    Staff member performing the distribution is automatically recorded."""
+                    If any goody is refused, none is recorded. \
+                    The staff member performing the hand-over is recorded automatically."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -177,7 +190,8 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Bib has not been collected yet, or a goody added by hand needs its variant chosen",
+                    description = "goodiesItems is empty, the bib has not been collected yet, or a goody added by hand "
+                            + "needs its variant chosen",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -185,7 +199,8 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Participant not found, or a goody is neither on their list nor added to the event by hand",
+                    description = "Participant not found, or goodies neither on their list nor added to the event "
+                            + "by hand (all such goodies named in one message)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -193,7 +208,7 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Goodies item already distributed",
+                    description = "Goodies already handed over (all such goodies named in one message)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -213,8 +228,9 @@ public interface DistributionControllerApi {
             @PathVariable Long eventId,
             @Parameter(description = "Bib number", example = "3001")
             @PathVariable String bibNumber,
-            @Parameter(description = "Goodies distribution request with one or more item names", required = true)
-            @RequestBody DistributeGoodiesRequest request,
+            @Parameter(description = "The goodies to hand over (at least one), and the variant chosen for any that "
+                    + "needs one", required = true)
+            @Valid @RequestBody DistributeGoodiesRequest request,
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/goodies")
@@ -222,6 +238,8 @@ public interface DistributionControllerApi {
     @Operation(
             summary = "List the goodies the counter can hand out",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
+
                     Every goody on the event's list, in list order, for the counter screen. \
                     A participant's own goodies come with their distribution status; this list adds the goodies \
                     added to the event by hand (source MANUAL), which can be handed to any participant. \
@@ -260,22 +278,36 @@ public interface DistributionControllerApi {
             @PathVariable Long eventId,
             @AuthenticationPrincipal User currentUser);
 
-    @GetMapping("/pending/bib")
+    @GetMapping("/pending")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
-            summary = "Get paginated list of participants with pending bib collection",
+            summary = "Get paginated list of participants who still have something to collect",
             description = """
-                    Retrieve participants for an event who have not yet collected their bibs with pagination support. \
-                    Returns participant details including bib number, name, contact info, and race/category information. \
-                    Uses token-based pagination with limit and lastEvaluatedKey for efficient DynamoDB querying."""
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
+
+                    One page of the event's participants, in bib order, who still have something to collect. \
+                    type=BIB lists the participants who have not collected their bib. \
+                    type=GOODIES lists the participants who collected their bib but still have goodies of their own \
+                    to collect; a goody added to the event by hand never makes anyone pending. \
+                    pendingItems names each participant's own goodies still to hand over. \
+                    Uses token-based pagination with limit and lastEvaluatedKey: every page but the last is full, \
+                    and hasMore is true only when another pending participant exists."""
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Paginated list of participants with pending bib collection",
+                    description = "One page of participants who still have something to collect",
                     content = @Content(
                             mediaType = "application/json",
-                            schema = @Schema(implementation = PendingBibListResponse.class)
+                            schema = @Schema(implementation = PendingParticipantListResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "type is missing or is neither BIB nor GOODIES, or limit is below 1",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
                     )
             ),
             @ApiResponse(
@@ -295,9 +327,11 @@ public interface DistributionControllerApi {
                     )
             )
     })
-    ResponseEntity<PendingBibListResponse> getPendingBibs(
+    ResponseEntity<PendingParticipantListResponse> getPending(
             @Parameter(description = "Event ID", example = "1")
             @PathVariable Long eventId,
+            @Parameter(description = "What is still to collect: BIB or GOODIES", required = true, example = "BIB")
+            @RequestParam PendingType type,
             @Parameter(description = "Maximum number of items to return (default: 50, max: 100)", example = "50")
             @RequestParam(required = false) Integer limit,
             @Parameter(description = "Pagination token from previous response to get next page", example = "eyJldmVudElkIjp7IlMiOiIxIn0sImJpYk51bWJlciI6eyJTIjoiMzAwMSJ9fQ==")
@@ -309,10 +343,11 @@ public interface DistributionControllerApi {
     @Operation(
             summary = "Get paginated distribution event logs for an event",
             description = """
-                    Retrieve paginated distribution event logs for an event. \
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    Retrieve paginated distribution event logs for an event, newest first. \
                     Logs include bib collection, bib undo, goodies distribution, and goodies undo actions. \
-                    Uses token-based pagination with limit and lastEvaluatedKey for efficient DynamoDB querying. \
-                    Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN, and ORGANIZER_USER roles."""
+                    Uses token-based pagination with limit and lastEvaluatedKey."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -333,7 +368,7 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - only ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER can access logs",
+                    description = "Access forbidden - insufficient permissions",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -354,9 +389,10 @@ public interface DistributionControllerApi {
     @Operation(
             summary = "Get distribution event logs for a specific participant",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Retrieve all distribution event logs for a specific participant by bib number. \
-                    Returns logs for bib collection, bib undo, goodies distribution, and goodies undo actions for this participant. \
-                    Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN, and ORGANIZER_USER roles."""
+                    Returns logs for bib collection, bib undo, goodies distribution, and goodies undo actions for this participant."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -377,7 +413,7 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - only ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER can access logs",
+                    description = "Access forbidden - insufficient permissions",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -396,6 +432,8 @@ public interface DistributionControllerApi {
     @Operation(
             summary = "Get distribution status for a participant",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
+
                     Retrieve the complete distribution status for a participant including bib collection and goodies distribution. \
                     Shows who collected the bib, which staff member distributed it, and the status of all goodies items."""
     )
@@ -432,55 +470,13 @@ public interface DistributionControllerApi {
             @PathVariable String bibNumber,
             @AuthenticationPrincipal User currentUser);
 
-    @GetMapping("/pending/goodies")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
-    @Operation(
-            summary = "Get paginated list of participants with pending goodies",
-            description = """
-                    Retrieve participants who have collected their bibs but still have pending goodies items to collect. \
-                    Returns participant details including which goodies items are still pending. \
-                    Uses token-based pagination with limit and lastEvaluatedKey for efficient DynamoDB querying."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Paginated list of participants with pending goodies",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = PendingGoodiesListResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Event not found",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Access forbidden - insufficient permissions",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<PendingGoodiesListResponse> getPendingGoodies(
-            @Parameter(description = "Event ID", example = "1")
-            @PathVariable Long eventId,
-            @Parameter(description = "Maximum number of items to return (default: 50, max: 100)", example = "50")
-            @RequestParam(required = false) Integer limit,
-            @Parameter(description = "Pagination token from previous response to get next page", example = "eyJldmVudElkIjp7IlMiOiIxIn0sImJpYk51bWJlciI6eyJTIjoiMzAwMSJ9fQ==")
-            @RequestParam(required = false) String lastEvaluatedKey,
-            @AuthenticationPrincipal User currentUser);
-
     @GetMapping("/logs/lookup")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Lookup distribution logs using LSI (cost-efficient prefix search)",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Efficient log lookup using DynamoDB Local Secondary Indexes (LSI). \
                     Uses Query with begins_with instead of Scan, resulting in lower cost and faster performance. \
 
@@ -500,7 +496,7 @@ public interface DistributionControllerApi {
             @ApiResponse(responseCode = "400", description = "Invalid search parameters",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
+            @ApiResponse(responseCode = "403", description = "Access forbidden - insufficient permissions",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found",
@@ -511,7 +507,7 @@ public interface DistributionControllerApi {
             @Parameter(description = "Event ID", required = true, example = "1")
             @PathVariable Long eventId,
 
-            @Parameter(description = "Type of search: BIB, ACTION, PERFORMED_BY, COLLECTOR, ITEM", required = true,
+            @Parameter(description = "Type of search: BIB, ACTION, PERFORMED_BY, COLLECTOR, COLLECTOR_PHONE", required = true,
                     schema = @Schema(implementation = LogSearchType.class))
             @RequestParam LogSearchType searchType,
 
@@ -533,18 +529,39 @@ public interface DistributionControllerApi {
     @Operation(
             summary = "Bulk collect bibs for multiple participants",
             description = """
-                    Collect bibs for multiple participants at once with the same collector information. \
-                    All bibs will be recorded as collected by the same person (or each participant if collector info not provided). \
-                    Staff member performing the distribution is automatically recorded. \
-                    Returns counts of successful and failed operations with detailed failure reasons."""
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
+
+                    Collect the bibs of up to 25 participants in one request, each optionally with goodies handed \
+                    over at the same time. \
+                    Each entry in items works exactly like a single bib collect: goodiesItems (optional) may hold any \
+                    of the participant's own goodies or any goody added to the event by hand, and variantIds picks \
+                    the variant for a goody added by hand whose inventory item comes in more than one. \
+                    collectorName and collectorPhone, when given, are recorded for every bib; otherwise each \
+                    participant is their own collector. \
+                    The staff member performing the collection is recorded automatically. \
+                    Entries are processed one by one and independently: one that fails does not stop the others, \
+                    and a failed entry saves nothing, neither its bib nor its goodies. \
+                    When several goodies of one entry fail the same check, its reason names them all. \
+                    The response lists the bibs collected and, for each failure, the bib, the goodies it asked for, \
+                    and the reason. \
+                    A request with no entries, more than 25 entries, or an entry without a bib number is refused \
+                    with 400 before anything is saved."""
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Bulk collection completed (check response for individual results)",
+                    description = "Bulk collection completed (check successful and failed for each entry)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = BulkDistributionResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "items is missing or empty, holds more than 25 entries, or an entry has no bib number",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
                     )
             ),
             @ApiResponse(
@@ -567,8 +584,9 @@ public interface DistributionControllerApi {
     ResponseEntity<BulkDistributionResponse> bulkCollectBib(
             @Parameter(description = "Event ID", example = "1")
             @PathVariable Long eventId,
-            @Parameter(description = "Bulk collection request with bib numbers and collector details", required = true)
-            @RequestBody BulkCollectBibRequest request,
+            @Parameter(description = "The bibs to collect (at most 25), each with any goodies, and the collector details",
+                    required = true)
+            @Valid @RequestBody BulkCollectBibRequest request,
             @AuthenticationPrincipal User currentUser);
 
     @PostMapping("/goodies/bulk-distribute")
@@ -576,19 +594,38 @@ public interface DistributionControllerApi {
     @Operation(
             summary = "Bulk distribute goodies items to multiple participants",
             description = """
-                    Distribute goodies items to multiple participants at once. \
-                    Each item in the request can be for a different participant and different goodies item. \
-                    Each item carries its own variantIds, as a single hand-over does. \
-                    Requires that bibs have been collected first for all participants. \
-                    Returns counts of successful and failed operations with detailed failure reasons."""
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
+
+                    Hand goodies to up to 25 participants in one request, each with their own goodies. \
+                    Each entry in items works exactly like a single goodies hand-over: the participant's bib must \
+                    already be collected, goodiesItems may hold any of their own goodies or any goody added to the \
+                    event by hand, each handed over once, and variantIds picks the variant for a goody added by hand \
+                    whose inventory item comes in more than one. \
+                    The staff member performing the hand-over is recorded automatically. \
+                    Entries are processed one by one and independently: one that fails does not stop the others, \
+                    and a failed entry records none of its goodies. \
+                    When several goodies of one entry fail the same check, its reason names them all. \
+                    The response lists each entry served as bib:goody,goody and, for each failure, the bib, its \
+                    goodies, and the reason. \
+                    A request with no entries, more than 25 entries, or an entry without a bib number or goodies is \
+                    refused with 400 before anything is saved."""
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Bulk distribution completed (check response for individual results)",
+                    description = "Bulk distribution completed (check successful and failed for each entry)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = BulkDistributionResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "items is missing or empty, holds more than 25 entries, or an entry has no bib number "
+                            + "or no goodies",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
                     )
             ),
             @ApiResponse(
@@ -611,7 +648,8 @@ public interface DistributionControllerApi {
     ResponseEntity<BulkDistributionResponse> bulkDistributeGoodies(
             @Parameter(description = "Event ID", example = "1")
             @PathVariable Long eventId,
-            @Parameter(description = "Bulk distribution request with list of bib numbers and item names", required = true)
-            @RequestBody BulkDistributeGoodiesRequest request,
+            @Parameter(description = "The participants to hand goodies to (at most 25), each with their own goodies",
+                    required = true)
+            @Valid @RequestBody BulkDistributeGoodiesRequest request,
             @AuthenticationPrincipal User currentUser);
 }

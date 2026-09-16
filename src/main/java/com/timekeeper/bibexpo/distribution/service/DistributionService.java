@@ -10,10 +10,10 @@ import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionGoodie
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.PendingBibListResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.PendingGoodiesListResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.PendingParticipantListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
+import com.timekeeper.bibexpo.distribution.model.enums.PendingType;
 import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 
@@ -68,14 +68,18 @@ public interface DistributionService {
     List<DistributionGoodieResponse> listGoodies(Long eventId, User currentUser);
 
     /**
-     * Get paginated list of participants with pending bib collection for an event
+     * One page of the event's participants who still have something to collect, in bib order
+     * BIB: participants who have not collected their bib. GOODIES: participants who collected their bib
+     * but still have goodies of their own to collect; a goody added by hand never makes anyone pending
      * @param eventId The event ID
+     * @param type What is still to collect: BIB or GOODIES
      * @param limit Maximum number of items to return (default: 50, max: 100)
      * @param lastEvaluatedKey Pagination token from previous response
      * @param currentUser The authenticated user
-     * @return Paginated response with participants who have not collected their bibs
+     * @return Paginated response with the participants, and the goodies each still has to collect
      */
-    PendingBibListResponse getPendingBibs(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser);
+    PendingParticipantListResponse getPending(Long eventId, PendingType type, Integer limit, String lastEvaluatedKey,
+                                              User currentUser);
 
     /**
      * Get paginated distribution event logs for an event
@@ -106,17 +110,6 @@ public interface DistributionService {
      * @return Participant distribution status with bib and goodies information
      */
     ParticipantDistributionResponse getDistributionStatus(Long eventId, String bibNumber, User currentUser);
-
-    /**
-     * Get paginated list of participants with pending goodies items
-     * Returns participants who have collected bibs but have not collected all goodies
-     * @param eventId The event ID
-     * @param limit Maximum number of items to return (default: 50, max: 100)
-     * @param lastEvaluatedKey Pagination token from previous response
-     * @param currentUser The authenticated user
-     * @return Paginated response with participants who have pending goodies items
-     */
-    PendingGoodiesListResponse getPendingGoodies(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser);
 
     /**
      * Bulk collect bibs for multiple participants with the same collector

@@ -23,8 +23,10 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 @Repository
 @RequiredArgsConstructor
@@ -80,6 +82,10 @@ public class ParticipantDDBRepository implements ParticipantStore {
                 .build();
     }
 
+    private static Map<String, AttributeValue> primaryKey(String eventId, String bibNumber) {
+        return Map.of("eventId", AttributeValue.fromS(eventId), "bibNumber", AttributeValue.fromS(bibNumber));
+    }
+
     @Override
     public void save(ParticipantDDB participant) {
         getTable().putItem(participant);
@@ -95,9 +101,7 @@ public class ParticipantDDBRepository implements ParticipantStore {
     public void updateVerifyShortCode(Long eventId, String bibNumber, String code) {
         dynamoDbClient.updateItem(UpdateItemRequest.builder()
                 .tableName(dynamoDbProperties.participantsTable())
-                .key(Map.of(
-                        "eventId", AttributeValue.fromS(String.valueOf(eventId)),
-                        "bibNumber", AttributeValue.fromS(bibNumber)))
+                .key(primaryKey(String.valueOf(eventId), bibNumber))
                 .updateExpression("SET verifyShortCode = :code")
                 .expressionAttributeValues(Map.of(":code", AttributeValue.fromS(code)))
                 .build());
@@ -188,12 +192,35 @@ public class ParticipantDDBRepository implements ParticipantStore {
         );
     }
 
-    @Override
+    /**
+     * One read of an event's participants after the start key. A filter applies after the limit, so a
+     * filtered page can come back short and still have more behind it.
+     */
     public Page<ParticipantDDB> findPage(Long eventId, int limit,
                                          Map<String, AttributeValue> startKey, Expression filter) {
         return getTable().query(
                         pageRequest(wholeEvent(String.valueOf(eventId)), limit, startKey, filter).build())
                 .stream().findFirst().orElse(null);
+    }
+
+    @Override
+    public Page<ParticipantDDB> fillPage(Long eventId, int limit, Map<String, AttributeValue> startKey,
+                                         Expression filter, Predicate<ParticipantDDB> keep) {
+        List<ParticipantDDB> kept = new ArrayList<>(limit);
+        for (ParticipantDDB participant : getTable()
+                .query(pageRequest(wholeEvent(String.valueOf(eventId)), limit, startKey, filter).build())
+                .items()) {
+            if (!keep.test(participant)) {
+                continue;
+            }
+            // One more passes, so there is a next page, and it starts right after the last one kept.
+            if (kept.size() == limit) {
+                ParticipantDDB last = kept.get(limit - 1);
+                return Page.create(kept, primaryKey(last.getEventId(), last.getBibNumber()));
+            }
+            kept.add(participant);
+        }
+        return Page.create(kept, null);
     }
 
     /**
