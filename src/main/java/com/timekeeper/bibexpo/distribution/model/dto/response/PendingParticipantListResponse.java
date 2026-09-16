@@ -25,6 +25,10 @@ public class PendingParticipantListResponse {
     @Schema(description = "Number of participants in this response", example = "25")
     private Integer count;
 
+    @Schema(description = "How many participants of the event still have this to collect, across all pages, read "
+            + "from the event's statistics. Null for type=GOODIES until that count is kept.", example = "1230")
+    private Long totalPending;
+
     @Schema(description = "Whether there are more pages available", example = "true")
     private Boolean hasMore;
 

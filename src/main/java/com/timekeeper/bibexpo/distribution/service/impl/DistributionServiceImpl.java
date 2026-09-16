@@ -37,6 +37,7 @@ import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistribu
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.service.util.DistributorStamp;
 import com.timekeeper.bibexpo.participant.service.util.ParticipantCountersMapper;
+import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.api.EventStatsRecorder;
 import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.event.api.ParticipantCounters;
@@ -89,6 +90,7 @@ public class DistributionServiceImpl implements DistributionService {
     private final ParticipantEventSmsService participantEventSmsService;
     private final ParticipantEventWhatsAppService participantEventWhatsAppService;
     private final EventStatsRecorder eventStatsRecorder;
+    private final EventStatsQuery eventStatsQuery;
     private final RaceCategoryNameQuery nameResolver;
     private final GoodieStockQuery goodieStockQuery;
     private final GoodieIssueRecorder goodieIssueRecorder;
@@ -289,6 +291,7 @@ public class DistributionServiceImpl implements DistributionService {
                 .participants(participants)
                 .lastEvaluatedKey(newLastEvaluatedKey)
                 .count(participants.size())
+                .totalPending(bib ? eventStatsQuery.pendingBibCount(eventId) : null)
                 .hasMore(newLastEvaluatedKey != null)
                 .build();
     }
