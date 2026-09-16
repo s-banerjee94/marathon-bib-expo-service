@@ -290,8 +290,9 @@ public interface DistributionControllerApi {
                     type=GOODIES lists the participants who collected their bib but still have goodies of their own \
                     to collect; a goody added to the event by hand never makes anyone pending. \
                     pendingItems names each participant's own goodies still to hand over. \
-                    totalPending gives the event-wide number still to collect, read from the event's statistics \
-                    rather than by counting pages; it is filled for type=BIB, and null for type=GOODIES for now. \
+                    totalPending gives the event-wide number still to collect for the chosen type, read from the \
+                    event's statistics rather than by counting pages; an event whose statistics predate the goodies \
+                    count needs a dashboard reconcile before its type=GOODIES total is right. \
                     Uses token-based pagination with limit and lastEvaluatedKey: every page but the last is full, \
                     and hasMore is true only when another pending participant exists."""
     )

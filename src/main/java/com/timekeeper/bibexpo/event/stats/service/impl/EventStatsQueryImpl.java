@@ -30,6 +30,11 @@ public class EventStatsQueryImpl implements EventStatsQuery {
     }
 
     @Override
+    public long pendingGoodiesCount(Long eventId) {
+        return Math.max(0, statsRepo.getCount(eventId.toString(), EventStatsDDB.KEY_GOODIES_PENDING));
+    }
+
+    @Override
     public List<EventStatsDDB> counters(Long eventId) {
         return statsRepo.queryAll(eventId.toString());
     }

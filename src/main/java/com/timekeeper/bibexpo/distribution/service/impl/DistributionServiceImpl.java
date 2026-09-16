@@ -291,7 +291,8 @@ public class DistributionServiceImpl implements DistributionService {
                 .participants(participants)
                 .lastEvaluatedKey(newLastEvaluatedKey)
                 .count(participants.size())
-                .totalPending(bib ? eventStatsQuery.pendingBibCount(eventId) : null)
+                .totalPending(bib ? eventStatsQuery.pendingBibCount(eventId)
+                        : eventStatsQuery.pendingGoodiesCount(eventId))
                 .hasMore(newLastEvaluatedKey != null)
                 .build();
     }

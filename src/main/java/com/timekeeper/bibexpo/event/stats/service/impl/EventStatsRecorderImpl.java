@@ -15,6 +15,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,6 +26,7 @@ import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.GE
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.GENDER_M;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.GENDER_O;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.KEY_BIB_COLLECTED;
+import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.KEY_GOODIES_PENDING;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.KEY_TOTAL;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_CATEGORY;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_DIST;
@@ -85,6 +87,9 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
             d.simple(KEY_BIB_COLLECTED, +1);
             d.race(p.raceId(), 0, +1);
             d.category(p.categoryId(), 0, +1);
+            if (owesGoodies(p, p.goodiesCollected())) {
+                d.simple(KEY_GOODIES_PENDING, +1);
+            }
             if (goodiesDistributed != null) {
                 for (String name : goodiesDistributed) {
                     d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, +1);
@@ -102,6 +107,9 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
             d.simple(KEY_BIB_COLLECTED, -1);
             d.race(before.raceId(), 0, -1);
             d.category(before.categoryId(), 0, -1);
+            if (owesGoodies(before, before.goodiesCollected())) {
+                d.simple(KEY_GOODIES_PENDING, -1);
+            }
             for (String name : before.goodiesCollected()) {
                 d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, -1);
             }
@@ -117,6 +125,12 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
             DeltaBuilder d = new DeltaBuilder();
             for (String name : items) {
                 d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, +1);
+            }
+            // A hand-out only ever settles what was owed, so the only move is off the pending count.
+            Set<String> handedBefore = new HashSet<>(p.goodiesCollected());
+            handedBefore.removeAll(items);
+            if (owesGoodies(p, handedBefore) && !owesGoodies(p, p.goodiesCollected())) {
+                d.simple(KEY_GOODIES_PENDING, -1);
             }
             statsRepo.applyDeltas(p.eventId(), d.build());
         });
@@ -182,11 +196,20 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
         if (collected) {
             d.simple(KEY_BIB_COLLECTED, sign);
         }
+        if (owesGoodies(p, p.goodiesCollected())) {
+            d.simple(KEY_GOODIES_PENDING, sign);
+        }
         for (String name : p.goodiesCollected()) {
             d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, sign);
         }
         p.goodiesEntitled().forEach((name, value) ->
                 d.simple(EventStatsDDB.entitledKey(name, value), sign));
+    }
+
+    // The counter's goodies list rule: a collected bib with at least one goody of the participant's own not
+    // yet handed over.
+    private static boolean owesGoodies(ParticipantCounters p, Set<String> handed) {
+        return p.bibCollected() && !handed.containsAll(p.goodiesEntitled().keySet());
     }
 
     private static List<EventStatsDDB> toRows(String eventIdStr, DeltaBuilder accumulator) {

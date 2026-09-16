@@ -32,6 +32,16 @@ public interface EventStatsQuery {
     long pendingBibCount(Long eventId);
 
     /**
+     * How many participants have collected their bib but are still owed a goody of their own, as the
+     * counters have it; never below zero. One single-row read. An event whose counters predate this one
+     * reads zero until its statistics are reconciled.
+     *
+     * @param eventId the event to count
+     * @return the participants still to collect a goody
+     */
+    long pendingGoodiesCount(Long eventId);
+
+    /**
      * Reads every counter row of an event.
      *
      * @param eventId the event whose counters to read
