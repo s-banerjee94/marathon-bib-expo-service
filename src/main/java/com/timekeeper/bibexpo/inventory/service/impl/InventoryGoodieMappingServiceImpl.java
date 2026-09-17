@@ -23,17 +23,16 @@ import com.timekeeper.bibexpo.inventory.model.entity.InventoryGoodieMapping;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryItem;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryLocation;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryStock;
-import com.timekeeper.bibexpo.inventory.model.entity.InventoryVariantAlias;
 import com.timekeeper.bibexpo.inventory.model.enums.GoodieValueResolution;
 import com.timekeeper.bibexpo.inventory.repository.InventoryGoodieMappingRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryLocationRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryStockRepository;
-import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAliasRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryGoodieMappingService;
-import com.timekeeper.bibexpo.inventory.service.util.VariantLabeller;
+import com.timekeeper.bibexpo.inventory.service.util.GoodieValueReader;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
+import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +43,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -59,9 +57,8 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
     private final InventoryLocationRepository locationRepository;
     private final InventoryStockRepository stockRepository;
     private final InventoryVariantAttributeValueRepository variantAttributeValueRepository;
-    private final InventoryVariantAliasRepository aliasRepository;
     private final InventoryAccessGuard accessGuard;
-    private final VariantLabeller variantLabeller;
+    private final GoodieValueReader valueReader;
     private final EventStore eventStore;
     private final EventStatsQuery eventStatsQuery;
     private final EventOperationGuard eventOperationGuard;
@@ -165,13 +162,13 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
 
         Map<String, InventoryGoodieMapping> links = mappingRepository.findByEventIdOrderByGoodieNameAsc(eventId)
                 .stream()
-                .collect(Collectors.toMap(link -> normalize(link.getGoodieName()), link -> link,
+                .collect(Collectors.toMap(link -> TextUtils.toMatchKey(link.getGoodieName()), link -> link,
                         (first, second) -> first, LinkedHashMap::new));
 
         Map<String, List<GoodieEntitlement>> demand = new LinkedHashMap<>();
         Map<String, String> goodieNames = new LinkedHashMap<>();
         for (GoodieEntitlement entitlement : eventStatsQuery.entitlements(eventId)) {
-            String key = normalize(entitlement.goodieName());
+            String key = TextUtils.toMatchKey(entitlement.goodieName());
             demand.computeIfAbsent(key, ignored -> new ArrayList<>()).add(entitlement);
             goodieNames.putIfAbsent(key, entitlement.goodieName());
         }
@@ -236,26 +233,33 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                         .locationId(locationId)
                         .locationName(locationId == null ? null : locationNames.get(locationId))
                         .participants(goody.getParticipants())
-                        .unresolvedParticipants(goody.getUnresolvedParticipants())
                         .countedByValue(goody.isCountedByValue());
 
         // A column with too many distinct values was never counted one by one, so there is no
         // demand to total and nothing honest to say about a shortfall.
         if (!goody.isCountedByValue()) {
-            return response.variants(List.of()).build();
+            return response.unresolvedParticipants(goody.getUnresolvedParticipants()).variants(List.of()).build();
         }
 
-        // Several spellings routinely mean one variant -- M, Medium and 38 are one shelf.
+        // A participant already handed the goody has taken their unit off the shelf, so only those still
+        // to serve are needed. Several spellings routinely mean one variant -- M, Medium and 38 are one shelf.
         Map<Long, Long> demand = new LinkedHashMap<>();
         Map<Long, String> variantLabels = new LinkedHashMap<>();
+        long handedOut = 0;
+        long unresolved = 0;
         for (InventoryGoodieResolutionResponse.Value value : goody.getValues()) {
+            long owed = value.getParticipants() - value.getHandedOut();
+            handedOut += value.getHandedOut();
             Long variantId = value.getVariantId();
-            if (variantId == null) {
-                continue;
+            if (variantId != null) {
+                demand.merge(variantId, owed, Long::sum);
+                variantLabels.putIfAbsent(variantId, value.getVariantLabel());
+            } else if (value.getResolution() == GoodieValueResolution.UNRESOLVED
+                    || value.getResolution() == GoodieValueResolution.NOT_LINKED) {
+                unresolved += owed;
             }
-            demand.merge(variantId, value.getParticipants(), Long::sum);
-            variantLabels.putIfAbsent(variantId, value.getVariantLabel());
         }
+        response.handedOut(handedOut).unresolvedParticipants(unresolved);
 
         List<InventoryGoodieShortfallResponse.Variant> variants = new ArrayList<>(demand.size());
         long needed = 0;
@@ -315,55 +319,28 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                     .values(List.of()).build();
         }
 
-        Map<Long, String> labels = link == null ? Map.of() : variantLabeller.labelsForItem(link.getItemId());
-        Map<String, Long> ownValues = labels.entrySet().stream()
-                .filter(label -> !label.getValue().isEmpty())
-                .collect(Collectors.toMap(label -> normalize(label.getValue()), Map.Entry::getKey,
-                        (first, second) -> first));
-        Map<String, InventoryVariantAlias> aliases = link == null ? Map.of()
-                : aliasRepository.findByItemIdOrderBySourceValueAsc(link.getItemId()).stream()
-                .collect(Collectors.toMap(alias -> normalize(alias.getSourceValue()), alias -> alias,
-                        (first, second) -> first));
-        // An item that varies by nothing has one unnamed variant, and every runner owed the goody
-        // is owed that one. The spellings are still read first, so "Not mentioned" can be taught to mean
-        // nothing is owed.
-        Long handedOverAsIs = ownValues.isEmpty() && labels.size() == 1
-                ? labels.keySet().iterator().next() : null;
-
+        GoodieValueReader.ItemReader reader = link == null ? null : valueReader.forItem(link.getItemId());
         long participants = 0;
         long unresolved = 0;
         List<InventoryGoodieResolutionResponse.Value> values = new ArrayList<>(demand.size());
         for (GoodieEntitlement entitlement : demand) {
-            String key = normalize(entitlement.value());
-            GoodieValueResolution resolution;
-            Long variantId = null;
-            if (link == null) {
-                resolution = GoodieValueResolution.NOT_LINKED;
-            } else if (ownValues.containsKey(key)) {
-                resolution = GoodieValueResolution.VARIANT;
-                variantId = ownValues.get(key);
-            } else if (aliases.containsKey(key)) {
-                variantId = aliases.get(key).getVariantId();
-                resolution = variantId == null
-                        ? GoodieValueResolution.NOTHING_OWED : GoodieValueResolution.ALIAS;
-            } else if (handedOverAsIs != null) {
-                resolution = GoodieValueResolution.SINGLE_VARIANT;
-                variantId = handedOverAsIs;
-            } else {
-                resolution = GoodieValueResolution.UNRESOLVED;
-            }
+            GoodieValueReader.Reading reading = reader == null
+                    ? new GoodieValueReader.Reading(GoodieValueResolution.NOT_LINKED, null)
+                    : reader.read(entitlement.value());
+            GoodieValueResolution resolution = reading.resolution();
 
             participants += entitlement.participants();
             if (resolution == GoodieValueResolution.UNRESOLVED || resolution == GoodieValueResolution.NOT_LINKED) {
                 unresolved += entitlement.participants();
             }
 
-            String label = variantId == null ? null : labels.get(variantId);
+            String label = reading.variantId() == null ? null : reader.labels().get(reading.variantId());
             values.add(InventoryGoodieResolutionResponse.Value.builder()
                     .value(entitlement.value())
                     .participants(entitlement.participants())
+                    .handedOut(entitlement.handedOut())
                     .resolution(resolution)
-                    .variantId(variantId)
+                    .variantId(reading.variantId())
                     .variantLabel(label == null || label.isEmpty() ? null : label)
                     .build());
         }
@@ -372,14 +349,6 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
 
         return response.participants(participants).unresolvedParticipants(unresolved)
                 .countedByValue(true).values(values).build();
-    }
-
-    /**
-     * Headings and cell values are compared the way the rest of this feature stores them: trimmed,
-     * and without regard to case, which is what the columns' own collation already does.
-     */
-    private static String normalize(String raw) {
-        return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
     }
 
     // ---- lookups ----------------------------------------------------------------

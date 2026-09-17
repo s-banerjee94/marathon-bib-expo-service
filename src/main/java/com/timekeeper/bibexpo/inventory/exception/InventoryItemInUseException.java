@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
 public class InventoryItemInUseException extends ApiException {
 
     public static final String DEFAULT_MESSAGE =
-            "This item still has stock on hand and cannot be deleted.";
+            "You can delete this item only once its stock is back to zero at every location.";
 
     public InventoryItemInUseException() {
         super(HttpStatus.CONFLICT, DEFAULT_MESSAGE);

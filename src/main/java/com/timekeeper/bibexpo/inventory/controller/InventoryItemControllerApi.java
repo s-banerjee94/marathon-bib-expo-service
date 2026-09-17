@@ -163,9 +163,13 @@ public interface InventoryItemControllerApi {
     @Operation(
             summary = "Delete an item",
             description = """
-                    Deletes an item together with all of its variants. An item any of whose variants \
-                    still has stock on hand cannot be deleted, and neither can one an event goody \
-                    is handed out from — unlink the goody first."""
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    Deletes an item together with all of its variants. It can be deleted only once \
+                    every variant's stock is back to exactly zero at every location: a balance above \
+                    zero would vanish, and one below zero means hand-outs took more than the shelf \
+                    held, which an adjustment or receipt must settle first. Neither can an item an \
+                    event goody is handed out from be deleted — unlink the goody first."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Item deleted successfully"),
@@ -173,7 +177,7 @@ public interface InventoryItemControllerApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization or item not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "The item still has stock on hand, or an event goody is handed out from it",
+            @ApiResponse(responseCode = "409", description = "A variant's stock is not zero somewhere (above or below), or an event goody is handed out from it",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @DeleteMapping("/{itemId}")
@@ -214,9 +218,13 @@ public interface InventoryItemControllerApi {
     @Operation(
             summary = "Remove a variant",
             description = """
-                    Removes one variant from an item. An item must always keep at least one, and a \
-                    variant cannot be removed while it still has stock on hand, or while the item \
-                    still reads a roster spelling as it."""
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    Removes one variant from an item. An item must always keep at least one. A \
+                    variant can be removed only once its stock is back to exactly zero at every \
+                    location — a shelf below zero, left by hand-outs beyond what it held, blocks it \
+                    too, until an adjustment or receipt settles it — and not while the item still \
+                    reads a roster spelling as it."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Variant removed successfully",
@@ -227,7 +235,7 @@ public interface InventoryItemControllerApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization, item, or variant not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "The variant still has stock on hand, or the item still reads a spelling as it",
+            @ApiResponse(responseCode = "409", description = "The variant's stock is not zero somewhere (above or below), or the item still reads a spelling as it",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @DeleteMapping("/{itemId}/variants/{variantId}")

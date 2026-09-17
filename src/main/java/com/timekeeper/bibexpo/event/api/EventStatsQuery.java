@@ -50,12 +50,14 @@ public interface EventStatsQuery {
     List<EventStatsDDB> counters(Long eventId);
 
     /**
-     * What the event's roster was promised, one row per goody per distinct spelling.
+     * What the event's roster was promised, one row per goody per distinct spelling, with how many of
+     * those participants were already handed the goody.
      *
      * <p>Decoded here rather than left as raw rows, so a caller outside this module never has to
      * learn how an entitlement key is spelled. Reads the same single query as {@link #counters},
      * needs no index, and is empty for an event imported before these counters existed until its
-     * statistics are reconciled.
+     * statistics are reconciled. Likewise, the handed-out count of an event whose counters were last
+     * rebuilt before hand-outs were counted by value is unreliable until it is reconciled.
      *
      * @param eventId the event to read
      * @return the entitlements, in goody then value order

@@ -18,7 +18,7 @@ import java.util.List;
  * values, ignoring case and surrounding spaces, so a file that already says {@code S / M / L} is
  * understood as it stands. Spellings exist for the rest — a file saying {@code M} where the item's
  * sizes read {@code 38}, or {@code Medium} where they read {@code M} — and for recording that a
- * spelling such as {@code Not mentioned} is owed nothing at all.
+ * spelling such as {@code No} in a medal column is owed nothing at all.
  *
  * <p>It belongs to the item because a spelling means what it means by virtue of which product this
  * is, so the next event using the same item inherits them rather than teaching them again.

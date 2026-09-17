@@ -7,6 +7,7 @@ import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
 import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.event.api.RaceCategoryStore;
+import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.shared.util.NameNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,7 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -40,6 +42,7 @@ public class CsvPreflightScanner {
     private final RaceCategoryStore raceCategoryStore;
     private final EventStatsQuery eventStatsQuery;
     private final EventQuota eventQuota;
+    private final ParticipantStore participantStore;
 
     /**
      * Scans the CSV for resource limit violations before the batch job is launched.
@@ -49,16 +52,24 @@ public class CsvPreflightScanner {
     public void scan(Path csvPath, ImportMappingRequest mapping, Long eventId, ImportMode mode) {
         EventLimits limits = eventQuota.forEvent(eventId);
 
-        ScanResult result = scanCsv(csvPath, mapping);
-        if (result == null) {
+        Map<String, RaceAndCategory> rowsByBib = scanCsv(csvPath, mapping);
+        if (rowsByBib == null) {
             return; // fail-open: let the batch job surface any real parse issue
         }
+        // An add-on skips a bib already registered, so that row adds no participant, race or category.
+        if (mode == ImportMode.ADD_ON) {
+            rowsByBib.keySet().removeAll(participantStore.findExistingBibs(eventId, rowsByBib.keySet()));
+        }
+        Map<String, Set<String>> categoriesByRace = new HashMap<>();
+        rowsByBib.values().forEach(row ->
+                categoriesByRace.computeIfAbsent(row.race(), k -> new HashSet<>()).add(row.category()));
 
-        checkParticipantLimit(result.rowCount, eventId, mode, limits);
-        Map<String, Long> raceIdByRawName = checkRaceLimit(result.categoriesByRace.keySet(), eventId, limits);
-        checkCategoryLimits(result.categoriesByRace, raceIdByRawName, limits);
+        checkParticipantLimit(rowsByBib.size(), eventId, mode, limits);
+        Map<String, Long> raceIdByRawName = checkRaceLimit(categoriesByRace.keySet(), eventId, limits);
+        checkCategoryLimits(categoriesByRace, raceIdByRawName, limits);
 
-        log.info("Pre-flight scan passed for event {}: {} rows, {} unique races", eventId, result.rowCount, result.categoriesByRace.size());
+        log.info("Pre-flight scan passed for event {}: {} rows, {} unique races", eventId, rowsByBib.size(),
+                categoriesByRace.size());
     }
 
     private void checkParticipantLimit(int csvRowCount, Long eventId, ImportMode mode, EventLimits limits) {
@@ -115,31 +126,30 @@ public class CsvPreflightScanner {
         }
     }
 
-    private ScanResult scanCsv(Path csvPath, ImportMappingRequest mapping) {
-        int rowCount = 0;
-        Map<String, Set<String>> categoriesByRace = new HashMap<>();
+    // The job reads a repeated bib once, as its first row, so that is the only row counted for it.
+    private Map<String, RaceAndCategory> scanCsv(Path csvPath, ImportMappingRequest mapping) {
+        Map<String, RaceAndCategory> rowsByBib = new LinkedHashMap<>();
 
         try (InputStream is = new FileInputStream(csvPath.toFile());
              CsvParseStream stream = csvParserUtil.openStream(is, mapping)) {
 
             CsvRow row;
             while ((row = stream.nextRow()) != null) {
-                rowCount++;
                 String raceName = isBlank(row.getRaceName()) ? BLANK_RACE : row.getRaceName();
                 String catName = isBlank(row.getCategoryName()) ? BLANK_CATEGORY : row.getCategoryName();
-                categoriesByRace.computeIfAbsent(raceName, k -> new HashSet<>()).add(catName);
+                rowsByBib.putIfAbsent(row.getBibNumber(), new RaceAndCategory(raceName, catName));
             }
         } catch (IOException e) {
             log.warn("Pre-flight CSV scan could not read file {}: {}", csvPath, e.getMessage());
             return null;
         }
 
-        return new ScanResult(rowCount, categoriesByRace);
+        return rowsByBib;
     }
 
     private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
     }
 
-    private record ScanResult(int rowCount, Map<String, Set<String>> categoriesByRace) {}
+    private record RaceAndCategory(String race, String category) {}
 }

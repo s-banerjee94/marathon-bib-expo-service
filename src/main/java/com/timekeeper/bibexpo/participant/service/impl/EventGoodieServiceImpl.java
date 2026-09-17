@@ -22,6 +22,7 @@ import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.repository.ParticipantDDBRepository;
 import com.timekeeper.bibexpo.participant.service.EventGoodieService;
 import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
+import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +36,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -109,7 +109,7 @@ public class EventGoodieServiceImpl implements EventGoodieService {
 
         // The whole roster is read before anything is written, so a goody handed out to even one
         // participant stops the removal with every record still as it was.
-        String key = key(goodie.name());
+        String key = TextUtils.toMatchKey(goodie.name());
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         List<ParticipantDDB> carrying = new ArrayList<>();
         for (Page<ParticipantDDB> page : participantRepository.findPagesByEventId(eventId, PARTICIPANT_PAGE_SIZE)) {
@@ -119,7 +119,7 @@ public class EventGoodieServiceImpl implements EventGoodieService {
                 }
                 if (imported && holds(participant.getGoodies(), key)) {
                     Map<String, String> kept = new HashMap<>(participant.getGoodies());
-                    kept.keySet().removeIf(entry -> key(entry).equals(key));
+                    kept.keySet().removeIf(entry -> TextUtils.toMatchKey(entry).equals(key));
                     participant.setGoodies(kept);
                     participant.setUpdatedAt(now);
                     participant.setUpdatedBy(currentUser.getUsername());
@@ -151,14 +151,14 @@ public class EventGoodieServiceImpl implements EventGoodieService {
 
         List<EventGoodie> goodies = new ArrayList<>(event.getEventGoodies());
         Set<String> known = new HashSet<>();
-        goodies.forEach(goodie -> known.add(key(goodie.name())));
+        goodies.forEach(goodie -> known.add(TextUtils.toMatchKey(goodie.name())));
         List<EventGoodie> fresh = new ArrayList<>();
         boolean upgraded = false;
         for (String name : names) {
             if (name == null || name.isBlank()) {
                 continue;
             }
-            if (known.add(key(name))) {
+            if (known.add(TextUtils.toMatchKey(name))) {
                 fresh.add(new EventGoodie(name, GoodieSource.IMPORT));
                 continue;
             }
@@ -195,16 +195,12 @@ public class EventGoodieServiceImpl implements EventGoodieService {
     }
 
     private static EventGoodie find(List<EventGoodie> goodies, String name) {
-        String key = key(name);
-        return goodies.stream().filter(goodie -> key(goodie.name()).equals(key)).findFirst().orElse(null);
+        String key = TextUtils.toMatchKey(name);
+        return goodies.stream().filter(goodie -> TextUtils.toMatchKey(goodie.name()).equals(key))
+                .findFirst().orElse(null);
     }
 
     private static boolean holds(Map<String, String> goodies, String key) {
-        return goodies != null && goodies.keySet().stream().anyMatch(name -> key(name).equals(key));
-    }
-
-    // Compared the way race and category names are: trimmed and without regard to case.
-    private static String key(String name) {
-        return name.trim().toLowerCase(Locale.ROOT);
+        return goodies != null && goodies.keySet().stream().anyMatch(name -> TextUtils.toMatchKey(name).equals(key));
     }
 }

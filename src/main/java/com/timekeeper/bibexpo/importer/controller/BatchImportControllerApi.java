@@ -37,6 +37,8 @@ public interface BatchImportControllerApi {
     @Operation(
             summary = "Launch async CSV import with dynamic column mapping (202 Accepted)",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Accepts the CSV file plus a JSON column mapping (see ImportMappingRequest) in the same \
                     multipart request. Columns are matched by zero-based physical position, so the file header \
                     is not validated server-side. The mapping is validated up front (unknown fields, missing \
@@ -46,7 +48,9 @@ public interface BatchImportControllerApi {
                     - IMPORT (default): a full load. Existing participants are wiped when the job starts, then the \
                     file is loaded. Allowed only while the event is in DRAFT. \
                     - ADD_ON: appends walk-ins without wiping. Allowed while the event is DRAFT or PUBLISHED; \
-                    blocked once COMPLETED or CANCELLED. \
+                    blocked once COMPLETED or CANCELLED. It only adds: a row whose bib is already registered for \
+                    the event is skipped and reported as a DUPLICATE_BIB row error, so that participant's record, \
+                    including a collected bib and goodies already handed out, stays exactly as it was. \
 
                     A Spring Batch job runs asynchronously and returns 202 immediately with a jobExecutionId. \
                     Poll GET .../batch-import/{jobExecutionId}/status to track progress. Returns 409 if a batch \
@@ -76,7 +80,7 @@ public interface BatchImportControllerApi {
             @Parameter(description = "Column mapping JSON (ImportMappingRequest)", required = true)
             @RequestPart("mapping") String mapping,
             @Parameter(description = "Run mode: IMPORT (full load, draft only, wipes existing) or ADD_ON "
-                    + "(append walk-ins, draft or published). Defaults to IMPORT.")
+                    + "(append walk-ins, draft or published; bibs already registered are skipped). Defaults to IMPORT.")
             @RequestParam(value = "mode", required = false, defaultValue = "IMPORT") ImportMode mode,
             @AuthenticationPrincipal User currentUser
     );
@@ -141,7 +145,9 @@ public interface BatchImportControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get paginated errors from the latest batch import",
-            description = "Returns row-level validation errors from the most recent batch import for the event. " +
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\n" +
+                    "Returns row-level errors from the most recent batch import for the event, including the " +
+                    "DUPLICATE_BIB rows an ADD_ON run skipped because the bib was already registered. " +
                     "Use lastEvaluatedKey from the response to retrieve subsequent pages. " +
                     "Returns an empty list if no import has been run."
     )

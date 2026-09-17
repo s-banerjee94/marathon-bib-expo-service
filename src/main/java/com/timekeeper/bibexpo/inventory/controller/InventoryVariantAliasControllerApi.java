@@ -65,9 +65,10 @@ public interface InventoryVariantAliasControllerApi {
                     Records that one spelling found in rosters means one variant of this item.
 
                     Leave the variant out to record the opposite: that the spelling is owed nothing \
-                    at all. That is the honest reading of a blank cell, which imports store as \
-                    "Not mentioned", and it is what stops a column nobody filled in from looking \
-                    like unmet demand.
+                    at all, such as "No" in a medal column. It then counts as no demand, and the \
+                    counter hands the goody over without taking anything off the shelf. A blank cell, \
+                    which imports store as "Not mentioned", usually still means the goody is owed: \
+                    teach it the variant those participants get.
 
                     A spelling belongs to the item, not to an event, because it means what \
                     it means by virtue of which product this is. The next event using this item \

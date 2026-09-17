@@ -24,11 +24,9 @@ import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -134,11 +132,7 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
      */
     private static List<ParticipantStatisticsResponse.GoodieDemand> goodiesBreakdown(
             List<EventStatsDDB> rows) {
-        return rows.stream()
-                .map(GoodieEntitlement::from)
-                .filter(Objects::nonNull)
-                .sorted(Comparator.comparing(GoodieEntitlement::goodieName)
-                        .thenComparing(GoodieEntitlement::value))
+        return GoodieEntitlement.fromRows(rows).stream()
                 .map(e -> ParticipantStatisticsResponse.GoodieDemand.builder()
                         .goodieName(e.goodieName())
                         .value(e.value())

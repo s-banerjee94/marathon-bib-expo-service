@@ -24,8 +24,10 @@ public class DistributionGoodieResponse {
             example = "Sipper Bottle")
     private String itemName;
 
-    @Schema(description = "Variants to choose between when handing it over. Filled only for a MANUAL goody whose "
-            + "item comes in more than one; send the chosen variantId with the hand-over. Empty otherwise.")
+    @Schema(description = "Variants to choose between when handing it over, filled whenever its item comes in more "
+            + "than one; send the chosen variantId with the hand-over. A MANUAL goody always needs one. For an IMPORT "
+            + "goody it is optional: without one the participant's own value decides, and the hand-over is refused "
+            + "only when that value was never taught to the item. Empty otherwise.")
     private List<Variant> variants;
 
     @Data

@@ -19,7 +19,6 @@ import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionRe
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.distribution.model.enums.PendingType;
 import com.timekeeper.bibexpo.distribution.service.DistributionService;
-import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
@@ -151,21 +150,6 @@ public class DistributionController implements DistributionControllerApi {
         List<DistributionLogResponse> response = distributionService.getParticipantLogs(eventId, bibNumber, currentUser);
 
         log.info("Retrieved {} distribution logs for participant {} in event {}", response.size(), bibNumber, eventId);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
-    public ResponseEntity<ParticipantDistributionResponse> getDistributionStatus(
-            @PathVariable Long eventId,
-            @PathVariable String bibNumber,
-            @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get distribution status for participant {} in event {} by user: {}",
-                bibNumber, eventId, currentUser.getUsername());
-
-        ParticipantDistributionResponse response = distributionService.getDistributionStatus(eventId, bibNumber, currentUser);
-
-        log.info("Retrieved distribution status for participant {} in event {}", bibNumber, eventId);
 
         return ResponseEntity.ok(response);
     }

@@ -30,10 +30,10 @@ import com.timekeeper.bibexpo.event.model.entity.EventGoodie;
 import com.timekeeper.bibexpo.event.model.entity.GoodieSource;
 import com.timekeeper.bibexpo.inventory.api.GoodieIssue;
 import com.timekeeper.bibexpo.inventory.api.GoodieIssueRecorder;
+import com.timekeeper.bibexpo.inventory.api.GoodieRequest;
 import com.timekeeper.bibexpo.inventory.api.GoodieStockOption;
 import com.timekeeper.bibexpo.inventory.api.GoodieStockQuery;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
-import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.service.util.DistributorStamp;
 import com.timekeeper.bibexpo.participant.service.util.ParticipantCountersMapper;
@@ -341,17 +341,6 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     @Override
-    public ParticipantDistributionResponse getDistributionStatus(Long eventId, String bibNumber, User currentUser) {
-        requireVisibleEvent(eventId, currentUser);
-
-        ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, bibNumber);
-
-        EventNames names = nameResolver.forEvent(eventId);
-        return ParticipantDistributionResponse.from(participant,
-                names.raceLabel(participant.getRaceId()), names.categoryLabel(participant.getCategoryId()));
-    }
-
-    @Override
     public BulkDistributionResponse bulkCollectBib(Long eventId, BulkCollectBibRequest request, User currentUser) {
         Event event = requireDistributableEvent(eventId, currentUser);
         return runEach(request.getItems(), BulkCollectBibRequest.CollectItem::getBibNumber,
@@ -371,9 +360,9 @@ public class DistributionServiceImpl implements DistributionService {
         Event event = requireVisibleEvent(eventId, currentUser);
 
         Map<String, GoodieStockOption> links = new HashMap<>();
-        goodieStockQuery.optionsFor(eventId).forEach(link -> links.put(key(link.goodieName()), link));
+        goodieStockQuery.optionsFor(eventId).forEach(link -> links.put(TextUtils.toMatchKey(link.goodieName()), link));
         return event.getEventGoodies().stream()
-                .map(goodie -> toCounterGoodie(goodie, links.get(key(goodie.name()))))
+                .map(goodie -> toCounterGoodie(goodie, links.get(TextUtils.toMatchKey(goodie.name()))))
                 .toList();
     }
 
@@ -635,11 +624,17 @@ public class DistributionServiceImpl implements DistributionService {
             throw new GoodiesAlreadyDistributedException(handedAlready);
         }
 
-        List<HandOver> handed = new ArrayList<>(names.size());
+        // A participant's own value says which variant they are owed; a goody added by hand has none.
+        Map<String, String> own = participant.getGoodies() == null ? Collections.emptyMap() : participant.getGoodies();
+        List<GoodieRequest> requests = new ArrayList<>(names.size());
         for (int i = 0; i < names.size(); i++) {
-            handed.add(new HandOver(names.get(i),
-                    stockTaken(event, participant, itemNames.get(i), names.get(i), variantIds)));
+            String requested = itemNames.get(i);
+            requests.add(new GoodieRequest(names.get(i), own.get(requested),
+                    variantIds == null ? null : variantIds.get(requested)));
         }
+        Map<String, GoodieIssue> issues = goodieStockQuery.planIssues(event.getId(), requests);
+
+        List<HandOver> handed = names.stream().map(name -> new HandOver(name, issues.get(name))).toList();
         handed.forEach(h -> distribution.put(h.name(), distributionRecord(now, distributedBy, h.issue())));
         participant.setGoodiesDistribution(distribution);
         return handed;
@@ -651,22 +646,13 @@ public class DistributionServiceImpl implements DistributionService {
         if (participant.getGoodies() != null && participant.getGoodies().containsKey(requested)) {
             return requested;
         }
-        String wanted = requested == null ? "" : key(requested);
+        String wanted = TextUtils.toMatchKey(requested);
         return event.getEventGoodies().stream()
-                .filter(goodie -> goodie.source() == GoodieSource.MANUAL && key(goodie.name()).equals(wanted))
+                .filter(goodie -> goodie.source() == GoodieSource.MANUAL
+                        && TextUtils.toMatchKey(goodie.name()).equals(wanted))
                 .map(EventGoodie::name)
                 .findFirst()
                 .orElse(null);
-    }
-
-    // Only a goody added by hand comes out of inventory.
-    private GoodieIssue stockTaken(Event event, ParticipantDDB participant, String requested, String name,
-                                   Map<String, Long> variantIds) {
-        if (participant.getGoodies() != null && participant.getGoodies().containsKey(requested)) {
-            return null;
-        }
-        Long variantId = variantIds == null ? null : variantIds.get(requested);
-        return goodieStockQuery.planIssue(event.getId(), name, variantId).orElse(null);
     }
 
     private String distributionRecord(String collectedAt, String distributedBy, GoodieIssue issue) {
@@ -705,10 +691,10 @@ public class DistributionServiceImpl implements DistributionService {
         }
     }
 
-    // Only a goody added by hand asks the counter which variant; an imported one is owed the variant its
-    // participant's own value names.
+    // Offered for an imported goody too: its participant's value may be one the item was never taught, or
+    // they may swap sizes at the counter.
     private static DistributionGoodieResponse toCounterGoodie(EventGoodie goodie, GoodieStockOption link) {
-        boolean choose = link != null && goodie.source() == GoodieSource.MANUAL && link.variants().size() > 1;
+        boolean choose = link != null && link.variants().size() > 1;
         return DistributionGoodieResponse.builder()
                 .name(goodie.name())
                 .source(goodie.source())
@@ -722,10 +708,6 @@ public class DistributionServiceImpl implements DistributionService {
                                 .toList()
                         : List.of())
                 .build();
-    }
-
-    private static String key(String name) {
-        return name.trim().toLowerCase(Locale.ROOT);
     }
 
     /** One goody being handed over, and what it takes out of inventory; null when it takes nothing. */

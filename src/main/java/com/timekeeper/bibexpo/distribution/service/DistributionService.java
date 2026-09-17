@@ -14,7 +14,6 @@ import com.timekeeper.bibexpo.distribution.model.dto.response.PendingParticipant
 import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.distribution.model.enums.PendingType;
-import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
@@ -47,8 +46,8 @@ public interface DistributionService {
     /**
      * Distribute goodies to a participant
      * Requires bib to be collected first. Each goody is one on the participant's own list, or one added
-     * to the event by hand; one added by hand and linked to inventory also takes a unit off its
-     * location's shelf
+     * to the event by hand; one linked to inventory also takes a unit off its location's shelf, of the
+     * variant chosen, or else the one the participant's own value reads as
      * @param eventId The event ID
      * @param bibNumber The bib number
      * @param request The goodies to hand over, and the variant chosen for any that needs one
@@ -59,8 +58,8 @@ public interface DistributionService {
 
     /**
      * Every goody on the event's list as the counter offers it: where each came from, the inventory
-     * item it comes out of, and the variants to choose between for a goody added by hand that has
-     * more than one
+     * item it comes out of, and the variants to choose between for a linked goody whose item has more
+     * than one
      * @param eventId The event ID
      * @param currentUser The authenticated staff user
      * @return The event's goodies, in list order
@@ -101,15 +100,6 @@ public interface DistributionService {
      * @return List of distribution event logs for the participant
      */
     List<DistributionLogResponse> getParticipantLogs(Long eventId, String bibNumber, User currentUser);
-
-    /**
-     * Get distribution status for a specific participant
-     * @param eventId The event ID
-     * @param bibNumber The bib number
-     * @param currentUser The authenticated user
-     * @return Participant distribution status with bib and goodies information
-     */
-    ParticipantDistributionResponse getDistributionStatus(Long eventId, String bibNumber, User currentUser);
 
     /**
      * Bulk collect bibs for multiple participants with the same collector

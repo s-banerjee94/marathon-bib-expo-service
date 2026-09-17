@@ -42,15 +42,20 @@ public class InventoryGoodieShortfallResponse {
             + "spelling is understood yet", example = "2827")
     private long participants;
 
-    @Schema(description = "How many of them carry a spelling nothing recognises, so they are "
-            + "behind none of the rows below and are not counted as needed", example = "41")
+    @Schema(description = "How many of them have already been handed it, and so are no longer "
+            + "needed; zero when the column was not counted by value", example = "1000")
+    private long handedOut;
+
+    @Schema(description = "How many of those still to be handed it carry a spelling nothing "
+            + "recognises, so they are behind none of the rows below and are not counted as needed",
+            example = "41")
     private long unresolvedParticipants;
 
     @Schema(description = "False when the column held too many distinct values to count one by "
             + "one, in which case nothing can be totalled and no rows are returned", example = "true")
     private boolean countedByValue;
 
-    @Schema(description = "Total owed across every variant below", example = "2786")
+    @Schema(description = "Total still to hand out across every variant below", example = "1786")
     private long needed;
 
     @Schema(description = "Total on hand at the issuing location", example = "2000")
@@ -82,8 +87,8 @@ public class InventoryGoodieShortfallResponse {
                 example = "M")
         private String variantLabel;
 
-        @Schema(description = "How many participants are owed this variant, across every spelling "
-                + "that resolves to it", example = "1900")
+        @Schema(description = "How many participants are owed this variant and not yet handed it, "
+                + "across every spelling that resolves to it", example = "1900")
         private long needed;
 
         @Schema(description = "How many are on hand at the issuing location", example = "1750")

@@ -60,11 +60,30 @@ public class EventStatsDDB {
     // distinct values were seen.
     public static final String PREFIX_ENTITLED_OVERFLOW = "ENTITLEDMANY#";
 
+    // HANDED#<goody>#<value> holds how many of the participants behind the matching ENTITLED# row have
+    // already been handed that goody, so demand still to serve is one less the other.
+    public static final String PREFIX_HANDED = "HANDED#";
+
     /**
      * The counter key for one goody spelled one particular way.
      */
     public static String entitledKey(String goodieName, String value) {
         return PREFIX_ENTITLED + encodeSegment(goodieName) + "#" + encodeSegment(value);
+    }
+
+    /**
+     * The handed-out counter key for one goody spelled one particular way.
+     */
+    public static String handedKey(String goodieName, String value) {
+        return PREFIX_HANDED + encodeSegment(goodieName) + "#" + encodeSegment(value);
+    }
+
+    /**
+     * The entitlement key a handed-out key counts against, or {@code null} if the key is not one.
+     */
+    public static String entitledKeyOfHanded(String statKey) {
+        return statKey != null && statKey.startsWith(PREFIX_HANDED)
+                ? PREFIX_ENTITLED + statKey.substring(PREFIX_HANDED.length()) : null;
     }
 
     /**

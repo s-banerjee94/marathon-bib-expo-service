@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.inventory.api;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 /**
  * What the distribution counter needs to know about an event's goodies before handing one over:
@@ -23,15 +23,18 @@ public interface GoodieStockQuery {
     List<GoodieStockOption> optionsFor(Long eventId);
 
     /**
-     * Decides what handing one goody over takes off the shelf, without touching stock. An item that
-     * varies by nothing needs no choice; one that varies needs the counter to say which.
+     * Decides what handing some goodies over takes off the shelf, without touching stock. A variant the
+     * counter chose always wins, so a participant can swap sizes. Otherwise one of the participant's own
+     * goodies goes out as the variant their value reads as, the way the check screen reads it, and an
+     * item with a single variant needs no choice. Every goody is checked before any is refused, so a
+     * refusal names all the goodies that fail it.
      *
-     * @param eventId    the event
-     * @param goodieName the goody being handed over
-     * @param variantId  the variant the counter chose, or null when it chose none
-     * @return what to post once the hand-over is recorded; empty when the goody is not linked
-     * @throws InvalidUserDataException if the item varies and no variant was chosen, or the chosen
-     *                                  variant is not one of the item's
+     * @param eventId  the event
+     * @param requests the goodies handed over together, each under a different name
+     * @return what to post once the hand-over is recorded, by goody name; a goody that is not linked, or
+     *         whose value was taught to mean nothing is owed, has no entry
+     * @throws InvalidUserDataException if a goody needs a variant and none was chosen, or a chosen variant
+     *                                  is not one of its item's
      */
-    Optional<GoodieIssue> planIssue(Long eventId, String goodieName, Long variantId);
+    Map<String, GoodieIssue> planIssues(Long eventId, List<GoodieRequest> requests);
 }

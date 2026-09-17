@@ -63,10 +63,12 @@ public interface InventoryGoodieMappingControllerApi {
     @Operation(
             summary = "Check what an event's goodies resolve to",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     The screen an organizer works from after linking. It lists every goody the \
                     event's roster carries, every distinct spelling under it, and how many \
                     participants are behind each one — 812 asked for `M`, 604 for `Large`, 41 for \
-                    `xl`.
+                    `xl` — with `handedOut`, how many of them have already been handed the goody.
 
                     Each spelling is read in a fixed order and never guessed. The item's own \
                     variant values come first, then its taught spellings, then the item itself when it \
@@ -99,6 +101,8 @@ public interface InventoryGoodieMappingControllerApi {
     @Operation(
             summary = "See what is needed against what is on the shelf",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     The shortfall report. For every goody it totals what the roster asks for, \
                     variant by variant, against what is on hand at the location that goody is \
                     handed out from — 1,900 mediums needed, 1,750 at the venue, 150 short.
@@ -112,7 +116,14 @@ public interface InventoryGoodieMappingControllerApi {
 
                     Demand is what the roster promised, never what turnout is expected to be. \
                     Every registered participant owed a goody is counted, because every one of \
-                    them may walk in. Spellings nothing recognises are held apart in \
+                    them may walk in, until they are handed it: a hand-over takes its unit off the \
+                    shelf, so from then on that participant leaves `needed` and counts in \
+                    `handedOut` instead. During the expo `needed` is therefore what is still to \
+                    hand out, and 340 mediums registered with 100 handed out and 240 on the shelf \
+                    reads as 240 needed and none short. An event whose statistics were built \
+                    before `handedOut` existed reads it wrongly until its statistics are \
+                    reconciled. \
+                    Spellings nothing recognises are held apart in \
                     `unresolvedParticipants` instead of being guessed into a variant, so they \
                     neither inflate a shortfall nor hide one — teach those spellings on the \
                     variant-aliases endpoint and they move into the rows here.

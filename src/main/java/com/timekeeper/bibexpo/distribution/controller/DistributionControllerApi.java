@@ -7,7 +7,6 @@ import com.timekeeper.bibexpo.distribution.model.dto.request.DistributeGoodiesRe
 import com.timekeeper.bibexpo.distribution.model.dto.response.*;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
 import com.timekeeper.bibexpo.distribution.model.enums.PendingType;
-import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,10 +46,13 @@ public interface DistributionControllerApi {
                     Each goody must be on the participant's own list, or be one added to the event by hand, \
                     and cannot be handed over twice; when several goodies fail the same check, the error names \
                     them all. \
-                    A goody added by hand whose inventory item comes in more than one variant needs the chosen \
-                    variant in variantIds. \
-                    A goody added by hand and linked to inventory takes one unit off its location's shelf, \
-                    which may go below zero. \
+                    A goody linked to inventory takes one unit of a variant off its location's shelf, which may go \
+                    below zero: the variant sent in variantIds, else the one the participant's own value reads as, \
+                    else the item's only variant. \
+                    When none of those applies, because the item comes in more than one variant and the goody was \
+                    added by hand or the participant's value was never taught to the item, the hand-over is refused \
+                    until a variant is sent. \
+                    A value taught to mean nothing is owed takes nothing off the shelf. \
                     If any goody is refused, nothing is saved: the bib stays uncollected."""
     )
     @ApiResponses(value = {
@@ -64,7 +66,8 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "A goody added by hand needs its variant chosen, or the chosen variant is not its item's",
+                    description = "Goodies need their variant chosen, or were sent one that is not their item's "
+                            + "(all named in one message)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -172,10 +175,13 @@ public interface DistributionControllerApi {
                     Each goody must be on the participant's own list, or be one added to the event by hand, \
                     and can only be handed over once; when several goodies fail the same check, the error names \
                     them all. \
-                    A goody added by hand whose inventory item comes in more than one variant needs the chosen \
-                    variant in variantIds; the counter gets the variants from the goodies list endpoint. \
-                    A goody added by hand and linked to inventory takes one unit off its location's shelf, \
-                    which may go below zero. \
+                    A goody linked to inventory takes one unit of a variant off its location's shelf, which may go \
+                    below zero: the variant sent in variantIds, else the one the participant's own value reads as, \
+                    else the item's only variant. \
+                    When none of those applies, because the item comes in more than one variant and the goody was \
+                    added by hand or the participant's value was never taught to the item, the hand-over is refused \
+                    until a variant is sent; the counter gets the variants from the goodies list endpoint. \
+                    A value taught to mean nothing is owed takes nothing off the shelf. \
                     If any goody is refused, none is recorded. \
                     The staff member performing the hand-over is recorded automatically."""
     )
@@ -190,8 +196,8 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "goodiesItems is empty, the bib has not been collected yet, or a goody added by hand "
-                            + "needs its variant chosen",
+                    description = "goodiesItems is empty, the bib has not been collected yet, or goodies need their "
+                            + "variant chosen or were sent one that is not their item's (all named in one message)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -244,8 +250,10 @@ public interface DistributionControllerApi {
                     A participant's own goodies come with their distribution status; this list adds the goodies \
                     added to the event by hand (source MANUAL), which can be handed to any participant. \
                     A goody linked to inventory names the item it comes out of. \
-                    A MANUAL goody whose item comes in more than one variant lists the variants to choose between; \
-                    send the chosen one in variantIds when handing it over."""
+                    A linked goody whose item comes in more than one variant lists the variants to choose between; \
+                    send the chosen one in variantIds when handing it over. A MANUAL goody always needs one. \
+                    For one of the participant's own goodies it is optional: leave it out to hand over the variant \
+                    their value reads as, and the hand-over is refused only when that value was never taught."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -430,49 +438,6 @@ public interface DistributionControllerApi {
             @PathVariable String bibNumber,
             @AuthenticationPrincipal User currentUser);
 
-    @GetMapping("/{bibNumber}/status")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
-    @Operation(
-            summary = "Get distribution status for a participant",
-            description = """
-                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
-
-                    Retrieve the complete distribution status for a participant including bib collection and goodies distribution. \
-                    Shows who collected the bib, which staff member distributed it, and the status of all goodies items."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Distribution status retrieved successfully",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ParticipantDistributionResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Participant not found",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Access forbidden - insufficient permissions",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)
-                    )
-            )
-    })
-    ResponseEntity<ParticipantDistributionResponse> getDistributionStatus(
-            @Parameter(description = "Event ID", example = "1")
-            @PathVariable Long eventId,
-            @Parameter(description = "Bib number", example = "3001")
-            @PathVariable String bibNumber,
-            @AuthenticationPrincipal User currentUser);
-
     @GetMapping("/logs/lookup")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
@@ -538,7 +503,7 @@ public interface DistributionControllerApi {
                     over at the same time. \
                     Each entry in items works exactly like a single bib collect: goodiesItems (optional) may hold any \
                     of the participant's own goodies or any goody added to the event by hand, and variantIds picks \
-                    the variant for a goody added by hand whose inventory item comes in more than one. \
+                    the variant of a goody linked to inventory, by the same rules. \
                     collectorName and collectorPhone, when given, are recorded for every bib; otherwise each \
                     participant is their own collector. \
                     The staff member performing the collection is recorded automatically. \
@@ -602,8 +567,8 @@ public interface DistributionControllerApi {
                     Hand goodies to up to 25 participants in one request, each with their own goodies. \
                     Each entry in items works exactly like a single goodies hand-over: the participant's bib must \
                     already be collected, goodiesItems may hold any of their own goodies or any goody added to the \
-                    event by hand, each handed over once, and variantIds picks the variant for a goody added by hand \
-                    whose inventory item comes in more than one. \
+                    event by hand, each handed over once, and variantIds picks the variant of a goody linked to \
+                    inventory, by the same rules. \
                     The staff member performing the hand-over is recorded automatically. \
                     Entries are processed one by one and independently: one that fails does not stop the others, \
                     and a failed entry records none of its goodies. \

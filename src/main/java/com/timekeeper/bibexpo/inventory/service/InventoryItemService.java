@@ -72,7 +72,7 @@ public interface InventoryItemService {
      * Deletes an item and its variants.
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
-     * @throws InventoryItemInUseException if any variant still has stock on hand
+     * @throws InventoryItemInUseException if any variant holds stock, or owes it below zero, anywhere
      * @throws InventoryItemLinkedToGoodieException if an event goody is handed out from this item
      * <p>The item's spellings go with it, since a spelling says nothing once its item is gone.
      */
@@ -90,7 +90,7 @@ public interface InventoryItemService {
      * Removes a variant. An item must always keep at least one.
      *
      * @throws InventoryVariantNotFoundException if the variant does not belong to this item
-     * @throws InventoryVariantInUseException if the variant still has stock on hand
+     * @throws InventoryVariantInUseException if the variant holds stock, or owes it below zero, anywhere
      * @throws InventoryVariantAliasedException if the item still reads a roster spelling as this variant
      */
     InventoryItemResponse removeVariant(Long organizationId, Long itemId, Long variantId, User currentUser);

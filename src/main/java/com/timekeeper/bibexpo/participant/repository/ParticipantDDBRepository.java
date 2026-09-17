@@ -17,6 +17,7 @@ import software.amazon.awssdk.enhanced.dynamodb.model.BatchWriteResult;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.ReadBatch;
 import software.amazon.awssdk.enhanced.dynamodb.model.WriteBatch;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -24,8 +25,11 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 @Repository
@@ -39,6 +43,7 @@ public class ParticipantDDBRepository implements ParticipantStore {
     private volatile DynamoDbTable<ParticipantDDB> table;
 
     private static final int BATCH_SIZE = 25;
+    private static final int GET_BATCH_SIZE = 100;
 
     private DynamoDbTable<ParticipantDDB> getTable() {
         if (table == null) {
@@ -69,6 +74,28 @@ public class ParticipantDDBRepository implements ParticipantStore {
     /** Same lookup, for callers that treat a missing bib as an answer rather than a failure. */
     public ParticipantDDB findByEventAndBib(Long eventId, String bibNumber) {
         return getTable().getItem(keyOf(eventId, bibNumber));
+    }
+
+    @Override
+    public boolean existsByEventAndBib(Long eventId, String bibNumber) {
+        return findByEventAndBib(eventId, bibNumber) != null;
+    }
+
+    @Override
+    public Set<String> findExistingBibs(Long eventId, Collection<String> bibNumbers) {
+        List<String> bibs = bibNumbers.stream().filter(bib -> bib != null && !bib.isBlank()).distinct().toList();
+        Set<String> found = new HashSet<>();
+        // The client re-requests whatever a call leaves unprocessed as the pages are read.
+        for (int i = 0; i < bibs.size(); i += GET_BATCH_SIZE) {
+            ReadBatch.Builder<ParticipantDDB> batch = ReadBatch.builder(ParticipantDDB.class)
+                    .mappedTableResource(getTable());
+            bibs.subList(i, Math.min(i + GET_BATCH_SIZE, bibs.size()))
+                    .forEach(bib -> batch.addGetItem(keyOf(eventId, bib)));
+            dynamoDbEnhancedClient.batchGetItem(request -> request.readBatches(batch.build()))
+                    .resultsForTable(getTable())
+                    .forEach(participant -> found.add(participant.getBibNumber()));
+        }
+        return found;
     }
 
     public void deleteByEventAndBib(Long eventId, String bibNumber) {

@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
 public class InventoryVariantInUseException extends ApiException {
 
     public static final String DEFAULT_MESSAGE =
-            "This variant still has stock on hand and cannot be deleted.";
+            "You can delete this variant only once its stock is back to zero at every location.";
 
     public InventoryVariantInUseException() {
         super(HttpStatus.CONFLICT, DEFAULT_MESSAGE);

@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.shared.util;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
@@ -86,6 +87,17 @@ public final class TextUtils {
     public static String toLowerOrNull(String value) {
         String trimmed = trimToNull(value);
         return trimmed == null ? null : trimmed.toLowerCase();
+    }
+
+    /**
+     * The key two spellings of one name compare equal under: trimmed, and lower-cased the same way in
+     * every locale. Goody names and roster values are matched this way wherever they meet.
+     *
+     * @param value raw value
+     * @return the comparison key, or an empty string when null
+     */
+    public static String toMatchKey(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     /**

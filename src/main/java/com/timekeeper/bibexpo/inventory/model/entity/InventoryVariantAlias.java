@@ -34,8 +34,8 @@ import java.time.Instant;
  * separate lines pointing at the same variant.</p>
  *
  * <p>A null {@code variantId} is a deliberate answer rather than a missing one: it records that
- * this spelling means the participant is owed nothing, which is how a roster full of
- * {@code Not mentioned} stops looking like unmet demand.</p>
+ * this spelling means the participant is owed nothing, such as {@code No} in a medal column, so it
+ * neither counts as demand nor takes anything off the shelf at the counter.</p>
  */
 @Entity
 @Table(name = "inventory_variant_aliases",

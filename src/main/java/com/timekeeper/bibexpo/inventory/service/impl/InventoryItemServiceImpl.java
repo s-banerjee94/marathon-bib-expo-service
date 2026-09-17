@@ -608,12 +608,13 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         }
     }
 
-    // A variant with stock anywhere would vanish without a trace, so deletion is blocked until the
-    // balance is drawn down to zero; the ledger itself is never touched.
+    // A balance anywhere would vanish without a trace, so deletion is blocked until it is back at zero; the
+    // ledger itself is never touched. A shelf below zero counts too: hand-outs took more than it held, and an
+    // undo of one of them has to find the variant to put its unit back.
     private void requireNoStock(List<InventoryVariant> variants, Supplier<RuntimeException> onInUse) {
         boolean hasStock = variants.stream()
                 .flatMap(variant -> stockRepository.findByVariantId(variant.getId()).stream())
-                .anyMatch(stock -> stock.getOnHand() != null && stock.getOnHand() > 0);
+                .anyMatch(stock -> stock.getOnHand() != null && stock.getOnHand() != 0);
         if (hasStock) {
             throw onInUse.get();
         }

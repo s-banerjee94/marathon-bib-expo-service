@@ -6,8 +6,10 @@ import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -34,6 +36,24 @@ public interface ParticipantStore {
      * @throws com.timekeeper.bibexpo.participant.exception.ParticipantNotFoundException if no such bib exists
      */
     ParticipantDDB findByEventAndBibOrThrow(Long eventId, String bibNumber);
+
+    /**
+     * Whether an event's roster already holds a bib number.
+     *
+     * @param eventId   the owning event
+     * @param bibNumber the bib number
+     * @return true when a participant with that bib exists
+     */
+    boolean existsByEventAndBib(Long eventId, String bibNumber);
+
+    /**
+     * Which of the given bib numbers an event's roster already holds, looked up many at a time.
+     *
+     * @param eventId    the owning event
+     * @param bibNumbers the bib numbers to look for; null or blank ones are ignored
+     * @return the ones that exist
+     */
+    Set<String> findExistingBibs(Long eventId, Collection<String> bibNumbers);
 
     /**
      * Lazily pages every participant of an event, for callers that walk the whole roster.

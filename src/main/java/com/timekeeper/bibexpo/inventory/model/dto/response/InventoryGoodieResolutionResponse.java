@@ -61,6 +61,9 @@ public class InventoryGoodieResolutionResponse {
         @Schema(description = "How many participants carry it", example = "812")
         private long participants;
 
+        @Schema(description = "How many of them have already been handed the goody", example = "300")
+        private long handedOut;
+
         @Schema(description = "How it was read", example = "ALIAS")
         private GoodieValueResolution resolution;
 
