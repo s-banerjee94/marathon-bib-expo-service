@@ -19,7 +19,19 @@ public class EventStatsQueryImpl implements EventStatsQuery {
 
     @Override
     public long participantCount(Long eventId) {
-        return statsRepo.getTotalParticipantCount(eventId.toString());
+        return statsRepo.getCount(eventId.toString(), EventStatsDDB.KEY_TOTAL);
+    }
+
+    @Override
+    public long pendingBibCount(Long eventId) {
+        String id = eventId.toString();
+        return Math.max(0, statsRepo.getCount(id, EventStatsDDB.KEY_TOTAL)
+                - statsRepo.getCount(id, EventStatsDDB.KEY_BIB_COLLECTED));
+    }
+
+    @Override
+    public long pendingGoodiesCount(Long eventId) {
+        return Math.max(0, statsRepo.getCount(eventId.toString(), EventStatsDDB.KEY_GOODIES_PENDING));
     }
 
     @Override

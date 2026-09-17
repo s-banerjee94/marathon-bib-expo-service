@@ -8,6 +8,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * The participant roster as the rest of the application may use it.
@@ -44,18 +45,20 @@ public interface ParticipantStore {
     SdkIterable<Page<ParticipantDDB>> findPagesByEventId(Long eventId, int pageSize);
 
     /**
-     * Reads a single page of an event's participants, for callers exposing their own cursor.
-     *
-     * <p>The filter is applied after the limit, so a filtered page may hold fewer rows than asked
-     * for and still have more behind it — read on until the returned key is null.
+     * One page of an event's participants in bib order, holding only those that pass both the filter
+     * DynamoDB applies and the test applied here. It reads on past the records that fail either, until
+     * the page holds {@code limit} participants or the event runs out, so only the last page comes
+     * back short.
      *
      * @param eventId  the owning event
-     * @param limit    maximum rows to read before filtering
-     * @param startKey exclusive start key from the previous page, or null/empty to start at the first
-     * @param filter   optional DynamoDB filter expression, or null for none
-     * @return the page, or null when the event has no participants at all
+     * @param limit    the most participants the page holds; also how many records each read asks for
+     * @param startKey where the previous page ended, or null/empty to start at the first participant
+     * @param filter   a condition DynamoDB checks before returning a record, or null for none
+     * @param keep     a test applied here to each record DynamoDB returns
+     * @return the page; its last evaluated key is null when no participant after it passes both
      */
-    Page<ParticipantDDB> findPage(Long eventId, int limit, Map<String, AttributeValue> startKey, Expression filter);
+    Page<ParticipantDDB> fillPage(Long eventId, int limit, Map<String, AttributeValue> startKey, Expression filter,
+                                  Predicate<ParticipantDDB> keep);
 
     /**
      * Writes one participant, overwriting any record with the same event and bib number.

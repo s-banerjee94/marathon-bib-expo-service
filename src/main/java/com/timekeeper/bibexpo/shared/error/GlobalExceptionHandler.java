@@ -131,13 +131,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationErrors(
             MethodArgumentNotValidException ex, WebRequest request) {
-        log.error("Validation failed: {}", ex.getMessage());
-
         List<String> errors = ex.getBindingResult()
                 .getFieldErrors()
                 .stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .toList();
+        log.warn("Validation failed: {}", errors);
 
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(Instant.now())

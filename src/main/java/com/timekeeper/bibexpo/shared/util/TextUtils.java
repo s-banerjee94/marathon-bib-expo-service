@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.shared.util;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -85,6 +86,19 @@ public final class TextUtils {
     public static String toLowerOrNull(String value) {
         String trimmed = trimToNull(value);
         return trimmed == null ? null : trimmed.toLowerCase();
+    }
+
+    /**
+     * Joins names the way a sentence lists them: {@code Bag}, {@code Bag and Cap}, {@code Bag, Cap and Medal}.
+     *
+     * @param names the names, in order
+     * @return the joined names; empty when there are none
+     */
+    public static String joinAsSentence(List<String> names) {
+        if (names.size() < 2) {
+            return names.isEmpty() ? "" : names.get(0);
+        }
+        return String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
     }
 
     /**

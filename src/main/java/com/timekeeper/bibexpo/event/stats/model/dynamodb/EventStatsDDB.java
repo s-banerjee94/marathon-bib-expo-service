@@ -35,6 +35,8 @@ public class EventStatsDDB {
     // by the others purely to spell a key.
     public static final String KEY_TOTAL = "TOTAL";
     public static final String KEY_BIB_COLLECTED = "BIB_COLLECTED";
+    // Participants whose bib is collected but who are still owed at least one goody of their own.
+    public static final String KEY_GOODIES_PENDING = "GOODIES_PENDING";
     public static final String PREFIX_RACE = "RACE#";
     public static final String PREFIX_CATEGORY = "CATEGORY#";
     public static final String PREFIX_GENDER = "GENDER#";

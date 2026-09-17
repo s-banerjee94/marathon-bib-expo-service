@@ -13,11 +13,11 @@ import com.timekeeper.bibexpo.distribution.model.dto.response.BulkDistributionRe
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.PendingBibListResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.PendingGoodiesListResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.PendingParticipantListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.dynamodb.DistributionLogDDB;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
+import com.timekeeper.bibexpo.distribution.model.enums.PendingType;
 import com.timekeeper.bibexpo.distribution.repository.DistributionLogDDBRepository;
 import com.timekeeper.bibexpo.distribution.service.DistributionService;
 import com.timekeeper.bibexpo.distribution.service.util.DistributionConstants;
@@ -37,6 +37,7 @@ import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistribu
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.participant.service.util.DistributorStamp;
 import com.timekeeper.bibexpo.participant.service.util.ParticipantCountersMapper;
+import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.api.EventStatsRecorder;
 import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.event.api.ParticipantCounters;
@@ -66,6 +67,8 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 @Service
 @RequiredArgsConstructor
@@ -74,6 +77,14 @@ public class DistributionServiceImpl implements DistributionService {
 
     private static final int DEFAULT_PAGE_SIZE = 50;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final Expression BIB_NOT_COLLECTED = Expression.builder()
+            .expression("attribute_not_exists(bibCollectedAt) OR bibCollectedAt = :nullValue")
+            .expressionValues(Map.of(":nullValue", AttributeValue.builder().nul(true).build()))
+            .build();
+    private static final Expression BIB_COLLECTED = Expression.builder()
+            .expression("attribute_type(bibCollectedAt, :string)")
+            .expressionValues(Map.of(":string", AttributeValue.builder().s("S").build()))
+            .build();
 
     private final EventStore eventStore;
     private final ParticipantStore participantStore;
@@ -83,6 +94,7 @@ public class DistributionServiceImpl implements DistributionService {
     private final ParticipantEventSmsService participantEventSmsService;
     private final ParticipantEventWhatsAppService participantEventWhatsAppService;
     private final EventStatsRecorder eventStatsRecorder;
+    private final EventStatsQuery eventStatsQuery;
     private final RaceCategoryNameQuery nameResolver;
     private final GoodieStockQuery goodieStockQuery;
     private final GoodieIssueRecorder goodieIssueRecorder;
@@ -90,10 +102,12 @@ public class DistributionServiceImpl implements DistributionService {
 
     @Override
     public BibDistributionResponse collectBib(Long eventId, String bibNumber, CollectBibRequest request, User currentUser) {
-        Event event = findEventOrThrow(eventId);
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        validator.validateDistributionAllowed(event);
+        return collectBib(requireDistributableEvent(eventId, currentUser), bibNumber, request, currentUser);
+    }
 
+    private BibDistributionResponse collectBib(Event event, String bibNumber, CollectBibRequest request,
+                                               User currentUser) {
+        Long eventId = event.getId();
         ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, bibNumber);
 
         if (participant.getBibCollectedAt() != null) {
@@ -213,10 +227,12 @@ public class DistributionServiceImpl implements DistributionService {
     @Override
     public GoodiesDistributionResponse distributeGoodies(Long eventId, String bibNumber,
                                                          DistributeGoodiesRequest request, User currentUser) {
-        Event event = findEventOrThrow(eventId);
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        validator.validateDistributionAllowed(event);
+        return distributeGoodies(requireDistributableEvent(eventId, currentUser), bibNumber, request, currentUser);
+    }
 
+    private GoodiesDistributionResponse distributeGoodies(Event event, String bibNumber,
+                                                          DistributeGoodiesRequest request, User currentUser) {
+        Long eventId = event.getId();
         ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, bibNumber);
 
         if (participant.getBibCollectedAt() == null) {
@@ -257,55 +273,30 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     @Override
-    public PendingBibListResponse getPendingBibs(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser) {
-        log.info("Fetching pending bibs for event ID: {} with limit: {} by user: {}",
-                eventId, limit, currentUser.getUsername());
+    public PendingParticipantListResponse getPending(Long eventId, PendingType type, Integer limit,
+                                                     String lastEvaluatedKey, User currentUser) {
+        requireVisibleEvent(eventId, currentUser);
 
-        Event event = findEventOrThrow(eventId);
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-
-        Expression filterExpression = Expression.builder()
-                .expression("attribute_not_exists(bibCollectedAt) OR bibCollectedAt = :nullValue")
-                .expressionValues(Map.of(":nullValue", AttributeValue.builder().nul(true).build()))
-                .build();
-
-        Page<ParticipantDDB> page = queryParticipantsWithPagination(eventId, limit, lastEvaluatedKey, filterExpression);
-
-        if (page == null) {
-            return PendingBibListResponse.builder()
-                    .participants(Collections.emptyList())
-                    .count(0)
-                    .hasMore(false)
-                    .build();
-        }
+        // DynamoDB tests whether the bib is collected. Goodies still owed are the participant's own list minus
+        // what was handed over, which a filter expression cannot compare, so that test runs here.
+        // ponytail: with few runners pending, one page can read the whole event; a sparse GSI reads only them.
+        boolean bib = type == PendingType.BIB;
+        Predicate<ParticipantDDB> keep = bib ? participant -> true : this::owesOwnGoodies;
+        Page<ParticipantDDB> page = participantStore.fillPage(eventId, normalizeLimit(limit),
+                decodeCursor(lastEvaluatedKey), bib ? BIB_NOT_COLLECTED : BIB_COLLECTED, keep);
 
         EventNames names = nameResolver.forEvent(eventId);
-        List<ParticipantDistributionResponse> participants = page.items().stream()
-                .map(participant -> ParticipantDistributionResponse.builder()
-                        .eventId(participant.getEventId())
-                        .bibNumber(participant.getBibNumber())
-                        .fullName(participant.getFullName())
-                        .email(participant.getEmail())
-                        .phoneNumber(participant.getPhoneNumber())
-                        .raceName(names.raceLabel(participant.getRaceId()))
-                        .categoryName(names.categoryLabel(participant.getCategoryId()))
-                        .bibCollectedAt(null)
-                        .bibCollectedByName(null)
-                        .bibCollectedByPhone(null)
-                        .bibDistributedBy(null)
-                        .goodies(participant.getGoodies())
-                        .goodiesDistribution(new HashMap<>())
-                        .build())
+        List<PendingParticipantListResponse.PendingParticipant> participants = page.items().stream()
+                .map(participant -> toPendingParticipant(participant, names))
                 .toList();
 
         String newLastEvaluatedKey = encodeCursor(page.lastEvaluatedKey());
-
-        log.info("Found {} participants with pending bib collection for event {}", participants.size(), eventId);
-
-        return PendingBibListResponse.builder()
+        return PendingParticipantListResponse.builder()
                 .participants(participants)
                 .lastEvaluatedKey(newLastEvaluatedKey)
                 .count(participants.size())
+                .totalPending(bib ? eventStatsQuery.pendingBibCount(eventId)
+                        : eventStatsQuery.pendingGoodiesCount(eventId))
                 .hasMore(newLastEvaluatedKey != null)
                 .build();
     }
@@ -351,90 +342,33 @@ public class DistributionServiceImpl implements DistributionService {
 
     @Override
     public ParticipantDistributionResponse getDistributionStatus(Long eventId, String bibNumber, User currentUser) {
-        Event event = findEventOrThrow(eventId);
-        validator.validateUserAuthorizationForEvent(currentUser, event);
+        requireVisibleEvent(eventId, currentUser);
 
         ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(eventId, bibNumber);
 
         EventNames names = nameResolver.forEvent(eventId);
         return ParticipantDistributionResponse.from(participant,
                 names.raceLabel(participant.getRaceId()), names.categoryLabel(participant.getCategoryId()));
-	}
-
-    @Override
-    public PendingGoodiesListResponse getPendingGoodies(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser) {
-        log.info("Fetching pending goodies for event ID: {} with limit: {} by user: {}",
-                eventId, limit, currentUser.getUsername());
-
-        Event event = findEventOrThrow(eventId);
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-
-        Page<ParticipantDDB> page = queryParticipantsWithPagination(eventId, limit, lastEvaluatedKey, null);
-
-        if (page == null) {
-            return buildEmptyPendingGoodiesResponse();
-        }
-
-        EventNames names = nameResolver.forEvent(eventId);
-        List<PendingGoodiesListResponse.ParticipantPendingGoodies> participants = page.items().stream()
-                .filter(participant -> participant.getBibCollectedAt() != null)
-                .filter(this::hasPendingGoodies)
-                .map(participant -> mapToParticipantPendingGoodies(participant, names))
-                .toList();
-
-        String newLastEvaluatedKey = encodeCursor(page.lastEvaluatedKey());
-
-        log.info("Found {} participants with pending goodies for event {}", participants.size(), eventId);
-
-        return PendingGoodiesListResponse.builder()
-                .participants(participants)
-                .lastEvaluatedKey(newLastEvaluatedKey)
-                .count(participants.size())
-                .hasMore(newLastEvaluatedKey != null)
-                .build();
     }
 
     @Override
     public BulkDistributionResponse bulkCollectBib(Long eventId, BulkCollectBibRequest request, User currentUser) {
-        Event event = findEventOrThrow(eventId);
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        validator.validateDistributionAllowed(event);
-
-        List<String> successful = new ArrayList<>();
-        List<BulkDistributionResponse.FailedOperation> failed = new ArrayList<>();
-
-        for (String bibNumber : request.getBibNumbers()) {
-            try {
-                CollectBibRequest collectRequest = CollectBibRequest.builder()
-                        .collectorName(request.getCollectorName())
-                        .collectorPhone(request.getCollectorPhone())
-                        .build();
-
-                collectBib(eventId, bibNumber, collectRequest, currentUser);
-                successful.add(bibNumber);
-            } catch (RuntimeException e) {
-                log.warn("Failed to collect bib {} in bulk operation: {}", bibNumber, e.getMessage(), e);
-                failed.add(BulkDistributionResponse.FailedOperation.builder()
-                        .bibNumber(bibNumber)
-                        .reason(failureReason(e))
-                        .build());
-            }
-        }
-
-        log.info("Bulk bib collection completed for event {}: {} successful, {} failed",
-                eventId, successful.size(), failed.size());
-
-        return BulkDistributionResponse.builder()
-                .successCount(successful.size())
-                .successful(successful)
-                .failed(failed)
-                .build();
+        Event event = requireDistributableEvent(eventId, currentUser);
+        return runEach(request.getItems(), BulkCollectBibRequest.CollectItem::getBibNumber,
+                BulkCollectBibRequest.CollectItem::getGoodiesItems, item -> {
+                    collectBib(event, item.getBibNumber(), CollectBibRequest.builder()
+                            .collectorName(request.getCollectorName())
+                            .collectorPhone(request.getCollectorPhone())
+                            .goodiesItems(item.getGoodiesItems())
+                            .variantIds(item.getVariantIds())
+                            .build(), currentUser);
+                    return item.getBibNumber();
+                });
     }
 
     @Override
     public List<DistributionGoodieResponse> listGoodies(Long eventId, User currentUser) {
-        Event event = findEventOrThrow(eventId);
-        validator.validateUserAuthorizationForEvent(currentUser, event);
+        Event event = requireVisibleEvent(eventId, currentUser);
 
         Map<String, GoodieStockOption> links = new HashMap<>();
         goodieStockQuery.optionsFor(eventId).forEach(link -> links.put(key(link.goodieName()), link));
@@ -445,41 +379,15 @@ public class DistributionServiceImpl implements DistributionService {
 
     @Override
     public BulkDistributionResponse bulkDistributeGoodies(Long eventId, BulkDistributeGoodiesRequest request, User currentUser) {
-        Event event = findEventOrThrow(eventId);
-        validator.validateUserAuthorizationForEvent(currentUser, event);
-        validator.validateDistributionAllowed(event);
-
-        List<String> successful = new ArrayList<>();
-        List<BulkDistributionResponse.FailedOperation> failed = new ArrayList<>();
-
-        for (BulkDistributeGoodiesRequest.DistributionItem item : request.getItems()) {
-            try {
-                DistributeGoodiesRequest distributeRequest = DistributeGoodiesRequest.builder()
-                        .goodiesItems(item.getGoodiesItems())
-                        .variantIds(item.getVariantIds())
-                        .build();
-
-                distributeGoodies(eventId, item.getBibNumber(), distributeRequest, currentUser);
-                successful.add(item.getBibNumber() + ":" + String.join(",", item.getGoodiesItems()));
-            } catch (RuntimeException e) {
-                log.warn("Failed to distribute goodies items {} for bib {} in bulk operation: {}",
-                        item.getGoodiesItems(), item.getBibNumber(), e.getMessage(), e);
-                failed.add(BulkDistributionResponse.FailedOperation.builder()
-                        .bibNumber(item.getBibNumber())
-                        .itemNames(item.getGoodiesItems())
-                        .reason(failureReason(e))
-                        .build());
-            }
-        }
-
-        log.info("Bulk goodies distribution completed for event {}: {} successful, {} failed",
-                eventId, successful.size(), failed.size());
-
-        return BulkDistributionResponse.builder()
-                .successCount(successful.size())
-                .successful(successful)
-                .failed(failed)
-                .build();
+        Event event = requireDistributableEvent(eventId, currentUser);
+        return runEach(request.getItems(), BulkDistributeGoodiesRequest.DistributionItem::getBibNumber,
+                BulkDistributeGoodiesRequest.DistributionItem::getGoodiesItems, item -> {
+                    distributeGoodies(event, item.getBibNumber(), DistributeGoodiesRequest.builder()
+                            .goodiesItems(item.getGoodiesItems())
+                            .variantIds(item.getVariantIds())
+                            .build(), currentUser);
+                    return item.getBibNumber() + ":" + String.join(",", item.getGoodiesItems());
+                });
     }
 
     @Override
@@ -566,6 +474,38 @@ public class DistributionServiceImpl implements DistributionService {
         return eventStore.requireById(eventId);
     }
 
+    private Event requireVisibleEvent(Long eventId, User currentUser) {
+        Event event = findEventOrThrow(eventId);
+        validator.validateUserAuthorizationForEvent(currentUser, event);
+        return event;
+    }
+
+    private Event requireDistributableEvent(Long eventId, User currentUser) {
+        Event event = requireVisibleEvent(eventId, currentUser);
+        validator.validateDistributionAllowed(event);
+        return event;
+    }
+
+    // Each entry runs as its own single operation: one that fails is reported and does not stop the rest.
+    private static <T> BulkDistributionResponse runEach(List<T> entries, Function<T, String> bibOf,
+                                                        Function<T, List<String>> goodiesOf,
+                                                        Function<T, String> run) {
+        List<String> successful = new ArrayList<>();
+        List<BulkDistributionResponse.FailedOperation> failed = new ArrayList<>();
+        for (T entry : entries) {
+            try {
+                successful.add(run.apply(entry));
+            } catch (RuntimeException e) {
+                failed.add(failedOperation(bibOf.apply(entry), goodiesOf.apply(entry), e));
+            }
+        }
+        return BulkDistributionResponse.builder()
+                .successCount(successful.size())
+                .successful(successful)
+                .failed(failed)
+                .build();
+    }
+
     private void markDistributionStarted(Event event) {
         if (!Boolean.TRUE.equals(event.getDistributionStarted())) {
             event.setDistributionStarted(true);
@@ -573,21 +513,25 @@ public class DistributionServiceImpl implements DistributionService {
         }
     }
 
-    private Page<ParticipantDDB> queryParticipantsWithPagination(Long eventId, Integer limit, String lastEvaluatedKey,
-                                                                 Expression filterExpression) {
-        return participantStore.findPage(eventId, normalizeLimit(limit),
-                decodeCursor(lastEvaluatedKey), filterExpression);
-    }
-
-    // Bulk operations report per-bib failures in the response body, so only messages that were
-    // written for a user may go in. Anything unexpected is logged with its stack and reported flatly.
-    private static String failureReason(RuntimeException e) {
+    // Bulk operations report per-bib failures in the response body, so only messages written for a user go in.
+    // Those refusals are routine at a counter and log one line; anything unexpected keeps its stack.
+    private static BulkDistributionResponse.FailedOperation failedOperation(String bibNumber, List<String> goodies,
+                                                                            RuntimeException e) {
         boolean expected = e instanceof BibAlreadyCollectedException
                 || e instanceof BibNotCollectedException
                 || e instanceof GoodiesAlreadyDistributedException
                 || e instanceof GoodiesItemNotFoundException
                 || e instanceof ApiException;
-        return expected && e.getMessage() != null ? e.getMessage() : "This bib could not be processed.";
+        if (expected) {
+            log.warn("Bulk operation refused bib {}: {}", bibNumber, e.getMessage());
+        } else {
+            log.error("Bulk operation failed for bib {}", bibNumber, e);
+        }
+        return BulkDistributionResponse.FailedOperation.builder()
+                .bibNumber(bibNumber)
+                .itemNames(goodies == null || goodies.isEmpty() ? null : goodies)
+                .reason(expected && e.getMessage() != null ? e.getMessage() : "This bib could not be processed.")
+                .build();
     }
 
     private static int normalizeLimit(Integer limit) {
@@ -623,25 +567,13 @@ public class DistributionServiceImpl implements DistributionService {
         return (encoded == null || encoded.isEmpty()) ? null : encoded;
     }
 
-    private PendingGoodiesListResponse buildEmptyPendingGoodiesResponse() {
-        return PendingGoodiesListResponse.builder()
-                .participants(Collections.emptyList())
-                .count(0)
-                .hasMore(false)
-                .build();
-    }
-
-    // Compared by name, not by count: a goody added by hand is on no participant's list, so handing one
-    // over must not hide a goody of their own that is still owed.
-    private boolean hasPendingGoodies(ParticipantDDB participant) {
+    private boolean owesOwnGoodies(ParticipantDDB participant) {
         return !calculatePendingItems(participant.getGoodies(), participant.getGoodiesDistribution()).isEmpty();
     }
 
-    private PendingGoodiesListResponse.ParticipantPendingGoodies mapToParticipantPendingGoodies(
-            ParticipantDDB participant, EventNames names) {
-        List<String> pendingItems = calculatePendingItems(participant.getGoodies(), participant.getGoodiesDistribution());
-
-        return PendingGoodiesListResponse.ParticipantPendingGoodies.builder()
+    private PendingParticipantListResponse.PendingParticipant toPendingParticipant(ParticipantDDB participant,
+                                                                                  EventNames names) {
+        return PendingParticipantListResponse.PendingParticipant.builder()
                 .eventId(participant.getEventId())
                 .bibNumber(participant.getBibNumber())
                 .fullName(participant.getFullName())
@@ -652,10 +584,12 @@ public class DistributionServiceImpl implements DistributionService {
                 .bibCollectedAt(participant.getBibCollectedAt())
                 .goodies(participant.getGoodies())
                 .goodiesDistribution(participant.getGoodiesDistribution())
-                .pendingItems(pendingItems)
+                .pendingItems(calculatePendingItems(participant.getGoodies(), participant.getGoodiesDistribution()))
                 .build();
     }
 
+    // Compared by name, not by count: a goody added by hand is on no participant's list, so handing one
+    // over must not hide a goody of their own that is still owed.
     private List<String> calculatePendingItems(Map<String, String> goodies, Map<String, String> distribution) {
         if (goodies == null) {
             return Collections.emptyList();
@@ -671,44 +605,68 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     /**
-     * Records the requested goodies on the participant. Every goody is checked before any is recorded,
-     * so one that fails leaves the participant exactly as it was.
+     * Records the requested goodies on the participant. Every goody is checked before any is recorded, so one
+     * that fails leaves the participant exactly as it was, and a failed check names every goody that fails it.
      */
     private List<HandOver> handOut(Event event, ParticipantDDB participant, List<String> itemNames,
                                    Map<String, Long> variantIds, String now, String distributedBy) {
         Map<String, String> distribution = participant.getGoodiesDistribution() == null
                 ? new HashMap<>() : participant.getGoodiesDistribution();
 
-        List<HandOver> handed = new ArrayList<>();
+        List<String> names = new ArrayList<>(itemNames.size());
+        List<String> unknown = new ArrayList<>();
         for (String requested : itemNames) {
-            HandOver handOver = planHandOver(event, participant, requested, variantIds);
-            if (distribution.containsKey(handOver.name())
-                    || handed.stream().anyMatch(h -> h.name().equals(handOver.name()))) {
-                throw new GoodiesAlreadyDistributedException(handOver.name());
+            String name = recordedName(event, participant, requested);
+            names.add(name);
+            if (name == null) {
+                unknown.add(requested);
             }
-            handed.add(handOver);
+        }
+        if (!unknown.isEmpty()) {
+            throw new GoodiesItemNotFoundException(unknown);
         }
 
+        Set<String> requestedOnce = new HashSet<>();
+        List<String> handedAlready = names.stream()
+                .filter(name -> distribution.containsKey(name) || !requestedOnce.add(name))
+                .distinct()
+                .toList();
+        if (!handedAlready.isEmpty()) {
+            throw new GoodiesAlreadyDistributedException(handedAlready);
+        }
+
+        List<HandOver> handed = new ArrayList<>(names.size());
+        for (int i = 0; i < names.size(); i++) {
+            handed.add(new HandOver(names.get(i),
+                    stockTaken(event, participant, itemNames.get(i), names.get(i), variantIds)));
+        }
         handed.forEach(h -> distribution.put(h.name(), distributionRecord(now, distributedBy, h.issue())));
         participant.setGoodiesDistribution(distribution);
         return handed;
     }
 
     // A participant's own goodies are keyed exactly as their list spells them. A goody added by hand is on
-    // no list, so it is matched against the event's and recorded under the event's spelling.
-    private HandOver planHandOver(Event event, ParticipantDDB participant, String requested,
-                                  Map<String, Long> variantIds) {
+    // no list, so it is matched against the event's and recorded under the event's spelling. Null for neither.
+    private static String recordedName(Event event, ParticipantDDB participant, String requested) {
         if (participant.getGoodies() != null && participant.getGoodies().containsKey(requested)) {
-            return new HandOver(requested, null);
+            return requested;
         }
         String wanted = requested == null ? "" : key(requested);
-        String name = event.getEventGoodies().stream()
+        return event.getEventGoodies().stream()
                 .filter(goodie -> goodie.source() == GoodieSource.MANUAL && key(goodie.name()).equals(wanted))
                 .map(EventGoodie::name)
                 .findFirst()
-                .orElseThrow(GoodiesItemNotFoundException::new);
+                .orElse(null);
+    }
+
+    // Only a goody added by hand comes out of inventory.
+    private GoodieIssue stockTaken(Event event, ParticipantDDB participant, String requested, String name,
+                                   Map<String, Long> variantIds) {
+        if (participant.getGoodies() != null && participant.getGoodies().containsKey(requested)) {
+            return null;
+        }
         Long variantId = variantIds == null ? null : variantIds.get(requested);
-        return new HandOver(name, goodieStockQuery.planIssue(event.getId(), name, variantId).orElse(null));
+        return goodieStockQuery.planIssue(event.getId(), name, variantId).orElse(null);
     }
 
     private String distributionRecord(String collectedAt, String distributedBy, GoodieIssue issue) {
