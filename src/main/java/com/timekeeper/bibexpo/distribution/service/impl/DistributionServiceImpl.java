@@ -81,6 +81,10 @@ public class DistributionServiceImpl implements DistributionService {
             .expression("attribute_not_exists(bibCollectedAt) OR bibCollectedAt = :nullValue")
             .expressionValues(Map.of(":nullValue", AttributeValue.builder().nul(true).build()))
             .build();
+    private static final Expression BIB_COLLECTED = Expression.builder()
+            .expression("attribute_type(bibCollectedAt, :string)")
+            .expressionValues(Map.of(":string", AttributeValue.builder().s("S").build()))
+            .build();
 
     private final EventStore eventStore;
     private final ParticipantStore participantStore;
@@ -273,13 +277,13 @@ public class DistributionServiceImpl implements DistributionService {
                                                      String lastEvaluatedKey, User currentUser) {
         requireVisibleEvent(eventId, currentUser);
 
-        // A bib still to collect is a condition DynamoDB can test. Goodies still owed are the participant's own
-        // list minus what was handed over, so that test runs here.
+        // DynamoDB tests whether the bib is collected. Goodies still owed are the participant's own list minus
+        // what was handed over, which a filter expression cannot compare, so that test runs here.
         // ponytail: with few runners pending, one page can read the whole event; a sparse GSI reads only them.
         boolean bib = type == PendingType.BIB;
         Predicate<ParticipantDDB> keep = bib ? participant -> true : this::owesOwnGoodies;
         Page<ParticipantDDB> page = participantStore.fillPage(eventId, normalizeLimit(limit),
-                decodeCursor(lastEvaluatedKey), bib ? BIB_NOT_COLLECTED : null, keep);
+                decodeCursor(lastEvaluatedKey), bib ? BIB_NOT_COLLECTED : BIB_COLLECTED, keep);
 
         EventNames names = nameResolver.forEvent(eventId);
         List<PendingParticipantListResponse.PendingParticipant> participants = page.items().stream()
@@ -564,8 +568,7 @@ public class DistributionServiceImpl implements DistributionService {
     }
 
     private boolean owesOwnGoodies(ParticipantDDB participant) {
-        return participant.getBibCollectedAt() != null
-                && !calculatePendingItems(participant.getGoodies(), participant.getGoodiesDistribution()).isEmpty();
+        return !calculatePendingItems(participant.getGoodies(), participant.getGoodiesDistribution()).isEmpty();
     }
 
     private PendingParticipantListResponse.PendingParticipant toPendingParticipant(ParticipantDDB participant,
