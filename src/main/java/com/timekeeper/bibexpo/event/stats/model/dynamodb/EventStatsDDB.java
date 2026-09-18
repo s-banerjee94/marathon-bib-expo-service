@@ -55,11 +55,6 @@ public class EventStatsDDB {
     // either may contain the separator.
     public static final String PREFIX_ENTITLED = "ENTITLED#";
 
-    // Written in place of the value rows when a column holds more distinct values than a goody
-    // plausibly has, which means the wrong column was marked as goodies. Its count is how many
-    // distinct values were seen.
-    public static final String PREFIX_ENTITLED_OVERFLOW = "ENTITLEDMANY#";
-
     // HANDED#<goody>#<value> holds how many of the participants behind the matching ENTITLED# row have
     // already been handed that goody, so demand still to serve is one less the other.
     public static final String PREFIX_HANDED = "HANDED#";
@@ -90,20 +85,11 @@ public class EventStatsDDB {
      * The goody name and value behind an entitlement key, or {@code null} if the key is not one.
      */
     public static String[] entitledParts(String statKey) {
-        String encodedGoodie = entitledGoodieSegment(statKey);
-        if (encodedGoodie == null) return null;
-        String rest = statKey.substring(PREFIX_ENTITLED.length() + encodedGoodie.length() + 1);
-        return new String[]{decodeSegment(encodedGoodie), decodeSegment(rest)};
-    }
-
-    /**
-     * The still-encoded goody-name segment of an entitlement key, for grouping every value of one
-     * goody without decoding either half. Null when the key is not an entitlement key.
-     */
-    public static String entitledGoodieSegment(String statKey) {
         if (statKey == null || !statKey.startsWith(PREFIX_ENTITLED)) return null;
         int sep = statKey.indexOf('#', PREFIX_ENTITLED.length());
-        return sep < 0 ? null : statKey.substring(PREFIX_ENTITLED.length(), sep);
+        if (sep < 0) return null;
+        return new String[]{decodeSegment(statKey.substring(PREFIX_ENTITLED.length(), sep)),
+                decodeSegment(statKey.substring(sep + 1))};
     }
 
     public static String encodeSegment(String raw) {

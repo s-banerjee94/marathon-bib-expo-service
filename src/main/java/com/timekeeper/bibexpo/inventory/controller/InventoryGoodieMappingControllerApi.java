@@ -133,8 +133,7 @@ public interface InventoryGoodieMappingControllerApi {
                     the organization's other locations, because a shortfall covered from another \
                     shelf is a transfer rather than a purchase. Rows come worst shortfall first.
 
-                    A goody nothing has been linked to appears with no rows, and so does a column \
-                    that held too many distinct values to count one by one."""
+                    A goody nothing has been linked to appears with no rows."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Shortfall retrieved successfully",

@@ -38,11 +38,6 @@ public class InventoryGoodieResolutionResponse {
     @Schema(description = "How many of them carry a spelling nothing recognises yet", example = "41")
     private long unresolvedParticipants;
 
-    @Schema(description = "False when the column held too many distinct values to count one by "
-            + "one, in which case no values are listed and the count is of distinct values, not "
-            + "participants", example = "true")
-    private boolean countedByValue;
-
     @Schema(description = "Every distinct spelling the roster carries for this goody, most "
             + "participants first")
     private List<Value> values;

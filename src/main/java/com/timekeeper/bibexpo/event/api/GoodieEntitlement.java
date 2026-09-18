@@ -21,12 +21,8 @@ import java.util.Objects;
  * @param handedOut    how many of those participants have already been handed the goody; unreliable for
  *                     an event whose counters were last rebuilt before this was counted, until it is
  *                     reconciled
- * @param countedByValue false when the column held too many distinct values to count one by one,
- *                       in which case {@code value} is empty and {@code participants} is how many
- *                       distinct values were seen rather than how many participants
  */
-public record GoodieEntitlement(String goodieName, String value, long participants, long handedOut,
-                                boolean countedByValue) {
+public record GoodieEntitlement(String goodieName, String value, long participants, long handedOut) {
 
     /**
      * Reads the entitlements out of an event's counter rows, each with how many were already handed
@@ -54,15 +50,10 @@ public record GoodieEntitlement(String goodieName, String value, long participan
 
     private static GoodieEntitlement from(EventStatsDDB row, long handedOut) {
         long count = countOf(row);
-        String key = row.getStatKey();
-        if (key != null && key.startsWith(EventStatsDDB.PREFIX_ENTITLED_OVERFLOW)) {
-            String goodie = key.substring(EventStatsDDB.PREFIX_ENTITLED_OVERFLOW.length());
-            return new GoodieEntitlement(EventStatsDDB.decodeSegment(goodie), "", count, 0, false);
-        }
-        String[] parts = EventStatsDDB.entitledParts(key);
+        String[] parts = EventStatsDDB.entitledParts(row.getStatKey());
         // A counter sits at zero once every participant carrying that spelling has been deleted.
         if (parts == null || count <= 0) return null;
-        return new GoodieEntitlement(parts[0], parts[1], count, Math.max(0, Math.min(handedOut, count)), true);
+        return new GoodieEntitlement(parts[0], parts[1], count, Math.max(0, Math.min(handedOut, count)));
     }
 
     private static long countOf(EventStatsDDB row) {

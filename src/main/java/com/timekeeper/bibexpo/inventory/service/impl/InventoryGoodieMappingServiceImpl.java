@@ -232,14 +232,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                         .itemName(goody.getItemName())
                         .locationId(locationId)
                         .locationName(locationId == null ? null : locationNames.get(locationId))
-                        .participants(goody.getParticipants())
-                        .countedByValue(goody.isCountedByValue());
-
-        // A column with too many distinct values was never counted one by one, so there is no
-        // demand to total and nothing honest to say about a shortfall.
-        if (!goody.isCountedByValue()) {
-            return response.unresolvedParticipants(goody.getUnresolvedParticipants()).variants(List.of()).build();
-        }
+                        .participants(goody.getParticipants());
 
         // A participant already handed the goody has taken their unit off the shelf, so only those still
         // to serve are needed. Several spellings routinely mean one variant -- M, Medium and 38 are one shelf.
@@ -313,12 +306,6 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                         .itemId(link == null ? null : link.getItemId())
                         .itemName(link == null ? null : itemNames.get(link.getItemId()));
 
-        GoodieEntitlement uncounted = demand.stream().filter(row -> !row.countedByValue()).findFirst().orElse(null);
-        if (uncounted != null) {
-            return response.participants(uncounted.participants()).countedByValue(false)
-                    .values(List.of()).build();
-        }
-
         GoodieValueReader.ItemReader reader = link == null ? null : valueReader.forItem(link.getItemId());
         long participants = 0;
         long unresolved = 0;
@@ -348,7 +335,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                 .thenComparing(InventoryGoodieResolutionResponse.Value::getValue, String.CASE_INSENSITIVE_ORDER));
 
         return response.participants(participants).unresolvedParticipants(unresolved)
-                .countedByValue(true).values(values).build();
+                .values(values).build();
     }
 
     // ---- lookups ----------------------------------------------------------------

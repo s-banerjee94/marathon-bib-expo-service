@@ -90,18 +90,14 @@ public class ParticipantStatisticsResponse {
         @Schema(description = "The goodies column heading, as the import stored it", example = "T-Shirt")
         private String goodieName;
 
-        @Schema(description = "The cell value, exactly as imported; empty when the column held too "
-                + "many distinct values to count one by one", example = "M")
+        @Schema(description = "The cell value, exactly as imported", example = "M")
         private String value;
 
-        @Schema(description = "Participants carrying that value, or, when countedByValue is false, "
-                + "how many distinct values the column held", example = "340")
+        @Schema(description = "Participants carrying that value", example = "340")
         private Long participants;
 
-        @Schema(description = "False when the column has too many distinct values to be a goody at "
-                + "all, which means the wrong column was marked as goodies on the import screen",
-                example = "true")
-        private Boolean countedByValue;
+        @Schema(description = "How many of them have already been handed the goody", example = "180")
+        private Long handedOut;
     }
 
     @Data

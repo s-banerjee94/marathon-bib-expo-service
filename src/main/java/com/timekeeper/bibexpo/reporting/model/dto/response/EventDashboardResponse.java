@@ -40,10 +40,10 @@ public class EventDashboardResponse {
     @Schema(description = "Range-scoped collection activity")
     private EventActivityResponse activity;
 
-    @Schema(description = "What the imported roster was promised, per goodies column and per "
-            + "distinct spelling of its value. Empty for an event imported before these counters "
-            + "existed, until its statistics are reconciled")
-    private List<GoodieDemandStat> goodies;
+    @Schema(description = "One entry per goodies column of the imported roster, with what it was "
+            + "promised and how much of it has been handed over, in name order. Empty for an event "
+            + "imported before these counters existed, until its statistics are reconciled")
+    private List<GoodieStat> goodies;
 
     @Data
     @Builder
@@ -109,24 +109,42 @@ public class EventDashboardResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    @Schema(description = "One goodies column, one spelling of its value, and how many "
-            + "participants were promised it")
-    public static class GoodieDemandStat {
+    @Schema(description = "One goodies column, with its own totals and one row per distinct value "
+            + "the roster carries for it")
+    public static class GoodieStat {
         @Schema(description = "The goodies column heading, as the import stored it", example = "T-Shirt")
         private String goodieName;
 
-        @Schema(description = "The cell value, exactly as imported; empty when the column held too "
-                + "many distinct values to count one by one", example = "M")
+        @Schema(description = "Participants promised this goody", example = "5000")
+        private long total;
+
+        @Schema(description = "How many of them have been handed it", example = "3100")
+        private long collected;
+
+        @Schema(description = "Handed over as a percentage of the goody's total", example = "62.0")
+        private double collectedPercent;
+
+        @Schema(description = "One row per distinct value, most participants first")
+        private List<GoodieValueStat> values;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "One spelling the roster carries for a goody, and how much of it is handed over")
+    public static class GoodieValueStat {
+        @Schema(description = "The cell value, exactly as imported", example = "M")
         private String value;
 
-        @Schema(description = "Participants promised that value, or, when countedByValue is false, "
-                + "how many distinct values the column held", example = "340")
-        private long participants;
+        @Schema(description = "Participants promised that value", example = "2000")
+        private long total;
 
-        @Schema(description = "False when the column has too many distinct values to be a goody at "
-                + "all, which means the wrong column was marked as goodies on the import screen",
-                example = "true")
-        private boolean countedByValue;
+        @Schema(description = "How many of them have been handed the goody", example = "1240")
+        private long collected;
+
+        @Schema(description = "Handed over as a percentage of that value's total", example = "62.0")
+        private double collectedPercent;
     }
 
     @Data

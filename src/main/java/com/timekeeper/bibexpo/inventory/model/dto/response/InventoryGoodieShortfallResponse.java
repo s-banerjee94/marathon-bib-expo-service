@@ -42,18 +42,14 @@ public class InventoryGoodieShortfallResponse {
             + "spelling is understood yet", example = "2827")
     private long participants;
 
-    @Schema(description = "How many of them have already been handed it, and so are no longer "
-            + "needed; zero when the column was not counted by value", example = "1000")
+    @Schema(description = "How many of them have already been handed it, and so are no longer needed",
+            example = "1000")
     private long handedOut;
 
     @Schema(description = "How many of those still to be handed it carry a spelling nothing "
             + "recognises, so they are behind none of the rows below and are not counted as needed",
             example = "41")
     private long unresolvedParticipants;
-
-    @Schema(description = "False when the column held too many distinct values to count one by "
-            + "one, in which case nothing can be totalled and no rows are returned", example = "true")
-    private boolean countedByValue;
 
     @Schema(description = "Total still to hand out across every variant below", example = "1786")
     private long needed;

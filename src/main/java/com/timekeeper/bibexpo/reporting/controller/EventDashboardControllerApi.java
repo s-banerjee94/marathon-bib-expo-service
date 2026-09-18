@@ -44,9 +44,18 @@ public interface EventDashboardControllerApi {
     @Operation(
             summary = "Get the event dashboard rollup",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
+
                     Returns everything the Dashboard tab renders except the Recent Collections feed: \
                     event-wide totals (participants, gender, per-race, per-category) plus a range-scoped \
                     activity block (windowed collected, rate, peak, hourly timeline, top distributors). \
+
+                    **goodies** holds one entry per goodies column of the roster, each with what it was \
+                    promised, how much of it has been handed over and that as a percentage, and \
+                    underneath it the same three numbers for every distinct value the roster carries, \
+                    most participants first. A goody added to the event by hand is on no roster, so it \
+                    does not appear. Which item and which variant a value maps to is not here; the \
+                    inventory check screen answers that. \
 
                     **range** selects the activity window: `TODAY` (default) returns today's hourly series \
                     with a comparison series for the prior day; `FULL_EXPO` returns one continuous series \
@@ -80,6 +89,8 @@ public interface EventDashboardControllerApi {
 
     @Operation(summary = "Recount this event's dashboard from the roster",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`
+
                     Walks every participant of the event and rewrites its counters, then returns \n                    the refreshed rollup.
 
                     The counters are normally kept in step as participants are created and \n                    deleted, and are recounted automatically at the end of an import, so this is \n                    for the two cases that leaves: an event whose roster predates a counter, and \n                    a suspicion that a number has drifted. It reads the whole roster, so it is a \n                    deliberate action rather than something to call on a timer.""")

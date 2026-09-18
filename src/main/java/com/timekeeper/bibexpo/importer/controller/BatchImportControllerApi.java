@@ -52,6 +52,11 @@ public interface BatchImportControllerApi {
                     the event is skipped and reported as a DUPLICATE_BIB row error, so that participant's record, \
                     including a collected bib and goodies already handed out, stays exactly as it was. \
 
+                    A column marked as goodies may hold at most 50 different values, counted spelling for \
+                    spelling as they are stored, and for an add-on together with the values the event already \
+                    carries. A column holding more is a column marked as goodies by mistake, so the import is \
+                    refused with 400 before anything is written and the offending columns are named. \
+
                     A Spring Batch job runs asynchronously and returns 202 immediately with a jobExecutionId. \
                     Poll GET .../batch-import/{jobExecutionId}/status to track progress. Returns 409 if a batch \
                     import is already running for the same event. A successful launch is recorded in the audit \
@@ -61,7 +66,9 @@ public interface BatchImportControllerApi {
             @ApiResponse(responseCode = "202", description = "Import job accepted and started",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = BatchImportResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid file or request",
+            @ApiResponse(responseCode = "400",
+                    description = "Invalid file or request, or a column marked as goodies holds more than 50 "
+                            + "different values",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",

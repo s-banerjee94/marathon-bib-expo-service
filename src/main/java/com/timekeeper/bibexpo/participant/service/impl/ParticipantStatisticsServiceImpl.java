@@ -137,7 +137,7 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
                         .goodieName(e.goodieName())
                         .value(e.value())
                         .participants(e.participants())
-                        .countedByValue(e.countedByValue())
+                        .handedOut(e.handedOut())
                         .build())
                 .toList();
     }
