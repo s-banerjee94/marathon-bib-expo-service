@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.messaging.direct.model.dto.request;
 
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.validation.ValidEnum;
+import com.timekeeper.bibexpo.shared.validation.ValidEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;

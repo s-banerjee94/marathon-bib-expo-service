@@ -1,0 +1,123 @@
+package com.timekeeper.bibexpo.event.model.entity;
+
+import com.timekeeper.bibexpo.event.model.converter.EventGoodieListConverter;
+import com.timekeeper.bibexpo.organization.model.entity.Organization;
+import com.timekeeper.bibexpo.shared.web.EmptyStringToNullConverter;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.io.Serializable;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "events",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_event_name_org", columnNames = {"event_name", "organization_id"})
+        },
+        indexes = {
+                @Index(name = "idx_event_name", columnList = "event_name"),
+                @Index(name = "idx_event_status", columnList = "status"),
+                @Index(name = "idx_event_enabled", columnList = "enabled"),
+                @Index(name = "idx_event_start_date", columnList = "event_start_date"),
+                @Index(name = "idx_event_organization", columnList = "organization_id")
+        })
+@EntityListeners(AuditingEntityListener.class)
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Event implements Serializable {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String eventName;
+
+    @Column(columnDefinition = "TEXT")
+    private String eventDescription;
+
+    // S3 object key of the event logo; presigned to a URL at read time
+    @Convert(converter = EmptyStringToNullConverter.class)
+    private String logoObjectKey;
+
+    @Column(length = 50)
+    private String timezone;
+
+    @Column(nullable = false)
+    private Instant eventStartDate;
+
+    @Column(nullable = false)
+    private Instant eventEndDate;
+    
+    @Column(nullable = false)
+    private String venueName;
+
+    @Convert(converter = EmptyStringToNullConverter.class)
+    private String addressLine1;
+
+    @Convert(converter = EmptyStringToNullConverter.class)
+    private String addressLine2;
+
+    @Convert(converter = EmptyStringToNullConverter.class)
+    private String city;
+
+    @Convert(converter = EmptyStringToNullConverter.class)
+    private String stateProvince;
+
+    @Convert(converter = EmptyStringToNullConverter.class)
+    private String postalCode;
+
+    @Convert(converter = EmptyStringToNullConverter.class)
+    private String country;
+
+    private Double latitude;
+
+    private Double longitude;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    @Builder.Default
+    private EventStatus status = EventStatus.DRAFT;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean distributionStarted = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", nullable = false, foreignKey = @ForeignKey(name = "fk_event_organization"))
+    private Organization organization;
+
+    @Column(columnDefinition = "JSON")
+    @Convert(converter = EventGoodieListConverter.class)
+    @Builder.Default
+    private List<EventGoodie> eventGoodies = new ArrayList<>();
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean enabled = true;
+
+    @CreatedDate
+    @Column(updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedDate
+    private Instant updatedAt;
+
+    @CreatedBy
+    private String createdBy;
+
+    @LastModifiedBy
+    private String lastModifiedBy;
+}

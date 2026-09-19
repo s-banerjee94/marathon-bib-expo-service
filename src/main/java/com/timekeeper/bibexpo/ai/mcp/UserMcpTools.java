@@ -1,15 +1,15 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
-import com.timekeeper.bibexpo.exception.InvalidUserDataException;
 import com.timekeeper.bibexpo.invitation.model.dto.request.CreateInvitationRequest;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
 import com.timekeeper.bibexpo.invitation.service.InvitationService;
-import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
-import com.timekeeper.bibexpo.model.dto.response.UserResponse;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
-import com.timekeeper.bibexpo.security.CurrentActor;
-import com.timekeeper.bibexpo.service.UserService;
+import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
+import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.model.dto.request.CreateUserRequest;
+import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.service.UserService;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +39,7 @@ public class UserMcpTools implements McpToolGroup {
                     + "their own organization's users.")
     public List<UserResponse> searchUsers(
             @ToolParam(required = false, description = "Optional text to match against username, email or full name; omit to list all") String query,
-            @ToolParam(required = false, description = "Optional role filter: ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER or DISTRIBUTOR") UserRole role,
+            @ToolParam(required = false, description = "Optional role filter; give one or more of ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR and a user matching any of them is returned. Use [ROOT, ADMIN] for platform users only") List<UserRole> roles,
             @ToolParam(required = false, description = "Optional organization id to scope the search (honoured for ROOT and ADMIN)") Long organizationId,
             @ToolParam(required = false, description = "Optional event id; matches distributors assigned to that event") Long eventId) {
 
@@ -47,9 +47,9 @@ public class UserMcpTools implements McpToolGroup {
 
         String search = McpToolSupport.normalizeSearch(query);
         Pageable pageable = PageRequest.of(0, SEARCH_LIMIT);
-        log.info("MCP search_users - query '{}', role {}, by {}", search, role, currentUser.getUsername());
+        log.info("MCP search_users - query '{}', roles {}, by {}", search, roles, currentUser.getUsername());
 
-        return userService.getUsers(role, organizationId, eventId, null, search, pageable, CurrentActor.from(currentUser))
+        return userService.getUsers(roles, organizationId, eventId, null, search, pageable, CurrentActor.from(currentUser))
                 .getContent();
     }
 

@@ -1,25 +1,25 @@
 package com.timekeeper.bibexpo.billing.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.billing.config.BillingRates;
 import com.timekeeper.bibexpo.billing.exception.BillNotAllowedException;
 import com.timekeeper.bibexpo.billing.exception.BillNotFoundException;
-import com.timekeeper.bibexpo.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.exception.AccessForbiddenException;
 import com.timekeeper.bibexpo.billing.model.dto.response.BillResponse;
 import com.timekeeper.bibexpo.billing.model.dto.response.OrganizationBillingResponse;
 import com.timekeeper.bibexpo.billing.model.entity.Invoice;
 import com.timekeeper.bibexpo.billing.model.entity.InvoiceStatus;
 import com.timekeeper.bibexpo.billing.model.entity.PaymentStatus;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
 import com.timekeeper.bibexpo.billing.repository.InvoiceRepository;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
-import com.timekeeper.bibexpo.service.StorageService;
-import com.timekeeper.bibexpo.billing.service.BillStatsTriggerService;
 import com.timekeeper.bibexpo.billing.service.BillingAdminService;
+import com.timekeeper.bibexpo.billing.service.BillStatsTriggerService;
+import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
+import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
+import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.storage.service.StorageService;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,14 +42,14 @@ import java.util.List;
 public class BillingAdminServiceImpl implements BillingAdminService {
 
     private final InvoiceRepository invoiceRepository;
-    private final OrganizationRepository organizationRepository;
+    private final OrganizationDirectory organizationDirectory;
     private final StorageService storageService;
     private final BillStatsTriggerService billStatsTriggerService;
 
     @Override
     public OrganizationBillingResponse listOrganizationBills(Long organizationId, User currentUser) {
         authorizeOrgAccess(currentUser, organizationId);
-        organizationRepository.findById(organizationId).orElseThrow(OrganizationNotFoundException::new);
+        organizationDirectory.requireById(organizationId);
 
         List<Invoice> invoices = invoiceRepository.findByOrganizationIdOrderByCreatedAtDesc(organizationId);
         // Only issued (FINAL) bills are real money; drafts are still listed but never summed.
@@ -83,6 +83,8 @@ public class BillingAdminServiceImpl implements BillingAdminService {
     public BillResponse updatePaymentStatus(String billId, PaymentStatus paymentStatus) {
         Invoice invoice = invoiceRepository.findByBillId(billId)
                 .orElseThrow(() -> new BillNotFoundException("The bill you requested does not exist."));
+        // BillResponse identifies the invoice as billId, not id, so the aspect cannot infer it.
+        AuditContextHolder.setEntityId(billId);
         if (!isFinal(invoice)) {
             throw new BillNotAllowedException("A draft bill cannot be marked paid or unpaid.");
         }

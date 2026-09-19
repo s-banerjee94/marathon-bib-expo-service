@@ -1,10 +1,10 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
-import com.timekeeper.bibexpo.model.dto.request.CreateRaceRequest;
-import com.timekeeper.bibexpo.model.dto.request.UpdateRaceRequest;
-import com.timekeeper.bibexpo.model.dto.response.RaceResponse;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.service.RaceService;
+import com.timekeeper.bibexpo.event.race.model.dto.request.CreateRaceRequest;
+import com.timekeeper.bibexpo.event.race.model.dto.request.UpdateRaceRequest;
+import com.timekeeper.bibexpo.event.race.model.dto.response.RaceResponse;
+import com.timekeeper.bibexpo.event.race.service.RaceService;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.notification.repository;
 
-import com.timekeeper.bibexpo.config.DynamoDbProperties;
 import com.timekeeper.bibexpo.notification.model.dynamodb.NotificationDDB;
+import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;

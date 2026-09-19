@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.messaging.campaign.service;
 
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.CreateWhatsAppTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.request.UpdateWhatsAppTemplateRequest;
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.WhatsAppTemplateResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 import java.util.List;
 

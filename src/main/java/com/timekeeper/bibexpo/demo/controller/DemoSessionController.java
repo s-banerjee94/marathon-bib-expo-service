@@ -8,7 +8,8 @@ import com.timekeeper.bibexpo.demo.exception.DemoSessionNotFoundException;
 import com.timekeeper.bibexpo.demo.model.dto.response.DemoSessionResponse;
 import com.timekeeper.bibexpo.demo.model.dto.response.DemoSessionStatusResponse;
 import com.timekeeper.bibexpo.demo.service.DemoSessionService;
-import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.shared.util.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +31,7 @@ public class DemoSessionController implements DemoSessionControllerApi {
     @Override
     public ResponseEntity<DemoSessionResponse> createSession(HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(demoSessionService.createSession(clientIp(request)));
+                .body(demoSessionService.createSession(ClientIpResolver.resolve(request)));
     }
 
     @Override
@@ -41,7 +42,7 @@ public class DemoSessionController implements DemoSessionControllerApi {
     @Override
     public ResponseEntity<DemoSessionStatusResponse> collectSession(@PathVariable String code,
                                                                     HttpServletRequest request) {
-        return ResponseEntity.ok(demoSessionService.collectSession(code, clientIp(request)));
+        return ResponseEntity.ok(demoSessionService.collectSession(code, ClientIpResolver.resolve(request)));
     }
 
     @Override
@@ -67,15 +68,6 @@ public class DemoSessionController implements DemoSessionControllerApi {
         return ResponseEntity.ok()
                 .header("X-Accel-Buffering", "no")
                 .body(emitter);
-    }
-
-    /** First X-Forwarded-For hop when behind the reverse proxy, otherwise the socket address. */
-    private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     @ExceptionHandler(DemoSessionNotFoundException.class)

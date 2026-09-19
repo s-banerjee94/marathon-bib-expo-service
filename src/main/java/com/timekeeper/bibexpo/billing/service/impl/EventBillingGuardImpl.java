@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.billing.service.impl;
 
 import com.timekeeper.bibexpo.billing.model.entity.InvoiceStatus;
 import com.timekeeper.bibexpo.billing.repository.InvoiceRepository;
-import com.timekeeper.bibexpo.service.EventBillingGuard;
+import com.timekeeper.bibexpo.event.api.EventBillingGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

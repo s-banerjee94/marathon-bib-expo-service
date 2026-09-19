@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.participantaccess.repository;
 
-import com.timekeeper.bibexpo.exception.ShortUrlNotFoundException;
-import com.timekeeper.bibexpo.config.DynamoDbProperties;
+import com.timekeeper.bibexpo.participantaccess.exception.ShortUrlNotFoundException;
 import com.timekeeper.bibexpo.participantaccess.model.dynamodb.ShortUrlDDB;
+import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;

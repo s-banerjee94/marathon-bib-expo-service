@@ -1,11 +1,11 @@
 package com.timekeeper.bibexpo.invitation.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.invitation.exception.InvitationInvalidException;
 import com.timekeeper.bibexpo.invitation.model.dto.request.AcceptInvitationRequest;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationDetailsResponse;
 import com.timekeeper.bibexpo.invitation.service.InvitationService;
-import com.timekeeper.bibexpo.model.dto.response.UserResponse;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
+import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

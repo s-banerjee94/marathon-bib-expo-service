@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.invitation.model;
 
-import com.timekeeper.bibexpo.model.entity.UserRole;
+import com.timekeeper.bibexpo.shared.security.UserRole;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

@@ -4,8 +4,8 @@ import com.timekeeper.bibexpo.invitation.model.dto.request.AcceptInvitationReque
 import com.timekeeper.bibexpo.invitation.model.dto.request.CreateInvitationRequest;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationDetailsResponse;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
-import com.timekeeper.bibexpo.model.dto.response.UserResponse;
-import com.timekeeper.bibexpo.security.CurrentActor;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
+import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 
 /**
  * Issues and redeems one-time, short-lived user-invite links. The role and organization are
@@ -21,9 +21,9 @@ public interface InvitationService {
      * @param request the role and (where applicable) organization the invite is fixed to
      * @param actor the authenticated user issuing the invite
      * @return the link to share with the invitee
-     * @throws com.timekeeper.bibexpo.exception.AccessForbiddenException if the caller cannot create that role
-     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if the organization is required but missing or disabled
-     * @throws com.timekeeper.bibexpo.exception.OrganizationNotFoundException if the organization does not exist
+     * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the caller cannot create that role
+     * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the organization is required but missing or disabled
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException if the organization does not exist
      */
     InvitationLinkResponse createInvitation(CreateInvitationRequest request, CurrentActor actor);
 
@@ -45,8 +45,8 @@ public interface InvitationService {
      * @param request the invitee's personal details
      * @return the created user
      * @throws com.timekeeper.bibexpo.invitation.exception.InvitationInvalidException if the token is missing or expired
-     * @throws com.timekeeper.bibexpo.exception.UserAlreadyExistsException if username, email, or phone already exists
-     * @throws com.timekeeper.bibexpo.exception.InvalidUserDataException if required details are missing or limits exceeded
+     * @throws com.timekeeper.bibexpo.user.exception.UserAlreadyExistsException if username, email, or phone already exists
+     * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if required details are missing or limits exceeded
      */
     UserResponse acceptInvitation(String token, AcceptInvitationRequest request);
 }

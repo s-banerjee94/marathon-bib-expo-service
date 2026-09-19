@@ -2,7 +2,7 @@ package com.timekeeper.bibexpo.demo.controller;
 
 import com.timekeeper.bibexpo.demo.model.dto.response.DemoSessionResponse;
 import com.timekeeper.bibexpo.demo.model.dto.response.DemoSessionStatusResponse;
-import com.timekeeper.bibexpo.exception.ErrorResponse;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

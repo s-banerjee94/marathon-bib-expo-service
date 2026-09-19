@@ -1,24 +1,24 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 
-import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
-import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
-import com.timekeeper.bibexpo.messaging.provider.service.CampaignProviderResolver;
-import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
-import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
-import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppCampaign;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.WhatsAppTemplate;
+import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
+import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType;
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.ParticipantEventWhatsAppService;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
+import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
+import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
+import com.timekeeper.bibexpo.messaging.provider.service.CampaignProviderResolver;
 import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
+import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
+import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class ParticipantEventWhatsAppServiceImpl implements ParticipantEventWhat
     private final WhatsAppCampaignRepository campaignRepository;
     private final CampaignProviderResolver campaignProviderResolver;
     private final MessagingProviderClient messagingProviderClient;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
     private final CampaignCompatibilityGuard compatibilityGuard;
 
     @Override

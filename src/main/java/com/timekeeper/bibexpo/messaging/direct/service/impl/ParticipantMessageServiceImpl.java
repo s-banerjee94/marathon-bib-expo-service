@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.messaging.direct.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.aspect.AuditContextHolder;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.exception.ParticipantNotFoundException;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.messaging.campaign.exception.SmsTemplateNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppTemplateNotFoundException;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.SmsCampaign;
@@ -18,7 +18,6 @@ import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppCampaignRepo
 import com.timekeeper.bibexpo.messaging.campaign.repository.WhatsAppTemplateRepository;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignCompatibilityGuard;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignVariableRenderer;
-import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import com.timekeeper.bibexpo.messaging.delivery.OutboundMessage;
 import com.timekeeper.bibexpo.messaging.direct.exception.InvalidParticipantMessageException;
 import com.timekeeper.bibexpo.messaging.direct.model.dto.request.SendParticipantMessagesRequest;
@@ -30,22 +29,22 @@ import com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderExce
 import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.ProviderSource;
 import com.timekeeper.bibexpo.messaging.provider.service.CampaignProviderResolver;
+import com.timekeeper.bibexpo.messaging.provider.service.impl.ProviderMappingValidator.TemplateContent;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderClient;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
-import com.timekeeper.bibexpo.model.dynamodb.ParticipantDDB;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.model.enums.EventOperation;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.dynamodb.ParticipantDDBRepository;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver;
-import com.timekeeper.bibexpo.service.util.RaceCategoryNameResolver.EventNames;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
-import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.enums.EventOperation;
+import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.exception.ParticipantNotFoundException;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.api.EventNames;
+import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -61,17 +60,17 @@ public class ParticipantMessageServiceImpl implements ParticipantMessageService 
     private static final String NO_PHONE = "This participant does not have a phone number on record.";
     private static final String SEND_FAILED = "The message could not be sent. Please try again.";
 
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final EventOperationGuard eventOperationGuard;
-    private final ParticipantDDBRepository participantDDBRepository;
+    private final ParticipantStore participantStore;
     private final SmsTemplateRepository smsTemplateRepository;
     private final WhatsAppTemplateRepository whatsAppTemplateRepository;
     private final SmsCampaignRepository smsCampaignRepository;
     private final WhatsAppCampaignRepository whatsAppCampaignRepository;
     private final CampaignProviderResolver campaignProviderResolver;
     private final MessagingProviderClient messagingProviderClient;
-    private final RaceCategoryNameResolver nameResolver;
+    private final RaceCategoryNameQuery nameResolver;
     private final CampaignCompatibilityGuard compatibilityGuard;
 
     /** The resolved template, what it can supply, and how it turns a participant into a payload. */
@@ -88,7 +87,7 @@ public class ParticipantMessageServiceImpl implements ParticipantMessageService 
         log.info("Sending {} to {} participant(s) of event ID: {} by user: {}",
                 channel, bibNumbers.size(), eventId, currentUser.getUsername());
 
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
         eventOperationGuard.requireAllowed(event, EventOperation.CAMPAIGN_WRITE);
 
@@ -134,7 +133,7 @@ public class ParticipantMessageServiceImpl implements ParticipantMessageService 
     private ParticipantMessageResult sendOne(String bibNumber, Event event, EventNames names,
                                              MessagePlan plan, MessagingProvider provider, MessageChannel channel) {
         try {
-            ParticipantDDB participant = participantDDBRepository.findByEventAndBibOrThrow(event.getId(), bibNumber);
+            ParticipantDDB participant = participantStore.findByEventAndBibOrThrow(event.getId(), bibNumber);
 
             String phone = participant.getPhoneNumber();
             if (phone == null || phone.isBlank()) {

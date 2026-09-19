@@ -1,19 +1,19 @@
 package com.timekeeper.bibexpo.ai.mcp;
 
-import com.timekeeper.bibexpo.exception.AccessForbiddenException;
-import com.timekeeper.bibexpo.model.dto.request.CreateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.request.UpdateOrganizationRequest;
-import com.timekeeper.bibexpo.model.dto.response.OrganizationResponse;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.entity.UserRole;
-import com.timekeeper.bibexpo.service.OrganizationService;
+import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
+import com.timekeeper.bibexpo.organization.service.OrganizationService;
+import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
+import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -46,7 +46,7 @@ public class OrganizationMcpTools implements McpToolGroup {
         log.info("MCP search_organizations - query '{}', by {}", search, currentUser.getUsername());
 
         return organizationService
-                .getAllOrganizations(null, search, PageRequest.of(0, SEARCH_LIMIT), currentUser)
+                .getAllOrganizations(null, search, PageRequest.of(0, SEARCH_LIMIT), CurrentActor.from(currentUser))
                 .getContent();
     }
 
@@ -82,6 +82,6 @@ public class OrganizationMcpTools implements McpToolGroup {
         McpToolSupport.validate(validator, request);
 
         log.info("MCP update_organization - org {}, by {}", organizationId, currentUser.getUsername());
-        return organizationService.updateOrganization(organizationId, request, currentUser);
+        return organizationService.updateOrganization(organizationId, request, CurrentActor.from(currentUser));
     }
 }

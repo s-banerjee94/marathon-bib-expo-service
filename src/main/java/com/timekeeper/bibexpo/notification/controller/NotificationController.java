@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.notification.controller;
 
 import com.timekeeper.bibexpo.notification.model.dto.response.NotificationListResponse;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

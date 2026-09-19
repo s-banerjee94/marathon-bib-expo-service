@@ -1,5 +1,10 @@
 package com.timekeeper.bibexpo.billing.service.impl;
 
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
+import com.timekeeper.bibexpo.billing.config.BillingRates;
 import com.timekeeper.bibexpo.billing.exception.BillNotAllowedException;
 import com.timekeeper.bibexpo.billing.exception.BillNotFoundException;
 import com.timekeeper.bibexpo.billing.model.dto.request.LineItemRequest;
@@ -9,20 +14,15 @@ import com.timekeeper.bibexpo.billing.model.entity.Invoice;
 import com.timekeeper.bibexpo.billing.model.entity.InvoiceLineItem;
 import com.timekeeper.bibexpo.billing.model.entity.InvoiceStatus;
 import com.timekeeper.bibexpo.billing.model.entity.LineItemKind;
-import com.timekeeper.bibexpo.billing.config.BillingRates;
 import com.timekeeper.bibexpo.billing.repository.InvoiceLineItemRepository;
 import com.timekeeper.bibexpo.billing.repository.InvoiceRepository;
 import com.timekeeper.bibexpo.billing.service.BillingLineItemService;
 import com.timekeeper.bibexpo.billing.service.util.BillTotalsCalculator;
-import com.timekeeper.bibexpo.annotation.Auditable;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.exception.EventNotFoundException;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.StorageService;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.storage.service.StorageService;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,7 +40,7 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
 
     private final InvoiceRepository invoiceRepository;
     private final InvoiceLineItemRepository invoiceLineItemRepository;
-    private final EventRepository eventRepository;
+    private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final StorageService storageService;
 
@@ -146,7 +146,7 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
         if (!invoice.getEventId().equals(eventId)) {
             throw new BillNotFoundException("The bill you requested does not exist.");
         }
-        Event event = eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserOrganizationAccess(currentUser, event);
         if (invoice.getStatus() != InvoiceStatus.DRAFT) {
             throw new BillNotAllowedException("A finalized bill can no longer be changed.");
@@ -222,6 +222,8 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
         invoice.setTotalAmount(totals.totalAmount());
         invoice.setUpdatedAt(Instant.now());
         Invoice saved = invoiceRepository.save(invoice);
+        // BillResponse identifies the invoice as billId, not id, so the aspect cannot infer it.
+        AuditContextHolder.setEntityId(saved.getBillId());
         return BillResponse.fromEntity(saved, lines, storageService.createDownloadUrl(saved.getPdfKey()));
     }
 }

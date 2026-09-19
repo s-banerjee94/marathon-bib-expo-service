@@ -61,11 +61,6 @@ Desktop.ini
 ### Maven Wrapper ###
 .mvn/wrapper/maven-wrapper.properties
 
-### Application Specific ###
-application-local.properties
-application-local.yml
-application-local.yaml
-
 ### Certificates / Keystores ###
 *.p12
 *.jks
@@ -80,6 +75,3 @@ AGENTS.md
 http api call
 plan
 system-templates
-# Local working notes (kept on disk, not tracked)
-DEPLOYMENT_NOTES.md
-FRONTEND_NOTES.md

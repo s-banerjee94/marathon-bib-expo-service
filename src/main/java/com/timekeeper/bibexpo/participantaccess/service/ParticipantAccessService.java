@@ -1,8 +1,8 @@
 package com.timekeeper.bibexpo.participantaccess.service;
 
-import com.timekeeper.bibexpo.model.dto.response.ParticipantDistributionResponse;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.participantaccess.model.dto.response.ParticipantVerificationResponse;
+import com.timekeeper.bibexpo.user.model.entity.User;
 
 public interface ParticipantAccessService {
 

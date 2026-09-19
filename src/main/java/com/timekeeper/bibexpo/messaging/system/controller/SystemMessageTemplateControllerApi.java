@@ -1,10 +1,10 @@
 package com.timekeeper.bibexpo.messaging.system.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
 import com.timekeeper.bibexpo.messaging.system.model.dto.request.SaveSystemMessageTemplateRequest;
 import com.timekeeper.bibexpo.messaging.system.model.dto.response.SystemMessageTemplateResponse;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

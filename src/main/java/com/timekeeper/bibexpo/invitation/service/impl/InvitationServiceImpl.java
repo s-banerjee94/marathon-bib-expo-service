@@ -2,29 +2,27 @@ package com.timekeeper.bibexpo.invitation.service.impl;
 
 import com.timekeeper.bibexpo.invitation.config.InviteProperties;
 import com.timekeeper.bibexpo.invitation.exception.InvitationInvalidException;
-import com.timekeeper.bibexpo.invitation.model.Invitation;
-import com.timekeeper.bibexpo.invitation.model.InviteMessageContext;
 import com.timekeeper.bibexpo.invitation.model.dto.request.AcceptInvitationRequest;
 import com.timekeeper.bibexpo.invitation.model.dto.request.CreateInvitationRequest;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationDetailsResponse;
 import com.timekeeper.bibexpo.invitation.model.dto.response.InvitationLinkResponse;
+import com.timekeeper.bibexpo.invitation.model.Invitation;
+import com.timekeeper.bibexpo.invitation.model.InviteMessageContext;
+import com.timekeeper.bibexpo.invitation.service.InvitationService;
 import com.timekeeper.bibexpo.invitation.store.InvitationStore;
 import com.timekeeper.bibexpo.messaging.delivery.DeliveryResult;
 import com.timekeeper.bibexpo.messaging.delivery.SystemMessageDispatcher;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.messaging.shared.enums.SystemTemplatePurpose;
-import com.timekeeper.bibexpo.exception.InvalidUserDataException;
-import com.timekeeper.bibexpo.model.dto.request.CreateUserRequest;
-import com.timekeeper.bibexpo.model.dto.response.UserResponse;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.Organization;
-import com.timekeeper.bibexpo.model.entity.UserRole;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.repository.OrganizationRepository;
-import com.timekeeper.bibexpo.security.CurrentActor;
-import com.timekeeper.bibexpo.service.UserService;
-import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
-import com.timekeeper.bibexpo.invitation.service.InvitationService;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
+import com.timekeeper.bibexpo.user.api.CurrentActor;
+import com.timekeeper.bibexpo.shared.security.UserRole;
+import com.timekeeper.bibexpo.user.model.dto.request.CreateUserRequest;
+import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
+import com.timekeeper.bibexpo.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -44,8 +42,8 @@ public class InvitationServiceImpl implements InvitationService {
 
     private final InvitationStore invitationStore;
     private final UserService userService;
-    private final OrganizationRepository organizationRepository;
-    private final EventRepository eventRepository;
+    private final OrganizationDirectory organizationDirectory;
+    private final EventStore eventStore;
     private final InviteProperties inviteProperties;
     private final SystemMessageDispatcher systemMessageDispatcher;
 
@@ -92,7 +90,7 @@ public class InvitationServiceImpl implements InvitationService {
         return InvitationDetailsResponse.builder()
                 .role(invitation.getRole().name())
                 .organizationId(invitation.getOrganizationId())
-                .organizationName(resolveOrganizationName(invitation.getOrganizationId()))
+                .organizationName(organizationDirectory.findOrganizerName(invitation.getOrganizationId()))
                 .eventId(invitation.getEventId())
                 .eventName(resolveEventName(invitation.getEventId()))
                 .recipientPhone(invitation.getRecipientPhone())
@@ -140,7 +138,7 @@ public class InvitationServiceImpl implements InvitationService {
     private InviteMessageContext buildContext(UserRole role, Long organizationId, String inviteUrl) {
         return InviteMessageContext.builder()
                 .role(humanizeRole(role))
-                .organizationName(resolveOrganizationName(organizationId))
+                .organizationName(organizationDirectory.findOrganizerName(organizationId))
                 .inviteUrl(inviteUrl)
                 .build();
     }
@@ -152,20 +150,11 @@ public class InvitationServiceImpl implements InvitationService {
                 .collect(Collectors.joining(" "));
     }
 
-    private String resolveOrganizationName(Long organizationId) {
-        if (organizationId == null) {
-            return null;
-        }
-        return organizationRepository.findById(organizationId)
-                .map(Organization::getOrganizerName)
-                .orElse(null);
-    }
-
     private String resolveEventName(Long eventId) {
         if (eventId == null) {
             return null;
         }
-        return eventRepository.findById(eventId)
+        return eventStore.findById(eventId)
                 .map(Event::getEventName)
                 .orElse(null);
     }

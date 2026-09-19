@@ -1,7 +1,7 @@
 package com.timekeeper.bibexpo.participantaccess.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.participantaccess.model.dto.response.ParticipantVerificationResponse;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

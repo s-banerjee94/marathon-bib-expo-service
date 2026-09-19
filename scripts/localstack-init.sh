@@ -63,23 +63,7 @@ awslocal dynamodb create-table \
 
 echo "DynamoDB table marathon-participants created successfully!"
 
-echo "Creating DynamoDB table: marathon-import-errors"
-awslocal dynamodb create-table \
-    --table-name marathon-import-errors \
-    --attribute-definitions \
-        AttributeName=importId,AttributeType=S \
-        AttributeName=rowNumber,AttributeType=N \
-    --key-schema \
-        AttributeName=importId,KeyType=HASH \
-        AttributeName=rowNumber,KeyType=RANGE \
-    --billing-mode PAY_PER_REQUEST
-
-echo "Enabling TTL on marathon-import-errors table (expirationTime attribute)"
-awslocal dynamodb update-time-to-live \
-    --table-name marathon-import-errors \
-    --time-to-live-specification "Enabled=true, AttributeName=expirationTime"
-
-echo "DynamoDB table marathon-import-errors created successfully with TTL enabled!"
+# Import errors live in MySQL (import_errors), keyed to their import job by a foreign key.
 
 echo "Creating DynamoDB table: marathon-distribution-logs"
 awslocal dynamodb create-table \

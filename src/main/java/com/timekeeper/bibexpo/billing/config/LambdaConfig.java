@@ -1,6 +1,6 @@
 package com.timekeeper.bibexpo.billing.config;
 
-import com.timekeeper.bibexpo.config.AwsProperties;
+import com.timekeeper.bibexpo.shared.persistence.AwsProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,7 +12,7 @@ import java.net.URI;
 
 /**
  * AWS Lambda client used to invoke the billing Lambda directly for an on-demand
- * (manual) bill. Mirrors {@link com.timekeeper.bibexpo.config.DynamoDBConfig}: an endpoint
+ * (manual) bill. Mirrors {@link com.timekeeper.bibexpo.shared.persistence.DynamoDBConfig}: an endpoint
  * override (LocalStack) uses the static test credentials; otherwise it targets real AWS via
  * the default credentials provider (EC2 instance role).
  */

@@ -1,6 +1,8 @@
 package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 
-import com.timekeeper.bibexpo.annotation.Auditable;
+import com.timekeeper.bibexpo.audit.api.Auditable;
+import com.timekeeper.bibexpo.audit.api.AuditAction;
+import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.messaging.campaign.exception.InvalidWhatsAppTemplateException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppTemplateAlreadyExistsException;
 import com.timekeeper.bibexpo.messaging.campaign.exception.WhatsAppTemplateNotFoundException;
@@ -15,16 +17,14 @@ import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppTemplateService
 import com.timekeeper.bibexpo.messaging.campaign.util.TemplateSenderStamp;
 import com.timekeeper.bibexpo.messaging.provider.model.enums.TemplateMode;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.model.entity.Event;
-import com.timekeeper.bibexpo.model.entity.User;
-import com.timekeeper.bibexpo.model.enums.AuditAction;
-import com.timekeeper.bibexpo.model.enums.AuditEntityType;
-import com.timekeeper.bibexpo.repository.EventRepository;
-import com.timekeeper.bibexpo.service.validator.EventAccessValidator;
-import com.timekeeper.bibexpo.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateContext;
 import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
-import com.timekeeper.bibexpo.util.TextUtils;
+import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
+import com.timekeeper.bibexpo.shared.util.TextUtils;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -46,11 +46,11 @@ public class WhatsAppTemplateServiceImpl
 
     public WhatsAppTemplateServiceImpl(WhatsAppTemplateRepository templateRepository,
                                        WhatsAppCampaignRepository campaignRepository,
-                                       EventRepository eventRepository,
+                                       EventStore eventStore,
                                        EventAccessValidator eventAccessValidator,
                                        EventOperationGuard eventOperationGuard,
                                        TemplateSenderStamp senderStamp) {
-        super("WhatsApp", templateRepository, eventRepository, eventAccessValidator, eventOperationGuard);
+        super("WhatsApp", templateRepository, eventStore, eventAccessValidator, eventOperationGuard);
         this.templateRepository = templateRepository;
         this.campaignRepository = campaignRepository;
         this.senderStamp = senderStamp;

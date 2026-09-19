@@ -1,16 +1,16 @@
 package com.timekeeper.bibexpo.notification.service.impl;
 
-import com.timekeeper.bibexpo.config.CacheConfig;
-import com.timekeeper.bibexpo.exception.InvalidUserDataException;
+import com.timekeeper.bibexpo.shared.cache.CacheNames;
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.dto.response.NotificationListResponse;
 import com.timekeeper.bibexpo.notification.model.dto.response.NotificationResponse;
 import com.timekeeper.bibexpo.notification.model.dynamodb.NotificationDDB;
-import com.timekeeper.bibexpo.model.entity.User;
 import com.timekeeper.bibexpo.notification.repository.NotificationDDBRepository;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
-import com.timekeeper.bibexpo.service.util.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.notification.service.util.NotificationRecipientResolver;
+import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
+import com.timekeeper.bibexpo.shared.persistence.DynamoDBPaginationCodec;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;
@@ -98,7 +98,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     /** Drops the cached badge count for every recipient that just received a new notification. */
     private void evictUnreadCounts(List<NotificationDDB> rows) {
-        Cache cache = cacheManager.getCache(CacheConfig.UNREAD_COUNTS_CACHE);
+        Cache cache = cacheManager.getCache(CacheNames.UNREAD_COUNTS_CACHE);
         if (cache == null) {
             return;
         }
@@ -116,25 +116,25 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    @Cacheable(value = CacheConfig.UNREAD_COUNTS_CACHE, key = "#user.id")
+    @Cacheable(value = CacheNames.UNREAD_COUNTS_CACHE, key = "#user.id")
     public long getUnreadCount(User user) {
         return notificationRepository.countUnread(user.getId());
     }
 
     @Override
-    @CacheEvict(value = CacheConfig.UNREAD_COUNTS_CACHE, key = "#user.id")
+    @CacheEvict(value = CacheNames.UNREAD_COUNTS_CACHE, key = "#user.id")
     public void markAsRead(User user, String id) {
         notificationRepository.markRead(user.getId(), decodeId(id));
     }
 
     @Override
-    @CacheEvict(value = CacheConfig.UNREAD_COUNTS_CACHE, key = "#user.id")
+    @CacheEvict(value = CacheNames.UNREAD_COUNTS_CACHE, key = "#user.id")
     public int markAllAsRead(User user) {
         return notificationRepository.markAllRead(user.getId());
     }
 
     @Override
-    @CacheEvict(value = CacheConfig.UNREAD_COUNTS_CACHE, key = "#userId")
+    @CacheEvict(value = CacheNames.UNREAD_COUNTS_CACHE, key = "#userId")
     public int deleteAllForUser(Long userId) {
         return notificationRepository.deleteAllByUser(userId);
     }

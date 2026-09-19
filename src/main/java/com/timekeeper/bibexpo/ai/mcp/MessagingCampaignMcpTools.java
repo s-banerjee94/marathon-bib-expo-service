@@ -8,7 +8,7 @@ import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.SmsCampaignR
 import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.WhatsAppCampaignResponse;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsCampaignService;
 import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppCampaignService;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

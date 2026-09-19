@@ -1,9 +1,9 @@
 package com.timekeeper.bibexpo.passwordreset.controller;
 
-import com.timekeeper.bibexpo.exception.ErrorResponse;
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.CompletePasswordResetRequest;
 import com.timekeeper.bibexpo.passwordreset.model.dto.request.ForgotPasswordRequest;
 import com.timekeeper.bibexpo.passwordreset.model.dto.response.PasswordResetTokenStatusResponse;
+import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

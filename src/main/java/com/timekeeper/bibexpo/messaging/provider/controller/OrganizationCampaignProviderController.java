@@ -5,7 +5,7 @@ import com.timekeeper.bibexpo.messaging.provider.model.dto.request.SaveMessaging
 import com.timekeeper.bibexpo.messaging.provider.model.dto.response.MessagingProviderResponse;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderAdminService;
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
-import com.timekeeper.bibexpo.model.entity.User;
+import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
