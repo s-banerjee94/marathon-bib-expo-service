@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.inventory.service.impl;
 
+import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.inventory.api.GoodieIssue;
 import com.timekeeper.bibexpo.inventory.api.GoodieRequest;
 import com.timekeeper.bibexpo.inventory.api.GoodieStockOption;
@@ -10,7 +11,6 @@ import com.timekeeper.bibexpo.inventory.model.enums.GoodieValueResolution;
 import com.timekeeper.bibexpo.inventory.repository.InventoryGoodieMappingRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemRepository;
 import com.timekeeper.bibexpo.inventory.service.util.GoodieValueReader;
-import com.timekeeper.bibexpo.inventory.service.util.VariantLabeller;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
 import lombok.RequiredArgsConstructor;
@@ -33,8 +33,8 @@ public class GoodieMappingStockQuery implements GoodieStockQuery {
 
     private final InventoryGoodieMappingRepository mappingRepository;
     private final InventoryItemRepository itemRepository;
-    private final VariantLabeller variantLabeller;
     private final GoodieValueReader valueReader;
+    private final EventStatsQuery eventStatsQuery;
 
     @Override
     @Transactional(readOnly = true)
@@ -48,12 +48,29 @@ public class GoodieMappingStockQuery implements GoodieStockQuery {
                         links.stream().map(InventoryGoodieMapping::getItemId).distinct().toList())
                 .stream()
                 .collect(Collectors.toMap(InventoryItem::getId, InventoryItem::getName));
-        // Two goodies can come out of one item, so each item's variants are labelled once.
-        Map<Long, List<GoodieStockOption.Variant>> variantsByItem = new HashMap<>();
+        Map<String, List<String>> valuesByGoodie = new HashMap<>();
+        eventStatsQuery.entitlements(eventId).forEach(entitlement -> valuesByGoodie
+                .computeIfAbsent(TextUtils.toMatchKey(entitlement.goodieName()), ignored -> new ArrayList<>())
+                .add(entitlement.value()));
+        // Two goodies can come out of one item, so each item is loaded once.
+        Map<Long, GoodieValueReader.ItemReader> readers = new HashMap<>();
         return links.stream()
-                .map(link -> new GoodieStockOption(link.getGoodieName(), itemNames.get(link.getItemId()),
-                        variantsByItem.computeIfAbsent(link.getItemId(), this::variantsOf)))
+                .map(link -> {
+                    GoodieValueReader.ItemReader reader = readers.computeIfAbsent(link.getItemId(), valueReader::forItem);
+                    return new GoodieStockOption(link.getGoodieName(), itemNames.get(link.getItemId()),
+                            reader.labels().entrySet().stream()
+                                    .map(label -> new GoodieStockOption.Variant(label.getKey(), label.getValue()))
+                                    .toList(),
+                            valuesByGoodie.getOrDefault(TextUtils.toMatchKey(link.getGoodieName()), List.of()).stream()
+                                    .map(value -> readingOf(reader, value))
+                                    .toList());
+                })
                 .toList();
+    }
+
+    private static GoodieStockOption.ValueReading readingOf(GoodieValueReader.ItemReader reader, String value) {
+        GoodieValueReader.Reading reading = reader.read(value);
+        return new GoodieStockOption.ValueReading(value, reading.variantId(), reading.resolution());
     }
 
     // The counter's pick always wins, which is how a participant swaps sizes. Without one, their own value
@@ -110,11 +127,5 @@ public class GoodieMappingStockQuery implements GoodieStockQuery {
         mappingRepository.findByEventIdOrderByGoodieNameAsc(eventId)
                 .forEach(link -> links.putIfAbsent(TextUtils.toMatchKey(link.getGoodieName()), link));
         return links;
-    }
-
-    private List<GoodieStockOption.Variant> variantsOf(Long itemId) {
-        return variantLabeller.labelsForItem(itemId).entrySet().stream()
-                .map(label -> new GoodieStockOption.Variant(label.getKey(), label.getValue()))
-                .toList();
     }
 }

@@ -707,6 +707,13 @@ public class DistributionServiceImpl implements DistributionService {
                                         .build())
                                 .toList()
                         : List.of())
+                .values(link == null ? List.of() : link.values().stream()
+                        .map(v -> DistributionGoodieResponse.Value.builder()
+                                .value(v.value())
+                                .variantId(v.variantId())
+                                .resolution(v.resolution())
+                                .build())
+                        .toList())
                 .build();
     }
 

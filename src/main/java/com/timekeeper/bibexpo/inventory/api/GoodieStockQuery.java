@@ -15,7 +15,9 @@ import java.util.Map;
 public interface GoodieStockQuery {
 
     /**
-     * Every goody the event has linked to an inventory item, with the variants each can go out as.
+     * Every goody the event has linked to an inventory item, with the variants each can go out as and
+     * the variant each value on the roster reads as, so the counter can tell before a hand-over which
+     * participants still need a variant picked.
      *
      * @param eventId the event
      * @return one entry per linked goody, in goody-name order; empty when the event links nothing

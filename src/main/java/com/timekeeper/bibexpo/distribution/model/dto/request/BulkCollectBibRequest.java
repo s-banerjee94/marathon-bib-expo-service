@@ -52,8 +52,10 @@ public class BulkCollectBibRequest {
                 example = "[\"T-Shirt\", \"Medal\"]", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         private List<String> goodiesItems;
 
-        @Schema(description = "The variant handed over, by goody name, for a goody added to the event by hand whose "
-                + "inventory item comes in more than one variant. Leave every other goody out.",
+        @Schema(description = "The variant handed over, by goody name. Needed for a goody added to the event by hand "
+                + "whose inventory item comes in more than one variant, and for one of the participant's own goodies "
+                + "whose value was never taught to its item. A variant sent for one of their own goodies wins over "
+                + "what their value reads as, for a size swap. Leave every other goody out.",
                 example = "{\"Sipper\": 12}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         private Map<String, Long> variantIds;
     }

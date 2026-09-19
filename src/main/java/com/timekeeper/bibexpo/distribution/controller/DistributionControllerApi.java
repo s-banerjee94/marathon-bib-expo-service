@@ -253,7 +253,12 @@ public interface DistributionControllerApi {
                     A linked goody whose item comes in more than one variant lists the variants to choose between; \
                     send the chosen one in variantIds when handing it over. A MANUAL goody always needs one. \
                     For one of the participant's own goodies it is optional: leave it out to hand over the variant \
-                    their value reads as, and the hand-over is refused only when that value was never taught."""
+                    their value reads as, and the hand-over is refused only when that value was never taught. \
+
+                    **values** says, for a linked goody, which variant every value on participants' records reads \
+                    as: match the participant's own value against it before handing over. A value read as \
+                    UNRESOLVED needs a variant chosen, one read as NOTHING_OWED takes nothing off the shelf, and \
+                    any other goes out as its variantId unless a different one is chosen."""
     )
     @ApiResponses(value = {
             @ApiResponse(
