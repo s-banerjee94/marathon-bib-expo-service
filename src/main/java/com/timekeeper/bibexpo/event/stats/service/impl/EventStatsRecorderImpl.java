@@ -14,15 +14,19 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.GENDER_F;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.GENDER_M;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.GENDER_O;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.KEY_BIB_COLLECTED;
+import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.KEY_GOODIES_PENDING;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.KEY_TOTAL;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_CATEGORY;
 import static com.timekeeper.bibexpo.event.stats.model.dynamodb.EventStatsDDB.PREFIX_DIST;
@@ -76,10 +80,11 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
             d.simple(KEY_BIB_COLLECTED, +1);
             d.race(p.raceId(), 0, +1);
             d.category(p.categoryId(), 0, +1);
+            if (owesGoodies(p, p.goodiesCollected())) {
+                d.simple(KEY_GOODIES_PENDING, +1);
+            }
             if (goodiesDistributed != null) {
-                for (String name : goodiesDistributed) {
-                    d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, +1);
-                }
+                countHandedOut(d, p, goodiesDistributed, +1);
             }
             addActivityDeltas(d, p, eventZone, +1);
             statsRepo.applyDeltas(p.eventId(), d.build());
@@ -93,9 +98,10 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
             d.simple(KEY_BIB_COLLECTED, -1);
             d.race(before.raceId(), 0, -1);
             d.category(before.categoryId(), 0, -1);
-            for (String name : before.goodiesCollected()) {
-                d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, -1);
+            if (owesGoodies(before, before.goodiesCollected())) {
+                d.simple(KEY_GOODIES_PENDING, -1);
             }
+            countHandedOut(d, before, before.goodiesCollected(), -1);
             addActivityDeltas(d, before, eventZone, -1);
             statsRepo.applyDeltas(before.eventId(), d.build());
         });
@@ -106,8 +112,12 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
         runSafely(p.eventId(), "onGoodiesDistributed", () -> {
             if (items == null || items.isEmpty()) return;
             DeltaBuilder d = new DeltaBuilder();
-            for (String name : items) {
-                d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, +1);
+            countHandedOut(d, p, items, +1);
+            // A hand-out only ever settles what was owed, so the only move is off the pending count.
+            Set<String> handedBefore = new HashSet<>(p.goodiesCollected());
+            handedBefore.removeAll(items);
+            if (owesGoodies(p, handedBefore) && !owesGoodies(p, p.goodiesCollected())) {
+                d.simple(KEY_GOODIES_PENDING, -1);
             }
             statsRepo.applyDeltas(p.eventId(), d.build());
         });
@@ -173,9 +183,30 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
         if (collected) {
             d.simple(KEY_BIB_COLLECTED, sign);
         }
-        for (String name : p.goodiesCollected()) {
-            d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, sign);
+        if (owesGoodies(p, p.goodiesCollected())) {
+            d.simple(KEY_GOODIES_PENDING, sign);
         }
+        countHandedOut(d, p, p.goodiesCollected(), sign);
+        p.goodiesEntitled().forEach((name, value) ->
+                d.simple(EventStatsDDB.entitledKey(name, value), sign));
+    }
+
+    // Every hand-out counts against its goody. One of the participant's own goodies also counts against the
+    // value they were owed, which is what the shortfall report takes off that value's demand.
+    private static void countHandedOut(DeltaBuilder d, ParticipantCounters p, Collection<String> names, long sign) {
+        for (String name : names) {
+            d.simple(PREFIX_GOODIE + name + SUFFIX_DISTRIBUTED, sign);
+            String owed = p.goodiesEntitled().get(name);
+            if (owed != null) {
+                d.simple(EventStatsDDB.handedKey(name, owed), sign);
+            }
+        }
+    }
+
+    // The counter's goodies list rule: a collected bib with at least one goody of the participant's own not
+    // yet handed over.
+    private static boolean owesGoodies(ParticipantCounters p, Set<String> handed) {
+        return p.bibCollected() && !handed.containsAll(p.goodiesEntitled().keySet());
     }
 
     private static List<EventStatsDDB> toRows(String eventIdStr, DeltaBuilder accumulator) {

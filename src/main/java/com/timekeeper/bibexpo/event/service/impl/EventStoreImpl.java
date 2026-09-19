@@ -3,11 +3,14 @@ package com.timekeeper.bibexpo.event.service.impl;
 import com.timekeeper.bibexpo.event.api.EventStore;
 import com.timekeeper.bibexpo.event.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.event.model.entity.Event;
+import com.timekeeper.bibexpo.event.model.entity.EventGoodie;
 import com.timekeeper.bibexpo.event.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -44,9 +47,9 @@ public class EventStoreImpl implements EventStore {
 
     @Override
     @Transactional
-    public void updateGoodies(Long eventId, String goodiesJson) {
+    public void saveGoodies(Long eventId, List<EventGoodie> goodies) {
         eventRepository.findById(eventId).ifPresent(event -> {
-            event.setEventGoodies(goodiesJson);
+            event.setEventGoodies(new ArrayList<>(goodies));
             eventRepository.save(event);
         });
     }

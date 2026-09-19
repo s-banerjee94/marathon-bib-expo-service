@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.participant.service.impl;
 
 import com.timekeeper.bibexpo.event.api.EventStatsQuery;
+import com.timekeeper.bibexpo.event.api.GoodieEntitlement;
 import com.timekeeper.bibexpo.event.api.EventStatsRebuild;
 import com.timekeeper.bibexpo.event.api.EventStatsRecorder;
 import com.timekeeper.bibexpo.event.api.ParticipantCounters;
@@ -61,14 +62,17 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
     @Override
     public void reconcile(Long eventId, User currentUser) {
         log.info("Reconciling event stats for event ID: {} by user: {}", eventId, currentUser.getUsername());
+        rebuild(accessGuard.forRead(eventId, currentUser));
+    }
 
-        Event event = accessGuard.forRead(eventId, currentUser);
+    @Override
+    public void rebuild(Event event) {
         ZoneId zone = EventTimeUtil.zoneOf(event.getTimezone());
 
-        EventStatsRebuild result = eventStatsRecorder.rebuild(eventId, zone, roster(eventId));
+        EventStatsRebuild result = eventStatsRecorder.rebuild(event.getId(), zone, roster(event.getId()));
 
         log.info("Reconciled event {}: total={} bibCollected={} statRows={}",
-                eventId, result.participants(), result.bibCollected(), result.counterRows());
+                event.getId(), result.participants(), result.bibCollected(), result.counterRows());
     }
 
     private Stream<ParticipantCounters> roster(Long eventId) {
@@ -113,12 +117,29 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
                 .pendingCount(Math.max(0, total - bibCollected))
                 .raceBreakdown(new ArrayList<>(raceMap.values()))
                 .categoryBreakdown(new ArrayList<>(categoryMap.values()))
+                .goodiesBreakdown(goodiesBreakdown(rows))
                 .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
                         .male(male)
                         .female(female)
                         .other(other)
                         .build())
                 .build();
+    }
+
+    /**
+     * Reads the entitlement counters out of the rows already fetched, so the roster's demand costs
+     * this call nothing beyond the query it was going to make anyway.
+     */
+    private static List<ParticipantStatisticsResponse.GoodieDemand> goodiesBreakdown(
+            List<EventStatsDDB> rows) {
+        return GoodieEntitlement.fromRows(rows).stream()
+                .map(e -> ParticipantStatisticsResponse.GoodieDemand.builder()
+                        .goodieName(e.goodieName())
+                        .value(e.value())
+                        .participants(e.participants())
+                        .handedOut(e.handedOut())
+                        .build())
+                .toList();
     }
 
     private void applyDimensionRow(
@@ -223,6 +244,7 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
                 .pendingCount(0)
                 .raceBreakdown(new ArrayList<>())
                 .categoryBreakdown(new ArrayList<>())
+                .goodiesBreakdown(List.of())
                 .genderBreakdown(ParticipantStatisticsResponse.GenderStatistics.builder()
                         .male(0).female(0).other(0).build())
                 .build();

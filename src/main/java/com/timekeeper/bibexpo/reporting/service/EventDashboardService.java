@@ -26,7 +26,11 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Assembles the event dashboard rollup: the event-wide participant statistics (reused from
@@ -71,6 +75,7 @@ public class EventDashboardService {
                 .gender(buildGender(stats))
                 .races(buildRaces(stats))
                 .categories(buildCategories(stats, names))
+                .goodies(buildGoodies(stats))
                 .activity(eventActivityService.computeActivity(event, range))
                 .build();
     }
@@ -97,6 +102,61 @@ public class EventDashboardService {
                 .dayCount(dayCount)
                 .currentDayIndex(currentDayIndex)
                 .build();
+    }
+
+    /**
+     * Recounts the event's counters from its roster, then loads the rollup those counters feed.
+     * Access and event existence are enforced by the reconcile itself.
+     *
+     * @param eventId     the event
+     * @param range       the activity window for the returned rollup
+     * @param currentUser the authenticated caller
+     * @return the rollup, read back after the recount
+     */
+    public EventDashboardResponse reconcileDashboard(Long eventId, EventActivityRange range,
+                                                     User currentUser) {
+        participantStatisticsService.reconcile(eventId, currentUser);
+        return loadDashboard(eventId, range, currentUser);
+    }
+
+    // One entry per goodies column, its values underneath, so the card reads like the race and
+    // category ones: promised, handed over, and how far along that is.
+    private static List<EventDashboardResponse.GoodieStat> buildGoodies(ParticipantStatisticsResponse stats) {
+        if (stats.getGoodiesBreakdown() == null) return List.of();
+
+        Map<String, List<EventDashboardResponse.GoodieValueStat>> byGoodie = new LinkedHashMap<>();
+        for (ParticipantStatisticsResponse.GoodieDemand demand : stats.getGoodiesBreakdown()) {
+            long total = nz(demand.getParticipants());
+            long collected = nz(demand.getHandedOut());
+            byGoodie.computeIfAbsent(demand.getGoodieName(), name -> new ArrayList<>())
+                    .add(EventDashboardResponse.GoodieValueStat.builder()
+                            .value(demand.getValue())
+                            .total(total)
+                            .collected(collected)
+                            .collectedPercent(percent(collected, total))
+                            .build());
+        }
+
+        return byGoodie.entrySet().stream()
+                .map(entry -> {
+                    List<EventDashboardResponse.GoodieValueStat> values = entry.getValue().stream()
+                            .sorted(Comparator.comparingLong(
+                                            EventDashboardResponse.GoodieValueStat::getTotal).reversed()
+                                    .thenComparing(EventDashboardResponse.GoodieValueStat::getValue,
+                                            String.CASE_INSENSITIVE_ORDER))
+                            .toList();
+                    long total = values.stream().mapToLong(EventDashboardResponse.GoodieValueStat::getTotal).sum();
+                    long collected = values.stream()
+                            .mapToLong(EventDashboardResponse.GoodieValueStat::getCollected).sum();
+                    return EventDashboardResponse.GoodieStat.builder()
+                            .goodieName(entry.getKey())
+                            .total(total)
+                            .collected(collected)
+                            .collectedPercent(percent(collected, total))
+                            .values(values)
+                            .build();
+                })
+                .toList();
     }
 
     private static ParticipantTotals buildParticipants(ParticipantStatisticsResponse stats) {
@@ -162,6 +222,10 @@ public class EventDashboardService {
     }
 
     private static long nz(Integer value) {
+        return value != null ? value : 0L;
+    }
+
+    private static long nz(Long value) {
         return value != null ? value : 0L;
     }
 

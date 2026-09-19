@@ -28,4 +28,13 @@ public interface OrganizationDirectory {
      * @return the organizer name, or {@code null} when the id is null or unknown
      */
     String findOrganizerName(Long organizationId);
+
+    /**
+     * Returns the inventory caps for the given organization. Platform defaults are not the
+     * organization's and do not count against any of them.
+     *
+     * @param organizationId the organization id
+     * @return the caps, all {@code 0} when the organization has no limit row, which denies creation
+     */
+    InventoryLimits inventoryLimits(Long organizationId);
 }

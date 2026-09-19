@@ -83,7 +83,7 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
                 if (parts.length == 2) {
                     Integer rowNumber = parseRowNumber(parts[0]);
                     String bibNumber = parts[1];
-                    collectedErrors.add(newError(rowNumber, "DUPLICATE_BIB", "bibNumber",
+                    collectedErrors.add(newError(rowNumber, BatchValidationException.TYPE_DUPLICATE_BIB, "bibNumber",
                             "Duplicate BIB number '" + bibNumber + "' at row " + rowNumber));
                 }
             }

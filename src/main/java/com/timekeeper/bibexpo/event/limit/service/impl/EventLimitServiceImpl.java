@@ -14,7 +14,6 @@ import com.timekeeper.bibexpo.event.repository.EventRepository;
 import com.timekeeper.bibexpo.event.race.repository.RaceRepository;
 import com.timekeeper.bibexpo.event.api.EventCampaignUsage;
 import com.timekeeper.bibexpo.event.limit.service.EventLimitService;
-import com.timekeeper.bibexpo.event.service.util.EventGoodiesReader;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +35,6 @@ public class EventLimitServiceImpl implements EventLimitService {
     private final CategoryRepository categoryRepository;
     private final EventCampaignUsage eventCampaignUsage;
     private final EventStatsQuery eventStatsQuery;
-    private final EventGoodiesReader goodiesReader;
 
     @Override
     public EventLimitResponse getEventLimits(Long eventId, User currentUser) {
@@ -73,7 +71,7 @@ public class EventLimitServiceImpl implements EventLimitService {
                 "You cannot set the categories-per-race limit below the highest category count in any race (%d).");
 
         applyLimit(request.getMaxGoodies(),
-                () -> goodiesReader.count(event.getEventGoodies()),
+                () -> event.getEventGoodies().size(),
                 limits::setMaxGoodies,
                 "You cannot set the goodies limit below the current number of configured goodies (%d).");
 

@@ -17,14 +17,20 @@ import software.amazon.awssdk.enhanced.dynamodb.model.BatchWriteResult;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.ReadBatch;
 import software.amazon.awssdk.enhanced.dynamodb.model.WriteBatch;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 
 @Repository
 @RequiredArgsConstructor
@@ -37,6 +43,7 @@ public class ParticipantDDBRepository implements ParticipantStore {
     private volatile DynamoDbTable<ParticipantDDB> table;
 
     private static final int BATCH_SIZE = 25;
+    private static final int GET_BATCH_SIZE = 100;
 
     private DynamoDbTable<ParticipantDDB> getTable() {
         if (table == null) {
@@ -69,6 +76,28 @@ public class ParticipantDDBRepository implements ParticipantStore {
         return getTable().getItem(keyOf(eventId, bibNumber));
     }
 
+    @Override
+    public boolean existsByEventAndBib(Long eventId, String bibNumber) {
+        return findByEventAndBib(eventId, bibNumber) != null;
+    }
+
+    @Override
+    public Set<String> findExistingBibs(Long eventId, Collection<String> bibNumbers) {
+        List<String> bibs = bibNumbers.stream().filter(bib -> bib != null && !bib.isBlank()).distinct().toList();
+        Set<String> found = new HashSet<>();
+        // The client re-requests whatever a call leaves unprocessed as the pages are read.
+        for (int i = 0; i < bibs.size(); i += GET_BATCH_SIZE) {
+            ReadBatch.Builder<ParticipantDDB> batch = ReadBatch.builder(ParticipantDDB.class)
+                    .mappedTableResource(getTable());
+            bibs.subList(i, Math.min(i + GET_BATCH_SIZE, bibs.size()))
+                    .forEach(bib -> batch.addGetItem(keyOf(eventId, bib)));
+            dynamoDbEnhancedClient.batchGetItem(request -> request.readBatches(batch.build()))
+                    .resultsForTable(getTable())
+                    .forEach(participant -> found.add(participant.getBibNumber()));
+        }
+        return found;
+    }
+
     public void deleteByEventAndBib(Long eventId, String bibNumber) {
         getTable().deleteItem(keyOf(eventId, bibNumber));
     }
@@ -78,6 +107,10 @@ public class ParticipantDDBRepository implements ParticipantStore {
                 .partitionValue(String.valueOf(eventId))
                 .sortValue(bibNumber)
                 .build();
+    }
+
+    private static Map<String, AttributeValue> primaryKey(String eventId, String bibNumber) {
+        return Map.of("eventId", AttributeValue.fromS(eventId), "bibNumber", AttributeValue.fromS(bibNumber));
     }
 
     @Override
@@ -95,9 +128,7 @@ public class ParticipantDDBRepository implements ParticipantStore {
     public void updateVerifyShortCode(Long eventId, String bibNumber, String code) {
         dynamoDbClient.updateItem(UpdateItemRequest.builder()
                 .tableName(dynamoDbProperties.participantsTable())
-                .key(Map.of(
-                        "eventId", AttributeValue.fromS(String.valueOf(eventId)),
-                        "bibNumber", AttributeValue.fromS(bibNumber)))
+                .key(primaryKey(String.valueOf(eventId), bibNumber))
                 .updateExpression("SET verifyShortCode = :code")
                 .expressionAttributeValues(Map.of(":code", AttributeValue.fromS(code)))
                 .build());
@@ -188,12 +219,35 @@ public class ParticipantDDBRepository implements ParticipantStore {
         );
     }
 
-    @Override
+    /**
+     * One read of an event's participants after the start key. A filter applies after the limit, so a
+     * filtered page can come back short and still have more behind it.
+     */
     public Page<ParticipantDDB> findPage(Long eventId, int limit,
                                          Map<String, AttributeValue> startKey, Expression filter) {
         return getTable().query(
                         pageRequest(wholeEvent(String.valueOf(eventId)), limit, startKey, filter).build())
                 .stream().findFirst().orElse(null);
+    }
+
+    @Override
+    public Page<ParticipantDDB> fillPage(Long eventId, int limit, Map<String, AttributeValue> startKey,
+                                         Expression filter, Predicate<ParticipantDDB> keep) {
+        List<ParticipantDDB> kept = new ArrayList<>(limit);
+        for (ParticipantDDB participant : getTable()
+                .query(pageRequest(wholeEvent(String.valueOf(eventId)), limit, startKey, filter).build())
+                .items()) {
+            if (!keep.test(participant)) {
+                continue;
+            }
+            // One more passes, so there is a next page, and it starts right after the last one kept.
+            if (kept.size() == limit) {
+                ParticipantDDB last = kept.get(limit - 1);
+                return Page.create(kept, primaryKey(last.getEventId(), last.getBibNumber()));
+            }
+            kept.add(participant);
+        }
+        return Page.create(kept, null);
     }
 
     /**

@@ -5,15 +5,13 @@ import com.timekeeper.bibexpo.importer.model.dto.response.ErrorSummary;
 import com.timekeeper.bibexpo.importer.model.entity.ImportJob;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
 import com.timekeeper.bibexpo.importer.repository.ImportJobRepository;
-import com.timekeeper.bibexpo.event.model.entity.Event;
-import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.event.api.EventQuota;
-import com.timekeeper.bibexpo.event.api.EventStore;
+import com.timekeeper.bibexpo.participant.service.EventGoodieService;
 import com.timekeeper.bibexpo.participant.service.ParticipantStatisticsService;
 import com.timekeeper.bibexpo.user.api.UserDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -36,7 +34,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private final NotificationService notificationService;
     private final ImportJobRepository importJobRepository;
     private final ParticipantStore participantStore;
-    private final EventStore eventStore;
+    private final EventGoodieService eventGoodieService;
     private final UserDirectory userDirectory;
     private final ParticipantStatisticsService participantStatisticsService;
     private final ObjectMapper objectMapper;
@@ -236,26 +234,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     private void updateEventGoodies(Long eventId, JobExecution jobExecution) {
         String goodiesColumns = jobExecution.getExecutionContext().getString("goodiesColumns", null);
         if (goodiesColumns == null || goodiesColumns.isBlank()) return;
-
-        Event event = eventStore.findById(eventId).orElse(null);
-        if (event == null) {
-            log.warn("Event {} not found when updating goodies", eventId);
-            return;
-        }
-
-        try {
-            List<String> goodiesList = List.of(goodiesColumns.split(","));
-            EventLimits limits = eventQuota.forEvent(eventId);
-            if (goodiesList.size() > limits.maxGoodies()) {
-                log.warn("Skipping goodies update for event {}: CSV has {} goodies columns but limit is {}",
-                        eventId, goodiesList.size(), limits.maxGoodies());
-                return;
-            }
-            eventStore.updateGoodies(eventId, objectMapper.writeValueAsString(goodiesList));
-            log.info("Updated event {} goodies: {}", eventId, goodiesColumns);
-        } catch (Exception e) {
-            log.error("Failed to serialize goodies for event {}", eventId, e);
-        }
+        eventGoodieService.addImportedGoodies(eventId, List.of(goodiesColumns.split(",")));
     }
 
     private void deleteTempFile(JobExecution jobExecution) {

@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -80,8 +81,8 @@ public class EventResponse {
     @Schema(description = "Organization ID that owns this event", example = "1")
     private Long organizationId;
 
-    @Schema(description = "Event goodies as JSON string", example = "{\"tshirt\": true, \"medal\": true, \"certificate\": true}")
-    private String eventGoodies;
+    @Schema(description = "Goodies the event hands out, and whether an import or a person added each one")
+    private List<EventGoodieResponse> eventGoodies;
 
     @Schema(description = "Event enabled status", example = "true")
     private Boolean enabled;
@@ -134,7 +135,8 @@ public class EventResponse {
                 .longitude(event.getLongitude())
                 .status(event.getStatus())
                 .organizationId(event.getOrganization() != null ? event.getOrganization().getId() : null)
-                .eventGoodies(event.getEventGoodies())
+                .eventGoodies(event.getEventGoodies() == null ? List.of()
+                        : event.getEventGoodies().stream().map(EventGoodieResponse::from).toList())
                 .enabled(event.getEnabled())
                 .createdAt(event.getCreatedAt())
                 .updatedAt(event.getUpdatedAt())

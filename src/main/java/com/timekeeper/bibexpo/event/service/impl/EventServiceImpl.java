@@ -6,7 +6,6 @@ import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.event.exception.EventAlreadyExistsException;
 import com.timekeeper.bibexpo.event.exception.EventDeletionNotAllowedException;
-import com.timekeeper.bibexpo.event.limit.exception.EventLimitExceededException;
 import com.timekeeper.bibexpo.event.exception.EventNotFoundException;
 import com.timekeeper.bibexpo.event.model.dto.request.CreateEventRequest;
 import com.timekeeper.bibexpo.event.model.dto.request.UpdateEventRequest;
@@ -24,12 +23,11 @@ import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.event.limit.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.event.repository.EventRepository;
 import com.timekeeper.bibexpo.event.race.repository.RaceRepository;
-import com.timekeeper.bibexpo.event.api.EventQuota;
 import com.timekeeper.bibexpo.event.api.EventBillingGuard;
 import com.timekeeper.bibexpo.event.api.EventDeletionCleaner;
 import com.timekeeper.bibexpo.event.api.EventDeletionGuard;
+import com.timekeeper.bibexpo.event.api.EventPublishGuard;
 import com.timekeeper.bibexpo.event.service.EventService;
-import com.timekeeper.bibexpo.event.service.util.EventGoodiesReader;
 import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.event.service.validator.EventStatusTransitionValidator;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
@@ -74,11 +72,10 @@ public class EventServiceImpl implements EventService {
     private final EventBillingGuard eventBillingGuard;
     private final List<EventDeletionGuard> eventDeletionGuards;
     private final List<EventDeletionCleaner> eventDeletionCleaners;
+    private final List<EventPublishGuard> eventPublishGuards;
     private final StorageService storageService;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
-    private final EventGoodiesReader goodiesReader;
-    private final EventQuota eventQuota;
 
     /**
      * Map an event to a response, presigning a short-lived URL for its logo so the
@@ -96,13 +93,6 @@ public class EventServiceImpl implements EventService {
             storageService.delete(objectKey);
         } catch (Exception e) {
             log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
-        }
-    }
-
-    private void requireGoodiesWithinLimit(String goodiesJson, int maxGoodies) {
-        if (goodiesReader.count(goodiesJson) > maxGoodies) {
-            throw new EventLimitExceededException(
-                    "You have exceeded the maximum number of goodies allowed for this event.");
         }
     }
 
@@ -135,9 +125,6 @@ public class EventServiceImpl implements EventService {
             throw new InvalidUserDataException("Event end date must be after the start date.");
         }
 
-        requireGoodiesWithinLimit(request.getEventGoodies(),
-                EventLimit.builder().build().getMaxGoodies());
-
         Event event = Event.builder()
                 .eventName(request.getEventName())
                 .eventDescription(request.getEventDescription())
@@ -155,7 +142,6 @@ public class EventServiceImpl implements EventService {
                 .longitude(request.getLongitude())
                 .status(EventStatus.DRAFT)
                 .organization(organization)
-                .eventGoodies(request.getEventGoodies())
                 .build();
 
         Event savedEvent = eventRepository.save(event);
@@ -212,11 +198,6 @@ public class EventServiceImpl implements EventService {
         TextUtils.applyIfSent(request.getCountry(), event::setCountry);
         TextUtils.applyIfSent(request.getLatitude(), event::setLatitude);
         TextUtils.applyIfSent(request.getLongitude(), event::setLongitude);
-        if (request.getEventGoodies() != null) {
-            requireGoodiesWithinLimit(request.getEventGoodies(),
-                    eventQuota.forEvent(event.getId()).maxGoodies());
-        }
-        TextUtils.applyIfSent(request.getEventGoodies(), event::setEventGoodies);
 
         Event updatedEvent = eventRepository.save(event);
         log.info("Successfully updated event with ID: {} by user: {}", updatedEvent.getId(), currentUser.getUsername());
@@ -400,6 +381,10 @@ public class EventServiceImpl implements EventService {
                     "You cannot reopen this event because a final bill has been issued.");
         }
 
+        if (status == EventStatus.PUBLISHED && current != EventStatus.PUBLISHED) {
+            requirePublishable(id);
+        }
+
         event.setStatus(status);
 
         Event updatedEvent = eventRepository.save(event);
@@ -530,6 +515,19 @@ public class EventServiceImpl implements EventService {
     private void rejectDeletionFor(String content) {
         throw new EventDeletionNotAllowedException(
                 "You cannot delete this event while it still has " + content + ". Delete them first.");
+    }
+
+    /**
+     * Publishing is the last moment an outer slice can insist on configuration it will need once
+     * the event is live, so each one is asked through {@link EventPublishGuard}. A slice the
+     * organization does not use contributes nothing and the event publishes as it always did.
+     */
+    private void requirePublishable(Long eventId) {
+        for (EventPublishGuard guard : eventPublishGuards) {
+            guard.findBlockingReason(eventId).ifPresent(reason -> {
+                throw new InvalidUserDataException(reason);
+            });
+        }
     }
 
     private Specification<Event> buildEventSpecification(

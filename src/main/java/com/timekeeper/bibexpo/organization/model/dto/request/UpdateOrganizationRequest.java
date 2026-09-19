@@ -70,6 +70,10 @@ public class UpdateOrganizationRequest {
     @Schema(description = "Per-role user quota caps. Optional; only the roles you include are changed.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private UserQuotaRequest userQuota;
 
+    @Valid
+    @Schema(description = "Inventory caps. Optional; only the caps you include are changed.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private InventoryQuotaRequest inventoryQuota;
+
     @ValidEnum(enumClass = SubscriptionTier.class)
     @Schema(description = "Subscription tier; set to PAY_AS_YOU_GO (or send empty/null) to fall back to the baseline",
             example = "PREMIUM", allowableValues = {"PAY_AS_YOU_GO", "PREMIUM", "PARTNER"}, requiredMode = Schema.RequiredMode.NOT_REQUIRED)

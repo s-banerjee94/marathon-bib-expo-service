@@ -5,11 +5,12 @@ import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.organization.api.OrganizationMemberPurger;
+import com.timekeeper.bibexpo.organization.exception.LimitReductionException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationDeletionNotAllowedException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException;
-import com.timekeeper.bibexpo.organization.exception.UserLimitReductionException;
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.InventoryQuotaRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UserQuotaRequest;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
@@ -217,6 +218,7 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .organization(savedOrganization)
                 .build();
         applyQuotaCaps(limit, request.getUserQuota());
+        applyInventoryCaps(limit, request.getInventoryQuota());
         OrganizationLimit savedLimit = organizationLimitRepository.save(limit);
         log.info("Successfully created organization with ID: {}", savedOrganization.getId());
 
@@ -242,8 +244,10 @@ public class OrganizationServiceImpl implements OrganizationService {
         validatePhoneNumberUniqueness(request.getPhoneNumber(), organization.getPhoneNumber());
         validateTaxIdUniqueness(request.getTaxId(), organization.getTaxId());
         validateUserLimits(limit, request);
+        validateInventoryLimits(limit, request);
         applyOrganizationUpdates(organization, request);
         applyQuotaCaps(limit, request.getUserQuota());
+        applyInventoryCaps(limit, request.getInventoryQuota());
 
         Organization updatedOrganization = organizationRepository.save(organization);
         OrganizationLimit updatedLimit = organizationLimitRepository.save(limit);
@@ -370,6 +374,20 @@ public class OrganizationServiceImpl implements OrganizationService {
                 "You cannot reduce the distributor limit below the current number of distributors (%d).");
     }
 
+    // Only the two counted caps can be checked against usage. The other three are ceilings on a
+    // single item or attribute: lowering one leaves the rows already over it alone and simply
+    // stops them growing, which is the intended effect of tightening a plan.
+    private void validateInventoryLimits(OrganizationLimit limit, UpdateOrganizationRequest request) {
+        InventoryQuotaRequest quota = request.getInventoryQuota();
+        if (quota == null) {
+            return;
+        }
+        rejectIfBelowUsage(quota.getTerms(), limit.getUsedInventoryTerms(),
+                "You cannot reduce the inventory vocabulary limit below the number of entries in use (%d).");
+        rejectIfBelowUsage(quota.getLocations(), limit.getUsedInventoryLocations(),
+                "You cannot reduce the inventory location limit below the number of locations in use (%d).");
+    }
+
     /**
      * Rejects a cap change that would drop below the slots already in use.
      * A null new limit leaves the cap unchanged.
@@ -377,7 +395,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private void rejectIfBelowUsage(Integer newLimit, Integer used, String messageTemplate) {
         int inUse = used != null ? used : 0;
         if (newLimit != null && newLimit < inUse) {
-            throw new UserLimitReductionException(String.format(messageTemplate, inUse));
+            throw new LimitReductionException(String.format(messageTemplate, inUse));
         }
     }
 
@@ -553,9 +571,24 @@ public class OrganizationServiceImpl implements OrganizationService {
         applyCap(quota.getDistributors(), limit::setMaxDistributors);
     }
 
+    private void applyInventoryCaps(OrganizationLimit limit, InventoryQuotaRequest quota) {
+        if (quota == null) {
+            return;
+        }
+        applyCap(quota.getTerms(), limit::setMaxInventoryTerms);
+        applyCap(quota.getLocations(), limit::setMaxInventoryLocations);
+        applyCap(quota.getOptionsPerAttribute(), limit::setMaxInventoryAttributeOptions);
+        applyCap(quota.getVariantAttributesPerItem(), limit::setMaxVariantAttributesPerItem);
+        applyCap(quota.getVariantsPerItem(), limit::setMaxItemVariants);
+    }
+
     private void applyCap(UserQuotaRequest.RoleQuotaRequest role, Consumer<Integer> setter) {
-        if (role != null && role.getMax() != null) {
-            setter.accept(role.getMax());
+        applyCap(requestedMax(role), setter);
+    }
+
+    private void applyCap(Integer max, Consumer<Integer> setter) {
+        if (max != null) {
+            setter.accept(max);
         }
     }
 

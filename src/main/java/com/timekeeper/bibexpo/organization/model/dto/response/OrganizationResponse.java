@@ -64,6 +64,9 @@ public class OrganizationResponse {
     @Schema(description = "Per-role user quota (maximum allowed and current usage)")
     private UserQuotaDto userQuota;
 
+    @Schema(description = "Inventory caps (maximum allowed, and current usage for the two counted per organization)")
+    private InventoryQuotaDto inventoryQuota;
+
     @Schema(description = "Subscription tier; PAY_AS_YOU_GO is the baseline (committed plans: PREMIUM, PARTNER)",
             example = "PREMIUM", allowableValues = {"PAY_AS_YOU_GO", "PREMIUM", "PARTNER"})
     private String subscriptionTier;
@@ -133,6 +136,7 @@ public class OrganizationResponse {
 
         if (limit != null) {
             builder.userQuota(UserQuotaDto.fromEntity(limit));
+            builder.inventoryQuota(InventoryQuotaDto.fromEntity(limit));
         }
 
         return builder.build();

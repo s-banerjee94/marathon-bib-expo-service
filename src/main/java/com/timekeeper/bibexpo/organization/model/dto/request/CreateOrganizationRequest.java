@@ -73,6 +73,10 @@ public class CreateOrganizationRequest {
     @Schema(description = "Per-role user quota caps. Optional; default caps apply when omitted.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private UserQuotaRequest userQuota;
 
+    @Valid
+    @Schema(description = "Inventory caps. Optional; default caps apply when omitted.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private InventoryQuotaRequest inventoryQuota;
+
     @ValidEnum(enumClass = SubscriptionTier.class)
     @Schema(description = "Subscription tier; defaults to PAY_AS_YOU_GO (the baseline) when omitted",
             example = "PREMIUM", allowableValues = {"PAY_AS_YOU_GO", "PREMIUM", "PARTNER"}, requiredMode = Schema.RequiredMode.NOT_REQUIRED)

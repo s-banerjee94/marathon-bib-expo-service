@@ -116,7 +116,14 @@ public class BatchImportServiceImpl implements BatchImportService {
             throw new CsvImportException("Failed to save the uploaded file. Please try again.", e);
         }
 
-        preflightScanner.scan(tempFile, mapping, eventId, effectiveMode);
+        // A refusal here means no job runs, and the job is what normally deletes these two.
+        try {
+            preflightScanner.scan(tempFile, mapping, eventId, effectiveMode);
+        } catch (RuntimeException e) {
+            deleteQuietly(tempFile);
+            deleteQuietly(mappingFile);
+            throw e;
+        }
 
         // Only the newest import's errors are ever shown, so the previous run's rows go now rather
         // than lingering until the event is deleted.
@@ -165,6 +172,14 @@ public class BatchImportServiceImpl implements BatchImportService {
             pendingJob.setErrorSummary("{\"reason\":\"Failed to launch the import job\"}");
             importJobRepository.save(pendingJob);
             throw new CsvImportException("Failed to start the import. Please try again.", e);
+        }
+    }
+
+    private void deleteQuietly(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.warn("Failed to delete temp file: {}", path, e);
         }
     }
 

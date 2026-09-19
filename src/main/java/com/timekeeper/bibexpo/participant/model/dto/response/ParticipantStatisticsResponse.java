@@ -36,6 +36,11 @@ public class ParticipantStatisticsResponse {
     @Schema(description = "Statistics breakdown by gender")
     private GenderStatistics genderBreakdown;
 
+    @Schema(description = "What the imported roster promised, per goodies column and per distinct "
+            + "spelling of its value. Empty for an event imported before these counters existed, "
+            + "until its statistics are reconciled")
+    private List<GoodieDemand> goodiesBreakdown;
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -78,7 +83,28 @@ public class ParticipantStatisticsResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    @Schema(description = "Statistics breakdown by gender")
+    @Schema(description = "One goodies column, one spelling of its value, and how many "
+            + "participants were promised it")
+    public static class GoodieDemand {
+
+        @Schema(description = "The goodies column heading, as the import stored it", example = "T-Shirt")
+        private String goodieName;
+
+        @Schema(description = "The cell value, exactly as imported", example = "M")
+        private String value;
+
+        @Schema(description = "Participants carrying that value", example = "340")
+        private Long participants;
+
+        @Schema(description = "How many of them have already been handed the goody", example = "180")
+        private Long handedOut;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "Per-gender participant counts")
     public static class GenderStatistics {
         @Schema(description = "Number of male participants")
         private Integer male;

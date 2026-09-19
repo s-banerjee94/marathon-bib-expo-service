@@ -10,17 +10,18 @@ import com.timekeeper.bibexpo.distribution.model.dto.request.CollectBibRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.request.DistributeGoodiesRequest;
 import com.timekeeper.bibexpo.distribution.model.dto.response.BibDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.BulkDistributionResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionGoodieResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.DistributionLogResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.GoodiesDistributionResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.PendingBibListResponse;
-import com.timekeeper.bibexpo.distribution.model.dto.response.PendingGoodiesListResponse;
+import com.timekeeper.bibexpo.distribution.model.dto.response.PendingParticipantListResponse;
 import com.timekeeper.bibexpo.distribution.model.dto.response.UndoDistributionResponse;
 import com.timekeeper.bibexpo.distribution.model.enums.LogSearchType;
+import com.timekeeper.bibexpo.distribution.model.enums.PendingType;
 import com.timekeeper.bibexpo.distribution.service.DistributionService;
-import com.timekeeper.bibexpo.participant.model.dto.response.ParticipantDistributionResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -79,7 +80,7 @@ public class DistributionController implements DistributionControllerApi {
     public ResponseEntity<GoodiesDistributionResponse> distributeGoodies(
             @PathVariable Long eventId,
             @PathVariable String bibNumber,
-            @RequestBody DistributeGoodiesRequest request,
+            @Valid @RequestBody DistributeGoodiesRequest request,
             @AuthenticationPrincipal User currentUser) {
         log.info("Received request to distribute goodies items {} for bib {} in event {} by staff: {}",
                 request.getGoodiesItems(), bibNumber, eventId, currentUser.getUsername());
@@ -93,18 +94,30 @@ public class DistributionController implements DistributionControllerApi {
     }
 
     @Override
-    public ResponseEntity<PendingBibListResponse> getPendingBibs(
+    public ResponseEntity<List<DistributionGoodieResponse>> listGoodies(
             @PathVariable Long eventId,
+            @AuthenticationPrincipal User currentUser) {
+        log.info("Received request to list the counter's goodies for event {} by user: {}",
+                eventId, currentUser.getUsername());
+
+        return ResponseEntity.ok(distributionService.listGoodies(eventId, currentUser));
+    }
+
+    @Override
+    public ResponseEntity<PendingParticipantListResponse> getPending(
+            @PathVariable Long eventId,
+            @RequestParam PendingType type,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) String lastEvaluatedKey,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get pending bib collection list for event {} (limit: {}) by user: {}",
-                eventId, limit, currentUser.getUsername());
+        log.info("Received request to get pending {} list for event {} (limit: {}) by user: {}",
+                type, eventId, limit, currentUser.getUsername());
 
-        PendingBibListResponse response = distributionService.getPendingBibs(eventId, limit, lastEvaluatedKey, currentUser);
+        PendingParticipantListResponse response =
+                distributionService.getPending(eventId, type, limit, lastEvaluatedKey, currentUser);
 
-        log.info("Found {} participants with pending bib collection for event {}, hasMore: {}",
-                response.getCount(), eventId, response.getHasMore());
+        log.info("Found {} participants with pending {} for event {}, hasMore: {}",
+                response.getCount(), type, eventId, response.getHasMore());
 
         return ResponseEntity.ok(response);
     }
@@ -142,38 +155,6 @@ public class DistributionController implements DistributionControllerApi {
     }
 
     @Override
-    public ResponseEntity<ParticipantDistributionResponse> getDistributionStatus(
-            @PathVariable Long eventId,
-            @PathVariable String bibNumber,
-            @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get distribution status for participant {} in event {} by user: {}",
-                bibNumber, eventId, currentUser.getUsername());
-
-        ParticipantDistributionResponse response = distributionService.getDistributionStatus(eventId, bibNumber, currentUser);
-
-        log.info("Retrieved distribution status for participant {} in event {}", bibNumber, eventId);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
-    public ResponseEntity<PendingGoodiesListResponse> getPendingGoodies(
-            @PathVariable Long eventId,
-            @RequestParam(required = false) Integer limit,
-            @RequestParam(required = false) String lastEvaluatedKey,
-            @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get pending goodies list for event {} (limit: {}) by user: {}",
-                eventId, limit, currentUser.getUsername());
-
-        PendingGoodiesListResponse response = distributionService.getPendingGoodies(eventId, limit, lastEvaluatedKey, currentUser);
-
-        log.info("Found {} participants with pending goodies for event {}, hasMore: {}",
-                response.getCount(), eventId, response.getHasMore());
-
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
     public ResponseEntity<DistributionLogListResponse> lookupLogs(
             @PathVariable Long eventId,
             @RequestParam LogSearchType searchType,
@@ -196,10 +177,10 @@ public class DistributionController implements DistributionControllerApi {
     @Override
     public ResponseEntity<BulkDistributionResponse> bulkCollectBib(
             @PathVariable Long eventId,
-            @RequestBody BulkCollectBibRequest request,
+            @Valid @RequestBody BulkCollectBibRequest request,
             @AuthenticationPrincipal User currentUser) {
         log.info("Received bulk bib collection request for event {} with {} bibs by user: {}",
-                eventId, request.getBibNumbers().size(), currentUser.getUsername());
+                eventId, request.getItems().size(), currentUser.getUsername());
 
         BulkDistributionResponse response = distributionService.bulkCollectBib(eventId, request, currentUser);
 
@@ -212,7 +193,7 @@ public class DistributionController implements DistributionControllerApi {
     @Override
     public ResponseEntity<BulkDistributionResponse> bulkDistributeGoodies(
             @PathVariable Long eventId,
-            @RequestBody BulkDistributeGoodiesRequest request,
+            @Valid @RequestBody BulkDistributeGoodiesRequest request,
             @AuthenticationPrincipal User currentUser) {
         log.info("Received bulk goodies distribution request for event {} with {} items by user: {}",
                 eventId, request.getItems().size(), currentUser.getUsername());

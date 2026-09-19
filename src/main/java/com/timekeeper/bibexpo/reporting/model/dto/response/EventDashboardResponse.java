@@ -40,6 +40,11 @@ public class EventDashboardResponse {
     @Schema(description = "Range-scoped collection activity")
     private EventActivityResponse activity;
 
+    @Schema(description = "One entry per goodies column of the imported roster, with what it was "
+            + "promised and how much of it has been handed over, in name order. Empty for an event "
+            + "imported before these counters existed, until its statistics are reconciled")
+    private List<GoodieStat> goodies;
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -98,6 +103,48 @@ public class EventDashboardResponse {
 
         @Schema(description = "Other/unspecified participants", example = "130")
         private long other;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "One goodies column, with its own totals and one row per distinct value "
+            + "the roster carries for it")
+    public static class GoodieStat {
+        @Schema(description = "The goodies column heading, as the import stored it", example = "T-Shirt")
+        private String goodieName;
+
+        @Schema(description = "Participants promised this goody", example = "5000")
+        private long total;
+
+        @Schema(description = "How many of them have been handed it", example = "3100")
+        private long collected;
+
+        @Schema(description = "Handed over as a percentage of the goody's total", example = "62.0")
+        private double collectedPercent;
+
+        @Schema(description = "One row per distinct value, most participants first")
+        private List<GoodieValueStat> values;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(description = "One spelling the roster carries for a goody, and how much of it is handed over")
+    public static class GoodieValueStat {
+        @Schema(description = "The cell value, exactly as imported", example = "M")
+        private String value;
+
+        @Schema(description = "Participants promised that value", example = "2000")
+        private long total;
+
+        @Schema(description = "How many of them have been handed the goody", example = "1240")
+        private long collected;
+
+        @Schema(description = "Handed over as a percentage of that value's total", example = "62.0")
+        private double collectedPercent;
     }
 
     @Data

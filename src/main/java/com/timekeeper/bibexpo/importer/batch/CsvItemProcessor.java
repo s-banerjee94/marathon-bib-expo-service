@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.event.race.category.model.entity.Category;
 import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.event.race.model.entity.Race;
+import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.event.api.EventStatsQuery;
 import com.timekeeper.bibexpo.event.api.EventQuota;
@@ -36,6 +37,7 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
 
     private final CsvRowValidator csvRowValidator;
     private final EventStore eventStore;
+    private final ParticipantStore participantStore;
     private final UserDirectory userDirectory;
     private final RaceCategoryStore raceCategoryStore;
     private final EventQuota eventQuota;
@@ -78,6 +80,16 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
         if (!errors.isEmpty()) {
             log.warn("Skipping row {} due to validation errors: {}", row.getRowNumber(), errors);
             throw new BatchValidationException("Row " + row.getRowNumber() + " invalid", errors);
+        }
+
+        // An add-on only adds. Writing over a bib already on the roster would wipe its collection and
+        // hand-outs, while the stock those hand-outs took stays off the shelf.
+        // ponytail: one read per row, fine for walk-ins; look bibs up per chunk if large add-ons become common.
+        if (isAddOn && participantStore.existsByEventAndBib(eventId, row.getBibNumber())) {
+            throw new BatchValidationException("Row " + row.getRowNumber() + " holds a bib already registered",
+                    List.of(new ValidationError("bibNumber",
+                            "This bib number is already registered for this event, so the row was skipped.")),
+                    BatchValidationException.TYPE_DUPLICATE_BIB);
         }
 
         try {

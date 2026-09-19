@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.event.model.entity;
 
+import com.timekeeper.bibexpo.event.model.converter.EventGoodieListConverter;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.shared.web.EmptyStringToNullConverter;
 import jakarta.persistence.*;
@@ -15,6 +16,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.io.Serializable;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "events",
@@ -97,7 +100,9 @@ public class Event implements Serializable {
     private Organization organization;
 
     @Column(columnDefinition = "JSON")
-    private String eventGoodies;
+    @Convert(converter = EventGoodieListConverter.class)
+    @Builder.Default
+    private List<EventGoodie> eventGoodies = new ArrayList<>();
 
     @Column(nullable = false)
     @Builder.Default

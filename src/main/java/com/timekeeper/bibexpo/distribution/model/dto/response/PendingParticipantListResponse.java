@@ -13,17 +13,21 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "Paginated response for participants with pending goodies items")
-public class PendingGoodiesListResponse {
+@Schema(description = "One page of participants who still have something to collect")
+public class PendingParticipantListResponse {
 
-    @Schema(description = "List of participants with pending goodies")
-    private List<ParticipantPendingGoodies> participants;
+    @Schema(description = "Participants on this page, in bib order")
+    private List<PendingParticipant> participants;
 
     @Schema(description = "Pagination token for next page (null if no more pages)")
     private String lastEvaluatedKey;
 
     @Schema(description = "Number of participants in this response", example = "25")
     private Integer count;
+
+    @Schema(description = "How many participants of the event still have this to collect, across all pages, read "
+            + "from the event's statistics", example = "1230")
+    private Long totalPending;
 
     @Schema(description = "Whether there are more pages available", example = "true")
     private Boolean hasMore;
@@ -32,8 +36,8 @@ public class PendingGoodiesListResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
-    @Schema(description = "Participant with pending goodies details")
-    public static class ParticipantPendingGoodies {
+    @Schema(description = "A participant who still has something to collect")
+    public static class PendingParticipant {
 
         @Schema(description = "Event ID", example = "1")
         private String eventId;
@@ -56,7 +60,8 @@ public class PendingGoodiesListResponse {
         @Schema(description = "Category name", example = "45 TO 59 3KM MALE")
         private String categoryName;
 
-        @Schema(description = "Timestamp when bib was collected", example = "2024-01-15T10:30:00")
+        @Schema(description = "When the bib was collected; null while it is still to collect",
+                example = "2024-01-15T10:30:00")
         private String bibCollectedAt;
 
         @Schema(description = "Goodies allocated with sizes",
@@ -67,8 +72,8 @@ public class PendingGoodiesListResponse {
                 example = "{\"T-Shirt\": \"{\\\"collectedAt\\\":\\\"2024-01-15T10:30:00\\\",\\\"distributedBy\\\":\\\"123__|__john_doe\\\"}\"}")
         private Map<String, String> goodiesDistribution;
 
-        @Schema(description = "List of pending goodies item names",
-                example = "[\"Cap\", \"Medal\"]")
+        @Schema(description = "The participant's own goodies still to hand over. A goody added to the event by "
+                + "hand never appears here.", example = "[\"Cap\", \"Medal\"]")
         private List<String> pendingItems;
     }
 }

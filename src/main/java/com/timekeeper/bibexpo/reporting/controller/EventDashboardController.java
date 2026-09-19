@@ -30,4 +30,11 @@ public class EventDashboardController implements EventDashboardControllerApi {
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.SECONDS).cachePrivate())
                 .body(response);
     }
+
+    @Override
+    public ResponseEntity<EventDashboardResponse> reconcileEventDashboard(
+            Long eventId, EventActivityRange range, User currentUser) {
+        log.info("POST /events/{}/dashboard/reconcile by user {}", eventId, currentUser.getUsername());
+        return ResponseEntity.ok(eventDashboardService.reconcileDashboard(eventId, range, currentUser));
+    }
 }

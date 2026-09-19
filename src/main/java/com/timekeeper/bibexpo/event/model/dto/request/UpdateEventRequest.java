@@ -76,7 +76,4 @@ public class UpdateEventRequest {
     @DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
     @Schema(description = "Venue longitude", example = "72.8777", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Double longitude;
-
-    @Schema(description = "Event goodies as JSON string", example = "{\"tshirt\": true, \"medal\": true, \"certificate\": true}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private String eventGoodies;
 }

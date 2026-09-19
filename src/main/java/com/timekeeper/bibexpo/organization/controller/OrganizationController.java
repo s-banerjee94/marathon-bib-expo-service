@@ -3,7 +3,7 @@ package com.timekeeper.bibexpo.organization.controller;
 
 import com.timekeeper.bibexpo.organization.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationDeletionNotAllowedException;
-import com.timekeeper.bibexpo.organization.exception.UserLimitReductionException;
+import com.timekeeper.bibexpo.organization.exception.LimitReductionException;
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
@@ -168,10 +168,10 @@ public class OrganizationController implements OrganizationControllerApi {
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
 
-    @ExceptionHandler(UserLimitReductionException.class)
-    public ResponseEntity<ErrorResponse> handleUserLimitReduction(
-            UserLimitReductionException ex, WebRequest request) {
-        log.info("User limit reduction conflict: {}", ex.getMessage());
+    @ExceptionHandler(LimitReductionException.class)
+    public ResponseEntity<ErrorResponse> handleLimitReduction(
+            LimitReductionException ex, WebRequest request) {
+        log.info("Limit reduction conflict: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }

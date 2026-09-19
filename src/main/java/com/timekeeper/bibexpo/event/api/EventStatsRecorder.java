@@ -42,7 +42,9 @@ public interface EventStatsRecorder {
     /**
      * Increment bib-collected counters for a participant whose bib was just collected.
      * Updates BIB_COLLECTED, RACE#&lt;id&gt;#COLLECTED, CATEGORY#&lt;id&gt;#COLLECTED, plus a
-     * GOODIE#&lt;name&gt;#DISTRIBUTED counter for each goodie distributed in the same operation.
+     * GOODIE#&lt;name&gt;#DISTRIBUTED counter for each goodie distributed in the same operation (and
+     * HANDED#&lt;name&gt;#&lt;value&gt; when it is one of the participant's own), and GOODIES_PENDING when
+     * the participant is still owed a goody of their own.
      * Also bumps the range-scoped activity counters HOUR#&lt;date&gt;#&lt;hh&gt; and
      * DIST#&lt;date&gt;#&lt;distributorId&gt;, bucketed in the event's time zone.
      * @param participant         The participant after the bib-collect write
@@ -62,8 +64,9 @@ public interface EventStatsRecorder {
     void onBibUndone(ParticipantCounters participantBefore, ZoneId eventZone);
 
     /**
-     * Increment goodie-distribution counters when goodies are distributed without a
-     * concurrent bib collection.
+     * Increment goodie-distribution counters (GOODIE# per goody, and HANDED# per value owed for the
+     * participant's own) when goodies are distributed without a concurrent bib collection, and take
+     * the participant off GOODIES_PENDING once they are owed nothing more.
      * @param participant The participant after the distribute-goodies write
      * @param items       Names of goodies distributed in this operation
      */
