@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.organization.model.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapsId;
@@ -34,7 +35,7 @@ public class OrganizationLimit implements Serializable {
 
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
-    @JoinColumn(name = "organization_id")
+    @JoinColumn(name = "organization_id", foreignKey = @ForeignKey(name = "fk_organization_limit_organization"))
     private Organization organization;
 
     @Column(name = "max_admins", nullable = false)
