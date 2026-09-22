@@ -1,0 +1,38 @@
+version: 0.2
+
+# CodeBuild project settings this expects: ARM container, privileged mode on (docker build),
+# and ECR_REGISTRY set to <account>.dkr.ecr.<region>.amazonaws.com.
+env:
+  variables:
+    IMAGE_REPO: bibexpo-app
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+  pre_build:
+    commands:
+      - export TAG="${CODEBUILD_RESOLVED_SOURCE_VERSION:0:12}"
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+  build:
+    commands:
+      - chmod +x mvnw
+      # MarathonBibExpoApplicationTests boots the whole app and needs a database; the module
+      # rules are the only test that runs without infrastructure.
+      - ./mvnw -B -ntp package -Dtest=ModuleBoundaryRulesTest
+      - docker build -t "$ECR_REGISTRY/$IMAGE_REPO:$TAG" .
+  post_build:
+    commands:
+      - docker push "$ECR_REGISTRY/$IMAGE_REPO:$TAG"
+      # The deployed revision carries its own tag, so a CodeDeploy rollback rolls the image back too.
+      - printf 'ECR_REGISTRY=%s\nAPP_TAG=%s\nAWS_DEFAULT_REGION=%s\n' "$ECR_REGISTRY" "$TAG" "$AWS_DEFAULT_REGION" > deploy/image.env
+
+artifacts:
+  files:
+    - appspec.yml
+    - compose.yml
+    - deploy/*
+
+cache:
+  paths:
+    - /root/.m2/**/*

@@ -1,0 +1,29 @@
+version: 0.0
+os: linux
+
+files:
+  - source: /
+    destination: /opt/bibexpo
+file_exists_behavior: OVERWRITE
+
+permissions:
+  - object: /opt/bibexpo/deploy
+    pattern: "*.sh"
+    mode: "755"
+    type:
+      - file
+
+hooks:
+  # Runs from the PREVIOUS revision, so it is skipped on the first deploy.
+  ApplicationStop:
+    - location: deploy/stop.sh
+      timeout: 120
+      runas: root
+  ApplicationStart:
+    - location: deploy/start.sh
+      timeout: 300
+      runas: root
+  ValidateService:
+    - location: deploy/health.sh
+      timeout: 300
+      runas: root

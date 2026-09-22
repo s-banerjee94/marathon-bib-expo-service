@@ -1,0 +1,22 @@
+# Image tags come from deploy/image.env, written by the build. The agent container joins
+# this file later; nginx stays a host service so certbot keeps renewing the certificate.
+services:
+  app:
+    image: ${ECR_REGISTRY}/bibexpo-app:${APP_TAG}
+    container_name: bibexpo-app
+    restart: unless-stopped
+    # Bound to loopback: only nginx on the host may reach it.
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - ${APP_ENV_FILE:-/etc/bibexpo/app.env}
+    volumes:
+      # The container runs as uid 1001, so the key files must be owned by 1001 on the host
+      # (chown 1001:1001, mode 400) or the JWT service cannot read them and startup fails.
+      - ${KEYS_DIR:-/etc/bibexpo/keys}:/keys:ro
+    mem_limit: 2g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
