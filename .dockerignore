@@ -1,0 +1,13 @@
+.git
+.idea
+.mvn
+ai-agent
+keys
+plan
+scripts
+src
+target/classes
+target/generated-sources
+target/generated-test-sources
+target/maven-status
+target/test-classes

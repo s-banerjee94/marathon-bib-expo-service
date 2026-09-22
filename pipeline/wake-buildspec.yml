@@ -1,0 +1,8 @@
+version: 0.2
+
+# Used by the bibexpo-wake CodeBuild project. Runs in parallel with the build so the
+# box and database are ready by the time CodeDeploy needs them.
+phases:
+  build:
+    commands:
+      - bash pipeline/wake.sh

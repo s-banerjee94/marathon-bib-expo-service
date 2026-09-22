@@ -1,0 +1,8 @@
+version: 0.2
+
+# Used by the bibexpo-sleep CodeBuild project, triggered by the one-time schedule armed
+# after each deploy and by the daily safety-net schedule.
+phases:
+  build:
+    commands:
+      - bash pipeline/sleep.sh

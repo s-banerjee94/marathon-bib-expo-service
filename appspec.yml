@@ -1,0 +1,34 @@
+version: 0.0
+os: linux
+
+files:
+  - source: /
+    destination: /opt/bibexpo
+file_exists_behavior: OVERWRITE
+
+permissions:
+  - object: /opt/bibexpo/deploy
+    pattern: "*.sh"
+    mode: "755"
+    type:
+      - file
+
+hooks:
+  # Runs from the PREVIOUS revision, so it is skipped on the first deploy.
+  ApplicationStop:
+    - location: deploy/stop.sh
+      timeout: 120
+      runas: root
+  ApplicationStart:
+    - location: deploy/start.sh
+      timeout: 300
+      runas: root
+  # Scripts run in order and stop at the first failure, so the timer is only armed
+  # once the new container has actually reported healthy.
+  ValidateService:
+    - location: deploy/health.sh
+      timeout: 300
+      runas: root
+    - location: deploy/arm-timer.sh
+      timeout: 60
+      runas: root
