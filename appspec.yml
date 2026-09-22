@@ -23,7 +23,12 @@ hooks:
     - location: deploy/start.sh
       timeout: 300
       runas: root
+  # Scripts run in order and stop at the first failure, so the timer is only armed
+  # once the new container has actually reported healthy.
   ValidateService:
     - location: deploy/health.sh
       timeout: 300
+      runas: root
+    - location: deploy/arm-timer.sh
+      timeout: 60
       runas: root
