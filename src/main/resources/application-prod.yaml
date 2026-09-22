@@ -37,7 +37,7 @@ cors:
 # via env (e.g. file:/opt/bibexpo/keys/jwt-private.pem). The private key is a secret;
 # the public key may be shared with the Python agent for verify-only use.
 jwt:
-  private-key-location: file:/keys/rollback-test-does-not-exist.pem
+  private-key-location: ${JWT_PRIVATE_KEY_LOCATION}
   public-key-location:  ${JWT_PUBLIC_KEY_LOCATION}
   cookie-secure: ${JWT_COOKIE_SECURE:true}
   cookie-domain: ${JWT_COOKIE_DOMAIN:.example.com}

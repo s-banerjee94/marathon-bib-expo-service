@@ -17,4 +17,4 @@ COPY --from=extract /build/extracted/application/ ./
 
 USER 1001
 EXPOSE 8080
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "application.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "rollback-test-missing.jar"]
