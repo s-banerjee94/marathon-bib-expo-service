@@ -71,11 +71,10 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    public void extendSession(String username, String sid) {
-        Instant now = Instant.now();
-        activeSessionRepository.touch(username, sid, now.plusMillis(jwtConfig.getRefreshTokenExpiration()), now);
-        log.atDebug().addKeyValue("event", "session.extended").addKeyValue("username", username)
-                .addKeyValue("sessionId", sid).log("Session extended");
+    public void markSessionUsed(String username, String sid) {
+        activeSessionRepository.touch(username, sid, Instant.now());
+        log.atDebug().addKeyValue("event", "session.used").addKeyValue("username", username)
+                .addKeyValue("sessionId", sid).log("Session used");
     }
 
     @Override

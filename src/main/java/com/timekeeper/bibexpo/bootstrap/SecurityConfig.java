@@ -2,8 +2,7 @@ package com.timekeeper.bibexpo.bootstrap;
 
 import com.timekeeper.bibexpo.identity.security.JwtAuthenticationFilter;
 import com.timekeeper.bibexpo.identity.security.McpTokenAuthenticationFilter;
-import com.timekeeper.bibexpo.identity.service.JwtService;
-import com.timekeeper.bibexpo.identity.service.SessionService;
+import com.timekeeper.bibexpo.identity.security.AccessTokenAuthenticator;
 import com.timekeeper.bibexpo.shared.security.JwtAccessDeniedHandler;
 import com.timekeeper.bibexpo.shared.security.JwtAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
@@ -36,8 +35,7 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final CorsConfigurationSource corsConfigurationSource;
-    private final JwtService jwtService;
-    private final SessionService sessionService;
+    private final AccessTokenAuthenticator accessTokenAuthenticator;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -48,6 +46,9 @@ public class SecurityConfig {
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
+        // Account status is checked by AuthService after the password, so a wrong password never
+        // reveals whether an account is locked or disabled.
+        provider.setPreAuthenticationChecks(user -> { });
         return provider;
     }
 
@@ -73,7 +74,7 @@ public class SecurityConfig {
                         .accessDeniedHandler(jwtAccessDeniedHandler)
                 )
                 .addFilterBefore(
-                        new McpTokenAuthenticationFilter(jwtService, userDetailsService, sessionService),
+                        new McpTokenAuthenticationFilter(accessTokenAuthenticator),
                         UsernamePasswordAuthenticationFilter.class
                 )
                 .addFilterAfter(new MdcRequestFilter(), McpTokenAuthenticationFilter.class);
@@ -91,7 +92,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()  // Allow authentication endpoints
                         .requestMatchers("/actuator/**").permitAll()  // Allow health checks
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()  // Allow Swagger
-                        .requestMatchers("/api/dev/**").permitAll()  // Allow dev endpoints (only active in dev profile)
                         .requestMatchers("/api/public/**").permitAll()  // Public API endpoints (participant verification short-link lookup, etc.)
                         .anyRequest().authenticated()  // All other requests require authentication
                 )

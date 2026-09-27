@@ -60,7 +60,9 @@ public class AuthController {
     @PostMapping("/refresh")
     @Operation(
             summary = "Refresh access token",
-            description = "Rotates the refresh token (cookie) and returns a new access token. " +
+            description = "Returns a new access token for the session in the refresh-token cookie. " +
+                    "The refresh token is not replaced: the session ends 7 days after login, after which " +
+                    "the user must log in again. " +
                     "Requires the X-CSRF-Token header matching the csrfToken cookie (double-submit).",
             responses = {
                     @ApiResponse(
@@ -68,7 +70,7 @@ public class AuthController {
                             description = "Refresh successful",
                             content = @Content(schema = @Schema(implementation = RefreshResponse.class))
                     ),
-                    @ApiResponse(responseCode = "401", description = "Refresh token invalid, expired, or reuse detected"),
+                    @ApiResponse(responseCode = "401", description = "Refresh token invalid or expired, or the session was signed out"),
                     @ApiResponse(responseCode = "403", description = "CSRF token mismatch")
             }
     )

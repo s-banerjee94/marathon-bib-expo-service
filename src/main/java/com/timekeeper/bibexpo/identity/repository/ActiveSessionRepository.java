@@ -31,17 +31,13 @@ public interface ActiveSessionRepository extends JpaRepository<ActiveSession, St
     List<String> findActiveSids(@Param("username") String username, @Param("now") Instant now);
 
     /**
-     * Extends one device's refresh window and marks it as just used. Scoped by username as well
-     * as sid so a token for another account can never move someone else's row.
+     * Marks one device as just used; its expiry is left alone. Scoped by username as well as sid
+     * so a token for another account can never move someone else's row.
      */
     @Modifying
-    @Query("""
-            UPDATE ActiveSession s SET s.expiresAt = :expiresAt, s.lastSeenAt = :lastSeenAt
-            WHERE s.sid = :sid AND s.username = :username
-            """)
+    @Query("UPDATE ActiveSession s SET s.lastSeenAt = :lastSeenAt WHERE s.sid = :sid AND s.username = :username")
     int touch(@Param("username") String username,
               @Param("sid") String sid,
-              @Param("expiresAt") Instant expiresAt,
               @Param("lastSeenAt") Instant lastSeenAt);
 
     /** Signs out one device. Username-scoped so a caller can only revoke their own session. */

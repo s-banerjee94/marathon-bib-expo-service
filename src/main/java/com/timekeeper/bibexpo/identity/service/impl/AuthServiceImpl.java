@@ -33,10 +33,13 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsChecker;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -59,9 +62,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         try {
-            authenticationManager.authenticate(
+            Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
+            accountStatusChecker.check((UserDetails) Objects.requireNonNull(authentication.getPrincipal()));
 
             // Loaded and cached by the authentication above, so this is a hit, not a query.
             User user = authUserDirectory.findByUsername(request.getUsername());
@@ -161,12 +165,10 @@ public class AuthServiceImpl implements AuthService {
             throw new JwtAuthenticationException("Your session has been signed out. Please log in again.");
         }
 
-        sessionService.extendSession(user.getUsername(), oldSid);
+        sessionService.markSessionUsed(user.getUsername(), oldSid);
 
+        // The refresh token is kept as issued: the session ends 7 days after login, not after last use.
         String newAccessToken = jwtService.generateAccessToken(user, oldSid);
-        String newRefreshToken = jwtService.generateRefreshToken(user, oldSid);
-
-        writeRefreshCookie(httpResponse, newRefreshToken);
 
         return RefreshResponse.builder()
                 .accessToken(newAccessToken)
