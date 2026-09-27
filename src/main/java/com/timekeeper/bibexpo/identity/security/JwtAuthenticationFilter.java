@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.identity.security;
 
+import com.timekeeper.bibexpo.identity.exception.JwtAuthenticationException;
 import com.timekeeper.bibexpo.identity.service.JwtService;
 import com.timekeeper.bibexpo.identity.service.SessionService;
 import com.timekeeper.bibexpo.shared.error.AuthErrorCode;
@@ -19,6 +20,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsChecker;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.slf4j.event.Level;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -58,7 +61,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
                 if (!jwtService.isTokenValid(jwt, userDetails, JwtService.TYPE_ACCESS)) {
-                    log.debug("Invalid access token for user: {}", username);
+                    logRejected(Level.WARN, "wrong_token_type", username);
                     filterChain.doFilter(request, response);
                     return;
                 }
@@ -67,7 +70,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (tokenSid == null || !sessionService.getActiveSids(username).contains(tokenSid)) {
                     // A stale token is expected traffic after a device is revoked or evicted — reject
                     // it without touching the rows, which belong to the user's other devices.
-                    log.info("Stale session token for user {} (sid not active) — rejecting request", username);
+                    logRejected(Level.INFO, "session_inactive", username);
                     writeUnauthorized(request, response, AuthErrorCode.SESSION_INVALIDATED,
                             "This device has been signed out. Please log in again.");
                     return;
@@ -76,11 +79,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 try {
                     accountStatusChecker.check(userDetails);
                 } catch (AccountStatusException e) {
-                    log.info("Blocking request for {} — {}", username, e.getMessage());
                     boolean locked = e instanceof LockedException;
+                    logRejected(Level.WARN, locked ? "account_locked" : "account_disabled", username);
                     writeUnauthorized(request, response,
                             locked ? AuthErrorCode.ACCOUNT_LOCKED : AuthErrorCode.ACCOUNT_DISABLED,
-                            locked ? "Your account has been locked. Please contact an platform administrator."
+                            locked ? "Your account has been locked. Please contact a platform administrator."
                                     : "Your account has been disabled. Please contact an administrator.");
                     return;
                 }
@@ -92,13 +95,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 );
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
-                log.debug("Successfully authenticated user: {}", username);
             }
+        } catch (JwtAuthenticationException e) {
+            // Already classified and logged where the token was parsed.
+        } catch (UsernameNotFoundException e) {
+            logRejected(Level.WARN, "user_not_found", null);
         } catch (Exception e) {
-            log.error("JWT authentication error: {}", e.getMessage());
+            log.error("JWT authentication failed unexpectedly", e);
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void logRejected(Level level, String reason, String username) {
+        log.atLevel(level)
+                .addKeyValue("event", "auth.token.rejected")
+                .addKeyValue("reason", reason)
+                .addKeyValue("username", username)
+                .log("Token rejected");
     }
 
     private void writeUnauthorized(HttpServletRequest request, HttpServletResponse response,

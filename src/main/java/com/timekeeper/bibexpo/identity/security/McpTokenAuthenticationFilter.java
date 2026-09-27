@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.identity.security;
 
+import com.timekeeper.bibexpo.identity.exception.JwtAuthenticationException;
 import com.timekeeper.bibexpo.identity.service.JwtService;
 import com.timekeeper.bibexpo.identity.service.SessionService;
 import jakarta.servlet.FilterChain;
@@ -11,6 +12,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.slf4j.event.Level;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -64,7 +68,7 @@ public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
                 final String tokenType = jwtService.extractTokenType(jwt);
                 if (!JwtService.TYPE_ACCESS.equals(tokenType)
                         || !jwtService.isTokenValid(jwt, userDetails, tokenType)) {
-                    log.debug("Invalid agent token (type={}) for user: {}", tokenType, username);
+                    logRejected(Level.WARN, "wrong_token_type", username);
                     filterChain.doFilter(request, response);
                     return;
                 }
@@ -73,7 +77,7 @@ public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
                 // token from a signed-out device cannot keep acting.
                 String tokenSid = jwtService.extractSid(jwt);
                 if (tokenSid == null || !sessionService.getActiveSids(username).contains(tokenSid)) {
-                    log.debug("Stale access token (sid not active) on MCP route for user: {}", username);
+                    logRejected(Level.INFO, "session_inactive", username);
                     filterChain.doFilter(request, response);
                     return;
                 }
@@ -88,14 +92,26 @@ public class McpTokenAuthenticationFilter extends OncePerRequestFilter {
                 );
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
-                log.debug("Authenticated MCP agent for user: {}", username);
             }
         } catch (AccountStatusException e) {
-            log.info("Blocking MCP request — {}", e.getMessage());
+            logRejected(Level.WARN, e instanceof LockedException ? "account_locked" : "account_disabled", null);
+        } catch (JwtAuthenticationException e) {
+            // Already classified and logged where the token was parsed.
+        } catch (UsernameNotFoundException e) {
+            logRejected(Level.WARN, "user_not_found", null);
         } catch (Exception e) {
-            log.error("MCP token authentication error: {}", e.getMessage());
+            log.error("MCP token authentication failed unexpectedly", e);
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void logRejected(Level level, String reason, String username) {
+        log.atLevel(level)
+                .addKeyValue("event", "auth.token.rejected")
+                .addKeyValue("reason", reason)
+                .addKeyValue("username", username)
+                .addKeyValue("channel", "mcp")
+                .log("Token rejected");
     }
 }

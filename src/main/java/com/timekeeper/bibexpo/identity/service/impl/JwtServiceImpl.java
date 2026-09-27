@@ -104,26 +104,15 @@ public class JwtServiceImpl implements JwtService {
     public boolean isTokenValid(String token, UserDetails userDetails, String expectedType) {
         try {
             Claims claims = extractAllClaims(token);
-            final String username = claims.getSubject();
-            final String type = claims.get("type", String.class);
-            return username.equals(userDetails.getUsername())
-                    && expectedType.equals(type)
+            return claims.getSubject().equals(userDetails.getUsername())
+                    && expectedType.equals(claims.get("type", String.class))
                     && claims.getExpiration().after(new Date());
-        } catch (ExpiredJwtException e) {
-            log.debug("Token expired for user: {}", e.getClaims().getSubject());
-            return false;
-        } catch (SignatureException e) {
-            log.error("Invalid JWT signature: {}", e.getMessage());
-            return false;
-        } catch (MalformedJwtException e) {
-            log.error("Malformed JWT token: {}", e.getMessage());
-            return false;
-        } catch (Exception e) {
-            log.error("Token validation error: {}", e.getMessage());
+        } catch (JwtAuthenticationException e) {
             return false;
         }
     }
 
+    /** The one place every token is parsed, so it is also the one place a rejected token is logged. */
     private Claims extractAllClaims(String token) {
         try {
             return Jwts.parser()
@@ -132,18 +121,23 @@ public class JwtServiceImpl implements JwtService {
                     .parseSignedClaims(token)
                     .getPayload();
         } catch (ExpiredJwtException e) {
-            log.debug("Token expired: {}", e.getMessage());
+            log.atDebug().addKeyValue("event", "auth.token.rejected").addKeyValue("reason", "expired")
+                    .log("Token rejected");
             throw new JwtAuthenticationException("Your session has expired. Please log in again.", e);
-        } catch (SignatureException e) {
-            log.error("Invalid JWT signature: {}", e.getMessage());
-            throw new JwtAuthenticationException("Invalid session. Please log in again.", e);
-        } catch (MalformedJwtException e) {
-            log.error("Malformed JWT token: {}", e.getMessage());
-            throw new JwtAuthenticationException("Invalid session. Please log in again.", e);
         } catch (Exception e) {
-            log.error("JWT parsing error: {}", e.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "auth.token.rejected")
+                    .addKeyValue("reason", rejectionReason(e))
+                    .addKeyValue("exception", e.getClass().getSimpleName())
+                    .log("Token rejected");
             throw new JwtAuthenticationException("Invalid session. Please log in again.", e);
         }
+    }
+
+    private static String rejectionReason(Exception e) {
+        if (e instanceof SignatureException) return "invalid_signature";
+        if (e instanceof MalformedJwtException) return "malformed";
+        return "invalid";
     }
 
     @Override

@@ -52,9 +52,14 @@ public class SessionServiceImpl implements SessionService {
 
         evictBeyondLimit(username, sessionConfig.maxDevicesFor(role));
 
-        log.info("Session started for user {} (sid={}, device={} on {} from {})",
-                username, session.getSid(), device.getBrowser(), device.getOperatingSystem(),
-                device.getIpAddress());
+        log.atInfo()
+                .addKeyValue("event", "session.started")
+                .addKeyValue("username", username)
+                .addKeyValue("sessionId", session.getSid())
+                .addKeyValue("browser", device.getBrowser())
+                .addKeyValue("os", device.getOperatingSystem())
+                .addKeyValue("clientIp", device.getIpAddress())
+                .log("Session started");
         return session.getSid();
     }
 
@@ -69,7 +74,8 @@ public class SessionServiceImpl implements SessionService {
     public void extendSession(String username, String sid) {
         Instant now = Instant.now();
         activeSessionRepository.touch(username, sid, now.plusMillis(jwtConfig.getRefreshTokenExpiration()), now);
-        log.debug("Session extended for user {} (sid={})", username, sid);
+        log.atDebug().addKeyValue("event", "session.extended").addKeyValue("username", username)
+                .addKeyValue("sessionId", sid).log("Session extended");
     }
 
     @Override
@@ -78,7 +84,8 @@ public class SessionServiceImpl implements SessionService {
     public boolean endSession(String username, String sid) {
         boolean ended = activeSessionRepository.deleteBySidAndUsername(username, sid) > 0;
         if (ended) {
-            log.info("Session ended for user {} (sid={})", username, sid);
+            log.atInfo().addKeyValue("event", "session.ended").addKeyValue("username", username)
+                    .addKeyValue("sessionId", sid).log("Session ended");
         }
         return ended;
     }
@@ -88,7 +95,8 @@ public class SessionServiceImpl implements SessionService {
     @CacheEvict(value = CacheNames.ACTIVE_SESSIONS_CACHE, key = "#username")
     public int endOtherSessions(String username, String keepSid) {
         int ended = activeSessionRepository.deleteByUsernameExcept(username, keepSid);
-        log.info("Signed out {} other device(s) for user {}", ended, username);
+        log.atInfo().addKeyValue("event", "session.others_ended").addKeyValue("username", username)
+                .addKeyValue("count", ended).log("Other sessions ended");
         return ended;
     }
 
@@ -97,7 +105,8 @@ public class SessionServiceImpl implements SessionService {
     @CacheEvict(value = CacheNames.ACTIVE_SESSIONS_CACHE, key = "#username")
     public void endAllSessions(String username) {
         int ended = activeSessionRepository.deleteByUsername(username);
-        log.info("All {} session(s) ended for user {}", ended, username);
+        log.atInfo().addKeyValue("event", "session.all_ended").addKeyValue("username", username)
+                .addKeyValue("count", ended).log("All sessions ended");
     }
 
     @Override
@@ -135,7 +144,11 @@ public class SessionServiceImpl implements SessionService {
         }
         List<ActiveSession> evicted = sessions.subList(maxDevices, sessions.size());
         activeSessionRepository.deleteAll(evicted);
-        log.info("Device limit of {} reached for user {} — signed out {} least recently used device(s)",
-                maxDevices, username, evicted.size());
+        log.atInfo()
+                .addKeyValue("event", "session.evicted")
+                .addKeyValue("username", username)
+                .addKeyValue("maxDevices", maxDevices)
+                .addKeyValue("count", evicted.size())
+                .log("Device limit reached, least recently used sessions ended");
     }
 }

@@ -25,7 +25,8 @@ public class SessionCleanupJob {
     public void purgeExpiredSessions() {
         int deleted = activeSessionRepository.deleteAllExpired(Instant.now());
         if (deleted > 0) {
-            log.info("Session cleanup removed {} expired session row(s)", deleted);
+            log.atInfo().addKeyValue("event", "session.cleanup").addKeyValue("count", deleted)
+                    .log("Expired sessions purged");
         }
     }
 }

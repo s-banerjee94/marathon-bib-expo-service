@@ -31,21 +31,18 @@ public class OrganizationMemberPurgerImpl implements OrganizationMemberPurger {
         List<User> organizationUsers = userRepository.findByOrganizationId(organizationId);
 
         if (organizationUsers.isEmpty()) {
-            log.info("No users found for organization ID: {}", organizationId);
             return;
         }
 
-        log.info("Disabling {} users for organization ID: {}", organizationUsers.size(), organizationId);
-
-        organizationUsers.forEach(user -> {
-            user.setEnabled(false);
-            log.debug("Disabling user: {} (ID: {})", user.getUsername(), user.getId());
-        });
-
+        organizationUsers.forEach(user -> user.setEnabled(false));
         userRepository.saveAll(organizationUsers);
         // Drop the disabled users from the auth cache so they cannot keep authenticating.
         organizationUsers.forEach(user -> authUserCache.evict(user.getUsername()));
-        log.info("Successfully disabled all users for organization ID: {}", organizationId);
+        log.atInfo()
+                .addKeyValue("event", "user.org_members.disabled")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("count", organizationUsers.size())
+                .log("Organization members disabled");
     }
 
     @Override
@@ -61,7 +58,11 @@ public class OrganizationMemberPurgerImpl implements OrganizationMemberPurger {
         // Archived (former) users still FK the organization, so drop those rows before it is removed.
         userArchiveRepository.deleteByOrganizationId(organizationId);
         userRepository.flush();
-        log.info("Purged {} users for organization ID: {}", users.size(), organizationId);
+        log.atInfo()
+                .addKeyValue("event", "user.org_members.purged")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("count", users.size())
+                .log("Organization members purged");
         return users.size();
     }
 }

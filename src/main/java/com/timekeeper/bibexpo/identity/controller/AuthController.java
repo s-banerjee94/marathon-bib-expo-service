@@ -95,24 +95,22 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    // The real failure reason is logged but never returned, so credential probing learns nothing.
+    // AuthService logs the real failure reason; it is never returned, so credential probing learns nothing.
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex, WebRequest request) {
-        log.warn("Invalid credentials: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid username or password", request));
     }
 
     @ExceptionHandler(AccountDisabledException.class)
     public ResponseEntity<ErrorResponse> handleAccountDisabled(AccountDisabledException ex, WebRequest request) {
-        log.warn("Account access rejected: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Unauthorized", ex.getMessage(), request));
     }
 
     @ExceptionHandler(CsrfValidationException.class)
     public ResponseEntity<ErrorResponse> handleCsrfValidation(CsrfValidationException ex, WebRequest request) {
-        log.warn("CSRF validation failed: {}", ex.getMessage());
+        log.atWarn().addKeyValue("event", "auth.csrf.rejected").log("CSRF check failed");
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(HttpStatus.FORBIDDEN, "Forbidden", ex.getMessage(), request));
     }

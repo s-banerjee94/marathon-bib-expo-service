@@ -43,6 +43,10 @@ import java.time.Instant;
 @Slf4j
 public class AuthServiceImpl implements AuthService {
 
+    private static final String CSRF_HEADER = "X-CSRF-Token";
+    private static final String ACCOUNT_DISABLED = "Your account has been disabled. Please contact an administrator.";
+    private static final String ACCOUNT_LOCKED = "Your account has been locked. Please contact a platform administrator.";
+
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final JwtConfig jwtConfig;
@@ -54,8 +58,6 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        log.info("Login attempt for user: {}", request.getUsername());
-
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
@@ -64,7 +66,8 @@ public class AuthServiceImpl implements AuthService {
             // Loaded and cached by the authentication above, so this is a hit, not a query.
             User user = authUserDirectory.findByUsername(request.getUsername());
             if (user == null) {
-                throw new InvalidCredentialsException("Invalid username or password");
+                throw loginFailed(request.getUsername(), "user_not_found",
+                        new InvalidCredentialsException("Invalid username or password"));
             }
 
             DeviceDetails device = DeviceDetailsResolver.resolve(httpRequest);
@@ -77,7 +80,11 @@ public class AuthServiceImpl implements AuthService {
             writeRefreshCookie(httpResponse, refreshToken);
             writeCsrfCookie(httpResponse, csrfToken);
 
-            log.info("Login successful for user: {}", request.getUsername());
+            log.atInfo()
+                    .addKeyValue("event", "auth.login.succeeded")
+                    .addKeyValue("username", user.getUsername())
+                    .addKeyValue("sessionId", sid)
+                    .log("Login succeeded");
 
             publishLoginAudit(user);
 
@@ -91,27 +98,32 @@ public class AuthServiceImpl implements AuthService {
                     .build();
 
         } catch (BadCredentialsException e) {
-            log.error("Invalid credentials for user: {}", request.getUsername());
-            throw new InvalidCredentialsException("Invalid username or password");
+            throw loginFailed(request.getUsername(), "bad_credentials",
+                    new InvalidCredentialsException("Invalid username or password"));
         } catch (DisabledException e) {
-            log.warn("Account disabled: {}", request.getUsername());
-            throw new AccountDisabledException("Account is disabled");
+            throw loginFailed(request.getUsername(), "account_disabled", new AccountDisabledException(ACCOUNT_DISABLED));
         } catch (LockedException e) {
-            log.warn("Account locked: {}", request.getUsername());
-            throw new AccountDisabledException("Account is locked");
+            throw loginFailed(request.getUsername(), "account_locked", new AccountDisabledException(ACCOUNT_LOCKED));
         }
+    }
+
+    private RuntimeException loginFailed(String username, String reason, RuntimeException toThrow) {
+        log.atWarn()
+                .addKeyValue("event", "auth.login.failed")
+                .addKeyValue("reason", reason)
+                .addKeyValue("username", username)
+                .log("Login failed");
+        return toThrow;
     }
 
     @Override
     public RefreshResponse refresh(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        String csrfHeader = httpRequest.getHeader("X-CSRF-Token");
-        String csrfCookie = readCookie(httpRequest, jwtConfig.getCsrfCookieName());
-        if (!csrfTokenService.matches(csrfHeader, csrfCookie)) {
-            throw new CsrfValidationException("Invalid request. Please refresh and try again.");
-        }
+        requireCsrf(httpRequest);
 
         String refreshToken = readCookie(httpRequest, jwtConfig.getRefreshCookieName());
         if (refreshToken == null || refreshToken.isBlank()) {
+            log.atDebug().addKeyValue("event", "auth.refresh.rejected").addKeyValue("reason", "missing_token")
+                    .log("Refresh rejected");
             throw new JwtAuthenticationException("Your session has expired. Please log in again.");
         }
 
@@ -120,12 +132,14 @@ public class AuthServiceImpl implements AuthService {
         String oldSid = jwtService.extractSid(refreshToken);
 
         if (!JwtService.TYPE_REFRESH.equals(tokenType)) {
-            throw new JwtAuthenticationException("Invalid session. Please log in again.");
+            throw refreshRejected(username, "wrong_token_type",
+                    new JwtAuthenticationException("Invalid session. Please log in again."));
         }
 
         User user = authUserDirectory.findByUsername(username);
         if (user == null) {
-            throw new JwtAuthenticationException("Your session has expired. Please log in again.");
+            throw refreshRejected(username, "user_not_found",
+                    new JwtAuthenticationException("Your session has expired. Please log in again."));
         }
 
         try {
@@ -133,12 +147,17 @@ public class AuthServiceImpl implements AuthService {
         } catch (AccountStatusException e) {
             sessionService.endAllSessions(user.getUsername());
             clearAuthCookies(httpResponse);
-            throw new AccountDisabledException(
-                    e instanceof LockedException ? "Account is locked" : "Account is disabled");
+            boolean locked = e instanceof LockedException;
+            throw refreshRejected(username, locked ? "account_locked" : "account_disabled",
+                    new AccountDisabledException(locked ? ACCOUNT_LOCKED : ACCOUNT_DISABLED));
         }
 
         if (oldSid == null || !sessionService.getActiveSids(username).contains(oldSid)) {
-            log.warn("Invalid refresh token for user {} — request dropped", username);
+            log.atInfo()
+                    .addKeyValue("event", "auth.refresh.rejected")
+                    .addKeyValue("reason", "session_inactive")
+                    .addKeyValue("username", username)
+                    .log("Refresh rejected");
             throw new JwtAuthenticationException("Your session has been signed out. Please log in again.");
         }
 
@@ -155,13 +174,18 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
+    private RuntimeException refreshRejected(String username, String reason, RuntimeException toThrow) {
+        log.atWarn()
+                .addKeyValue("event", "auth.refresh.rejected")
+                .addKeyValue("reason", reason)
+                .addKeyValue("username", username)
+                .log("Refresh rejected");
+        return toThrow;
+    }
+
     @Override
     public void logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        String csrfHeader = httpRequest.getHeader("X-CSRF-Token");
-        String csrfCookie = readCookie(httpRequest, jwtConfig.getCsrfCookieName());
-        if (!csrfTokenService.matches(csrfHeader, csrfCookie)) {
-            throw new CsrfValidationException("Invalid request. Please refresh and try again.");
-        }
+        requireCsrf(httpRequest);
 
         String refreshToken = readCookie(httpRequest, jwtConfig.getRefreshCookieName());
         if (refreshToken != null && !refreshToken.isBlank()) {
@@ -170,14 +194,26 @@ public class AuthServiceImpl implements AuthService {
                 String sid = jwtService.extractSid(refreshToken);
                 if (username != null && sid != null) {
                     sessionService.endSession(username, sid);
-                    log.info("User {} logged out (sid={})", username, sid);
+                    log.atInfo()
+                            .addKeyValue("event", "auth.logout")
+                            .addKeyValue("username", username)
+                            .addKeyValue("sessionId", sid)
+                            .log("Logged out");
                 }
-            } catch (Exception e) {
-                log.debug("Logout: could not end session from refresh token — {}", e.getMessage());
+            } catch (JwtAuthenticationException e) {
+                log.debug("Logout could not end a session: the refresh token is no longer valid");
             }
         }
         // Always clear the cookies so the client is signed out even if the session was already gone.
         clearAuthCookies(httpResponse);
+    }
+
+    private void requireCsrf(HttpServletRequest request) {
+        String csrfHeader = request.getHeader(CSRF_HEADER);
+        String csrfCookie = readCookie(request, jwtConfig.getCsrfCookieName());
+        if (!csrfTokenService.matches(csrfHeader, csrfCookie)) {
+            throw new CsrfValidationException("Invalid request. Please refresh and try again.");
+        }
     }
 
     private String readCookie(HttpServletRequest request, String name) {
