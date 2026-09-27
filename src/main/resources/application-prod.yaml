@@ -88,9 +88,14 @@ aws:
     endpoint: ${AWS_S3_ENDPOINT:}
 
 # --- Logging ----------------------------------------------------------------
-# Adds a rolling file on top of the console; levels/patterns are inherited from
-# application.yaml (root INFO). Override the path with the LOG_FILE env var.
+# Structured JSON on console + rolling file. CloudWatch Agent tails the file;
+# each JSON line becomes a searchable event in Logs Insights.
+# MDC fields (requestId, userId, username, role, orgId) are included automatically.
 logging:
+  structured:
+    format:
+      console: logstash
+      file: logstash
   file:
     name: ${LOG_FILE:/var/log/marathon/app.log}
   logback:

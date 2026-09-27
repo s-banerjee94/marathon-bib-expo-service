@@ -75,7 +75,8 @@ public class SecurityConfig {
                 .addFilterBefore(
                         new McpTokenAuthenticationFilter(jwtService, userDetailsService, sessionService),
                         UsernamePasswordAuthenticationFilter.class
-                );
+                )
+                .addFilterAfter(new MdcRequestFilter(), McpTokenAuthenticationFilter.class);
 
         return http.build();
     }
@@ -101,7 +102,8 @@ public class SecurityConfig {
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                         .accessDeniedHandler(jwtAccessDeniedHandler)
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new MdcRequestFilter(), JwtAuthenticationFilter.class);
 
         return http.build();
     }
