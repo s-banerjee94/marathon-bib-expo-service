@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.organization.service;
 
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationSubscriptionRequest;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
@@ -37,6 +38,17 @@ public interface OrganizationService {
      * @return The updated organization response
      */
     OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, CurrentActor actor);
+
+    /**
+     * Changes an organization's plan: its subscription tier and its user and inventory caps. Only
+     * what the request carries is changed, and no cap may drop below what is already in use.
+     * Callers must be ROOT or ADMIN; organizers never change their own plan.
+     * @param id The organization ID
+     * @param request The tier and caps to change
+     * @return The updated organization response
+     * @throws com.timekeeper.bibexpo.organization.exception.LimitReductionException if a cap would drop below usage
+     */
+    OrganizationResponse updateSubscription(Long id, UpdateOrganizationSubscriptionRequest request);
 
     /**
      * Enable or disable an organization

@@ -1,11 +1,11 @@
 package com.timekeeper.bibexpo.organization.controller;
 
-
 import com.timekeeper.bibexpo.organization.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationDeletionNotAllowedException;
 import com.timekeeper.bibexpo.organization.exception.LimitReductionException;
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationSubscriptionRequest;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.organization.service.OrganizationService;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
@@ -41,9 +41,6 @@ public class OrganizationController implements OrganizationControllerApi {
             @RequestParam(required = false) String search,
             Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get all organizations by user: {} with filters - enabled: {}, search: {}",
-                currentUser.getUsername(), enabled, search);
-
         Page<OrganizationResponse> organizationsPage = organizationService.getAllOrganizations(
                 enabled, search, pageable, CurrentActor.from(currentUser));
 
@@ -56,8 +53,6 @@ public class OrganizationController implements OrganizationControllerApi {
     @PostMapping
     public ResponseEntity<OrganizationResponse> createOrganization(
             @Valid @RequestBody CreateOrganizationRequest request) {
-        log.info("Received request to create organization: {}", request.getOrganizerName());
-
         OrganizationResponse response = organizationService.createOrganization(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -69,12 +64,15 @@ public class OrganizationController implements OrganizationControllerApi {
             @PathVariable Long id,
             @Valid @RequestBody UpdateOrganizationRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update organization ID: {} by user: {}",
-                id, currentUser.getUsername());
-
         OrganizationResponse response = organizationService.updateOrganization(id, request, CurrentActor.from(currentUser));
 
         return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<OrganizationResponse> updateSubscription(
+            Long id, UpdateOrganizationSubscriptionRequest request) {
+        return ResponseEntity.ok(organizationService.updateSubscription(id, request));
     }
 
     @Override
@@ -82,9 +80,6 @@ public class OrganizationController implements OrganizationControllerApi {
     public ResponseEntity<OrganizationResponse> toggleOrganizationStatus(
             @PathVariable Long id,
             @RequestBody Boolean enabled) {
-        log.info("Received request to {} organization ID: {}",
-                Boolean.TRUE.equals(enabled) ? "enable" : "disable", id);
-
         OrganizationResponse response = organizationService.toggleOrganizationStatus(id, enabled);
 
         return ResponseEntity.ok(response);
@@ -95,9 +90,6 @@ public class OrganizationController implements OrganizationControllerApi {
     public ResponseEntity<Void> deleteOrganization(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to delete organization ID: {} by user: {}",
-                id, currentUser.getUsername());
-
         organizationService.deleteOrganization(id, CurrentActor.from(currentUser));
 
         return ResponseEntity.noContent().build();
@@ -108,9 +100,6 @@ public class OrganizationController implements OrganizationControllerApi {
     public ResponseEntity<OrganizationResponse> getOrganizationById(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get organization ID: {} by user: {}",
-                id, currentUser.getUsername());
-
         OrganizationResponse response = organizationService.getOrganizationById(id, CurrentActor.from(currentUser));
 
         return ResponseEntity.ok(response);
@@ -120,9 +109,6 @@ public class OrganizationController implements OrganizationControllerApi {
     @GetMapping("/organization")
     public ResponseEntity<OrganizationResponse> getCurrentUserOrganization(
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get organization for user: {}",
-                currentUser.getUsername());
-
         OrganizationResponse response = organizationService.getCurrentUserOrganization(CurrentActor.from(currentUser));
 
         return ResponseEntity.ok(response);
@@ -131,7 +117,6 @@ public class OrganizationController implements OrganizationControllerApi {
     @Override
     public ResponseEntity<PresignUploadResponse> createLogoUploadUrl(
             Long id, PresignUploadRequest request, User currentUser) {
-        log.info("Request logo upload URL for organization ID: {} by user: {}", id, currentUser.getUsername());
         PresignUploadResponse response = organizationService.createLogoUploadUrl(
                 id, request.getContentType(), CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
@@ -140,14 +125,12 @@ public class OrganizationController implements OrganizationControllerApi {
     @Override
     public ResponseEntity<OrganizationResponse> attachLogo(
             Long id, AttachUploadRequest request, User currentUser) {
-        log.info("Request to attach logo for organization ID: {} by user: {}", id, currentUser.getUsername());
         OrganizationResponse response = organizationService.attachLogo(id, request.getObjectKey(), CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<OrganizationResponse> removeLogo(Long id, User currentUser) {
-        log.info("Request to remove logo for organization ID: {} by user: {}", id, currentUser.getUsername());
         OrganizationResponse response = organizationService.removeLogo(id, CurrentActor.from(currentUser));
         return ResponseEntity.ok(response);
     }
@@ -155,7 +138,7 @@ public class OrganizationController implements OrganizationControllerApi {
     @ExceptionHandler(OrganizationDeletionNotAllowedException.class)
     public ResponseEntity<ErrorResponse> handleOrganizationDeletionNotAllowed(
             OrganizationDeletionNotAllowedException ex, WebRequest request) {
-        log.info("Organization deletion not allowed: {}", ex.getMessage());
+        logRejected(HttpStatus.BAD_REQUEST, ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
@@ -163,7 +146,7 @@ public class OrganizationController implements OrganizationControllerApi {
     @ExceptionHandler(OrganizationAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleOrganizationAlreadyExists(
             OrganizationAlreadyExistsException ex, WebRequest request) {
-        log.info("Organization already exists: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
@@ -171,8 +154,17 @@ public class OrganizationController implements OrganizationControllerApi {
     @ExceptionHandler(LimitReductionException.class)
     public ResponseEntity<ErrorResponse> handleLimitReduction(
             LimitReductionException ex, WebRequest request) {
-        log.info("Limit reduction conflict: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    private void logRejected(HttpStatus status, Exception ex) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
     }
 }

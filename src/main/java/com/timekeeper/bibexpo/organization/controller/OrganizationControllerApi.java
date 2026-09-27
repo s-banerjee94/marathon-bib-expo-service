@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.organization.controller;
 
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationSubscriptionRequest;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.shared.web.PageableResponse;
@@ -114,8 +115,11 @@ public interface OrganizationControllerApi {
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Update an organization",
-            description = "Partially update an organization. ROOT and ADMIN can update any organization. ORGANIZER_ADMIN can only update their own organization."
+            summary = "Update an organization's profile",
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN. Partially updates an organization's profile "
+                    + "(name, contact, address, business and billing details). ROOT and ADMIN can update any "
+                    + "organization; ORGANIZER_ADMIN only their own. The subscription tier and limits are changed "
+                    + "through PATCH /api/organizations/{id}/subscription."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -152,8 +156,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "An organization with the same email, name, phone number, or tax ID already exists, "
-                            + "or a limit was reduced below what is currently in use",
+                    description = "An organization with the same email, name, phone number, or tax ID already exists",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -164,6 +167,36 @@ public interface OrganizationControllerApi {
             @PathVariable Long id,
             @Valid @RequestBody UpdateOrganizationRequest request,
             @AuthenticationPrincipal User currentUser);
+
+    @PatchMapping("/{id}/subscription")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
+    @Operation(
+            summary = "Change an organization's plan",
+            description = "**Roles:** ROOT, ADMIN. Changes an organization's subscription tier and its user and "
+                    + "inventory limits. Only the fields sent are changed. Moving from PAY_AS_YOU_GO to PREMIUM or "
+                    + "PARTNER starts a one-year term; sending PAY_AS_YOU_GO returns to the "
+                    + "baseline. A limit cannot be set below what is already in use."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Plan changed",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = OrganizationResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request data",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - requires ROOT or ADMIN",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "A limit was reduced below what is currently in use",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<OrganizationResponse> updateSubscription(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateOrganizationSubscriptionRequest request);
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
