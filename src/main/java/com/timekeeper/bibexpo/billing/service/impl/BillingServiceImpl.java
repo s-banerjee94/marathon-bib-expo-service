@@ -27,6 +27,7 @@ import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.storage.service.StorageService;
 import com.timekeeper.bibexpo.user.model.entity.User;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,6 +63,7 @@ public class BillingServiceImpl implements BillingService {
     private final BillingQuotaService billingQuotaService;
     private final BillingScheduleService billingScheduleService;
     private final BillStatsTriggerService billStatsTriggerService;
+    private final EntityManager entityManager;
 
     @Override
     public List<BillResponse> listBills(Long eventId, User currentUser) {
@@ -168,6 +170,9 @@ public class BillingServiceImpl implements BillingService {
             revertToDraft(draft);
             throw new BillGenerationException("Bill generation failed. Please try again.");
         }
+        // The Lambda wrote the number, totals and PDF key straight to the database; drop the copy
+        // this request still holds so the response reads the issued bill, not the marked draft.
+        entityManager.detach(draft);
         // The bill is now a FINAL receivable — recompute the stats snapshot (async, best-effort).
         billStatsTriggerService.recomputeAsync("FINALIZE");
         return status;
