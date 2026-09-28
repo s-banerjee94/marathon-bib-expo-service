@@ -157,8 +157,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional
     public OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, CurrentActor actor) {
+        requireOwnOrganization(actor, id);
         Organization organization = requireOrganization(id);
-        validateUpdateAuthorization(actor, id);
         validateUniqueness(request.getOrganizerName(), request.getEmail(),
                 request.getPhoneNumber(), request.getTaxId(), organization);
 
@@ -266,9 +266,17 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .log("Organization deleted");
     }
 
-    private void validateUpdateAuthorization(CurrentActor actor, Long organizationId) {
-        if (actor.role() == UserRole.ORGANIZER_ADMIN && !organizationId.equals(actor.organizationId())) {
-            throw new AccessForbiddenException("You can only update your own organization.");
+    // Runs before the organization is loaded, and answers another organization's id exactly like a
+    // missing one, so an organization-scoped caller cannot learn which ids exist.
+    private void requireOwnOrganization(CurrentActor actor, Long organizationId) {
+        if (actor.role() != UserRole.ROOT && actor.role() != UserRole.ADMIN
+                && !organizationId.equals(actor.organizationId())) {
+            log.atWarn()
+                    .addKeyValue("event", "authz.denied")
+                    .addKeyValue("reason", "organization_not_own")
+                    .addKeyValue("targetOrgId", organizationId)
+                    .log("Organization access hidden as not found");
+            throw new OrganizationNotFoundException();
         }
     }
 
@@ -382,13 +390,10 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional(readOnly = true)
     public OrganizationResponse getOrganizationById(Long id, CurrentActor actor) {
+        requireOwnOrganization(actor, id);
         Organization organization = organizationCache.findById(id);
         if (organization == null) {
             throw new OrganizationNotFoundException();
-        }
-        if (actor.role() != UserRole.ROOT && actor.role() != UserRole.ADMIN
-                && !id.equals(actor.organizationId())) {
-            throw new AccessForbiddenException("You can only view your own organization.");
         }
         return toResponse(organization);
     }
@@ -475,16 +480,16 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional(readOnly = true)
     public PresignUploadResponse createLogoUploadUrl(Long id, String contentType, CurrentActor actor) {
+        requireOwnOrganization(actor, id);
         Organization organization = requireOrganization(id);
-        validateUpdateAuthorization(actor, id);
         return storageService.createUploadUrl(UploadCategory.ORGANIZATION_LOGO, organization.getId(), contentType);
     }
 
     @Override
     @Transactional
     public OrganizationResponse attachLogo(Long id, String objectKey, CurrentActor actor) {
+        requireOwnOrganization(actor, id);
         Organization organization = requireOrganization(id);
-        validateUpdateAuthorization(actor, id);
 
         if (UploadCategory.ORGANIZATION_LOGO.isForeignKeyFor(organization.getId(), objectKey)) {
             throw new InvalidFileException("This upload does not belong to this organization.");
@@ -507,8 +512,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional
     public OrganizationResponse removeLogo(Long id, CurrentActor actor) {
+        requireOwnOrganization(actor, id);
         Organization organization = requireOrganization(id);
-        validateUpdateAuthorization(actor, id);
 
         String previousKey = organization.getLogoKey();
         organization.setLogoKey(null);

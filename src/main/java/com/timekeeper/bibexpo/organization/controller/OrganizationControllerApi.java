@@ -141,7 +141,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - insufficient permissions or trying to update another organization",
+                    description = "Access forbidden - insufficient permissions",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -149,7 +149,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Organization not found",
+                    description = "Organization not found, or not the caller's own organization",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -310,7 +310,9 @@ public interface OrganizationControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get organization by ID",
-            description = "Retrieve organization details. ROOT/ADMIN can view any organization. ORGANIZER users can only view their own organization."
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. Retrieve organization details. "
+                    + "ROOT/ADMIN can view any organization. ORGANIZER users can only view their own; any other id "
+                    + "returns 404, the same as an id that does not exist."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -323,7 +325,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - insufficient permissions or trying to view another organization",
+                    description = "Access forbidden - insufficient permissions",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -331,7 +333,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Organization not found",
+                    description = "Organization not found, or not the caller's own organization",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -374,6 +376,7 @@ public interface OrganizationControllerApi {
     @Operation(
             summary = "Get a presigned URL to upload an organization logo",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN (own organization only). \
                     Returns a short-lived presigned S3 PUT URL. The client uploads the file bytes \
                     directly to that URL with the given Content-Type, then calls \
                     PUT /api/organizations/{id}/logo with the returned objectKey to attach it. \
@@ -389,7 +392,7 @@ public interface OrganizationControllerApi {
             @ApiResponse(responseCode = "403", description = "Insufficient permissions",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization not found",
+            @ApiResponse(responseCode = "404", description = "Organization not found, or not the caller's own organization",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -403,6 +406,7 @@ public interface OrganizationControllerApi {
     @Operation(
             summary = "Attach an uploaded organization logo",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN (own organization only). \
                     Confirms a completed upload and sets it as the organization's logo. \
                     The object key must belong to this organization and the object must exist in S3. \
                     Any previous logo is deleted."""
@@ -417,7 +421,7 @@ public interface OrganizationControllerApi {
             @ApiResponse(responseCode = "403", description = "Insufficient permissions",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization not found",
+            @ApiResponse(responseCode = "404", description = "Organization not found, or not the caller's own organization",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -430,7 +434,7 @@ public interface OrganizationControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
             summary = "Remove the organization logo",
-            description = "Deletes the organization's logo from storage."
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN (own organization only). Deletes the organization's logo from storage."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Logo removed",
@@ -439,7 +443,7 @@ public interface OrganizationControllerApi {
             @ApiResponse(responseCode = "403", description = "Insufficient permissions",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization not found",
+            @ApiResponse(responseCode = "404", description = "Organization not found, or not the caller's own organization",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
