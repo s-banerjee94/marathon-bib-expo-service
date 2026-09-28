@@ -249,8 +249,12 @@ public class EventStatsRecorderImpl implements EventStatsRecorder {
         try {
             body.run();
         } catch (Exception ex) {
-            log.error("Event stats update failed eventId={} op={} err={}",
-                    eventId, operation, ex.getMessage(), ex);
+            log.atError()
+                    .addKeyValue("event", "event.stats.update_failed")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("operation", operation)
+                    .setCause(ex)
+                    .log("Event stats update failed");
         }
     }
 

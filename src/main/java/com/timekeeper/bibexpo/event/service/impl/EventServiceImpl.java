@@ -19,6 +19,7 @@ import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
+import com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.event.limit.repository.EventLimitRepository;
 import com.timekeeper.bibexpo.event.repository.EventRepository;
@@ -28,7 +29,9 @@ import com.timekeeper.bibexpo.event.api.EventDeletionCleaner;
 import com.timekeeper.bibexpo.event.api.EventDeletionGuard;
 import com.timekeeper.bibexpo.event.api.EventPublishGuard;
 import com.timekeeper.bibexpo.event.service.EventService;
+import com.timekeeper.bibexpo.event.model.enums.EventOperation;
 import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.event.service.validator.EventStatusTransitionValidator;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
@@ -63,12 +66,15 @@ import java.util.List;
 @Slf4j
 public class EventServiceImpl implements EventService {
 
+    private static final String EVENT_NAME_TAKEN = "An event with this name already exists for this organization.";
+
     private final EventRepository eventRepository;
     private final OrganizationDirectory organizationDirectory;
     private final EventLimitRepository eventLimitRepository;
     private final RaceRepository raceRepository;
     private final EventAccessValidator eventAccessValidator;
     private final EventStatusTransitionValidator statusTransitionValidator;
+    private final EventOperationGuard eventOperationGuard;
     private final EventBillingGuard eventBillingGuard;
     private final List<EventDeletionGuard> eventDeletionGuards;
     private final List<EventDeletionCleaner> eventDeletionCleaners;
@@ -92,7 +98,11 @@ public class EventServiceImpl implements EventService {
         try {
             storageService.delete(objectKey);
         } catch (Exception e) {
-            log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "storage.delete.failed")
+                    .addKeyValue("objectKey", objectKey)
+                    .addKeyValue("error", e.getMessage())
+                    .log("Stored object could not be deleted");
         }
     }
 
@@ -100,17 +110,12 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventResponse createEvent(CreateEventRequest request, User currentUser) {
-        log.info("Creating event: {} for organization ID: {} by user: {}",
-                request.getEventName(), request.getOrganizationId(), currentUser.getUsername());
-
+        requireOwnOrganization(currentUser, request.getOrganizationId());
         Organization organization = organizationDirectory.requireById(request.getOrganizationId());
-
-        validateUserAuthorization(currentUser, organization);
 
         if (eventRepository.existsByEventNameAndOrganizationId(
                 request.getEventName(), request.getOrganizationId())) {
-            throw new EventAlreadyExistsException(
-                    "An event with this name already exists for this organization.");
+            throw new EventAlreadyExistsException(EVENT_NAME_TAKEN);
         }
 
         ZoneId zone = EventDateTimeUtil.zone(request.getTimezone());
@@ -146,8 +151,11 @@ public class EventServiceImpl implements EventService {
 
         Event savedEvent = eventRepository.save(event);
         eventLimitRepository.save(EventLimit.builder().event(savedEvent).build());
-        log.info("Successfully created event with ID: {} by user: {}",
-                savedEvent.getId(), currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "event.created")
+                .addKeyValue("eventId", savedEvent.getId())
+                .addKeyValue("targetOrgId", organization.getId())
+                .log("Event created");
 
         notifyEventCreated(savedEvent, currentUser);
 
@@ -175,12 +183,8 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventResponse updateEvent(Long id, UpdateEventRequest request, User currentUser) {
-        log.info("Updating event with ID: {} by user: {}", id, currentUser.getUsername());
-
-        Event event = eventRepository.findById(id)
-                .orElseThrow(EventNotFoundException::new);
-
-        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        Event event = findAndValidateEvent(id, currentUser);
+        eventOperationGuard.requireAllowed(event, EventOperation.PROFILE_WRITE);
 
         applyEventNameUpdate(event, request);
 
@@ -200,7 +204,10 @@ public class EventServiceImpl implements EventService {
         TextUtils.applyIfSent(request.getLongitude(), event::setLongitude);
 
         Event updatedEvent = eventRepository.save(event);
-        log.info("Successfully updated event with ID: {} by user: {}", updatedEvent.getId(), currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "event.updated")
+                .addKeyValue("eventId", id)
+                .log("Event updated");
 
         return toResponse(updatedEvent);
     }
@@ -212,8 +219,7 @@ public class EventServiceImpl implements EventService {
         }
         if (eventRepository.existsByEventNameAndOrganizationId(
                 request.getEventName(), event.getOrganization().getId())) {
-            throw new EventAlreadyExistsException(
-                    "Event with name '" + request.getEventName() + "' already exists for this organization");
+            throw new EventAlreadyExistsException(EVENT_NAME_TAKEN);
         }
         event.setEventName(request.getEventName());
     }
@@ -275,33 +281,16 @@ public class EventServiceImpl implements EventService {
     public Page<EventResponse> getAllEvents(
             Long organizationId, EventStatus status, String search,
             Pageable pageable, User currentUser) {
-        log.info("Fetching all events with filters - organizationId: {}, status: {}, search: {}, user: {}",
-                organizationId, status, search, currentUser.getUsername());
-
         Specification<Event> spec = buildEventSpecification(organizationId, status, search);
-
-        Page<Event> eventsPage = eventRepository.findAll(spec, pageable);
-
-        Page<EventResponse> responsePage = eventsPage.map(this::toResponse);
-
-        log.info("Successfully fetched {} events (page {} of {})",
-                responsePage.getNumberOfElements(),
-                responsePage.getNumber() + 1,
-                responsePage.getTotalPages());
-
-        return responsePage;
+        return eventRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<EventResponse> getOrganizationEvents(
             EventStatus status, String search, Pageable pageable, User currentUser) {
-        log.info("Fetching organization events with filters - status: {}, search: {}, user: {}",
-                status, search, currentUser.getUsername());
-
         if (currentUser.getOrganization() == null) {
-            throw new AccessForbiddenException(
-                    "User does not belong to any organization");
+            throw new AccessForbiddenException("Your account is not assigned to an organization.");
         }
 
         Long organizationId = currentUser.getOrganization().getId();
@@ -315,45 +304,35 @@ public class EventServiceImpl implements EventService {
                     assignedEventId == null ? cb.disjunction() : cb.equal(root.get("id"), assignedEventId));
         }
 
-        Page<Event> eventsPage = eventRepository.findAll(spec, pageable);
-
-        Page<EventResponse> responsePage = eventsPage.map(this::toResponse);
-
-        log.info("Successfully fetched {} organization events (page {} of {})",
-                responsePage.getNumberOfElements(),
-                responsePage.getNumber() + 1,
-                responsePage.getTotalPages());
-
-        return responsePage;
+        return eventRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
     public EventResponse getEventById(Long id, User currentUser) {
-        log.info("Fetching event by ID: {} for user: {}", id, currentUser.getUsername());
-
-        Event event = findAndValidateEvent(id, currentUser);
-
-        log.info("Successfully fetched event with ID: {} for user: {}",
-                event.getId(), currentUser.getUsername());
-
-        return toResponse(event);
+        return toResponse(findAndValidateEvent(id, currentUser));
     }
 
     @Auditable(entityType = AuditEntityType.EVENT, action = AuditAction.STATUS_CHANGE)
     @Override
     @Transactional
     public EventResponse toggleEventEnabled(Long id, User currentUser) {
-        log.info("Toggling enabled status for event with ID: {} by user: {}", id, currentUser.getUsername());
-
         Event event = eventRepository.findById(id)
                 .orElseThrow(EventNotFoundException::new);
+
+        if (currentUser.getRole() != UserRole.ROOT && eventBillingGuard.hasFinalInvoice(id)) {
+            throw new AccessForbiddenException(
+                    "You cannot enable or disable this event once its bill has been finalized.");
+        }
 
         event.setEnabled(!event.getEnabled());
 
         Event updatedEvent = eventRepository.save(event);
-        log.info("Successfully toggled enabled status for event with ID: {} to {} by user: {}",
-                updatedEvent.getId(), updatedEvent.getEnabled(), currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "event.enabled.changed")
+                .addKeyValue("eventId", id)
+                .addKeyValue("enabled", updatedEvent.getEnabled())
+                .log("Event enabled flag changed");
 
         return toResponse(updatedEvent);
     }
@@ -362,8 +341,6 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventResponse changeEventStatus(Long id, EventStatus status, User currentUser) {
-        log.info("Changing status for event with ID: {} to {} by user: {}", id, status, currentUser.getUsername());
-
         Event event = findAndValidateEvent(id, currentUser);
 
         if (status == null) {
@@ -388,12 +365,16 @@ public class EventServiceImpl implements EventService {
         event.setStatus(status);
 
         Event updatedEvent = eventRepository.save(event);
-        log.info("Successfully changed status for event with ID: {} to {} by user: {}",
-                updatedEvent.getId(), status, currentUser.getUsername());
 
         eventPublisher.publishEvent(new EventStatusChangedEvent(updatedEvent.getId(), updatedEvent.getStatus()));
 
         if (status != current) {
+            log.atInfo()
+                    .addKeyValue("event", "event.status.changed")
+                    .addKeyValue("eventId", id)
+                    .addKeyValue("fromStatus", current)
+                    .addKeyValue("toStatus", status)
+                    .log("Event status changed");
             notifyEventStatusChange(updatedEvent, status, currentUser);
         }
 
@@ -471,13 +452,15 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public void deleteEvent(Long id, User currentUser) {
-        log.info("Deleting event with ID: {} by user: {}", id, currentUser.getUsername());
-
         Event event = findAndValidateEvent(id, currentUser);
 
         if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.CANCELLED) {
             throw new EventDeletionNotAllowedException(
                     "Only events in DRAFT or CANCELLED status can be deleted.");
+        }
+        if (eventBillingGuard.hasFinalInvoice(id)) {
+            throw new EventDeletionNotAllowedException(
+                    "You cannot delete this event once its bill has been finalized.");
         }
 
         requireEmptyForDeletion(id);
@@ -495,7 +478,10 @@ public class EventServiceImpl implements EventService {
         eventLimitRepository.flush();
         eventRepository.delete(event);
         deleteQuietly(logoKey);
-        log.info("Successfully deleted event with ID: {} by user: {}", id, currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "event.deleted")
+                .addKeyValue("eventId", id)
+                .log("Event deleted");
     }
 
     /**
@@ -548,69 +534,50 @@ public class EventServiceImpl implements EventService {
             }
 
             if (search != null && !search.isBlank()) {
-                String searchPattern = "%" + search.toLowerCase() + "%";
-
-                Predicate eventNamePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("eventName")),
-                        searchPattern
-                );
-
-                Predicate eventDescriptionPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("eventDescription")),
-                        searchPattern
-                );
-
-                Predicate venueNamePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("venueName")),
-                        searchPattern
-                );
-
+                String pattern = "%" + search.toLowerCase() + "%";
                 predicates.add(criteriaBuilder.or(
-                        eventNamePredicate,
-                        eventDescriptionPredicate,
-                        venueNamePredicate
-                ));
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("eventName")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("eventDescription")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("venueName")), pattern)));
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
 
-    private void validateUserAuthorization(User currentUser, Organization organization) {
+    // Runs before the organization is loaded, and answers another organization's id exactly like a
+    // missing one, so an organization-scoped caller cannot learn which ids exist.
+    private void requireOwnOrganization(User currentUser, Long organizationId) {
         UserRole role = currentUser.getRole();
-
         if (role == UserRole.ROOT || role == UserRole.ADMIN) {
             return;
         }
-
-        if (role == UserRole.ORGANIZER_ADMIN || role == UserRole.ORGANIZER_USER) {
-            if (currentUser.getOrganization() == null) {
-                throw new AccessForbiddenException(
-                        "Your account is not assigned to an organization.");
-            }
-
-            if (!currentUser.getOrganization().getId().equals(organization.getId())) {
-                throw new AccessForbiddenException(
-                        "You can only create events for your organization.");
-            }
-            return;
+        if (currentUser.getOrganization() == null) {
+            throw new AccessForbiddenException("Your account is not assigned to an organization.");
         }
-
-        throw new AccessForbiddenException("You are not allowed to create events.");
+        if (!currentUser.getOrganization().getId().equals(organizationId)) {
+            log.atWarn()
+                    .addKeyValue("event", "authz.denied")
+                    .addKeyValue("reason", "organization_not_own")
+                    .addKeyValue("targetOrgId", organizationId)
+                    .log("Organization access hidden as not found");
+            throw new OrganizationNotFoundException();
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
     public PresignUploadResponse createLogoUploadUrl(Long id, String contentType, User currentUser) {
         Event event = findAndValidateEvent(id, currentUser);
+        eventOperationGuard.requireAllowed(event, EventOperation.LOGO_WRITE);
         return storageService.createUploadUrl(UploadCategory.EVENT_LOGO, event.getId(), contentType);
     }
 
     @Override
     @Transactional
     public EventResponse attachLogo(Long id, String objectKey, User currentUser) {
-        log.info("Attaching logo for event ID: {} by user: {}", id, currentUser.getUsername());
         Event event = findAndValidateEvent(id, currentUser);
+        eventOperationGuard.requireAllowed(event, EventOperation.LOGO_WRITE);
 
         if (UploadCategory.EVENT_LOGO.isForeignKeyFor(event.getId(), objectKey)) {
             throw new InvalidFileException("This upload does not belong to this event.");
@@ -625,21 +592,29 @@ public class EventServiceImpl implements EventService {
         if (previousKey != null && !previousKey.equals(objectKey)) {
             deleteQuietly(previousKey);
         }
-        log.info("Successfully attached logo for event ID: {}", id);
+        logLogoChanged(id, "attached");
         return toResponse(saved);
     }
 
     @Override
     @Transactional
     public EventResponse removeLogo(Long id, User currentUser) {
-        log.info("Removing logo for event ID: {} by user: {}", id, currentUser.getUsername());
         Event event = findAndValidateEvent(id, currentUser);
+        eventOperationGuard.requireAllowed(event, EventOperation.LOGO_WRITE);
 
         String previousKey = event.getLogoObjectKey();
         event.setLogoObjectKey(null);
         Event saved = eventRepository.saveAndFlush(event);
         deleteQuietly(previousKey);
-        log.info("Successfully removed logo for event ID: {}", id);
+        logLogoChanged(id, "removed");
         return toResponse(saved);
+    }
+
+    private void logLogoChanged(Long eventId, String action) {
+        log.atInfo()
+                .addKeyValue("event", "event.logo.changed")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("action", action)
+                .log("Event logo changed");
     }
 }

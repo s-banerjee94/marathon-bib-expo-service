@@ -34,9 +34,6 @@ public class CategoryController implements CategoryControllerApi {
             @PathVariable Long raceId,
             @RequestParam(required = false) Gender gender,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get categories for race ID: {} in event ID: {} with gender filter: {} by user: {}",
-                raceId, eventId, gender, currentUser.getUsername());
-
         List<CategoryResponse> categories = categoryService.getCategoriesByRaceId(eventId, raceId, gender, currentUser);
 
         return ResponseEntity.ok(categories);
@@ -48,9 +45,6 @@ public class CategoryController implements CategoryControllerApi {
             @PathVariable Long raceId,
             @PathVariable Long categoryId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get category by ID: {} for race ID: {} in event ID: {} for user: {}",
-                categoryId, raceId, eventId, currentUser.getUsername());
-
         CategoryResponse response = categoryService.getCategoryById(eventId, raceId, categoryId, currentUser);
 
         return ResponseEntity.ok(response);
@@ -62,9 +56,6 @@ public class CategoryController implements CategoryControllerApi {
             @PathVariable Long raceId,
             @Valid @RequestBody CreateCategoryRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to create category: {} for race ID: {} in event ID: {} by user: {}",
-                request.getCategoryName(), raceId, eventId, currentUser.getUsername());
-
         CategoryResponse response = categoryService.createCategory(eventId, raceId, request, currentUser);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -77,9 +68,6 @@ public class CategoryController implements CategoryControllerApi {
             @PathVariable Long categoryId,
             @Valid @RequestBody UpdateCategoryRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update category with ID: {} for race ID: {} in event ID: {} by user: {}",
-                categoryId, raceId, eventId, currentUser.getUsername());
-
         CategoryResponse response = categoryService.updateCategory(eventId, raceId, categoryId, request, currentUser);
 
         return ResponseEntity.ok(response);
@@ -91,9 +79,6 @@ public class CategoryController implements CategoryControllerApi {
             @PathVariable Long raceId,
             @PathVariable Long categoryId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to delete category with ID: {} for race ID: {} in event ID: {} by user: {}",
-                categoryId, raceId, eventId, currentUser.getUsername());
-
         categoryService.deleteCategory(eventId, raceId, categoryId, currentUser);
 
         return ResponseEntity.noContent().build();
@@ -102,7 +87,7 @@ public class CategoryController implements CategoryControllerApi {
     @ExceptionHandler(CategoryAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleCategoryAlreadyExists(
             CategoryAlreadyExistsException ex, WebRequest request) {
-        log.warn("Category already exists: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
@@ -110,8 +95,17 @@ public class CategoryController implements CategoryControllerApi {
     @ExceptionHandler(CategoryInUseException.class)
     public ResponseEntity<ErrorResponse> handleCategoryInUse(
             CategoryInUseException ex, WebRequest request) {
-        log.warn("Category in use: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    private void logRejected(HttpStatus status, Exception ex) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
     }
 }

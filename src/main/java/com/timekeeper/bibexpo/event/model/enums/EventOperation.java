@@ -14,5 +14,11 @@ public enum EventOperation {
     /** Remove an imported goody, which rewrites every participant record that carries it. */
     GOODIE_PURGE,
     /** Link a goody to the inventory item and location it is handed out from, or change that link. */
-    GOODIE_LINK
+    GOODIE_LINK,
+    /** Change the event's own details: name, description, venue and address. */
+    PROFILE_WRITE,
+    /** Upload, attach or remove the event logo. */
+    LOGO_WRITE,
+    /** Change the event's resource limits. */
+    LIMIT_WRITE
 }

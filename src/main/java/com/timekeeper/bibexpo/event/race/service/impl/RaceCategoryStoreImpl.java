@@ -9,7 +9,6 @@ import com.timekeeper.bibexpo.event.race.repository.RaceRepository;
 import com.timekeeper.bibexpo.event.race.service.util.RaceCategoryNameResolver;
 import com.timekeeper.bibexpo.shared.util.NameNormalizer;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +18,6 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class RaceCategoryStoreImpl implements RaceCategoryStore {
 
     private final RaceRepository raceRepository;
@@ -33,7 +31,6 @@ public class RaceCategoryStoreImpl implements RaceCategoryStore {
         String normalizedName = NameNormalizer.toStoredName(rawName);
         return raceRepository.findByRaceNameAndEventIdAndDeletedFalse(normalizedName, eventId)
                 .orElseGet(() -> {
-                    log.info("Creating race '{}' for event {}", normalizedName, eventId);
                     Race created = raceRepository.save(Race.builder()
                             .raceName(normalizedName)
                             .raceDescription("Auto-created from CSV import")
@@ -51,7 +48,6 @@ public class RaceCategoryStoreImpl implements RaceCategoryStore {
         String normalizedName = NameNormalizer.toStoredName(rawName);
         return categoryRepository.findByCategoryNameAndRaceId(normalizedName, race.getId())
                 .orElseGet(() -> {
-                    log.info("Creating category '{}' for race {}", normalizedName, race.getId());
                     Category created = categoryRepository.save(Category.builder()
                             .categoryName(normalizedName)
                             .description("Auto-created from CSV import")

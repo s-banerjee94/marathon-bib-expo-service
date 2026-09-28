@@ -52,7 +52,10 @@ public class EventQuotaImpl implements EventQuota {
     // running import. Losing the count is preferable to failing an import that already succeeded.
     private void warnIfMissing(int updated, Long eventId) {
         if (updated == 0) {
-            log.warn("No limits row for event {}; import usage was not recorded", eventId);
+            log.atWarn()
+                    .addKeyValue("event", "event.limits.missing")
+                    .addKeyValue("eventId", eventId)
+                    .log("Import usage not recorded, event has no limits row");
         }
     }
 }

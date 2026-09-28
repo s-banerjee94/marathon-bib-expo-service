@@ -6,7 +6,6 @@ import com.timekeeper.bibexpo.event.limit.service.EventLimitService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/events/{eventId}/limits")
 @RequiredArgsConstructor
-@Slf4j
 public class EventLimitController implements EventLimitControllerApi {
 
     private final EventLimitService eventLimitService;
@@ -26,7 +24,6 @@ public class EventLimitController implements EventLimitControllerApi {
     public ResponseEntity<EventLimitResponse> getEventLimits(
             @PathVariable Long eventId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Get limits for event {} by user {}", eventId, currentUser.getUsername());
         return ResponseEntity.ok(eventLimitService.getEventLimits(eventId, currentUser));
     }
 
@@ -35,7 +32,6 @@ public class EventLimitController implements EventLimitControllerApi {
             @PathVariable Long eventId,
             @Valid @RequestBody UpdateEventLimitRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Update limits for event {} by user {}", eventId, currentUser.getUsername());
         return ResponseEntity.ok(eventLimitService.updateEventLimits(eventId, request, currentUser));
     }
 }

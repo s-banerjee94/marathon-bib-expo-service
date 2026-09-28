@@ -8,6 +8,9 @@ import com.timekeeper.bibexpo.event.api.EventBillingGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.EnumSet;
+import java.util.Set;
+
 /**
  * Single authority for event-state and billing write gates.
  * Call {@link #requireAllowed(Event, EventOperation)} before any write on event-scoped resources.
@@ -16,6 +19,9 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class EventOperationGuard {
+
+    private static final Set<EventOperation> ALLOWED_WHEN_COMPLETED = EnumSet.of(
+            EventOperation.TEMPLATE_WRITE, EventOperation.CAMPAIGN_WRITE, EventOperation.PROFILE_WRITE);
 
     private final EventBillingGuard billingGuard;
 
@@ -37,7 +43,7 @@ public class EventOperationGuard {
         }
 
         if (status == EventStatus.COMPLETED) {
-            if (operation != EventOperation.TEMPLATE_WRITE && operation != EventOperation.CAMPAIGN_WRITE) {
+            if (!ALLOWED_WHEN_COMPLETED.contains(operation)) {
                 throw new EventOperationNotAllowedException(
                         "You cannot make changes once the event is completed.");
             }
