@@ -8,12 +8,14 @@ import com.timekeeper.bibexpo.organization.api.OrganizationMemberPurger;
 import com.timekeeper.bibexpo.organization.exception.LimitReductionException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationDeletionNotAllowedException;
+import com.timekeeper.bibexpo.organization.exception.OrganizationDisabledException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.InventoryQuotaRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationSubscriptionRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UserQuotaRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.MembersUnlockedResponse;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.organization.model.entity.OrganizationLimit;
@@ -209,9 +211,9 @@ public class OrganizationServiceImpl implements OrganizationService {
         Organization updatedOrganization = organizationRepository.save(organization);
         organizationCache.evict(updatedOrganization.getId());
 
-        // Disabling cascades to the members; enabling leaves them as they are.
+        // Disabling locks the members; enabling leaves them locked until unlockMembers is called.
         if (Boolean.FALSE.equals(enabled)) {
-            memberPurger.disableMembers(id);
+            memberPurger.lockMembers(id);
         }
 
         log.atInfo()
@@ -220,6 +222,17 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .addKeyValue("enabled", enabled)
                 .log("Organization status changed");
         return toResponse(updatedOrganization);
+    }
+
+    @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.STATUS_CHANGE)
+    @Override
+    @Transactional
+    public MembersUnlockedResponse unlockMembers(Long id) {
+        Organization organization = requireOrganization(id);
+        if (Boolean.FALSE.equals(organization.getEnabled())) {
+            throw new OrganizationDisabledException("Enable this organization before unlocking its users.");
+        }
+        return new MembersUnlockedResponse(memberPurger.unlockMembersLockedByOrganization(id));
     }
 
     @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.DELETE)

@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.shared.web.EmptyStringToNullConverter;
+import com.timekeeper.bibexpo.user.model.enums.LockReason;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -87,6 +88,11 @@ public class User implements UserDetails {
     @Builder.Default
     @Column(nullable = false)
     private Boolean accountNonLocked = true;
+
+    // Set while the account is locked, null otherwise
+    @Enumerated(EnumType.STRING)
+    @Column(length = 32)
+    private LockReason lockReason;
 
     @Builder.Default
     @Column(nullable = false)

@@ -186,6 +186,7 @@ public interface UserControllerApi {
     @Operation(
             summary = "Reassign a distributor to a different event",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Moves a distributor to another event within its own organization. \
                     Only DISTRIBUTOR accounts can be reassigned; the target event must belong to the \
                     distributor's organization and must not be completed or cancelled. \
@@ -204,7 +205,8 @@ public interface UserControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Target is not a distributor, or the event is missing or has ended",
+                    description = "Target is not a distributor, the event is missing or has ended, or the "
+                            + "distributor's organization is disabled",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -243,13 +245,15 @@ public interface UserControllerApi {
     @Operation(
             summary = "Toggle user enabled status",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Toggles the enabled/disabled status of a user account. \
                     This is an administrative operation. \
                     Permission hierarchy: \
                     ROOT can disable any user. \
                     ADMIN can disable any user. \
                     ORG_ADMIN can disable ORG_USER and DISTRIBUTOR (own organization only). \
-                    ORG_USER can disable themselves and DISTRIBUTOR (own organization only)."""
+                    ORG_USER can disable themselves and DISTRIBUTOR (own organization only). \
+                    Refused while the user's organization is disabled."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -258,6 +262,14 @@ public interface UserControllerApi {
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = UserResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "The user's organization is disabled",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
                     )
             ),
             @ApiResponse(
@@ -290,11 +302,11 @@ public interface UserControllerApi {
     @Operation(
             summary = "Toggle user locked status",
             description = """
+                    **Roles:** ROOT, ADMIN. \
                     Toggles the locked/unlocked status of a user account (flips accountNonLocked). \
                     A locked account cannot log in. This is a platform-administrator operation. \
-                    Permission hierarchy: \
-                    ROOT can lock/unlock any user. \
-                    ADMIN can lock/unlock any user."""
+                    Locking sets lockReason MANUAL; unlocking clears it. \
+                    Refused while the user's organization is disabled."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -303,6 +315,14 @@ public interface UserControllerApi {
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = UserResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "The user's organization is disabled",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
                     )
             ),
             @ApiResponse(

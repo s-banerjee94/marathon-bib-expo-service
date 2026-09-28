@@ -24,6 +24,7 @@ import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import com.timekeeper.bibexpo.user.model.event.PasswordChangedEvent;
 import com.timekeeper.bibexpo.user.model.entity.UserArchive;
+import com.timekeeper.bibexpo.user.model.enums.LockReason;
 import com.timekeeper.bibexpo.user.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.user.repository.UserRepository;
 import com.timekeeper.bibexpo.user.service.cache.AuthUserCache;
@@ -130,6 +131,7 @@ public class UserServiceImpl implements UserService {
             throw new InvalidUserDataException("Only a distributor can be assigned to an event.");
         }
         accessPolicy.validateReassignAuthorization(actor, targetUser);
+        rejectIfOrganizationDisabled(targetUser);
 
         Event event = resolveDistributorEvent(eventId, targetUser.getOrganization(), UserRole.DISTRIBUTOR);
         targetUser.setEvent(event);
@@ -369,7 +371,9 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void applyNewPassword(Long userId, String rawPassword) {
-        storeNewPassword(fetchTargetUser(userId), rawPassword);
+        User user = fetchTargetUser(userId);
+        rejectIfOrganizationDisabled(user);
+        storeNewPassword(user, rawPassword);
     }
 
     /**
@@ -391,6 +395,16 @@ public class UserServiceImpl implements UserService {
     public void assertCanUpdateUser(Long userId, CurrentActor actor) {
         User targetUser = fetchTargetUser(userId);
         accessPolicy.validateUpdateUserAuthorization(actor, targetUser);
+        rejectIfOrganizationDisabled(targetUser);
+    }
+
+    // While an organization is disabled its members' access is frozen: nothing may re-enable,
+    // unlock, reassign or reset them until the organization is enabled again.
+    private void rejectIfOrganizationDisabled(User user) {
+        Organization organization = user.getOrganization();
+        if (organization != null && Boolean.FALSE.equals(organization.getEnabled())) {
+            throw new InvalidUserDataException("You cannot change this account while its organization is disabled.");
+        }
     }
 
     /**
@@ -433,6 +447,7 @@ public class UserServiceImpl implements UserService {
         User targetUser = fetchTargetUser(userId);
 
         accessPolicy.validateToggleEnabledAuthorization(actor, targetUser);
+        rejectIfOrganizationDisabled(targetUser);
 
         // Toggle the enabled status
         boolean newEnabledStatus = !targetUser.getEnabled();
@@ -456,9 +471,11 @@ public class UserServiceImpl implements UserService {
         User targetUser = fetchTargetUser(userId);
 
         accessPolicy.validateToggleLockedAuthorization(actor, targetUser);
+        rejectIfOrganizationDisabled(targetUser);
 
         boolean newNonLockedStatus = !targetUser.getAccountNonLocked();
         targetUser.setAccountNonLocked(newNonLockedStatus);
+        targetUser.setLockReason(newNonLockedStatus ? null : LockReason.MANUAL);
 
         User updatedUser = userRepository.save(targetUser);
         authUserCache.evict(updatedUser.getUsername());

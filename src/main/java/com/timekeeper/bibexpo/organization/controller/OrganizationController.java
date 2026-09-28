@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.organization.exception.LimitReductionException;
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationSubscriptionRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.MembersUnlockedResponse;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.organization.service.OrganizationService;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
@@ -15,15 +16,15 @@ import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.WebRequest;
 
 @RestController
@@ -35,38 +36,22 @@ public class OrganizationController implements OrganizationControllerApi {
     private final OrganizationService organizationService;
 
     @Override
-    @GetMapping
     public ResponseEntity<PageableResponse<OrganizationResponse>> getAllOrganizations(
-            @RequestParam(required = false) Boolean enabled,
-            @RequestParam(required = false) String search,
-            Pageable pageable,
-            @AuthenticationPrincipal User currentUser) {
-        Page<OrganizationResponse> organizationsPage = organizationService.getAllOrganizations(
+            Boolean enabled, String search, Pageable pageable, User currentUser) {
+        Page<OrganizationResponse> page = organizationService.getAllOrganizations(
                 enabled, search, pageable, CurrentActor.from(currentUser));
-
-        PageableResponse<OrganizationResponse> response = PageableResponse.of(organizationsPage);
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(PageableResponse.of(page));
     }
 
     @Override
-    @PostMapping
-    public ResponseEntity<OrganizationResponse> createOrganization(
-            @Valid @RequestBody CreateOrganizationRequest request) {
-        OrganizationResponse response = organizationService.createOrganization(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public ResponseEntity<OrganizationResponse> createOrganization(CreateOrganizationRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(organizationService.createOrganization(request));
     }
 
     @Override
-    @PatchMapping("/{id}")
     public ResponseEntity<OrganizationResponse> updateOrganization(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateOrganizationRequest request,
-            @AuthenticationPrincipal User currentUser) {
-        OrganizationResponse response = organizationService.updateOrganization(id, request, CurrentActor.from(currentUser));
-
-        return ResponseEntity.ok(response);
+            Long id, UpdateOrganizationRequest request, User currentUser) {
+        return ResponseEntity.ok(organizationService.updateOrganization(id, request, CurrentActor.from(currentUser)));
     }
 
     @Override
@@ -76,42 +61,29 @@ public class OrganizationController implements OrganizationControllerApi {
     }
 
     @Override
-    @PatchMapping("/{id}/status")
-    public ResponseEntity<OrganizationResponse> toggleOrganizationStatus(
-            @PathVariable Long id,
-            @RequestBody Boolean enabled) {
-        OrganizationResponse response = organizationService.toggleOrganizationStatus(id, enabled);
-
-        return ResponseEntity.ok(response);
+    public ResponseEntity<MembersUnlockedResponse> unlockMembers(Long id) {
+        return ResponseEntity.ok(organizationService.unlockMembers(id));
     }
 
     @Override
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteOrganization(
-            @PathVariable Long id,
-            @AuthenticationPrincipal User currentUser) {
-        organizationService.deleteOrganization(id, CurrentActor.from(currentUser));
+    public ResponseEntity<OrganizationResponse> toggleOrganizationStatus(Long id, Boolean enabled) {
+        return ResponseEntity.ok(organizationService.toggleOrganizationStatus(id, enabled));
+    }
 
+    @Override
+    public ResponseEntity<Void> deleteOrganization(Long id, User currentUser) {
+        organizationService.deleteOrganization(id, CurrentActor.from(currentUser));
         return ResponseEntity.noContent().build();
     }
 
     @Override
-    @GetMapping("/{id}")
-    public ResponseEntity<OrganizationResponse> getOrganizationById(
-            @PathVariable Long id,
-            @AuthenticationPrincipal User currentUser) {
-        OrganizationResponse response = organizationService.getOrganizationById(id, CurrentActor.from(currentUser));
-
-        return ResponseEntity.ok(response);
+    public ResponseEntity<OrganizationResponse> getOrganizationById(Long id, User currentUser) {
+        return ResponseEntity.ok(organizationService.getOrganizationById(id, CurrentActor.from(currentUser)));
     }
 
     @Override
-    @GetMapping("/organization")
-    public ResponseEntity<OrganizationResponse> getCurrentUserOrganization(
-            @AuthenticationPrincipal User currentUser) {
-        OrganizationResponse response = organizationService.getCurrentUserOrganization(CurrentActor.from(currentUser));
-
-        return ResponseEntity.ok(response);
+    public ResponseEntity<OrganizationResponse> getCurrentUserOrganization(User currentUser) {
+        return ResponseEntity.ok(organizationService.getCurrentUserOrganization(CurrentActor.from(currentUser)));
     }
 
     @Override

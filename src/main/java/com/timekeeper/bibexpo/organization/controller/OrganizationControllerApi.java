@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.organization.controller;
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationSubscriptionRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.MembersUnlockedResponse;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.shared.web.PageableResponse;
@@ -198,14 +199,41 @@ public interface OrganizationControllerApi {
             @PathVariable Long id,
             @Valid @RequestBody UpdateOrganizationSubscriptionRequest request);
 
+    @PostMapping("/{id}/members/unlock")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
+    @Operation(
+            summary = "Unlock the users locked by disabling the organization",
+            description = """
+                    **Roles:** ROOT, ADMIN. Unlocks the organization's users whose lockReason is \
+                    ORGANIZATION_DISABLED. Users locked manually (lockReason MANUAL) stay locked, and users \
+                    disabled by their organization stay disabled. The organization must be enabled first."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Users unlocked",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = MembersUnlockedResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - requires ROOT or ADMIN",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "The organization is still disabled",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<MembersUnlockedResponse> unlockMembers(@PathVariable Long id);
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
     @Operation(
             summary = "Enable or disable an organization",
             description = """
-                    Enable or disable an organization. Only accessible by ROOT or ADMIN users. \
-                    When an organization is disabled, all its users will be automatically disabled. \
-                    When an organization is enabled, its users will NOT be automatically enabled."""
+                    **Roles:** ROOT, ADMIN. Enable or disable an organization. \
+                    Disabling locks all its users (lockReason ORGANIZATION_DISABLED; users already locked \
+                    keep their own reason), and while it is disabled no user of it can be enabled, disabled, \
+                    locked, unlocked, reassigned or sent a password reset. Enabling does NOT unlock them: \
+                    call POST /api/organizations/{id}/members/unlock."""
     )
     @ApiResponses(value = {
             @ApiResponse(
