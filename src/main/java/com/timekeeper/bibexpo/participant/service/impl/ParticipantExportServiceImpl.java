@@ -37,13 +37,9 @@ public class ParticipantExportServiceImpl implements ParticipantExportService {
 
     @Override
     public byte[] exportParticipantsToCsv(Long eventId, List<ExportField> fields, User currentUser) {
-        log.info("Exporting participants to CSV for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
 
         List<ParticipantDDB> allParticipants = participantRepository.findAllByEventId(eventId.toString());
-
-        log.info("Found {} participants to export for event ID: {}", allParticipants.size(), eventId);
 
         List<ExportField> exportFields = (fields == null || fields.isEmpty())
                 ? Arrays.asList(ExportField.values())
@@ -65,11 +61,20 @@ public class ParticipantExportServiceImpl implements ParticipantExportService {
             }
 
             csvPrinter.flush();
-            log.info("Successfully exported {} participants to CSV for event ID: {}", allParticipants.size(), eventId);
+            log.atInfo()
+                    .addKeyValue("event", "participant.exported")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("rows", allParticipants.size())
+                    .addKeyValue("fields", exportFields.size())
+                    .log("Participants exported");
             return baos.toByteArray();
 
         } catch (IOException e) {
-            log.error("Failed to generate CSV for event ID: {}", eventId, e);
+            log.atError()
+                    .addKeyValue("event", "participant.export_failed")
+                    .addKeyValue("eventId", eventId)
+                    .setCause(e)
+                    .log("Participant export failed");
             throw new ParticipantExportFailedException(e);
         }
     }

@@ -53,9 +53,11 @@ public class UpdateParticipantRequest {
     @Schema(description = "City", example = "RANIGANJ", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String city;
 
+    @Pattern(regexp = "^\\d*$", message = "Race ID must be a number")
     @Schema(description = "Race ID (must exist in event)", example = "3", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String raceId;
 
+    @Pattern(regexp = "^\\d*$", message = "Category ID must be a number")
     @Schema(description = "Category ID (must exist in race)", example = "35", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String categoryId;
 

@@ -153,11 +153,8 @@ public class ParticipantDDBRepository implements ParticipantStore {
 
             List<ParticipantDDB> unprocessed = result.unprocessedPutItemsForTable(getTable());
             if (!unprocessed.isEmpty()) {
-                log.warn("DynamoDB batch write had {} unprocessed items, retrying individually", unprocessed.size());
-                unprocessed.forEach(p -> {
-                    getTable().putItem(p);
-                    log.debug("Retry-saved participant bib {} for event {}", p.getBibNumber(), p.getEventId());
-                });
+                logUnprocessed("put", unprocessed.size());
+                unprocessed.forEach(getTable()::putItem);
             }
         }
 
@@ -166,9 +163,7 @@ public class ParticipantDDBRepository implements ParticipantStore {
 
     @Override
     public int deleteAllByEventId(String eventId) {
-        int deleted = deleteAll(findAllByEventId(eventId));
-        log.info("Deleted {} participants for event {}", deleted, eventId);
-        return deleted;
+        return deleteAll(findAllByEventId(eventId));
     }
 
     /** Every participant of an event, read through as many round trips as it takes. */
@@ -182,14 +177,13 @@ public class ParticipantDDBRepository implements ParticipantStore {
      * Deletes the given participants in batches of 25.
      *
      * @param participants the records to delete
-     * @return how many were deleted; a shortfall means DynamoDB left some unprocessed
+     * @return how many were deleted
      */
     public int deleteAll(List<ParticipantDDB> participants) {
         if (participants == null || participants.isEmpty()) {
             return 0;
         }
 
-        int deleted = 0;
         for (int i = 0; i < participants.size(); i += BATCH_SIZE) {
             List<ParticipantDDB> batch = participants.subList(i, Math.min(i + BATCH_SIZE, participants.size()));
             WriteBatch.Builder<ParticipantDDB> batchBuilder = WriteBatch.builder(ParticipantDDB.class)
@@ -200,13 +194,21 @@ public class ParticipantDDBRepository implements ParticipantStore {
                             .writeBatches(batchBuilder.build())
                             .build()
             );
-            int unprocessed = result.unprocessedDeleteItemsForTable(getTable()).size();
-            if (unprocessed > 0) {
-                log.warn("Delete batch left {} of {} items unprocessed", unprocessed, batch.size());
+            List<Key> unprocessed = result.unprocessedDeleteItemsForTable(getTable());
+            if (!unprocessed.isEmpty()) {
+                logUnprocessed("delete", unprocessed.size());
+                unprocessed.forEach(key -> getTable().deleteItem(key));
             }
-            deleted += batch.size() - unprocessed;
         }
-        return deleted;
+        return participants.size();
+    }
+
+    private static void logUnprocessed(String operation, int count) {
+        log.atWarn()
+                .addKeyValue("event", "participant.batch_unprocessed")
+                .addKeyValue("operation", operation)
+                .addKeyValue("count", count)
+                .log("DynamoDB left batch items unprocessed; retrying them one by one");
     }
 
     @Override

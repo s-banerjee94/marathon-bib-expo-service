@@ -52,7 +52,6 @@ public class DynamoDBPaginationCodec {
             }
             return attributeMap;
         } catch (Exception e) {
-            log.error("Failed to decode pagination key: {}", encodedKey, e);
             throw new InvalidUserDataException("Invalid pagination key format");
         }
     }

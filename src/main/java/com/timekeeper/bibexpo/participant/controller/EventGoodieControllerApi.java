@@ -33,6 +33,7 @@ public interface EventGoodieControllerApi {
     @Operation(
             summary = "List an event's goodies",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Every goody the event hands out, in the order it was added. `source` says how \
                     each one got there: `IMPORT` when an imported file brought it, so participant \
                     records carry it under that name, or `MANUAL` when an organizer added it by \
@@ -57,6 +58,7 @@ public interface EventGoodieControllerApi {
     @Operation(
             summary = "Add a goody by hand",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Adds a goody every participant is owed that no imported file mentioned — a \
                     sponsor's kit that arrives after the roster is in. The name is compared with \
                     the list ignoring case and surrounding spaces, so `Sipper` and ` sipper ` are \
@@ -90,6 +92,7 @@ public interface EventGoodieControllerApi {
     @Operation(
             summary = "Remove a goody",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Removes a goody from the event's list. The name is matched ignoring case and \
                     surrounding spaces.
 

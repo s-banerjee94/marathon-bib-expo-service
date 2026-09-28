@@ -34,6 +34,7 @@ import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
@@ -70,9 +71,6 @@ public class ParticipantServiceImpl implements ParticipantService {
     @Override
     public ParticipantResponse createParticipant(Long eventId, CreateParticipantRequest request, User currentUser) {
         trimStringFields(request);
-
-        log.info("Creating participant with BIB {} for event ID: {} by user: {}",
-                request.getBibNumber(), eventId, currentUser.getUsername());
 
         accessGuard.forWrite(eventId, currentUser);
 
@@ -125,16 +123,17 @@ public class ParticipantServiceImpl implements ParticipantService {
         participantRepository.save(participant);
         eventStatsRecorder.onParticipantCreated(ParticipantCountersMapper.of(participant));
 
-        log.info("Successfully created participant with BIB {} for event ID: {}", request.getBibNumber(), eventId);
+        log.atInfo()
+                .addKeyValue("event", "participant.created")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("bibNumber", participant.getBibNumber())
+                .log("Participant created");
 
         return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
 
     @Override
     public ParticipantListResponse getParticipantsByEvent(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser) {
-        log.info("Fetching participants for event ID: {} with limit: {} by user: {}",
-                eventId, limit, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
 
         Page<ParticipantDDB> page = participantRepository.findPage(
@@ -145,16 +144,9 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @Override
     public ParticipantResponse getParticipantByBibNumber(Long eventId, String bibNumber, User currentUser) {
-        log.info("Fetching participant with bib {} for event ID: {} by user: {}",
-                bibNumber, eventId, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
-
-        log.info("Retrieved participant BIB {} from DynamoDB with {} goodies: {}",
-                bibNumber, participant.getGoodies() != null ? participant.getGoodies().size() : 0,
-                participant.getGoodies());
 
         return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
@@ -163,9 +155,6 @@ public class ParticipantServiceImpl implements ParticipantService {
     public ParticipantResponse updateParticipant(Long eventId, String bibNumber,
                                                   UpdateParticipantRequest request, User currentUser) {
         trimStringFields(request);
-
-        log.info("Updating participant BIB {} for event ID: {} by user: {}",
-                bibNumber, eventId, currentUser.getUsername());
 
         accessGuard.forWrite(eventId, currentUser);
 
@@ -183,9 +172,6 @@ public class ParticipantServiceImpl implements ParticipantService {
             if (participantRepository.findByEventAndBib(eventId, newBibNumber) != null) {
                 throw new BibNumberAlreadyExistsException();
             }
-
-            log.warn("BIB number change requested: {} -> {} for event {}",
-                    bibNumber, newBibNumber, eventId);
         }
 
         if (StringUtils.hasText(request.getRaceId()) || StringUtils.hasText(request.getCategoryId())) {
@@ -225,31 +211,27 @@ public class ParticipantServiceImpl implements ParticipantService {
         if (bibNumberChanged) {
             participantRepository.deleteByEventAndBib(eventId, bibNumber);
             participant.setBibNumber(newBibNumber);
-            participantRepository.save(participant);
-
-            log.info("BIB number changed from {} to {} for event ID: {}",
-                    bibNumber, newBibNumber, eventId);
-        } else {
-            participantRepository.save(participant);
-
-            log.info("Successfully updated participant BIB {} for event ID: {}", bibNumber, eventId);
         }
+        participantRepository.save(participant);
 
         eventStatsRecorder.onParticipantUpdated(beforeSnapshot, ParticipantCountersMapper.of(participant));
+
+        LoggingEventBuilder updated = log.atInfo()
+                .addKeyValue("event", "participant.updated")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("bibNumber", bibNumber);
+        if (bibNumberChanged) {
+            updated.addKeyValue("newBibNumber", newBibNumber);
+        }
+        updated.log("Participant updated");
 
         return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
 
     @Override
     public Long getParticipantCount(Long eventId, User currentUser) {
-        log.info("Counting participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
-
-        long count = eventStatsQuery.participantCount(eventId);
-
-        log.info("Found {} participants for event ID: {}", count, eventId);
-        return count;
+        return eventStatsQuery.participantCount(eventId);
     }
 
     private ParticipantResponse mapParticipantToResponse(ParticipantDDB participant, EventNames names) {
@@ -314,8 +296,6 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @Override
     public DeleteParticipantsResponse deleteParticipant(Long eventId, String bibNumber, User currentUser) {
-        log.info("Deleting participant with bib {} for event ID: {} by user: {}", bibNumber, eventId, currentUser.getUsername());
-
         Event event = accessGuard.forDelete(eventId, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
@@ -323,8 +303,13 @@ public class ParticipantServiceImpl implements ParticipantService {
         participantRepository.deleteByEventAndBib(eventId, bibNumber);
         eventStatsRecorder.onParticipantDeleted(ParticipantCountersMapper.of(participant));
 
+        log.atInfo()
+                .addKeyValue("event", "participant.deleted")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("bibNumber", bibNumber)
+                .log("Participant deleted");
+
         String message = String.format("Successfully deleted participant with bib %s from event '%s'", bibNumber, event.getEventName());
-        log.info(message);
 
         return DeleteParticipantsResponse.builder()
                 .eventId(eventId)
@@ -337,15 +322,18 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @Override
     public DeleteParticipantsResponse deleteAllParticipants(Long eventId, User currentUser) {
-        log.info("Deleting all participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
         Event event = accessGuard.forDelete(eventId, currentUser);
 
         int deletedCount = participantRepository.deleteAllByEventId(eventId.toString());
         eventStatsRecorder.onAllDeleted(eventId);
 
+        log.atInfo()
+                .addKeyValue("event", "participant.all_deleted")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("deletedCount", deletedCount)
+                .log("All participants of the event deleted");
+
         String message = String.format("Successfully deleted %d participants for event '%s'", deletedCount, event.getEventName());
-        log.info(message);
 
         return DeleteParticipantsResponse.builder()
                 .eventId(eventId)
@@ -358,8 +346,6 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @Override
     public DeleteParticipantsResponse deleteBulkParticipants(Long eventId, List<String> bibNumbers, User currentUser) {
-        log.info("Deleting {} participants for event ID: {} by user: {}", bibNumbers.size(), eventId, currentUser.getUsername());
-
         Event event = accessGuard.forDelete(eventId, currentUser);
 
         // The request DTO carries the same bound, so over HTTP this never fires; it holds the line
@@ -389,10 +375,22 @@ public class ParticipantServiceImpl implements ParticipantService {
                 failedCount += participantsToDelete.size() - deletedCount;
                 eventStatsRecorder.onBulkDeleted(ParticipantCountersMapper.of(participantsToDelete));
             } catch (Exception e) {
-                log.error("Failed to delete participants in bulk for event {}", eventId, e);
+                log.atError()
+                        .addKeyValue("event", "participant.bulk_delete_failed")
+                        .addKeyValue("eventId", eventId)
+                        .addKeyValue("requested", participantsToDelete.size())
+                        .setCause(e)
+                        .log("Bulk participant delete failed");
                 throw new ParticipantDeletionFailedException(e);
             }
         }
+
+        log.atInfo()
+                .addKeyValue("event", "participant.bulk_deleted")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("deletedCount", deletedCount)
+                .addKeyValue("failedCount", failedCount)
+                .log("Participants deleted in bulk");
 
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(String.format("Successfully deleted %d participants for event '%s'", deletedCount, event.getEventName()));
@@ -405,7 +403,6 @@ public class ParticipantServiceImpl implements ParticipantService {
         }
 
         String message = messageBuilder.toString();
-        log.info(message);
 
         return DeleteParticipantsResponse.builder()
                 .eventId(eventId)
@@ -465,9 +462,6 @@ public class ParticipantServiceImpl implements ParticipantService {
             String lastEvaluatedKey,
             User currentUser) {
 
-        log.info("Lookup participants for event ID: {} with searchType: {}, searchValue: '{}' by user: {}",
-                eventId, searchType, searchValue, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
 
         if (searchValue == null || searchValue.trim().isEmpty()) {
@@ -485,12 +479,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 Math.min(normalizeLimit(limit), MAX_LOOKUP_PAGE_SIZE),
                 decodeCursor(lastEvaluatedKey));
 
-        ParticipantListResponse response = toListResponse(page, eventId);
-
-        log.info("Lookup completed for event ID: {} using index {}. Found {} participants, hasMore: {}",
-                eventId, indexName, response.getCount(), response.getHasMore());
-
-        return response;
+        return toListResponse(page, eventId);
     }
 
     private ParticipantListResponse lookupByBibNumber(Long eventId, String bibNumber) {
@@ -570,7 +559,6 @@ public class ParticipantServiceImpl implements ParticipantService {
         try {
             return paginationCodec.decode(lastEvaluatedKey);
         } catch (Exception e) {
-            log.error("Failed to decode pagination key", e);
             throw new InvalidUserDataException("Invalid page token. Please start from the first page.");
         }
     }

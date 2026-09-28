@@ -35,6 +35,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Create a new participant",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Create a single participant for an event. \
                     Adding is allowed while the event is in draft or published; it is blocked once the event is completed or cancelled. \
 
@@ -85,6 +86,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Get all participants for an event",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Retrieve paginated list of participants for a specific event. \
                     Supports DynamoDB-style pagination with lastEvaluatedKey (base64 encoded). \
                     Default limit is 50, maximum is 100."""
@@ -113,7 +115,8 @@ public interface ParticipantControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get participant count for an event",
-            description = "Returns the total number of participants registered for an event as a simple count object {count: number}"
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. Returns the total number of "
+                    + "participants registered for an event as a simple count object {count: number}"
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Count retrieved successfully",
@@ -138,6 +141,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Lookup participants using LSI (cost-efficient alternative to search)",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR. \
                     Efficient participant lookup using DynamoDB Local Secondary Indexes (LSI). \
                     **Recommended over /search endpoint** - Uses Query operations instead of Scan, resulting in lower cost and faster performance. \
 
@@ -194,6 +198,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Export participants to CSV",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Export all participants for an event to CSV format. \
                     User can select which fields to include in the export using the 'fields' parameter. \
                     If no fields are specified, all fields are exported. \
@@ -229,6 +234,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Delete all participants for an event",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     ⚠️ WARNING: This will permanently delete ALL participants for the specified event. \
                     This action cannot be undone. Use with caution. \
                     Allowed only while the event is in DRAFT; deletion is blocked once the event is published, completed, or cancelled. \
@@ -260,6 +266,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Delete specific participants by bib numbers",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Delete multiple participants in a single batch operation. \
                     **Constraints:** \
                     - Minimum 1 bib number required (empty list will be rejected) \
@@ -297,6 +304,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Get participant by bib number",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Retrieve complete details of a specific participant using their bib number. \
                     Returns all participant information including goodies, contact details, and collection status. \
                     **Note:** BIB numbers are unique within an event."""
@@ -327,6 +335,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Update participant details",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Update participant information with partial (PATCH) semantics. Only fields present in the request are applied. \
                     Editing is allowed while the event is in draft or published; it is blocked once the event is completed or cancelled. \
 
@@ -394,6 +403,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Delete a participant by bib number",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Permanently delete a single participant from an event using their bib number. \
                     This action cannot be undone. The participant record will be completely removed from DynamoDB. \
                     Allowed only while the event is in DRAFT; deletion is blocked once the event is published, completed, or cancelled."""
