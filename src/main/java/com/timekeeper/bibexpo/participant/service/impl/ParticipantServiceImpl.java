@@ -120,7 +120,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .updatedBy(currentUser.getUsername())
                 .build();
 
-        participantRepository.save(participant);
+        participantRepository.create(participant);
         eventStatsRecorder.onParticipantCreated(ParticipantCountersMapper.of(participant));
 
         log.atInfo()
@@ -209,10 +209,13 @@ public class ParticipantServiceImpl implements ParticipantService {
         participant.setUpdatedBy(currentUser.getUsername());
 
         if (bibNumberChanged) {
-            participantRepository.deleteByEventAndBib(eventId, bibNumber);
+            // New bib first: a lost race leaves the participant where it was, not deleted.
             participant.setBibNumber(newBibNumber);
+            participantRepository.create(participant);
+            participantRepository.deleteByEventAndBib(eventId, bibNumber);
+        } else {
+            participantRepository.update(participant);
         }
-        participantRepository.save(participant);
 
         eventStatsRecorder.onParticipantUpdated(beforeSnapshot, ParticipantCountersMapper.of(participant));
 

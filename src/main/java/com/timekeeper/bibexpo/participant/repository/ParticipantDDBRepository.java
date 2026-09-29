@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.participant.repository;
 
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.exception.BibNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.participant.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
@@ -15,6 +16,7 @@ import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchWriteItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchWriteResult;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
+import software.amazon.awssdk.enhanced.dynamodb.model.PutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.ReadBatch;
@@ -22,6 +24,7 @@ import software.amazon.awssdk.enhanced.dynamodb.model.WriteBatch;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.ArrayList;
@@ -114,10 +117,28 @@ public class ParticipantDDBRepository implements ParticipantStore {
     }
 
     @Override
-    public void save(ParticipantDDB participant) {
+    public void update(ParticipantDDB participant) {
         getTable().putItem(participant);
-        log.debug("Saved participant with bib {} for event {}",
+        log.debug("Updated participant with bib {} for event {}",
                 participant.getBibNumber(), participant.getEventId());
+    }
+
+    /**
+     * Writes a new participant only if its bib is still free. DynamoDB checks and writes in one step,
+     * so of two requests racing for the same bib exactly one wins and the other gets the conflict.
+     *
+     * @param participant the record to write
+     * @throws BibNumberAlreadyExistsException if the bib is already taken in the event
+     */
+    public void create(ParticipantDDB participant) {
+        try {
+            getTable().putItem(PutItemEnhancedRequest.builder(ParticipantDDB.class)
+                    .item(participant)
+                    .conditionExpression(Expression.builder().expression("attribute_not_exists(bibNumber)").build())
+                    .build());
+        } catch (ConditionalCheckFailedException e) {
+            throw new BibNumberAlreadyExistsException();
+        }
     }
 
     /**

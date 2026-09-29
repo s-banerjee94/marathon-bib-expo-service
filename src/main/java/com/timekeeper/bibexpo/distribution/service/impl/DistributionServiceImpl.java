@@ -146,7 +146,7 @@ public class DistributionServiceImpl implements DistributionService {
                     goodiesDistributed, bibNumber, eventId, distributedBy);
         }
 
-        participantStore.save(participant);
+        participantStore.update(participant);
         eventStatsRecorder.onBibCollected(ParticipantCountersMapper.of(participant), goodiesDistributed,
                 EventTimeUtil.zoneOf(event.getTimezone()));
         markDistributionStarted(event);
@@ -200,7 +200,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedAt(now);
         participant.setUpdatedBy(currentUser.getUsername());
 
-        participantStore.save(participant);
+        participantStore.update(participant);
         eventStatsRecorder.onBibUndone(beforeSnapshot, EventTimeUtil.zoneOf(event.getTimezone()));
         if (!taken.isEmpty()) {
             postToInventory(eventId, bibNumber,
@@ -257,7 +257,7 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedAt(now);
         participant.setUpdatedBy(currentUser.getUsername());
 
-        participantStore.save(participant);
+        participantStore.update(participant);
         eventStatsRecorder.onGoodiesDistributed(ParticipantCountersMapper.of(participant), itemsDistributed);
         markDistributionStarted(event);
         issueStock(eventId, bibNumber, handed, currentUser);

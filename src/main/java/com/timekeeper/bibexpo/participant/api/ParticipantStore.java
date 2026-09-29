@@ -81,11 +81,11 @@ public interface ParticipantStore {
                                   Predicate<ParticipantDDB> keep);
 
     /**
-     * Writes one participant, overwriting any record with the same event and bib number.
+     * Writes changes to a participant, replacing the whole record held under its event and bib number.
      *
-     * @param participant the record to write
+     * @param participant the changed record
      */
-    void save(ParticipantDDB participant);
+    void update(ParticipantDDB participant);
 
     /**
      * Writes many participants in batches, retrying individually whatever DynamoDB leaves unprocessed.

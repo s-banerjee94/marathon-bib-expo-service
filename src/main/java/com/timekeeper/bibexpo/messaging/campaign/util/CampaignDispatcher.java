@@ -129,7 +129,7 @@ public class CampaignDispatcher {
             request.getSender().send(participant);
 
             request.getSendsMapAccessor().apply(participant).put(campaignKey, Instant.now().toString());
-            participantStore.save(participant);
+            participantStore.update(participant);
             state.sentCount++;
             state.consecutiveFailures = 0;
             log.debug("{} sent to bib {} for campaign {}", request.getChannelName(), participant.getBibNumber(), campaignKey);
