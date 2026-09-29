@@ -12,6 +12,7 @@ import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -199,22 +200,66 @@ public interface ParticipantControllerApi {
             summary = "Export participants to CSV",
             description = """
                     **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
-                    Export all participants for an event to CSV format. \
-                    User can select which fields to include in the export using the 'fields' parameter. \
-                    If no fields are specified, all fields are exported. \
-                    Goodies columns are dynamically generated based on participant data. \
+                    Downloads every participant of the event as a UTF-8, comma-separated CSV file named \
+                    `participants-event-{eventId}.csv`. The first row holds the headers, then one row per \
+                    participant, sorted by bib number as text (so `10` comes before `2`).
 
-                    **Available fields:** BIB_NUMBER, CHIP_NUMBER, FULL_NAME, EMAIL, PHONE_NUMBER, \
-                    DATE_OF_BIRTH, AGE, GENDER, COUNTRY, CITY, RACE_NAME, CATEGORY_NAME, \
-                    BIB_COLLECTED_AT, EMERGENCY_CONTACT_NAME, EMERGENCY_CONTACT_PHONE, NOTES, GOODIES"""
+                    **Choosing columns (`fields`):** \
+                    Send the field names you want; the columns come out in the order you send them. \
+                    Both `?fields=FULL_NAME&fields=BIB_NUMBER` and `?fields=FULL_NAME,BIB_NUMBER` work. \
+                    A field sent twice is exported once. Send no `fields` to export every field in the \
+                    default order below. An unknown field name returns 400.
+
+                    **Default order, with the header each field writes:**
+                    1. `CHIP_NUMBER` → Chip Number
+                    2. `BIB_NUMBER` → Bib Number
+                    3. `FULL_NAME` → Full Name
+                    4. `PHONE_NUMBER` → Phone Number
+                    5. `EMAIL` → Email
+                    6. `RACE_NAME` → Race Name
+                    7. `CATEGORY_NAME` → Category Name
+                    8. `AGE` → Age
+                    9. `GENDER` → Gender
+                    10. `DATE_OF_BIRTH` → Date Of Birth
+                    11. `CITY` → City
+                    12. `COUNTRY` → Country
+                    13. `GOODIES` → one column per goody (see below)
+                    14. `BIB_COLLECTED_AT` → Bib Collected At
+                    15. `EMERGENCY_CONTACT_NAME` → Emergency Contact Name
+                    16. `EMERGENCY_CONTACT_PHONE` → Emergency Contact Phone
+                    17. `NOTES` → Notes
+                    18. `ADDITIONAL_FIELDS` → one column per additional field (see below)
+
+                    **GOODIES and ADDITIONAL_FIELDS** are groups, not single columns. `GOODIES` adds one \
+                    column per goody name any participant carries, holding what that participant is owed \
+                    (for example a T-shirt size), not what was handed out. `ADDITIONAL_FIELDS` adds one \
+                    column per extra column kept from the import (the participant's `additionalFields` keys). \
+                    Inside a group the columns are sorted by name. A participant without a value gets an \
+                    empty cell, and an event with no goodies or no additional fields gets no columns from \
+                    that group.
+
+                    **Header names:** a goody or additional-field key is written as words: split at \
+                    camelCase and underscores, each word capitalised. `tShirtSize` → "T Shirt Size", \
+                    `blood_group` → "Blood Group", `Medal` → "Medal". \
+                    If a header is already used by another column (ignoring case), the fixed field keeps \
+                    it and the group column gets its group added: an additional field `city` becomes \
+                    "City (Additional)", a goody named `Notes` becomes "Notes (Goody)". Goody headers are \
+                    settled before additional-field headers.
+
+                    **Cell values:** race and category are exported by their current names. Any cell or \
+                    header starting with `=`, `+`, `-`, `@`, a tab or a carriage return is prefixed with \
+                    `'` so spreadsheet apps show it as text instead of running it as a formula."""
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "CSV file generated successfully",
+            @ApiResponse(responseCode = "200", description = "CSV file, sent as an attachment",
                     content = @Content(mediaType = "text/csv")),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
+            @ApiResponse(responseCode = "400", description = "An unknown field name in `fields`",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event not found",
+            @ApiResponse(responseCode = "403", description = "Access forbidden - insufficient permissions",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found, or not visible to the caller",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -222,8 +267,9 @@ public interface ParticipantControllerApi {
             @Parameter(description = "Event ID", required = true, example = "1")
             @PathVariable Long eventId,
 
-            @Parameter(description = "Fields to include in export. If empty, all fields are exported.",
-                    schema = @Schema(implementation = ExportField.class))
+            @Parameter(description = "Fields to export, in the column order wanted. Omit to export every "
+                    + "field in the default order.",
+                    array = @ArraySchema(schema = @Schema(implementation = ExportField.class)))
             @RequestParam(required = false) List<ExportField> fields,
 
             @AuthenticationPrincipal User currentUser
