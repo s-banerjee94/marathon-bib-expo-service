@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.participant.model.dto.request;
 
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -33,6 +34,7 @@ public class UpdateParticipantRequest {
     @Schema(description = "Phone number (10 digits)", example = "9434739700", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String phoneNumber;
 
+    @Size(max = 50, message = "Date of birth cannot exceed 50 characters")
     @Schema(description = "Date of birth (dd-mm-yyyy)", example = "21-07-1984", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String dateOfBirth;
 
@@ -61,6 +63,7 @@ public class UpdateParticipantRequest {
     @Schema(description = "Category ID (must exist in race)", example = "35", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String categoryId;
 
+    @Size(max = 50, message = "BIB number cannot exceed 50 characters")
     @Schema(description = "New BIB number (WARNING: Changes require delete+create in DynamoDB)", example = "21002", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String newBibNumber;
 
@@ -76,13 +79,16 @@ public class UpdateParticipantRequest {
     @Schema(description = "Additional notes", example = "Special accommodation needed", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String notes;
 
+    @Size(max = 50, message = "Bib collection time cannot exceed 50 characters")
     @Schema(description = "Timestamp when bib was collected (ISO format)", example = "2026-01-14T10:30:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String bibCollectedAt;
 
     @Schema(description = """
             Additional free-form columns to merge. Include only the keys you want to change: a non-empty value \
             adds or overwrites that key, a null or empty value removes it, and any key you omit is left unchanged. \
-            Omit this object entirely to leave all extra columns untouched.""",
+            Omit this object entirely to leave all extra columns untouched. After the merge a participant may \
+            hold at most 50 additional fields; names are up to 100 characters and values up to 500.""",
             example = "{\"tShirtSize\": \"M\", \"oldColumn\": null}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private Map<String, String> additionalFields;
+    private Map<@Size(max = ParticipantDDB.MAX_ADDITIONAL_FIELD_NAME, message = "An additional field name cannot exceed {max} characters") String,
+            @Size(max = ParticipantDDB.MAX_ADDITIONAL_FIELD_VALUE, message = "An additional field value cannot exceed {max} characters") String> additionalFields;
 }

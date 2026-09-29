@@ -21,6 +21,7 @@ import com.timekeeper.bibexpo.importer.model.dto.response.ImportFieldResponse;
 import com.timekeeper.bibexpo.importer.model.entity.ImportJob;
 import com.timekeeper.bibexpo.importer.model.entity.ImportRowError;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.importer.model.enums.ParticipantImportField;
 import com.timekeeper.bibexpo.importer.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.importer.repository.ImportRowErrorRepository;
@@ -231,6 +232,7 @@ public class BatchImportServiceImpl implements BatchImportService {
 
         validateExtraColumns(mapping.getGoodies(), usedIndexes);
         validateExtraColumns(mapping.getOther(), usedIndexes);
+        validateAdditionalColumns(mapping.getOther());
 
         return mapping;
     }
@@ -254,6 +256,20 @@ public class BatchImportServiceImpl implements BatchImportService {
             if (!usedIndexes.add(c.getCsvColumnIndex())) {
                 throw new InvalidCsvFormatException("A column has been mapped more than once.");
             }
+        }
+    }
+
+    // Retained columns become each participant's additional fields, which hold the same limits as a
+    // participant added by hand.
+    private void validateAdditionalColumns(List<ImportMappingRequest.ExtraColumn> columns) {
+        if (columns == null) return;
+        if (columns.size() > ParticipantDDB.MAX_ADDITIONAL_FIELDS) {
+            throw new InvalidCsvFormatException(
+                    "You can keep at most " + ParticipantDDB.MAX_ADDITIONAL_FIELDS + " additional columns.");
+        }
+        if (columns.stream().anyMatch(c -> c.getCsvColumn().length() > ParticipantDDB.MAX_ADDITIONAL_FIELD_NAME)) {
+            throw new InvalidCsvFormatException("A retained column name cannot be longer than "
+                    + ParticipantDDB.MAX_ADDITIONAL_FIELD_NAME + " characters.");
         }
     }
 

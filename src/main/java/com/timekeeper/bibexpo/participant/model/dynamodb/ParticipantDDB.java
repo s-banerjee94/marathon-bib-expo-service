@@ -91,6 +91,11 @@ public class ParticipantDDB {
 
     public static final String KEY_DELIMITER = "#";
 
+    /** Most additional fields one participant may hold, however they arrive (form, agent or import). */
+    public static final int MAX_ADDITIONAL_FIELDS = 50;
+    public static final int MAX_ADDITIONAL_FIELD_NAME = 100;
+    public static final int MAX_ADDITIONAL_FIELD_VALUE = 500;
+
     public static String compositeKey(String raceId, String categoryId) {
         if (raceId == null || categoryId == null) {
             return null;

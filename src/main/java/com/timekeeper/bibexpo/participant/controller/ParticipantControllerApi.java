@@ -46,7 +46,11 @@ public interface ParticipantControllerApi {
 
                     **Optional:** chipNumber, country, city, bibCollectedAt, goodies, additionalFields, emergencyContactName, emergencyContactPhone, notes. \
 
-                    **additionalFields:** free-form key-value columns, matching the dynamic columns retained from a CSV import. \
+                    **additionalFields:** free-form key-value columns, matching the dynamic columns retained from a CSV import: \
+                    at most 50, names up to 100 characters, values up to 500. \
+
+                    **goodies:** every goody name must already be on the event's goody list; it is matched ignoring case and \
+                    surrounding spaces and stored under the list's spelling. An unknown name returns 400, and values are up to 100 characters. \
 
                     **Uniqueness:** bibNumber must be unique within the event; chipNumber, when provided, must also be unique within the event (blank or omitted chip numbers are exempt). \
 

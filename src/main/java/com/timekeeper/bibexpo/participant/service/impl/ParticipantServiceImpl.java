@@ -72,7 +72,8 @@ public class ParticipantServiceImpl implements ParticipantService {
     public ParticipantResponse createParticipant(Long eventId, CreateParticipantRequest request, User currentUser) {
         trimStringFields(request);
 
-        accessGuard.forWrite(eventId, currentUser);
+        Event event = accessGuard.forWrite(eventId, currentUser);
+        Map<String, String> goodies = onEventGoodyList(event, request.getGoodies());
 
         EventLimits limits = eventQuota.forEvent(eventId);
         long currentCount = eventStatsQuery.participantCount(eventId);
@@ -109,7 +110,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .raceCategoryKey(ParticipantDDB.compositeKey(
                         request.getRaceId().toString(), request.getCategoryId().toString()))
                 .bibCollectedAt(request.getBibCollectedAt())
-                .goodies(request.getGoodies() != null ? new HashMap<>(request.getGoodies()) : new HashMap<>())
+                .goodies(goodies)
                 .additionalFields(request.getAdditionalFields() != null ? new HashMap<>(request.getAdditionalFields()) : new HashMap<>())
                 .emergencyContactName(request.getEmergencyContactName())
                 .emergencyContactPhone(request.getEmergencyContactPhone())
@@ -453,7 +454,34 @@ public class ParticipantServiceImpl implements ParticipantService {
                 current.put(key, value);
             }
         });
+        if (current.size() > ParticipantDDB.MAX_ADDITIONAL_FIELDS) {
+            throw new InvalidUserDataException(
+                    "A participant can have at most " + ParticipantDDB.MAX_ADDITIONAL_FIELDS + " additional fields.");
+        }
         participant.setAdditionalFields(current);
+    }
+
+    /**
+     * Keys each goody by its name on the event's goody list, so a typed "t-shirt" counts with the listed
+     * "T-Shirt", and refuses a name the list does not hold: it would start counters for a goody the event
+     * does not know and cannot remove.
+     */
+    private static Map<String, String> onEventGoodyList(Event event, Map<String, String> requested) {
+        Map<String, String> goodies = new HashMap<>();
+        if (requested == null || requested.isEmpty()) {
+            return goodies;
+        }
+        Map<String, String> listed = new HashMap<>();
+        event.getEventGoodies().forEach(goodie -> listed.put(TextUtils.toMatchKey(goodie.name()), goodie.name()));
+        requested.forEach((name, value) -> {
+            String listedName = listed.get(TextUtils.toMatchKey(name));
+            if (listedName == null) {
+                throw new InvalidUserDataException(
+                        "'" + name + "' is not one of this event's goodies; add it to the event first.");
+            }
+            goodies.put(listedName, value);
+        });
+        return goodies;
     }
 
     @Override
