@@ -398,7 +398,8 @@ public interface ParticipantControllerApi {
                     - Emergency Contact: emergencyContactName, emergencyContactPhone \
                     - Notes \
                     - additionalFields: free-form columns, merged (see below) \
-                    - BIB Number: via the separate `newBibNumber` field; because bibNumber is the DynamoDB sort key the record is deleted and recreated under the new number \
+                    - BIB Number: via the separate `newBibNumber` field; because bibNumber is the DynamoDB sort key the record is deleted and recreated under the new number. \
+                    Refused (400) once the bib has been handed out, because the hand-out history stays with the old number; undo the collection first. \
 
                     **What Cannot Be Updated here:** \
                     - Goodies allocation: fixed at creation/import. Only the handout status changes, through the distribution endpoints. \
@@ -419,7 +420,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "200", description = "Participant updated successfully. Returns the complete updated record.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ParticipantResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request data - invalid race/category ID, invalid field values, field validation errors, or the event is completed or cancelled",
+            @ApiResponse(responseCode = "400", description = "Invalid request data - invalid race/category ID, invalid field values, field validation errors, the event is completed or cancelled, or a bib number change on a bib already handed out",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access denied - user not authorized for this event",

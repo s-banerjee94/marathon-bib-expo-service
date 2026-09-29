@@ -64,7 +64,7 @@ public class UpdateParticipantRequest {
     private String categoryId;
 
     @Size(max = 50, message = "BIB number cannot exceed 50 characters")
-    @Schema(description = "New BIB number (WARNING: Changes require delete+create in DynamoDB)", example = "21002", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Schema(description = "New BIB number. Refused once the bib has been handed out; undo the collection first.", example = "21002", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String newBibNumber;
 
     @Size(max = 200, message = "Emergency contact name cannot exceed 200 characters")

@@ -7,6 +7,7 @@ import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.participant.exception.BibNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.participant.exception.ChipNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.participant.exception.ParticipantDeletionFailedException;
+import com.timekeeper.bibexpo.participant.exception.ParticipantModificationNotAllowedException;
 import com.timekeeper.bibexpo.participant.exception.RaceCategoryMismatchException;
 import com.timekeeper.bibexpo.participant.model.dto.request.BulkDeleteParticipantsRequest;
 import com.timekeeper.bibexpo.participant.model.dto.request.CreateParticipantRequest;
@@ -170,6 +171,11 @@ public class ParticipantServiceImpl implements ParticipantService {
             newBibNumber = request.getNewBibNumber();
             bibNumberChanged = true;
 
+            // Hand-out history is logged under the old bib and would not follow it.
+            if (participant.getBibCollectedAt() != null) {
+                throw new ParticipantModificationNotAllowedException(
+                        "You can't change the bib number after the bib was handed out; undo the collection first.");
+            }
             if (participantRepository.findByEventAndBib(eventId, newBibNumber) != null) {
                 throw new BibNumberAlreadyExistsException();
             }
