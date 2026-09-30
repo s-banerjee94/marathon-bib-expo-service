@@ -346,11 +346,15 @@ public class ParticipantDDBRepository implements ParticipantStore {
             // One more passes, so there is a next page, and it starts right after the last one kept.
             if (kept.size() == limit) {
                 ParticipantDDB last = kept.get(limit - 1);
-                return Page.create(kept, primaryKey(last.getEventId(), last.getBibNumber()));
+                return page(kept, primaryKey(last.getEventId(), last.getBibNumber()));
             }
             kept.add(participant);
         }
-        return Page.create(kept, null);
+        return page(kept, null);
+    }
+
+    private static Page<ParticipantDDB> page(List<ParticipantDDB> items, Map<String, AttributeValue> lastEvaluatedKey) {
+        return Page.builder(ParticipantDDB.class).items(items).lastEvaluatedKey(lastEvaluatedKey).build();
     }
 
     /**
