@@ -84,8 +84,9 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Bib already collected, or goodies already handed over (all such goodies named in "
-                            + "one message)",
+                    description = "Bib already collected, goodies already handed over (all such goodies named in "
+                            + "one message), or the participant was changed by someone else at the same moment "
+                            + "(reload and try again)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -142,6 +143,14 @@ public interface DistributionControllerApi {
             @ApiResponse(
                     responseCode = "400",
                     description = "Bib has not been collected yet",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "The participant was changed by someone else at the same moment; reload and try again",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -214,7 +223,8 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Goodies already handed over (all such goodies named in one message)",
+                    description = "Goodies already handed over (all such goodies named in one message), or the "
+                            + "participant was changed by someone else at the same moment (reload and try again)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)

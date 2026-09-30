@@ -216,10 +216,8 @@ public class ParticipantServiceImpl implements ParticipantService {
         participant.setUpdatedBy(currentUser.getUsername());
 
         if (bibNumberChanged) {
-            // New bib first: a lost race leaves the participant where it was, not deleted.
             participant.setBibNumber(newBibNumber);
-            participantRepository.create(participant);
-            participantRepository.deleteByEventAndBib(eventId, bibNumber);
+            participantRepository.changeBib(participant, bibNumber);
         } else {
             participantRepository.update(participant);
         }

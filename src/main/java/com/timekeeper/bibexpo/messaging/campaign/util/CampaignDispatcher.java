@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.messaging.campaign.util;
 
 import com.timekeeper.bibexpo.messaging.campaign.exception.MessageSendException;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.exception.ParticipantChangedException;
+import com.timekeeper.bibexpo.participant.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,6 +33,7 @@ import java.util.function.Predicate;
 public class CampaignDispatcher {
 
     private static final int PAGE_SIZE = 50;
+    private static final int STAMP_ATTEMPTS = 3;
 
     private final ParticipantStore participantStore;
 
@@ -128,8 +131,7 @@ public class CampaignDispatcher {
 
             request.getSender().send(participant);
 
-            request.getSendsMapAccessor().apply(participant).put(campaignKey, Instant.now().toString());
-            participantStore.update(participant);
+            recordSent(request, participant.getBibNumber());
             state.sentCount++;
             state.consecutiveFailures = 0;
             log.debug("{} sent to bib {} for campaign {}", request.getChannelName(), participant.getBibNumber(), campaignKey);
@@ -144,6 +146,30 @@ public class CampaignDispatcher {
         } catch (MessageSendException | RuntimeException e) {
             handleSendFailure(request, participant, state, e);
             return false;
+        }
+    }
+
+    /**
+     * Stamps the send on a fresh read. The page was read before its sends began, and writing that copy
+     * back would undo anything changed since, such as a bib collected at the counter.
+     */
+    private void recordSent(DispatchRequest request, String bibNumber) {
+        for (int attempt = 1; ; attempt++) {
+            ParticipantDDB current;
+            try {
+                current = participantStore.findByEventAndBibOrThrow(request.getEventId(), bibNumber);
+            } catch (ParticipantNotFoundException e) {
+                return;
+            }
+            request.getSendsMapAccessor().apply(current).put(request.getCampaignKey(), Instant.now().toString());
+            try {
+                participantStore.update(current);
+                return;
+            } catch (ParticipantChangedException e) {
+                if (attempt == STAMP_ATTEMPTS) {
+                    throw e;
+                }
+            }
         }
     }
 

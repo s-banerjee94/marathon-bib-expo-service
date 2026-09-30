@@ -429,7 +429,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "404", description = "Event, participant, race, or category not found",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "BIB number or chip number already assigned to another participant in this event",
+            @ApiResponse(responseCode = "409", description = "BIB number or chip number already assigned to another participant in this event, or the participant was changed by someone else since it was read (reload and try again)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })

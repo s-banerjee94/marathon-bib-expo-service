@@ -137,6 +137,7 @@ public class DistributionServiceImpl implements DistributionService {
                 ? handOut(event, participant, request.getGoodiesItems(), request.getVariantIds(), now, distributedBy)
                 : List.of();
         List<String> goodiesDistributed = handed.stream().map(HandOver::name).toList();
+        participantStore.update(participant);
         if (!goodiesDistributed.isEmpty()) {
             logDistributionAction(String.valueOf(eventId), bibNumber,
                     DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
@@ -146,7 +147,6 @@ public class DistributionServiceImpl implements DistributionService {
                     goodiesDistributed, bibNumber, eventId, distributedBy);
         }
 
-        participantStore.update(participant);
         eventStatsRecorder.onBibCollected(ParticipantCountersMapper.of(participant), goodiesDistributed,
                 EventTimeUtil.zoneOf(event.getTimezone()));
         markDistributionStarted(event);
@@ -246,6 +246,10 @@ public class DistributionServiceImpl implements DistributionService {
                 now, distributedBy);
         List<String> itemsDistributed = handed.stream().map(HandOver::name).toList();
 
+        participant.setUpdatedAt(now);
+        participant.setUpdatedBy(currentUser.getUsername());
+        participantStore.update(participant);
+
         logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
                 itemsDistributed, distributedBy, participant.getBibCollectedByName(),
@@ -254,10 +258,6 @@ public class DistributionServiceImpl implements DistributionService {
         log.info("Goodies items {} distributed for bib {} in event {} by staff {}",
                 itemsDistributed, bibNumber, eventId, distributedBy);
 
-        participant.setUpdatedAt(now);
-        participant.setUpdatedBy(currentUser.getUsername());
-
-        participantStore.update(participant);
         eventStatsRecorder.onGoodiesDistributed(ParticipantCountersMapper.of(participant), itemsDistributed);
         markDistributionStarted(event);
         issueStock(eventId, bibNumber, handed, currentUser);

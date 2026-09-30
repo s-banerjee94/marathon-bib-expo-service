@@ -89,6 +89,9 @@ public class ParticipantDDB {
     private String updatedAt;
     private String updatedBy;
 
+    /** Raised on every write; a single-record write lands only if the stored version is still the one read. */
+    private Long version;
+
     public static final String KEY_DELIMITER = "#";
 
     /** Most additional fields one participant may hold, however they arrive (form, agent or import). */

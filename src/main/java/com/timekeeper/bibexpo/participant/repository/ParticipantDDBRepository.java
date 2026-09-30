@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.participant.repository;
 
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
 import com.timekeeper.bibexpo.participant.exception.BibNumberAlreadyExistsException;
+import com.timekeeper.bibexpo.participant.exception.ParticipantChangedException;
 import com.timekeeper.bibexpo.participant.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
@@ -20,11 +21,15 @@ import software.amazon.awssdk.enhanced.dynamodb.model.PutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.ReadBatch;
+import software.amazon.awssdk.enhanced.dynamodb.model.TransactDeleteItemEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.WriteBatch;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.ArrayList;
@@ -47,6 +52,8 @@ public class ParticipantDDBRepository implements ParticipantStore {
 
     private static final int BATCH_SIZE = 25;
     private static final int GET_BATCH_SIZE = 100;
+    private static final String VERSION = "version";
+    private static final Expression BIB_FREE = Expression.builder().expression("attribute_not_exists(bibNumber)").build();
 
     private DynamoDbTable<ParticipantDDB> getTable() {
         if (table == null) {
@@ -118,7 +125,16 @@ public class ParticipantDDBRepository implements ParticipantStore {
 
     @Override
     public void update(ParticipantDDB participant) {
-        getTable().putItem(participant);
+        Long read = participant.getVersion();
+        participant.setVersion(nextVersion(read));
+        try {
+            getTable().putItem(PutItemEnhancedRequest.builder(ParticipantDDB.class)
+                    .item(participant)
+                    .conditionExpression(unchangedSince(read))
+                    .build());
+        } catch (ConditionalCheckFailedException e) {
+            throw new ParticipantChangedException();
+        }
         log.debug("Updated participant with bib {} for event {}",
                 participant.getBibNumber(), participant.getEventId());
     }
@@ -131,10 +147,11 @@ public class ParticipantDDBRepository implements ParticipantStore {
      * @throws BibNumberAlreadyExistsException if the bib is already taken in the event
      */
     public void create(ParticipantDDB participant) {
+        participant.setVersion(1L);
         try {
             getTable().putItem(PutItemEnhancedRequest.builder(ParticipantDDB.class)
                     .item(participant)
-                    .conditionExpression(Expression.builder().expression("attribute_not_exists(bibNumber)").build())
+                    .conditionExpression(BIB_FREE)
                     .build());
         } catch (ConditionalCheckFailedException e) {
             throw new BibNumberAlreadyExistsException();
@@ -142,22 +159,85 @@ public class ParticipantDDBRepository implements ParticipantStore {
     }
 
     /**
-     * Sets only the verifyShortCode attribute via a targeted update, leaving every other
-     * attribute untouched so a concurrent edit (e.g. a bib collection) is not overwritten.
+     * Moves a participant to the bib it now carries in one transaction: the new bib must be free and the
+     * record under the old bib unchanged since it was read, or nothing is written.
+     *
+     * @param participant  the record, already carrying its new bib number
+     * @param oldBibNumber the bib it is moving from
+     * @throws BibNumberAlreadyExistsException if the new bib is already taken in the event
+     * @throws ParticipantChangedException     if the old record was changed or deleted since it was read
+     */
+    public void changeBib(ParticipantDDB participant, String oldBibNumber) {
+        Long read = participant.getVersion();
+        participant.setVersion(nextVersion(read));
+        try {
+            dynamoDbEnhancedClient.transactWriteItems(TransactWriteItemsEnhancedRequest.builder()
+                    .addPutItem(getTable(), TransactPutItemEnhancedRequest.builder(ParticipantDDB.class)
+                            .item(participant)
+                            .conditionExpression(BIB_FREE)
+                            .build())
+                    .addDeleteItem(getTable(), TransactDeleteItemEnhancedRequest.builder()
+                            .key(Key.builder().partitionValue(participant.getEventId()).sortValue(oldBibNumber).build())
+                            .conditionExpression(unchangedSince(read))
+                            .build())
+                    .build());
+        } catch (TransactionCanceledException e) {
+            if (e.hasCancellationReasons()
+                    && "ConditionalCheckFailed".equals(e.cancellationReasons().get(0).code())) {
+                throw new BibNumberAlreadyExistsException();
+            }
+            throw new ParticipantChangedException();
+        }
+    }
+
+    /** The record still exists and nobody has written it since it was read at {@code version}. */
+    private static Expression unchangedSince(Long version) {
+        if (version == null) {
+            // Written before records carried a version.
+            return Expression.builder()
+                    .expression("attribute_exists(bibNumber) AND attribute_not_exists(#version)")
+                    .putExpressionName("#version", VERSION)
+                    .build();
+        }
+        return Expression.builder()
+                .expression("#version = :version")
+                .putExpressionName("#version", VERSION)
+                .putExpressionValue(":version", AttributeValue.fromN(version.toString()))
+                .build();
+    }
+
+    private static long nextVersion(Long version) {
+        return version == null ? 1 : version + 1;
+    }
+
+    /**
+     * Sets only the verifyShortCode attribute via a targeted update, leaving every other attribute
+     * untouched. It raises the version too, so a copy read before it cannot be written back over the code.
+     * A participant deleted meanwhile is skipped.
      */
     @Override
     public void updateVerifyShortCode(Long eventId, String bibNumber, String code) {
-        dynamoDbClient.updateItem(UpdateItemRequest.builder()
-                .tableName(dynamoDbProperties.participantsTable())
-                .key(primaryKey(String.valueOf(eventId), bibNumber))
-                .updateExpression("SET verifyShortCode = :code")
-                .expressionAttributeValues(Map.of(":code", AttributeValue.fromS(code)))
-                .build());
+        try {
+            dynamoDbClient.updateItem(UpdateItemRequest.builder()
+                    .tableName(dynamoDbProperties.participantsTable())
+                    .key(primaryKey(String.valueOf(eventId), bibNumber))
+                    .updateExpression("SET verifyShortCode = :code ADD #version :one")
+                    .conditionExpression("attribute_exists(bibNumber)")
+                    .expressionAttributeNames(Map.of("#version", VERSION))
+                    .expressionAttributeValues(Map.of(":code", AttributeValue.fromS(code), ":one", AttributeValue.fromN("1")))
+                    .build());
+        } catch (ConditionalCheckFailedException e) {
+            log.debug("Participant with bib {} for event {} was deleted before its short code was set", bibNumber, eventId);
+        }
     }
 
     @Override
     public void batchSave(List<ParticipantDDB> participants) {
         if (participants == null || participants.isEmpty()) return;
+
+        // ponytail: a batch write cannot be conditional, so it overwrites anything changed since its read; only the
+        // import and the draft-only goody purge use it. Raising the version still stops older copies landing over it.
+        participants.forEach(participant -> participant.setVersion(nextVersion(participant.getVersion())));
 
         for (int i = 0; i < participants.size(); i += BATCH_SIZE) {
             List<ParticipantDDB> batch = participants.subList(i, Math.min(i + BATCH_SIZE, participants.size()));
