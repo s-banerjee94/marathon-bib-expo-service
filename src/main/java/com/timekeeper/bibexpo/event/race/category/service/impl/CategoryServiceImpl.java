@@ -18,7 +18,6 @@ import com.timekeeper.bibexpo.event.race.category.model.dto.request.UpdateCatego
 import com.timekeeper.bibexpo.event.race.category.model.dto.response.CategoryResponse;
 import com.timekeeper.bibexpo.event.race.category.model.entity.Category;
 import com.timekeeper.bibexpo.event.model.entity.Event;
-import com.timekeeper.bibexpo.event.race.category.model.enums.Gender;
 import com.timekeeper.bibexpo.event.race.model.entity.Race;
 import com.timekeeper.bibexpo.event.model.enums.EventOperation;
 import com.timekeeper.bibexpo.event.race.category.repository.CategoryRepository;
@@ -132,7 +131,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CategoryResponse> getCategoriesByRaceId(Long eventId, Long raceId, Gender gender, User currentUser) {
+    public List<CategoryResponse> getCategoriesByRaceId(Long eventId, Long raceId, User currentUser) {
         validateRaceAndEvent(eventId, raceId, currentUser);
 
         return categoryRepository.findByRaceId(raceId).stream()

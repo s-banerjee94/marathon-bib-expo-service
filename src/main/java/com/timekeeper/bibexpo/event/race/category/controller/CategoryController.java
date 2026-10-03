@@ -5,7 +5,6 @@ import com.timekeeper.bibexpo.event.race.category.exception.CategoryInUseExcepti
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.response.CategoryResponse;
-import com.timekeeper.bibexpo.event.race.category.model.enums.Gender;
 import com.timekeeper.bibexpo.event.race.category.service.CategoryService;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -32,9 +31,8 @@ public class CategoryController implements CategoryControllerApi {
     public ResponseEntity<List<CategoryResponse>> getCategoriesByRaceId(
             @PathVariable Long eventId,
             @PathVariable Long raceId,
-            @RequestParam(required = false) Gender gender,
             @AuthenticationPrincipal User currentUser) {
-        List<CategoryResponse> categories = categoryService.getCategoriesByRaceId(eventId, raceId, gender, currentUser);
+        List<CategoryResponse> categories = categoryService.getCategoriesByRaceId(eventId, raceId, currentUser);
 
         return ResponseEntity.ok(categories);
     }

@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.ai.mcp;
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.response.CategoryResponse;
-import com.timekeeper.bibexpo.event.race.category.model.enums.Gender;
 import com.timekeeper.bibexpo.event.race.category.service.CategoryService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
@@ -29,13 +28,12 @@ public class CategoryMcpTools implements McpToolGroup {
                     + "first; never ask the user for numeric ids. Scoped to events the signed-in user may see.")
     public List<CategoryResponse> listRaceCategories(
             @ToolParam(description = "The id of the event the race belongs to. Resolve it from the event name with search_events") Long eventId,
-            @ToolParam(description = "The id of the race whose categories to list. Resolve it from the race name with list_event_races") Long raceId,
-            @ToolParam(required = false, description = "Optional gender filter: MALE, FEMALE, OTHER or OPEN") Gender gender) {
+            @ToolParam(description = "The id of the race whose categories to list. Resolve it from the race name with list_event_races") Long raceId) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-        log.info("MCP list_race_categories - event {}, race {}, gender {}, by {}",
-                eventId, raceId, gender, currentUser.getUsername());
-        return categoryService.getCategoriesByRaceId(eventId, raceId, gender, currentUser);
+        log.info("MCP list_race_categories - event {}, race {}, by {}",
+                eventId, raceId, currentUser.getUsername());
+        return categoryService.getCategoriesByRaceId(eventId, raceId, currentUser);
     }
 
     @Tool(name = "create_category",
