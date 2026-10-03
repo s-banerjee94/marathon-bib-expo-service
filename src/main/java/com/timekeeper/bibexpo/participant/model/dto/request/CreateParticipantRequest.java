@@ -65,8 +65,8 @@ public class CreateParticipantRequest {
     @Schema(description = "Date of birth (required if age is not provided)", example = "1990-01-15", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String dateOfBirth;
 
-    @Min(value = 0, message = "Age must be non-negative")
-    @Max(value = 150, message = "Age must be reasonable")
+    @Min(value = 4, message = "The age must be greater than 3.")
+    @Max(value = 150, message = "The age must be 150 or less.")
     @Schema(description = "Age (required if date of birth is not provided)", example = "35", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Integer age;
 
@@ -92,7 +92,7 @@ public class CreateParticipantRequest {
 
     @Size(max = ParticipantDDB.MAX_ADDITIONAL_FIELDS, message = "You can add at most {max} additional fields")
     @Schema(description = "Additional free-form columns as key-value pairs: at most 50, names up to 100 characters, "
-            + "values up to 500.",
+            + "values up to 200.",
             example = "{\"pre-existing disease\": \"stroke\"}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Map<@Size(max = ParticipantDDB.MAX_ADDITIONAL_FIELD_NAME, message = "An additional field name cannot exceed {max} characters") String,
             @Size(max = ParticipantDDB.MAX_ADDITIONAL_FIELD_VALUE, message = "An additional field value cannot exceed {max} characters") String> additionalFields;
@@ -105,7 +105,7 @@ public class CreateParticipantRequest {
     @Pattern(regexp = "^\\d{10}$", message = "must be a 10-digit number")
     private String emergencyContactPhone;
 
-    @Size(max = 500, message = "Notes cannot exceed 500 characters")
+    @Size(max = 200, message = "Notes cannot exceed 200 characters")
     @Schema(description = "Additional notes", example = "VIP participant", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String notes;
 }

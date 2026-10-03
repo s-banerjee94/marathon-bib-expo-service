@@ -38,8 +38,8 @@ public class UpdateParticipantRequest {
     @Schema(description = "Date of birth (dd-mm-yyyy)", example = "21-07-1984", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String dateOfBirth;
 
-    @Min(value = 0, message = "Age must be non-negative")
-    @Max(value = 150, message = "Age must be reasonable")
+    @Min(value = 4, message = "The age must be greater than 3.")
+    @Max(value = 150, message = "The age must be 150 or less.")
     @Schema(description = "Participant age", example = "41", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Integer age;
 
@@ -75,7 +75,7 @@ public class UpdateParticipantRequest {
     @Pattern(regexp = "^(\\d{10})?$", message = "must be a 10-digit number")
     private String emergencyContactPhone;
 
-    @Size(max = 500, message = "Notes cannot exceed 500 characters")
+    @Size(max = 200, message = "Notes cannot exceed 200 characters")
     @Schema(description = "Additional notes", example = "Special accommodation needed", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String notes;
 
@@ -87,7 +87,7 @@ public class UpdateParticipantRequest {
             Additional free-form columns to merge. Include only the keys you want to change: a non-empty value \
             adds or overwrites that key, a null or empty value removes it, and any key you omit is left unchanged. \
             Omit this object entirely to leave all extra columns untouched. After the merge a participant may \
-            hold at most 50 additional fields; names are up to 100 characters and values up to 500.""",
+            hold at most 50 additional fields; names are up to 100 characters and values up to 200.""",
             example = "{\"tShirtSize\": \"M\", \"oldColumn\": null}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Map<@Size(max = ParticipantDDB.MAX_ADDITIONAL_FIELD_NAME, message = "An additional field name cannot exceed {max} characters") String,
             @Size(max = ParticipantDDB.MAX_ADDITIONAL_FIELD_VALUE, message = "An additional field value cannot exceed {max} characters") String> additionalFields;
