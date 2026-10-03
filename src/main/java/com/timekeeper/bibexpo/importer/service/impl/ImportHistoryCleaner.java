@@ -25,7 +25,12 @@ public class ImportHistoryCleaner implements EventDeletionCleaner {
         int errors = importRowErrorRepository.deleteByEventId(eventId);
         int jobs = importJobRepository.deleteByEventId(eventId);
         if (jobs > 0) {
-            log.info("Deleted {} import job(s) and {} row error(s) for event {}", jobs, errors, eventId);
+            log.atInfo()
+                    .addKeyValue("event", "import.history_purged")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("jobs", jobs)
+                    .addKeyValue("errors", errors)
+                    .log("Import history purged with its event");
         }
     }
 }

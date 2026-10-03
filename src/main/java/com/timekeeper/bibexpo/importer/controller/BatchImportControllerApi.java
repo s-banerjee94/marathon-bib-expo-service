@@ -96,7 +96,8 @@ public interface BatchImportControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Poll batch import job status",
-            description = "Reads Spring Batch metadata to return current status and step counters. " +
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\n" +
+                    "Reads Spring Batch metadata to return current status and step counters. " +
                     "Status values: STARTING, STARTED, COMPLETED, FAILED, STOPPED, ABANDONED, UNKNOWN."
     )
     @ApiResponses(value = {
@@ -122,6 +123,8 @@ public interface BatchImportControllerApi {
     @Operation(
             summary = "Cooperatively stop a running batch import",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Signals Spring Batch to terminate the job at the next chunk boundary. \
                     The job will transition to STOPPING then STOPPED, and the ImportJob row \
                     will be marked FAILED with a 'Stopped by user' reason once the worker thread exits. \
@@ -180,7 +183,8 @@ public interface BatchImportControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "List the participant fields a CSV column can be mapped to",
-            description = "Returns the canonical catalog of target fields (key, label, required flag) the " +
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\n" +
+                    "Returns the canonical catalog of target fields (key, label, required flag) the " +
                     "frontend should offer when building a column mapping. Use the returned keys as targetField " +
                     "values in the import mapping so the two sides never drift."
     )

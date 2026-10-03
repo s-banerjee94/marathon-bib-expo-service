@@ -1,41 +1,40 @@
 package com.timekeeper.bibexpo.importer.batch;
 
-import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Path;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Set;
+import java.util.Optional;
 
 @Component
-@Slf4j
 @RequiredArgsConstructor
 public class CsvRowValidator {
 
     private final Validator validator;
 
     public List<ValidationError> validate(CsvRow row) {
-        Set<ConstraintViolation<CsvRow>> violations = validator.validate(row);
-
-        return violations.stream()
-                .map(violation -> ValidationError.builder()
-                        .field(getFieldName(violation.getPropertyPath().toString()))
-                        .message(violation.getMessage())
-                        .build())
+        return validator.validate(row).stream()
+                .map(violation -> {
+                    String path = violation.getPropertyPath().toString();
+                    String field = switch (path) {
+                        case "phone" -> "phoneNumber";
+                        case "ageUnreadable" -> "age";
+                        default -> mapKey(violation.getPropertyPath()).orElse(path);
+                    };
+                    return new ValidationError(field, violation.getMessage());
+                })
                 .toList();
     }
 
-    private String getFieldName(String propertyPath) {
-		return switch (propertyPath) {
-			case "bibNumber" -> "bibNumber";
-			case "fullName" -> "fullName";
-			case "email" -> "email";
-			case "phone" -> "phoneNumber";
-			case "age" -> "age";
-			case "gender" -> "gender";
-			default -> propertyPath;
-		};
+    // A goody or additional-field value is reported under its column name.
+    private static Optional<String> mapKey(Path path) {
+        for (Path.Node node : path) {
+            if (node.getKey() != null) {
+                return Optional.of(node.getKey().toString());
+            }
+        }
+        return Optional.empty();
     }
 }

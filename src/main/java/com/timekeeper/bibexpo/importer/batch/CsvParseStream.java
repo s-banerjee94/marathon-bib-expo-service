@@ -104,7 +104,10 @@ public class CsvParseStream implements Closeable {
             case "bibNumber" -> row.setBibNumber(value);
             case "fullName" -> row.setFullName(TextUtils.toUpperOrNull(value));
             case "dateOfBirth" -> row.setDateOfBirth(value);
-            case "age" -> row.setAge(parseInteger(value));
+            case "age" -> {
+                row.setAge(parseInteger(value));
+                row.setAgeUnreadable(value != null && row.getAge() == null);
+            }
             case "gender" -> row.setGender(TextUtils.toUpperOrNull(value));
             case "raceName" -> row.setRaceName(value);
             case "categoryName" -> row.setCategoryName(value);

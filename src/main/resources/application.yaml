@@ -110,6 +110,7 @@ logging:
   level:
     root: INFO
     org.springframework.web.servlet.handler.HandlerMappingIntrospector: ERROR   # silences a noisy Spring Security WARN
+    org.springframework.batch: WARN   # import.launched / import.finished cover it; Batch's INFO dumps every job parameter
 
 app:
   invite:
