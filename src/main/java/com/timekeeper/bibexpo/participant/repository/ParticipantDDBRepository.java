@@ -354,7 +354,12 @@ public class ParticipantDDBRepository implements ParticipantStore {
     }
 
     private static Page<ParticipantDDB> page(List<ParticipantDDB> items, Map<String, AttributeValue> lastEvaluatedKey) {
-        return Page.builder(ParticipantDDB.class).items(items).lastEvaluatedKey(lastEvaluatedKey).build();
+        // The builder copies the key map, so a null key (last page) must be left unset.
+        Page.Builder<ParticipantDDB> builder = Page.builder(ParticipantDDB.class).items(items);
+        if (lastEvaluatedKey != null) {
+            builder.lastEvaluatedKey(lastEvaluatedKey);
+        }
+        return builder.build();
     }
 
     /**
