@@ -39,7 +39,8 @@ public interface DistributionControllerApi {
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`, `DISTRIBUTOR`
 
                     Record bib collection for a participant. \
-                    Optionally specify who collected the bib (defaults to the participant when not provided). \
+                    Optionally specify who collected the bib, a name up to 200 characters and a 10-digit phone \
+                    number (defaults to the participant when not provided or blank). \
                     Optionally hand over goodies at the same time by listing them in goodiesItems. \
                     The staff member performing the collection is recorded automatically. \
                     A bib cannot be collected twice. \
@@ -66,8 +67,9 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Goodies need their variant chosen, or were sent one that is not their item's "
-                            + "(all named in one message)",
+                    description = "The collector name is too long or the phone number is not 10 digits, or goodies "
+                            + "need their variant chosen or were sent one that is not their item's (all named in "
+                            + "one message)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -107,7 +109,7 @@ public interface DistributionControllerApi {
             @Parameter(description = "Bib number", example = "3001")
             @PathVariable String bibNumber,
             @Parameter(description = "Collector details and goodies to hand over (optional - defaults to the participant)")
-            @RequestBody(required = false) CollectBibRequest request,
+            @Valid @RequestBody(required = false) CollectBibRequest request,
             @AuthenticationPrincipal User currentUser);
 
     @PostMapping("/bib/{bibNumber}/undo")
@@ -372,7 +374,8 @@ public interface DistributionControllerApi {
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
                     Retrieve paginated distribution event logs for an event, newest first. \
-                    Logs include bib collection, bib undo, goodies distribution, and goodies undo actions. \
+                    Logs record bib collections (BIB_COLLECTED), undos (BIB_UNDONE) and goodies hand-overs \
+                    (GOODIES_DISTRIBUTED). \
                     Uses token-based pagination with limit and lastEvaluatedKey."""
     )
     @ApiResponses(value = {
@@ -417,8 +420,9 @@ public interface DistributionControllerApi {
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
-                    Retrieve all distribution event logs for a specific participant by bib number. \
-                    Returns logs for bib collection, bib undo, goodies distribution, and goodies undo actions for this participant."""
+                    Retrieve all distribution event logs for a specific participant by bib number: \
+                    their bib collections, undos and goodies hand-overs. \
+                    A bib with no logs, or one not in the event, gives an empty list."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -426,7 +430,7 @@ public interface DistributionControllerApi {
                     description = "List of distribution event logs for the participant",
                     content = @Content(
                             mediaType = "application/json",
-                            schema = @Schema(implementation = DistributionLogResponse.class)
+                            array = @ArraySchema(schema = @Schema(implementation = DistributionLogResponse.class))
                     )
             ),
             @ApiResponse(
@@ -468,7 +472,7 @@ public interface DistributionControllerApi {
                     - `ACTION`: Logs by action type (e.g., 'BIB_COLLECTED', 'GOODIES_DISTRIBUTED') \
                     - `PERFORMED_BY`: Logs by staff member identifier (e.g., '123__|__john_doe') \
                     - `COLLECTOR`: Logs by collector name prefix (e.g., 'John') \
-                    - `COLLECTOR_PHONE`: Logs by collector phone prefix (e.g., '+62') \
+                    - `COLLECTOR_PHONE`: Logs by collector phone prefix (e.g., '98765') \
 
                     **Pagination:** Results are paginated using DynamoDB lastEvaluatedKey (base64 encoded)."""
     )
@@ -476,7 +480,8 @@ public interface DistributionControllerApi {
             @ApiResponse(responseCode = "200", description = "Lookup completed successfully",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = DistributionLogListResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid search parameters",
+            @ApiResponse(responseCode = "400", description = "searchType is not one of the listed types, searchValue "
+                    + "is blank, limit is below 1, or lastEvaluatedKey is not a valid token",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden - insufficient permissions",
@@ -519,16 +524,17 @@ public interface DistributionControllerApi {
                     Each entry in items works exactly like a single bib collect: goodiesItems (optional) may hold any \
                     of the participant's own goodies or any goody added to the event by hand, and variantIds picks \
                     the variant of a goody linked to inventory, by the same rules. \
-                    collectorName and collectorPhone, when given, are recorded for every bib; otherwise each \
-                    participant is their own collector. \
+                    collectorName (up to 200 characters) and collectorPhone (10 digits), when given, are recorded for \
+                    every bib; otherwise each participant is their own collector. \
                     The staff member performing the collection is recorded automatically. \
                     Entries are processed one by one and independently: one that fails does not stop the others, \
                     and a failed entry saves nothing, neither its bib nor its goodies. \
                     When several goodies of one entry fail the same check, its reason names them all. \
                     The response lists the bibs collected and, for each failure, the bib, the goodies it asked for, \
                     and the reason. \
-                    A request with no entries, more than 25 entries, or an entry without a bib number is refused \
-                    with 400 before anything is saved."""
+                    A request with no entries, more than 25 entries, an entry without a bib number, a collector \
+                    name that is too long or a phone number that is not 10 digits is refused with 400 before \
+                    anything is saved."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -541,7 +547,8 @@ public interface DistributionControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "items is missing or empty, holds more than 25 entries, or an entry has no bib number",
+                    description = "items is missing or empty, holds more than 25 entries, an entry has no bib number, "
+                            + "the collector name is too long, or the collector phone number is not 10 digits",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)

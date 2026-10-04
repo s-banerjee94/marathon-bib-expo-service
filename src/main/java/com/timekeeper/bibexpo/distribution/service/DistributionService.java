@@ -25,7 +25,7 @@ public interface DistributionService {
      * Records who collected the bib (participant or someone else) and which staff member distributed it
      * @param eventId The event ID
      * @param bibNumber The bib number
-     * @param request The collect bib request (optional collector details)
+     * @param request The collect bib request (optional collector details; a blank one means the participant)
      * @param currentUser The authenticated staff user
      * @return Bib distribution details
      */
@@ -82,7 +82,7 @@ public interface DistributionService {
 
     /**
      * Get paginated distribution event logs for an event
-     * Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN
+     * Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER (NOT DISTRIBUTOR)
      * @param eventId The event ID
      * @param limit Maximum number of items to return (default: 50, max: 100)
      * @param lastEvaluatedKey Pagination token from previous response
@@ -93,7 +93,7 @@ public interface DistributionService {
 
     /**
      * Get distribution event logs for a specific participant
-     * Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN
+     * Only accessible by ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER (NOT DISTRIBUTOR)
      * @param eventId The event ID
      * @param bibNumber The bib number
      * @param currentUser The authenticated user
@@ -122,8 +122,8 @@ public interface DistributionService {
     /**
      * Lookup distribution logs using LSI with begins_with prefix search and pagination
      * @param eventId The event ID
-     * @param searchType The LSI to query: BIB, ACTION, PERFORMED_BY, COLLECTOR, ITEM
-     * @param searchValue The prefix value to search for
+     * @param searchType The LSI to query: BIB, ACTION, PERFORMED_BY, COLLECTOR, COLLECTOR_PHONE
+     * @param searchValue The prefix value to search for; a blank one is refused
      * @param limit Maximum number of results (default: 50, max: 100)
      * @param lastEvaluatedKey Pagination token from previous response
      * @param currentUser The authenticated user

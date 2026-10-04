@@ -115,13 +115,10 @@ public class DistributionServiceImpl implements DistributionService {
         }
 
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
-        String collectorName = TextUtils.toUpperOrNull(
-                (request != null && request.getCollectorName() != null)
-                        ? request.getCollectorName()
-                        : participant.getFullName());
-        String collectorPhone = (request != null && request.getCollectorPhone() != null)
-                ? request.getCollectorPhone()
-                : participant.getPhoneNumber();
+        String requestedName = request == null ? null : TextUtils.trimToNull(request.getCollectorName());
+        String requestedPhone = request == null ? null : TextUtils.trimToNull(request.getCollectorPhone());
+        String collectorName = TextUtils.toUpperOrNull(requestedName != null ? requestedName : participant.getFullName());
+        String collectorPhone = requestedPhone != null ? requestedPhone : participant.getPhoneNumber();
         String distributedBy = DistributorStamp.of(currentUser.getId(), currentUser.getUsername());
 
         participant.setBibCollectedAt(now);
@@ -138,15 +135,8 @@ public class DistributionServiceImpl implements DistributionService {
                 : List.of();
         List<String> goodiesDistributed = handed.stream().map(HandOver::name).toList();
         participantStore.update(participant);
-        if (!goodiesDistributed.isEmpty()) {
-            logDistributionAction(String.valueOf(eventId), bibNumber,
-                    DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
-                    goodiesDistributed, distributedBy, collectorName, collectorPhone, null);
-
-            log.info("Goodies items {} distributed for bib {} in event {} by staff {}",
-                    goodiesDistributed, bibNumber, eventId, distributedBy);
-        }
-
+        // Counters and stock follow the saved record before the log rows, so a log write that fails
+        // cannot leave the dashboard counting a hand-over that is already on the participant.
         eventStatsRecorder.onBibCollected(ParticipantCountersMapper.of(participant), goodiesDistributed,
                 EventTimeUtil.zoneOf(event.getTimezone()));
         markDistributionStarted(event);
@@ -155,9 +145,17 @@ public class DistributionServiceImpl implements DistributionService {
         logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_BIB_COLLECTED,
                 null, distributedBy, collectorName, collectorPhone, null);
-
-        log.info("Bib {} collected for event {} by collector {} ({}), distributed by staff {}",
-                bibNumber, eventId, collectorName, collectorPhone, distributedBy);
+        if (!goodiesDistributed.isEmpty()) {
+            logDistributionAction(String.valueOf(eventId), bibNumber,
+                    DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
+                    goodiesDistributed, distributedBy, collectorName, collectorPhone, null);
+        }
+        log.atInfo()
+                .addKeyValue("event", "distribution.bib_collected")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("bibNumber", bibNumber)
+                .addKeyValue("goodies", goodiesDistributed)
+                .log("Bib collected");
 
         participantEventSmsService.sendBibCollectedSms(event, participant);
         participantEventWhatsAppService.sendBibCollectedWhatsApp(event, participant);
@@ -210,9 +208,12 @@ public class DistributionServiceImpl implements DistributionService {
         logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_BIB_UNDONE,
                 null, undoneBy, null, null, "Bib collection undone. All goodies distribution reset.");
-
-        log.info("Bib {} collection undone for event {} by user {}. All goodies distribution reset.",
-                bibNumber, eventId, undoneBy);
+        log.atInfo()
+                .addKeyValue("event", "distribution.bib_undone")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("bibNumber", bibNumber)
+                .addKeyValue("stockReturned", taken.size())
+                .log("Bib collection undone");
 
         return UndoDistributionResponse.builder()
                 .success(true)
@@ -249,18 +250,20 @@ public class DistributionServiceImpl implements DistributionService {
         participant.setUpdatedAt(now);
         participant.setUpdatedBy(currentUser.getUsername());
         participantStore.update(participant);
+        eventStatsRecorder.onGoodiesDistributed(ParticipantCountersMapper.of(participant), itemsDistributed);
+        markDistributionStarted(event);
+        issueStock(eventId, bibNumber, handed, currentUser);
 
         logDistributionAction(String.valueOf(eventId), bibNumber,
                 DistributionConstants.ACTION_GOODIES_DISTRIBUTED,
                 itemsDistributed, distributedBy, participant.getBibCollectedByName(),
                 participant.getBibCollectedByPhone(), null);
-
-        log.info("Goodies items {} distributed for bib {} in event {} by staff {}",
-                itemsDistributed, bibNumber, eventId, distributedBy);
-
-        eventStatsRecorder.onGoodiesDistributed(ParticipantCountersMapper.of(participant), itemsDistributed);
-        markDistributionStarted(event);
-        issueStock(eventId, bibNumber, handed, currentUser);
+        log.atInfo()
+                .addKeyValue("event", "distribution.goodies_handed")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("bibNumber", bibNumber)
+                .addKeyValue("goodies", itemsDistributed)
+                .log("Goodies handed over");
 
         return GoodiesDistributionResponse.builder()
                 .success(true)
@@ -306,14 +309,9 @@ public class DistributionServiceImpl implements DistributionService {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForLogAccess(currentUser, event);
 
-        DistributionLogListResponse response = queryLogs(null,
+        return queryLogs(null,
                 QueryConditional.keyEqualTo(Key.builder().partitionValue(String.valueOf(eventId)).build()),
                 limit, lastEvaluatedKey);
-
-        log.info("Retrieved {} distribution logs for event {}, hasMore: {}",
-                response.getCount(), eventId, response.getHasMore());
-
-        return response;
     }
 
     @Override
@@ -328,16 +326,12 @@ public class DistributionServiceImpl implements DistributionService {
 
         // Exact match, not beginsWith: this is one participant's history, and a prefix returned
         // every bib that started with the one asked for.
-        List<DistributionLogResponse> logs = new ArrayList<>();
-        logRepository.getTable().index("LSI-BibNumberIndex").query(r -> r.queryConditional(
-                QueryConditional.keyEqualTo(key)
-        )).stream().flatMap(page -> page.items().stream()).forEach(logEntry ->
-                logs.add(DistributionLogResponse.from(logEntry))
-        );
-
-        log.info("Retrieved {} distribution logs for participant {} in event {}", logs.size(), bibNumber, eventId);
-
-        return logs;
+        return logRepository.getTable().index("LSI-BibNumberIndex")
+                .query(r -> r.queryConditional(QueryConditional.keyEqualTo(key)))
+                .stream()
+                .flatMap(page -> page.items().stream())
+                .map(DistributionLogResponse::from)
+                .toList();
     }
 
     @Override
@@ -382,30 +376,23 @@ public class DistributionServiceImpl implements DistributionService {
     @Override
     public DistributionLogListResponse lookupLogs(Long eventId, LogSearchType searchType, String searchValue,
                                                    Integer limit, String lastEvaluatedKey, User currentUser) {
-        log.info("Lookup logs for event ID: {} with searchType: {}, searchValue: '{}' by user: {}",
-                eventId, searchType, searchValue, currentUser.getUsername());
-
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForLogAccess(currentUser, event);
 
-        String indexName = getLogIndexName(searchType);
-
+        // DynamoDB refuses an empty key value outright, which answered a blank search with a 500.
+        String trimmed = TextUtils.trimToNull(searchValue);
+        if (trimmed == null) {
+            throw new InvalidUserDataException("Please enter something to search for.");
+        }
         // Collector names are stored upper-cased, so the search term must match that casing.
-        String normalizedSearchValue = searchType == LogSearchType.COLLECTOR
-                ? searchValue.trim().toUpperCase()
-                : searchValue.trim();
+        String normalizedSearchValue = searchType == LogSearchType.COLLECTOR ? trimmed.toUpperCase() : trimmed;
 
-        DistributionLogListResponse response = queryLogs(indexName,
+        return queryLogs(getLogIndexName(searchType),
                 QueryConditional.sortBeginsWith(Key.builder()
                         .partitionValue(String.valueOf(eventId))
                         .sortValue(normalizedSearchValue)
                         .build()),
                 limit, lastEvaluatedKey);
-
-        log.info("Lookup logs completed for event {} using index {}. Found {} logs, hasMore: {}",
-                eventId, indexName, response.getCount(), response.getHasMore());
-
-        return response;
     }
 
     /**
@@ -512,9 +499,18 @@ public class DistributionServiceImpl implements DistributionService {
                 || e instanceof GoodiesItemNotFoundException
                 || e instanceof ApiException;
         if (expected) {
-            log.warn("Bulk operation refused bib {}: {}", bibNumber, e.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "distribution.bulk_entry_refused")
+                    .addKeyValue("bibNumber", bibNumber)
+                    .addKeyValue("exception", e.getClass().getSimpleName())
+                    .addKeyValue("reason", e.getMessage())
+                    .log("Bulk entry refused");
         } else {
-            log.error("Bulk operation failed for bib {}", bibNumber, e);
+            log.atError()
+                    .setCause(e)
+                    .addKeyValue("event", "distribution.bulk_entry_failed")
+                    .addKeyValue("bibNumber", bibNumber)
+                    .log("Bulk entry failed");
         }
         return BulkDistributionResponse.FailedOperation.builder()
                 .bibNumber(bibNumber)
@@ -686,8 +682,12 @@ public class DistributionServiceImpl implements DistributionService {
         try {
             post.run();
         } catch (RuntimeException e) {
-            log.error("Could not post goodies stock for bib {} in event {}; the shelf needs an adjustment",
-                    bibNumber, eventId, e);
+            log.atError()
+                    .setCause(e)
+                    .addKeyValue("event", "distribution.stock_post_failed")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("bibNumber", bibNumber)
+                    .log("Goodies stock not posted; the shelf needs an adjustment");
         }
     }
 
