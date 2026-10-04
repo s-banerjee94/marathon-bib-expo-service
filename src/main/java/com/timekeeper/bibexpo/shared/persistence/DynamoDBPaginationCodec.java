@@ -2,58 +2,72 @@ package com.timekeeper.bibexpo.shared.persistence;
 
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Turns a DynamoDB lastEvaluatedKey into an opaque page token and back. Every token carries the
+ * scope of the list that issued it (its partition and index), so a token replayed against another
+ * event or another list is refused with a 400 instead of reaching DynamoDB, which answers a start
+ * key from another partition or key schema with a ValidationException (a 500).
+ */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class DynamoDBPaginationCodec {
+
+    private static final String INVALID = "Your page token is not valid, so please start again from the first page.";
+    private static final String OTHER_LIST = "Your page token belongs to a different list, so please start again from the first page.";
 
     private final JsonMapper objectMapper;
 
-    public String encode(Map<String, AttributeValue> lastEvaluatedKey) {
+    /**
+     * @param lastEvaluatedKey the key DynamoDB returned, or null/empty on the last page
+     * @param scope            identifies the list: its partition, index and anything else that shapes the query
+     * @return the page token, or null when there is no further page
+     */
+    public String encode(Map<String, AttributeValue> lastEvaluatedKey, String scope) {
         if (lastEvaluatedKey == null || lastEvaluatedKey.isEmpty()) {
-            return "";
+            return null;
         }
-
-        try {
-            Map<String, Object> simpleMap = new HashMap<>();
-            for (Map.Entry<String, AttributeValue> entry : lastEvaluatedKey.entrySet()) {
-                simpleMap.put(entry.getKey(), attributeValueToObject(entry.getValue()));
-            }
-            String json = objectMapper.writeValueAsString(simpleMap);
-            return Base64.getEncoder().encodeToString(json.getBytes());
-        } catch (Exception e) {
-            log.error("Failed to encode lastEvaluatedKey", e);
-            return "";
-        }
+        Map<String, Object> key = new HashMap<>();
+        lastEvaluatedKey.forEach((name, value) -> key.put(name, attributeValueToObject(value)));
+        String json = objectMapper.writeValueAsString(Map.of("scope", scope, "key", key));
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }
 
-    public Map<String, AttributeValue> decode(String encodedKey) {
-        if (encodedKey == null || encodedKey.isEmpty()) {
-            return Map.of();
+    /**
+     * @param token the page token from the client, or null/blank for the first page
+     * @param scope the scope of the list being read, as passed to {@link #encode}
+     * @return the exclusive start key, or null for the first page
+     * @throws InvalidUserDataException when the token is malformed or was issued by another list
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, AttributeValue> decode(String token, String scope) {
+        if (token == null || token.isBlank()) {
+            return null;
         }
-
+        Map<String, Object> envelope;
         try {
-            String json = new String(Base64.getDecoder().decode(encodedKey));
-            Map<String, Object> simpleMap = objectMapper.readValue(json,
-                    objectMapper.getTypeFactory().constructMapType(HashMap.class, String.class, Object.class));
-
-            Map<String, AttributeValue> attributeMap = new HashMap<>();
-            for (Map.Entry<String, Object> entry : simpleMap.entrySet()) {
-                attributeMap.put(entry.getKey(), objectToAttributeValue(entry.getValue()));
-            }
-            return attributeMap;
+            String json = new String(Base64.getUrlDecoder().decode(token), StandardCharsets.UTF_8);
+            envelope = objectMapper.readValue(json, Map.class);
         } catch (Exception e) {
-            throw new InvalidUserDataException("Invalid pagination key format");
+            throw new InvalidUserDataException(INVALID);
         }
+        if (!scope.equals(envelope.get("scope"))) {
+            throw new InvalidUserDataException(OTHER_LIST);
+        }
+        if (!(envelope.get("key") instanceof Map<?, ?> key) || key.isEmpty()) {
+            throw new InvalidUserDataException(INVALID);
+        }
+        Map<String, AttributeValue> attributeMap = new HashMap<>();
+        ((Map<String, Object>) key).forEach((name, value) -> attributeMap.put(name, objectToAttributeValue(value)));
+        return attributeMap;
     }
 
     private Object attributeValueToObject(AttributeValue attributeValue) {
@@ -68,23 +82,18 @@ public class DynamoDBPaginationCodec {
     }
 
     private AttributeValue objectToAttributeValue(Object value) {
-        if (!(value instanceof Map)) {
-            throw new InvalidUserDataException("Invalid attribute value format");
+        if (!(value instanceof Map<?, ?> map)) {
+            throw new InvalidUserDataException(INVALID);
         }
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>) value;
-
-        if (map.containsKey("S")) {
-            return AttributeValue.builder().s((String) map.get("S")).build();
-        } else if (map.containsKey("N")) {
-            return AttributeValue.builder().n((String) map.get("N")).build();
-        } else if (map.containsKey("BOOL")) {
-            return AttributeValue.builder().bool((Boolean) map.get("BOOL")).build();
+        if (map.get("S") instanceof String s) {
+            return AttributeValue.builder().s(s).build();
+        } else if (map.get("N") instanceof String n) {
+            return AttributeValue.builder().n(n).build();
+        } else if (map.get("BOOL") instanceof Boolean b) {
+            return AttributeValue.builder().bool(b).build();
         } else if (map.containsKey("NULL")) {
             return AttributeValue.builder().nul(true).build();
         }
-
-        throw new InvalidUserDataException("Unsupported attribute value type");
+        throw new InvalidUserDataException(INVALID);
     }
 }

@@ -285,15 +285,16 @@ public class DistributionServiceImpl implements DistributionService {
         // ponytail: with few runners pending, one page can read the whole event; a sparse GSI reads only them.
         boolean bib = type == PendingType.BIB;
         Predicate<ParticipantDDB> keep = bib ? participant -> true : this::owesOwnGoodies;
+        String scope = "pending|" + eventId + "|" + type;
         Page<ParticipantDDB> page = participantStore.fillPage(eventId, normalizeLimit(limit),
-                decodeCursor(lastEvaluatedKey), bib ? BIB_NOT_COLLECTED : BIB_COLLECTED, keep);
+                paginationCodec.decode(lastEvaluatedKey, scope), bib ? BIB_NOT_COLLECTED : BIB_COLLECTED, keep);
 
         EventNames names = nameResolver.forEvent(eventId);
         List<PendingParticipantListResponse.PendingParticipant> participants = page.items().stream()
                 .map(participant -> toPendingParticipant(participant, names))
                 .toList();
 
-        String newLastEvaluatedKey = encodeCursor(page.lastEvaluatedKey());
+        String newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey(), scope);
         return PendingParticipantListResponse.builder()
                 .participants(participants)
                 .lastEvaluatedKey(newLastEvaluatedKey)
@@ -309,7 +310,7 @@ public class DistributionServiceImpl implements DistributionService {
         Event event = findEventOrThrow(eventId);
         validator.validateUserAuthorizationForLogAccess(currentUser, event);
 
-        return queryLogs(null,
+        return queryLogs(eventId, null,
                 QueryConditional.keyEqualTo(Key.builder().partitionValue(String.valueOf(eventId)).build()),
                 limit, lastEvaluatedKey);
     }
@@ -387,7 +388,7 @@ public class DistributionServiceImpl implements DistributionService {
         // Collector names are stored upper-cased, so the search term must match that casing.
         String normalizedSearchValue = searchType == LogSearchType.COLLECTOR ? trimmed.toUpperCase() : trimmed;
 
-        return queryLogs(getLogIndexName(searchType),
+        return queryLogs(eventId, getLogIndexName(searchType),
                 QueryConditional.sortBeginsWith(Key.builder()
                         .partitionValue(String.valueOf(eventId))
                         .sortValue(normalizedSearchValue)
@@ -399,14 +400,14 @@ public class DistributionServiceImpl implements DistributionService {
      * One newest-first page of log rows, off the table itself when {@code indexName} is null or
      * off one of its local secondary indexes otherwise.
      */
-    private DistributionLogListResponse queryLogs(String indexName, QueryConditional conditional,
+    private DistributionLogListResponse queryLogs(Long eventId, String indexName, QueryConditional conditional,
                                                   Integer limit, String lastEvaluatedKey) {
+        String scope = "logs|" + eventId + "|" + indexName;
         QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
                 .queryConditional(conditional)
                 .scanIndexForward(false)
-                .limit(normalizeLimit(limit));
-
-        applyCursor(requestBuilder, lastEvaluatedKey);
+                .limit(normalizeLimit(limit))
+                .exclusiveStartKey(paginationCodec.decode(lastEvaluatedKey, scope));
 
         Page<DistributionLogDDB> page = (indexName == null
                 ? logRepository.getTable().query(requestBuilder.build()).stream()
@@ -426,7 +427,7 @@ public class DistributionServiceImpl implements DistributionService {
                 .map(DistributionLogResponse::from)
                 .toList();
 
-        String newLastEvaluatedKey = encodeCursor(page.lastEvaluatedKey());
+        String newLastEvaluatedKey = paginationCodec.encode(page.lastEvaluatedKey(), scope);
 
         return DistributionLogListResponse.builder()
                 .logs(logs)
@@ -527,29 +528,6 @@ public class DistributionServiceImpl implements DistributionService {
             throw new InvalidUserDataException("Please ask for at least one entry per page.");
         }
         return Math.min(limit, MAX_PAGE_SIZE);
-    }
-
-    private void applyCursor(QueryEnhancedRequest.Builder requestBuilder, String lastEvaluatedKey) {
-        Map<String, AttributeValue> exclusiveStartKey = decodeCursor(lastEvaluatedKey);
-        if (exclusiveStartKey != null) {
-            requestBuilder.exclusiveStartKey(exclusiveStartKey);
-        }
-    }
-
-    private Map<String, AttributeValue> decodeCursor(String lastEvaluatedKey) {
-        if (lastEvaluatedKey == null || lastEvaluatedKey.isEmpty()) {
-            return null;
-        }
-        Map<String, AttributeValue> exclusiveStartKey = paginationCodec.decode(lastEvaluatedKey);
-        return (exclusiveStartKey == null || exclusiveStartKey.isEmpty()) ? null : exclusiveStartKey;
-    }
-
-    // The shared codec returns "" for an exhausted page rather than null, and every response here
-    // derives hasMore from the cursor being null. Left as-is the pending lists always answered
-    // hasMore=true and a client paging until it flipped never stopped.
-    private String encodeCursor(Map<String, AttributeValue> lastEvaluatedKey) {
-        String encoded = paginationCodec.encode(lastEvaluatedKey);
-        return (encoded == null || encoded.isEmpty()) ? null : encoded;
     }
 
     private boolean owesOwnGoodies(ParticipantDDB participant) {

@@ -110,7 +110,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public NotificationListResponse getNotifications(User user, int limit, String cursor) {
         int capped = Math.min(Math.max(limit, 1), MAX_PAGE_SIZE);
-        Map<String, AttributeValue> startKey = unwrapCursor(cursor, user.getId());
+        Map<String, AttributeValue> startKey = paginationCodec.decode(cursor, feedScope(user.getId()));
         Page<NotificationDDB> page = notificationRepository.queryByUser(user.getId(), capped, startKey);
         return toListResponse(page, user.getId());
     }
@@ -144,7 +144,7 @@ public class NotificationServiceImpl implements NotificationService {
             return NotificationListResponse.builder().items(List.of()).count(0).hasMore(false).build();
         }
         List<NotificationResponse> items = page.items().stream().map(this::toResponse).toList();
-        String nextCursor = wrapCursor(page.lastEvaluatedKey(), userId);
+        String nextCursor = paginationCodec.encode(page.lastEvaluatedKey(), feedScope(userId));
         return NotificationListResponse.builder()
                 .items(items)
                 .count(items.size())
@@ -180,30 +180,8 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    // Cursors are tagged with the owning user id so one user's cursor can't be replayed against another's feed.
-    private String wrapCursor(Map<String, AttributeValue> raw, Long userId) {
-        String encoded = paginationCodec.encode(raw);
-        if (encoded == null || encoded.isEmpty()) {
-            return null;
-        }
-        return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString((userId + "|" + encoded).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private Map<String, AttributeValue> unwrapCursor(String cursor, Long userId) {
-        if (cursor == null || cursor.isBlank()) {
-            return Map.of();
-        }
-        String decoded;
-        try {
-            decoded = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException e) {
-            throw new InvalidUserDataException("Your pagination cursor is invalid. Start a new request.");
-        }
-        int sep = decoded.indexOf('|');
-        if (sep < 0 || !String.valueOf(userId).equals(decoded.substring(0, sep))) {
-            throw new InvalidUserDataException("Your pagination cursor is invalid. Start a new request.");
-        }
-        return paginationCodec.decode(decoded.substring(sep + 1));
+    // Tagged with the owner so one user's cursor can't be replayed against another's feed.
+    private static String feedScope(Long userId) {
+        return "notifications|" + userId;
     }
 }

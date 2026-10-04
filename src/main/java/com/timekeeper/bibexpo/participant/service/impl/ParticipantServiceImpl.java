@@ -41,7 +41,6 @@ import org.springframework.util.StringUtils;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -138,10 +137,11 @@ public class ParticipantServiceImpl implements ParticipantService {
     public ParticipantListResponse getParticipantsByEvent(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser) {
         accessGuard.forRead(eventId, currentUser);
 
+        String scope = "participants|" + eventId;
         Page<ParticipantDDB> page = participantRepository.findPage(
-                eventId, normalizeLimit(limit), decodeCursor(lastEvaluatedKey), null);
+                eventId, normalizeLimit(limit), paginationCodec.decode(lastEvaluatedKey, scope), null);
 
-        return toListResponse(page, eventId);
+        return toListResponse(page, eventId, scope);
     }
 
     @Override
@@ -277,7 +277,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     }
 
     /** Maps a query page to a paginated response, enriching each row with current names. */
-    private ParticipantListResponse toListResponse(Page<ParticipantDDB> page, Long eventId) {
+    private ParticipantListResponse toListResponse(Page<ParticipantDDB> page, Long eventId, String scope) {
         if (page == null) {
             return emptyListResponse();
         }
@@ -285,7 +285,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         List<ParticipantResponse> participants = page.items().stream()
                 .map(participant -> mapParticipantToResponse(participant, names))
                 .toList();
-        String lastKey = encodeCursor(page.lastEvaluatedKey());
+        String lastKey = paginationCodec.encode(page.lastEvaluatedKey(), scope);
         return ParticipantListResponse.builder()
                 .participants(participants)
                 .lastEvaluatedKey(lastKey)
@@ -508,13 +508,14 @@ public class ParticipantServiceImpl implements ParticipantService {
         }
 
         String indexName = getIndexNameForSearchType(searchType);
+        String scope = "participants|" + eventId + "|" + indexName;
         Page<ParticipantDDB> page = participantRepository.findPageByIndex(
                 indexName,
                 buildLookupConditional(eventId, searchType, searchValue.trim()),
                 Math.min(normalizeLimit(limit), MAX_LOOKUP_PAGE_SIZE),
-                decodeCursor(lastEvaluatedKey));
+                paginationCodec.decode(lastEvaluatedKey, scope));
 
-        return toListResponse(page, eventId);
+        return toListResponse(page, eventId, scope);
     }
 
     private ParticipantListResponse lookupByBibNumber(Long eventId, String bibNumber) {
@@ -585,24 +586,6 @@ public class ParticipantServiceImpl implements ParticipantService {
             throw new InvalidUserDataException("Please ask for at least one entry per page.");
         }
         return limit;
-    }
-
-    private Map<String, AttributeValue> decodeCursor(String lastEvaluatedKey) {
-        if (lastEvaluatedKey == null || lastEvaluatedKey.isEmpty()) {
-            return null;
-        }
-        try {
-            return paginationCodec.decode(lastEvaluatedKey);
-        } catch (Exception e) {
-            throw new InvalidUserDataException("Invalid page token. Please start from the first page.");
-        }
-    }
-
-    // The shared codec returns "" for an exhausted page rather than null, and hasMore is derived
-    // from the cursor being null — see the same guard in distribution.
-    private String encodeCursor(Map<String, AttributeValue> lastEvaluatedKey) {
-        String encoded = paginationCodec.encode(lastEvaluatedKey);
-        return (encoded == null || encoded.isEmpty()) ? null : encoded;
     }
 
     private static void trimStringFields(CreateParticipantRequest r) {

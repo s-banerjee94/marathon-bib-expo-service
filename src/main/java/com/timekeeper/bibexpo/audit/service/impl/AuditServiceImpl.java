@@ -19,9 +19,7 @@ import org.springframework.stereotype.Service;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -59,7 +57,7 @@ public class AuditServiceImpl implements AuditService {
                 .build();
 
         String scope = scopeTag(query);
-        Map<String, AttributeValue> startKey = unwrapCursor(cursor, scope);
+        Map<String, AttributeValue> startKey = paginationCodec.decode(cursor, scope);
         Page<AuditLogDDB> page = auditLogRepository.query(query, limit, startKey);
         return toResponse(page, scope);
     }
@@ -102,7 +100,7 @@ public class AuditServiceImpl implements AuditService {
         List<AuditLogResponse> items = page.items().stream()
                 .map(AuditLogResponse::fromDdb)
                 .toList();
-        String nextCursor = wrapCursor(page.lastEvaluatedKey(), scope);
+        String nextCursor = paginationCodec.encode(page.lastEvaluatedKey(), scope);
         boolean hasMore = nextCursor != null;
         return AuditLogListResponse.builder()
                 .items(items)
@@ -112,11 +110,7 @@ public class AuditServiceImpl implements AuditService {
                 .build();
     }
 
-    /**
-     * Cursors are scope-tagged with the partition + filter dimension that issued them. Reusing a
-     * cursor against a different scope (different org, switched filter, etc.) would yield a
-     * DynamoDB ValidationException or empty pages — reject it with a clear 400 instead.
-     */
+    // The partition and filter dimension that shape the query, so a cursor from another view is refused.
     private String scopeTag(AuditLogQuery q) {
         String dim;
         if (q.getUsername() != null && !q.getUsername().isBlank()) {
@@ -128,32 +122,6 @@ public class AuditServiceImpl implements AuditService {
         } else {
             dim = "t";
         }
-        return q.getOrganizationId() + "|" + dim;
-    }
-
-    private String wrapCursor(Map<String, AttributeValue> raw, String scope) {
-        String encoded = paginationCodec.encode(raw);
-        if (encoded == null || encoded.isEmpty()) return null;
-        return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString((scope + "|" + encoded).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private Map<String, AttributeValue> unwrapCursor(String cursor, String scope) {
-        if (cursor == null || cursor.isBlank()) return Map.of();
-        String decoded;
-        try {
-            decoded = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException e) {
-            throw new InvalidUserDataException("Your pagination cursor is invalid. Start a new search.");
-        }
-        int sep = decoded.indexOf('|', decoded.indexOf('|') + 1);
-        if (sep < 0) {
-            throw new InvalidUserDataException("Your pagination cursor is invalid. Start a new search.");
-        }
-        String storedScope = decoded.substring(0, sep);
-        if (!scope.equals(storedScope)) {
-            throw new InvalidUserDataException("Your pagination cursor is from a different view. Start a new search.");
-        }
-        return paginationCodec.decode(decoded.substring(sep + 1));
+        return "audit|" + q.getOrganizationId() + "|" + dim;
     }
 }
