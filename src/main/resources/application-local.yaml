@@ -24,6 +24,10 @@ logging:
   pattern:
     console: "%clr(%d{yyyy-MM-dd hh:mm:ss.SSS a}){faint} %clr(%-5p) %clr([%t]){faint} %clr(%logger{36}){cyan} %clr(-){faint} %msg %kvp%n"
     file: "%d{yyyy-MM-dd hh:mm:ss.SSS a} %-5p [%t] %logger{36} - %msg %kvp%n"
+  # The assembled provider request (recipient, message) is DEBUG so it never reaches prod logs; shown here only.
+  level:
+    com.timekeeper.bibexpo.messaging.provider.service.impl.StubMessagingProviderClient: DEBUG
+    com.timekeeper.bibexpo.messaging.provider.service.impl.MessagingProviderClientImpl: DEBUG
 
 app:
   participant-access:
