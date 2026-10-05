@@ -23,6 +23,7 @@ import com.timekeeper.bibexpo.event.api.RaceCategoryNameQuery;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -38,13 +39,15 @@ public class ParticipantEventWhatsAppServiceImpl implements ParticipantEventWhat
     private final RaceCategoryNameQuery nameResolver;
     private final CampaignCompatibilityGuard compatibilityGuard;
 
-    // Runs after the collection is saved: nothing in here may fail the counter, so every failure is logged instead.
+    // Runs on its own thread after the collection is saved, so a slow provider never holds the counter;
+    // nothing in here may fail the collection, so every failure is logged instead.
+    @Async("bibCollectedMessageTaskExecutor")
     @Override
     public void sendBibCollectedWhatsApp(Event event, ParticipantDDB participant) {
         Long eventId = event.getId();
         try {
             WhatsAppCampaign campaign = campaignRepository
-                    .findByEventIdAndTriggerTypeAndStatus(eventId, CampaignTriggerType.AUTO_BIB_COLLECTED, CampaignStatus.ACTIVE)
+                    .findWithTemplateByEventIdAndTriggerTypeAndStatus(eventId, CampaignTriggerType.AUTO_BIB_COLLECTED, CampaignStatus.ACTIVE)
                     .orElse(null);
             if (campaign == null) {
                 return;
