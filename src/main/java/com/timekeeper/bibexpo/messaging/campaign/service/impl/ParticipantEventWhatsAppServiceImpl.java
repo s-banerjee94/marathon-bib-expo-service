@@ -38,38 +38,43 @@ public class ParticipantEventWhatsAppServiceImpl implements ParticipantEventWhat
     private final RaceCategoryNameQuery nameResolver;
     private final CampaignCompatibilityGuard compatibilityGuard;
 
+    // Runs after the collection is saved: nothing in here may fail the counter, so every failure is logged instead.
     @Override
     public void sendBibCollectedWhatsApp(Event event, ParticipantDDB participant) {
         Long eventId = event.getId();
-        WhatsAppCampaign campaign = campaignRepository
-                .findByEventIdAndTriggerTypeAndStatus(eventId, CampaignTriggerType.AUTO_BIB_COLLECTED, CampaignStatus.ACTIVE)
-                .orElse(null);
-
-        if (campaign == null) {
-            log.info("No active AUTO_BIB_COLLECTED WhatsApp campaign for event ID: {} — skipping", eventId);
-            return;
-        }
-
-        String phone = participant.getPhoneNumber();
-        if (phone == null || phone.isBlank()) {
-            log.warn("Skipping bib-collected WhatsApp for bib {} in event {}: no phone number", participant.getBibNumber(), eventId);
-            return;
-        }
-
-        WhatsAppTemplate template = campaign.getWhatsAppTemplate();
-        Optional<String> incompatible = compatibilityGuard.problem(MessageChannel.WHATSAPP, campaign.getOrganizationId(),
-                new TemplateContent(false, CampaignVariableRenderer.count(template.getBodyVariables()),
-                        template.getContentSid() != null && !template.getContentSid().isBlank(), false),
-                template.getProviderSource());
-        if (incompatible.isPresent()) {
-            // Logged rather than notified: this fires per bib collection, and one notification per
-            // participant would bury the counter staff.
-            log.error("Bib-collected WhatsApp skipped for bib {} in event {} — {}",
-                    participant.getBibNumber(), eventId, incompatible.get());
-            return;
-        }
-
         try {
+            WhatsAppCampaign campaign = campaignRepository
+                    .findByEventIdAndTriggerTypeAndStatus(eventId, CampaignTriggerType.AUTO_BIB_COLLECTED, CampaignStatus.ACTIVE)
+                    .orElse(null);
+            if (campaign == null) {
+                return;
+            }
+
+            String phone = participant.getPhoneNumber();
+            if (phone == null || phone.isBlank()) {
+                log.debug("Bib-collected WhatsApp skipped: no phone number");
+                return;
+            }
+
+            WhatsAppTemplate template = campaign.getWhatsAppTemplate();
+            Optional<String> incompatible = compatibilityGuard.problem(MessageChannel.WHATSAPP, campaign.getOrganizationId(),
+                    new TemplateContent(false, CampaignVariableRenderer.count(template.getBodyVariables()),
+                            template.getContentSid() != null && !template.getContentSid().isBlank(), false),
+                    template.getProviderSource());
+            if (incompatible.isPresent()) {
+                // Logged rather than notified: this fires per bib collection, and one notification per
+                // participant would bury the counter staff.
+                log.atError()
+                        .addKeyValue("event", "campaign.auto_send_skipped")
+                        .addKeyValue("channel", MessageChannel.WHATSAPP)
+                        .addKeyValue("eventId", eventId)
+                        .addKeyValue("campaignId", campaign.getId())
+                        .addKeyValue("bibNumber", participant.getBibNumber())
+                        .addKeyValue("reason", incompatible.get())
+                        .log("Bib-collected message skipped");
+                return;
+            }
+
             MessagingProvider provider = campaignProviderResolver.resolve(MessageChannel.WHATSAPP, campaign.getOrganizationId());
 
             EventNames names = nameResolver.forEvent(eventId);
@@ -82,9 +87,22 @@ public class ParticipantEventWhatsAppServiceImpl implements ParticipantEventWhat
                     .templateId(template.getContentSid())
                     .variables(variables)
                     .build());
-            log.info("Bib-collected WhatsApp sent to bib {} in event {}", participant.getBibNumber(), eventId);
+            log.atInfo()
+                    .addKeyValue("event", "campaign.auto_sent")
+                    .addKeyValue("channel", MessageChannel.WHATSAPP)
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("campaignId", campaign.getId())
+                    .addKeyValue("bibNumber", participant.getBibNumber())
+                    .log("Bib-collected message sent");
         } catch (Exception e) {
-            log.warn("Bib-collected WhatsApp failed for bib {} in event {}: {}", participant.getBibNumber(), eventId, e.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "campaign.auto_send_failed")
+                    .addKeyValue("channel", MessageChannel.WHATSAPP)
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("bibNumber", participant.getBibNumber())
+                    .addKeyValue("exception", e.getClass().getSimpleName())
+                    .addKeyValue("reason", e.getMessage())
+                    .log("Bib-collected message failed");
         }
     }
 }

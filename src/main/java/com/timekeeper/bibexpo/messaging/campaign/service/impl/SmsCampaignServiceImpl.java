@@ -48,8 +48,7 @@ public class SmsCampaignServiceImpl
                                   EventQuota eventQuota,
                                   EventOperationGuard eventOperationGuard,
                                   CampaignCompatibilityGuard compatibilityGuard) {
-        super("SMS", smsCampaignRepository, eventStore, eventAccessValidator, eventOperationGuard,
-                compatibilityGuard);
+        super(smsCampaignRepository, eventStore, eventAccessValidator, eventOperationGuard, compatibilityGuard);
         this.smsTemplateRepository = smsTemplateRepository;
         this.eventQuota = eventQuota;
     }

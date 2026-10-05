@@ -45,8 +45,7 @@ public class WhatsAppCampaignServiceImpl
                                        EventAccessValidator eventAccessValidator,
                                        EventOperationGuard eventOperationGuard,
                                        CampaignCompatibilityGuard compatibilityGuard) {
-        super("WhatsApp", campaignRepository, eventStore, eventAccessValidator, eventOperationGuard,
-                compatibilityGuard);
+        super(campaignRepository, eventStore, eventAccessValidator, eventOperationGuard, compatibilityGuard);
         this.templateRepository = templateRepository;
     }
 
@@ -123,7 +122,7 @@ public class WhatsAppCampaignServiceImpl
     @Override
     protected void enforceCreateLimit(Long eventId) {
         if (campaignRepository.countByEventId(eventId) >= MAX_CAMPAIGNS_PER_EVENT) {
-            throw new InvalidWhatsAppCampaignException("An event can have a maximum of 20 WhatsApp campaigns.");
+            throw new InvalidWhatsAppCampaignException("You can have at most 20 WhatsApp campaigns per event.");
         }
     }
 

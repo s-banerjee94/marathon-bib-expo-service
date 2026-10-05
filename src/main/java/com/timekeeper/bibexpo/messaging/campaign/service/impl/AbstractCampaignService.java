@@ -52,22 +52,17 @@ public abstract class AbstractCampaignService<
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
-    // Channel name as it appears in log lines ("SMS", "WhatsApp"); constant per subclass
-    private final String channelLabel;
-
     protected final CampaignBaseRepository<C> campaignRepository;
     private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final EventOperationGuard eventOperationGuard;
     private final CampaignCompatibilityGuard compatibilityGuard;
 
-    protected AbstractCampaignService(String channelLabel,
-                                      CampaignBaseRepository<C> campaignRepository,
+    protected AbstractCampaignService(CampaignBaseRepository<C> campaignRepository,
                                       EventStore eventStore,
                                       EventAccessValidator eventAccessValidator,
                                       EventOperationGuard eventOperationGuard,
                                       CampaignCompatibilityGuard compatibilityGuard) {
-        this.channelLabel = channelLabel;
         this.campaignRepository = campaignRepository;
         this.eventStore = eventStore;
         this.eventAccessValidator = eventAccessValidator;
@@ -76,9 +71,6 @@ public abstract class AbstractCampaignService<
     }
 
     protected final R doCreate(Long eventId, CREATE request, User currentUser) {
-        log.info("Creating {} campaign for event ID: {} by user: {}",
-                channelLabel, eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
         eventOperationGuard.requireAllowed(event, EventOperation.CAMPAIGN_WRITE);
 
@@ -94,23 +86,19 @@ public abstract class AbstractCampaignService<
         }
 
         C saved = campaignRepository.save(campaign);
-        log.info("Successfully created {} campaign ID: {} status: {} for event ID: {} by user: {}",
-                channelLabel, saved.getId(), saved.getStatus(), eventId, currentUser.getUsername());
+        logWrite("campaign.created", eventId, saved);
 
         return toResponse(saved, event);
     }
 
     protected final R doUpdate(Long eventId, Long campaignId, UPDATE request, User currentUser) {
-        log.info("Updating {} campaign ID: {} for event ID: {} by user: {}",
-                channelLabel, campaignId, eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
         eventOperationGuard.requireAllowed(event, EventOperation.CAMPAIGN_WRITE);
 
         C campaign = findCampaignOrThrow(campaignId, eventId);
 
         if (campaign.getStatus() != CampaignStatus.DRAFT) {
-            throw invalidCampaign("Only draft campaigns can be modified. Disarm the campaign first.");
+            throw invalidCampaign("Only a draft campaign can be changed, so disarm it first.");
         }
 
         if (request.getName() != null && !request.getName().isBlank()) {
@@ -125,16 +113,12 @@ public abstract class AbstractCampaignService<
         }
 
         C updated = campaignRepository.saveAndFlush(campaign);
-        log.info("Successfully updated {} campaign ID: {} status: {} by user: {}",
-                channelLabel, updated.getId(), updated.getStatus(), currentUser.getUsername());
+        logWrite("campaign.updated", eventId, updated);
 
         return toResponse(updated, event);
     }
 
     protected final List<R> doList(Long eventId, User currentUser) {
-        log.info("Fetching {} campaigns for event ID: {} by user: {}",
-                channelLabel, eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
 
         return campaignRepository.findAllByEventId(eventId)
@@ -142,32 +126,26 @@ public abstract class AbstractCampaignService<
     }
 
     protected final R doGet(Long eventId, Long campaignId, User currentUser) {
-        log.info("Fetching {} campaign ID: {} for event ID: {} by user: {}",
-                channelLabel, campaignId, eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
 
         return toResponse(findCampaignOrThrow(campaignId, eventId), event);
     }
 
     protected final R doDisarm(Long eventId, Long campaignId, User currentUser) {
-        log.info("Disarming {} campaign ID: {} for event ID: {} by user: {}",
-                channelLabel, campaignId, eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
         eventOperationGuard.requireAllowed(event, EventOperation.CAMPAIGN_WRITE);
 
         C campaign = findCampaignOrThrow(campaignId, eventId);
 
         if (campaign.getStatus() != CampaignStatus.ACTIVE) {
-            throw invalidCampaign("Only active campaigns can be disarmed.");
+            throw invalidCampaign("Only an active campaign can be disarmed.");
         }
 
         if (campaign.getTriggerType() == CampaignTriggerType.SCHEDULED && campaign.getScheduledAt() != null) {
             Instant cutoff = campaign.getScheduledAt().minusSeconds(DISARM_CUTOFF_SECONDS);
             if (Instant.now().isAfter(cutoff)) {
                 throw invalidCampaign(
-                        "Scheduled campaigns cannot be disarmed within " + DISARM_CUTOFF_SECONDS + " seconds of the scheduled time.");
+                        "You cannot disarm a scheduled campaign within " + DISARM_CUTOFF_SECONDS + " seconds of its send time.");
             }
         }
 
@@ -177,23 +155,19 @@ public abstract class AbstractCampaignService<
         campaign.setScheduledAt(null);
 
         C updated = campaignRepository.saveAndFlush(campaign);
-        log.info("Successfully disarmed {} campaign ID: {} by user: {}",
-                channelLabel, campaignId, currentUser.getUsername());
+        logWrite("campaign.disarmed", eventId, updated);
 
         return toResponse(updated, event);
     }
 
     protected final void doDelete(Long eventId, Long campaignId, User currentUser) {
-        log.info("Deleting {} campaign ID: {} for event ID: {} by user: {}",
-                channelLabel, campaignId, eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
         eventOperationGuard.requireAllowed(event, EventOperation.CAMPAIGN_WRITE);
 
         C campaign = findCampaignOrThrow(campaignId, eventId);
 
         if (campaign.getStatus() != CampaignStatus.DRAFT) {
-            throw invalidCampaign("Only draft campaigns can be deleted.");
+            throw invalidCampaign("Only a draft campaign can be deleted.");
         }
 
         AuditContextHolder.setEntityId(String.valueOf(campaignId));
@@ -202,24 +176,34 @@ public abstract class AbstractCampaignService<
                 event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         campaignRepository.delete(campaign);
-        log.info("Successfully deleted {} campaign ID: {} by user: {}",
-                channelLabel, campaignId, currentUser.getUsername());
+        logWrite("campaign.deleted", eventId, campaign);
+    }
+
+    private void logWrite(String eventName, Long eventId, C campaign) {
+        log.atInfo()
+                .addKeyValue("event", eventName)
+                .addKeyValue("channel", channel())
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("campaignId", campaign.getId())
+                .addKeyValue("status", campaign.getStatus())
+                .addKeyValue("triggerType", campaign.getTriggerType())
+                .log("Campaign changed");
     }
 
     private void applyArm(C campaign, CampaignTriggerType triggerType,
                           CampaignTargetFilter targetFilter, String scheduledDate, String scheduledTime,
                           Event event) {
         if (targetFilter == null) {
-            throw invalidCampaign("Target filter is required when arming a campaign.");
+            throw invalidCampaign("Please choose who the campaign goes to before arming it.");
         }
 
         Instant scheduledAt = null;
         if (triggerType == CampaignTriggerType.SCHEDULED) {
             if (scheduledDate == null || scheduledTime == null) {
-                throw invalidCampaign("Scheduled date and time are required for a scheduled campaign.");
+                throw invalidCampaign("Please choose a date and time for the scheduled campaign.");
             }
             if (event.getTimezone() == null) {
-                throw invalidCampaign("The event does not have a timezone configured.");
+                throw invalidCampaign("Please set the event's timezone before scheduling a campaign.");
             }
             try {
                 scheduledAt = ZonedDateTime.of(
@@ -228,12 +212,12 @@ public abstract class AbstractCampaignService<
                         ZoneId.of(event.getTimezone())
                 ).toInstant();
             } catch (DateTimeParseException e) {
-                throw invalidCampaign("Invalid scheduled date or time format. Use yyyy-MM-dd and HH:mm.");
+                throw invalidCampaign("Please enter the date as yyyy-MM-dd and the time as HH:mm.");
             }
             Instant minAllowed = Instant.now().plus(MIN_SCHEDULE_AHEAD_MINUTES, ChronoUnit.MINUTES);
             if (!scheduledAt.isAfter(minAllowed)) {
                 throw invalidCampaign(
-                        "Scheduled time must be at least " + MIN_SCHEDULE_AHEAD_MINUTES + " minutes in the future.");
+                        "Please schedule the campaign at least " + MIN_SCHEDULE_AHEAD_MINUTES + " minutes from now.");
             }
         }
 
@@ -241,7 +225,7 @@ public abstract class AbstractCampaignService<
                 && campaignRepository.existsByEventIdAndTriggerTypeAndStatus(
                         event.getId(), CampaignTriggerType.AUTO_BIB_COLLECTED, CampaignStatus.ACTIVE)) {
             throw campaignAlreadyActive(
-                    "An active bib collection campaign already exists for this event. Please disarm it before arming a new one.");
+                    "This event already has an active bib collection campaign, so disarm it before arming another.");
         }
 
         // Arming is the last moment a mismatched template can be refused while someone is watching;

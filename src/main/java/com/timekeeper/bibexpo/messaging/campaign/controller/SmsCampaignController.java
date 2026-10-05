@@ -32,7 +32,6 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
             @PathVariable Long eventId,
             @Valid @RequestBody CreateSmsCampaignRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to create SMS campaign for event ID: {} by user: {}", eventId, currentUser.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED).body(smsCampaignService.createCampaign(eventId, request, currentUser));
     }
 
@@ -42,7 +41,6 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
             @PathVariable Long campaignId,
             @Valid @RequestBody UpdateSmsCampaignRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
         return ResponseEntity.ok(smsCampaignService.updateCampaign(eventId, campaignId, request, currentUser));
     }
 
@@ -50,7 +48,6 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
     public ResponseEntity<List<SmsCampaignResponse>> getCampaignsByEvent(
             @PathVariable Long eventId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get SMS campaigns for event ID: {} by user: {}", eventId, currentUser.getUsername());
         return ResponseEntity.ok(smsCampaignService.getCampaignsByEvent(eventId, currentUser));
     }
 
@@ -59,7 +56,6 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
             @PathVariable Long eventId,
             @PathVariable Long campaignId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
         return ResponseEntity.ok(smsCampaignService.getCampaignById(eventId, campaignId, currentUser));
     }
 
@@ -68,7 +64,6 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
             @PathVariable Long eventId,
             @PathVariable Long campaignId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to disarm SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
         return ResponseEntity.ok(smsCampaignService.disarmCampaign(eventId, campaignId, currentUser));
     }
 
@@ -77,7 +72,6 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
             @PathVariable Long eventId,
             @PathVariable Long campaignId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to delete SMS campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
         smsCampaignService.deleteCampaign(eventId, campaignId, currentUser);
         return ResponseEntity.noContent().build();
     }
@@ -85,7 +79,7 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
     @ExceptionHandler(SmsCampaignNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleSmsCampaignNotFound(
             SmsCampaignNotFoundException ex, WebRequest request) {
-        log.warn("SMS campaign not found: {}", ex.getMessage());
+        logRejected(HttpStatus.NOT_FOUND, ex);
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
     }
@@ -93,7 +87,7 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
     @ExceptionHandler(SmsCampaignAlreadyActiveException.class)
     public ResponseEntity<ErrorResponse> handleSmsCampaignAlreadyActive(
             SmsCampaignAlreadyActiveException ex, WebRequest request) {
-        log.warn("SMS campaign conflict: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
@@ -101,8 +95,17 @@ public class SmsCampaignController implements SmsCampaignControllerApi {
     @ExceptionHandler(InvalidSmsCampaignException.class)
     public ResponseEntity<ErrorResponse> handleInvalidSmsCampaign(
             InvalidSmsCampaignException ex, WebRequest request) {
-        log.warn("Invalid SMS campaign operation: {}", ex.getMessage());
+        logRejected(HttpStatus.BAD_REQUEST, ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    private void logRejected(HttpStatus status, Exception ex) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
     }
 }

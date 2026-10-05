@@ -36,7 +36,6 @@ public class WhatsAppCampaignController implements WhatsAppCampaignControllerApi
             @PathVariable Long eventId,
             @RequestBody CreateWhatsAppCampaignRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to create WhatsApp campaign for event ID: {} by user: {}", eventId, currentUser.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.createCampaign(eventId, request, currentUser));
     }
 
@@ -46,7 +45,6 @@ public class WhatsAppCampaignController implements WhatsAppCampaignControllerApi
             @PathVariable Long campaignId,
             @RequestBody UpdateWhatsAppCampaignRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update WhatsApp campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
         return ResponseEntity.ok(campaignService.updateCampaign(eventId, campaignId, request, currentUser));
     }
 
@@ -54,7 +52,6 @@ public class WhatsAppCampaignController implements WhatsAppCampaignControllerApi
     public ResponseEntity<List<WhatsAppCampaignResponse>> getCampaignsByEvent(
             @PathVariable Long eventId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get WhatsApp campaigns for event ID: {} by user: {}", eventId, currentUser.getUsername());
         return ResponseEntity.ok(campaignService.getCampaignsByEvent(eventId, currentUser));
     }
 
@@ -63,7 +60,6 @@ public class WhatsAppCampaignController implements WhatsAppCampaignControllerApi
             @PathVariable Long eventId,
             @PathVariable Long campaignId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to disarm WhatsApp campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
         return ResponseEntity.ok(campaignService.disarmCampaign(eventId, campaignId, currentUser));
     }
 
@@ -72,29 +68,37 @@ public class WhatsAppCampaignController implements WhatsAppCampaignControllerApi
             @PathVariable Long eventId,
             @PathVariable Long campaignId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to delete WhatsApp campaign ID: {} for event ID: {} by user: {}", campaignId, eventId, currentUser.getUsername());
         campaignService.deleteCampaign(eventId, campaignId, currentUser);
         return ResponseEntity.noContent().build();
     }
 
     @ExceptionHandler(WhatsAppCampaignNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleCampaignNotFound(WhatsAppCampaignNotFoundException ex, WebRequest request) {
-        log.warn("WhatsApp campaign not found: {}", ex.getMessage());
+        logRejected(HttpStatus.NOT_FOUND, ex);
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
     }
 
     @ExceptionHandler(InvalidWhatsAppCampaignException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCampaign(InvalidWhatsAppCampaignException ex, WebRequest request) {
-        log.warn("Invalid WhatsApp campaign request: {}", ex.getMessage());
+        logRejected(HttpStatus.BAD_REQUEST, ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
 
     @ExceptionHandler(WhatsAppCampaignAlreadyActiveException.class)
     public ResponseEntity<ErrorResponse> handleAlreadyActive(WhatsAppCampaignAlreadyActiveException ex, WebRequest request) {
-        log.warn("WhatsApp campaign conflict: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    private void logRejected(HttpStatus status, Exception ex) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
     }
 }

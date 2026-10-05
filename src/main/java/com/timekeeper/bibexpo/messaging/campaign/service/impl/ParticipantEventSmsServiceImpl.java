@@ -37,40 +37,45 @@ public class ParticipantEventSmsServiceImpl implements ParticipantEventSmsServic
     private final RaceCategoryNameQuery nameResolver;
     private final CampaignCompatibilityGuard compatibilityGuard;
 
+    // Runs after the collection is saved: nothing in here may fail the counter, so every failure is logged instead.
     @Override
     public void sendBibCollectedSms(Event event, ParticipantDDB participant) {
         Long eventId = event.getId();
-        SmsCampaign campaign = smsCampaignRepository
-                .findByEventIdAndTriggerTypeAndStatus(eventId, CampaignTriggerType.AUTO_BIB_COLLECTED, CampaignStatus.ACTIVE)
-                .orElse(null);
-
-        if (campaign == null) {
-            log.info("No active AUTO_BIB_COLLECTED campaign for event ID: {} — skipping SMS", eventId);
-            return;
-        }
-
-        String phone = participant.getPhoneNumber();
-        if (phone == null || phone.isBlank()) {
-            log.warn("Skipping bib-collected SMS for bib {} in event {}: no phone number", participant.getBibNumber(), eventId);
-            return;
-        }
-
-        SmsTemplate template = campaign.getSmsTemplate();
-        Optional<String> incompatible = compatibilityGuard.problem(MessageChannel.SMS, campaign.getOrganizationId(),
-                new TemplateContent(template.getTemplate() != null && !template.getTemplate().isBlank(),
-                        CampaignVariableRenderer.count(template.getBodyVariables()),
-                        template.getSmsTemplateId() != null && !template.getSmsTemplateId().isBlank(),
-                        template.getSenderId() != null && !template.getSenderId().isBlank()),
-                template.getProviderSource());
-        if (incompatible.isPresent()) {
-            // Logged rather than notified: this fires per bib collection, and one notification per
-            // participant would bury the counter staff.
-            log.error("Bib-collected SMS skipped for bib {} in event {} — {}",
-                    participant.getBibNumber(), eventId, incompatible.get());
-            return;
-        }
-
         try {
+            SmsCampaign campaign = smsCampaignRepository
+                    .findByEventIdAndTriggerTypeAndStatus(eventId, CampaignTriggerType.AUTO_BIB_COLLECTED, CampaignStatus.ACTIVE)
+                    .orElse(null);
+            if (campaign == null) {
+                return;
+            }
+
+            String phone = participant.getPhoneNumber();
+            if (phone == null || phone.isBlank()) {
+                log.debug("Bib-collected SMS skipped: no phone number");
+                return;
+            }
+
+            SmsTemplate template = campaign.getSmsTemplate();
+            Optional<String> incompatible = compatibilityGuard.problem(MessageChannel.SMS, campaign.getOrganizationId(),
+                    new TemplateContent(template.getTemplate() != null && !template.getTemplate().isBlank(),
+                            CampaignVariableRenderer.count(template.getBodyVariables()),
+                            template.getSmsTemplateId() != null && !template.getSmsTemplateId().isBlank(),
+                            template.getSenderId() != null && !template.getSenderId().isBlank()),
+                    template.getProviderSource());
+            if (incompatible.isPresent()) {
+                // Logged rather than notified: this fires per bib collection, and one notification per
+                // participant would bury the counter staff.
+                log.atError()
+                        .addKeyValue("event", "campaign.auto_send_skipped")
+                        .addKeyValue("channel", MessageChannel.SMS)
+                        .addKeyValue("eventId", eventId)
+                        .addKeyValue("campaignId", campaign.getId())
+                        .addKeyValue("bibNumber", participant.getBibNumber())
+                        .addKeyValue("reason", incompatible.get())
+                        .log("Bib-collected message skipped");
+                return;
+            }
+
             MessagingProvider provider = campaignProviderResolver.resolve(MessageChannel.SMS, campaign.getOrganizationId());
             EventNames names = nameResolver.forEvent(eventId);
             MessageTemplateContext context = new MessageTemplateContext(participant, event,
@@ -84,9 +89,22 @@ public class ParticipantEventSmsServiceImpl implements ParticipantEventSmsServic
                     .message(renderedMessage)
                     .variables(CampaignVariableRenderer.render(template.getBodyVariables(), context))
                     .build());
-            log.info("Bib-collected SMS sent to bib {} in event {}", participant.getBibNumber(), eventId);
+            log.atInfo()
+                    .addKeyValue("event", "campaign.auto_sent")
+                    .addKeyValue("channel", MessageChannel.SMS)
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("campaignId", campaign.getId())
+                    .addKeyValue("bibNumber", participant.getBibNumber())
+                    .log("Bib-collected message sent");
         } catch (Exception e) {
-            log.warn("Bib-collected SMS failed for bib {} in event {}: {}", participant.getBibNumber(), eventId, e.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "campaign.auto_send_failed")
+                    .addKeyValue("channel", MessageChannel.SMS)
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("bibNumber", participant.getBibNumber())
+                    .addKeyValue("exception", e.getClass().getSimpleName())
+                    .addKeyValue("reason", e.getMessage())
+                    .log("Bib-collected message failed");
         }
     }
 }

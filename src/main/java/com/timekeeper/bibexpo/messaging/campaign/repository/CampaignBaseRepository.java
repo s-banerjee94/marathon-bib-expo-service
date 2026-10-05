@@ -5,9 +5,11 @@ import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignStatus;
 import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.NoRepositoryBean;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -76,4 +78,13 @@ public interface CampaignBaseRepository<C extends CampaignEntity>
      * Find all campaigns by status — used on startup to recover SENDING campaigns
      */
     List<C> findAllByStatus(CampaignStatus status);
+
+    /**
+     * Records a running send's progress. Touches only the count and updatedAt, so the sender's stale copy
+     * of the campaign never overwrites the scheduler's retry count or status.
+     */
+    @Transactional
+    @Modifying
+    @Query("UPDATE #{#entityName} c SET c.sentCount = :sentCount, c.updatedAt = :now WHERE c.id = :id")
+    void saveProgress(@Param("id") Long id, @Param("sentCount") int sentCount, @Param("now") Instant now);
 }

@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
         If triggerType is null only name and template are updated and the campaign stays DRAFT.""")
 public class UpdateSmsCampaignRequest implements CampaignWriteRequest {
 
-    @Size(max = 100, message = "Campaign name must not exceed 100 characters")
+    @Size(max = 100, message = "Campaign name must not exceed 100 characters.")
     @Schema(description = "Human readable name for the campaign", example = "Bib Collection Confirmation", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String name;
 

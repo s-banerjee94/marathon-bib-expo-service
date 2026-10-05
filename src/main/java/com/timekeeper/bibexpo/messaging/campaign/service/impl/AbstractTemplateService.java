@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.messaging.campaign.service.impl;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.messaging.campaign.model.entity.TemplateEntity;
 import com.timekeeper.bibexpo.messaging.campaign.repository.TemplateBaseRepository;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.event.model.enums.EventOperation;
 import com.timekeeper.bibexpo.event.api.EventStore;
@@ -31,22 +32,21 @@ import java.util.List;
  */
 public abstract class AbstractTemplateService<T extends TemplateEntity, R> {
 
-    protected final Logger log = LoggerFactory.getLogger(getClass());
+    private final Logger log = LoggerFactory.getLogger(getClass());
 
-    // Channel name as it appears in log lines ("SMS", "WhatsApp"); constant per subclass
-    private final String channelLabel;
+    private final MessageChannel channel;
 
     protected final TemplateBaseRepository<T> templateRepository;
     private final EventStore eventStore;
     private final EventAccessValidator eventAccessValidator;
     private final EventOperationGuard eventOperationGuard;
 
-    protected AbstractTemplateService(String channelLabel,
+    protected AbstractTemplateService(MessageChannel channel,
                                       TemplateBaseRepository<T> templateRepository,
                                       EventStore eventStore,
                                       EventAccessValidator eventAccessValidator,
                                       EventOperationGuard eventOperationGuard) {
-        this.channelLabel = channelLabel;
+        this.channel = channel;
         this.templateRepository = templateRepository;
         this.eventStore = eventStore;
         this.eventAccessValidator = eventAccessValidator;
@@ -54,23 +54,13 @@ public abstract class AbstractTemplateService<T extends TemplateEntity, R> {
     }
 
     protected final List<R> doList(Long eventId, String search, User currentUser) {
-        log.info("Fetching {} templates for event ID: {} search: {} by user: {}",
-                channelLabel, eventId, search, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
 
-        List<T> templates = templateRepository.findAll(buildSearchSpecification(eventId, search));
-
-        log.info("Successfully fetched {} {} templates for event ID: {} by user: {}",
-                templates.size(), channelLabel, eventId, currentUser.getUsername());
-
-        return templates.stream().map(template -> toResponse(template, event)).toList();
+        return templateRepository.findAll(buildSearchSpecification(eventId, search))
+                .stream().map(template -> toResponse(template, event)).toList();
     }
 
     protected final void doDelete(Long eventId, Long templateId, User currentUser) {
-        log.info("Deleting {} template ID: {} for event ID: {} by user: {}",
-                channelLabel, templateId, eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
         requireTemplateWriteAllowed(event);
 
@@ -84,8 +74,16 @@ public abstract class AbstractTemplateService<T extends TemplateEntity, R> {
                 event.getOrganization() != null ? event.getOrganization().getId() : null);
 
         templateRepository.delete(template);
-        log.info("Successfully deleted {} template ID: {} by user: {}",
-                channelLabel, templateId, currentUser.getUsername());
+        logWrite("campaign.template.deleted", eventId, templateId);
+    }
+
+    protected final void logWrite(String eventName, Long eventId, Long templateId) {
+        log.atInfo()
+                .addKeyValue("event", eventName)
+                .addKeyValue("channel", channel)
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("templateId", templateId)
+                .log("Campaign template changed");
     }
 
     private Specification<T> buildSearchSpecification(Long eventId, String search) {

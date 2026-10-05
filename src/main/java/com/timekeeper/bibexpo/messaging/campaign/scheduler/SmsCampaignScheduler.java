@@ -7,6 +7,7 @@ import com.timekeeper.bibexpo.messaging.campaign.model.enums.CampaignTriggerType
 import com.timekeeper.bibexpo.messaging.campaign.repository.SmsCampaignRepository;
 import com.timekeeper.bibexpo.messaging.campaign.service.SmsCampaignSendService;
 import com.timekeeper.bibexpo.messaging.campaign.util.CampaignNotifier;
+import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -37,13 +38,13 @@ public class SmsCampaignScheduler {
 
     @EventListener(ApplicationReadyEvent.class)
     public void recoverOnStartup() {
-        List<SmsCampaign> sending = smsCampaignRepository.findAllByStatus(CampaignStatus.SENDING);
-        if (sending.isEmpty()) {
-            return;
-        }
-        log.info("Recovering {} SENDING campaign(s) found after startup", sending.size());
-        for (SmsCampaign campaign : sending) {
-            log.info("Recovering SENDING campaign ID: {} after restart", campaign.getId());
+        for (SmsCampaign campaign : smsCampaignRepository.findAllByStatus(CampaignStatus.SENDING)) {
+            log.atInfo()
+                    .addKeyValue("event", "campaign.resumed")
+                    .addKeyValue("channel", MessageChannel.SMS)
+                    .addKeyValue("eventId", campaign.getEvent().getId())
+                    .addKeyValue("campaignId", campaign.getId())
+                    .log("Campaign resumed after startup");
             smsCampaignSendService.sendCampaignAsync(campaign.getId());
         }
     }
@@ -56,7 +57,12 @@ public class SmsCampaignScheduler {
             campaign.setStatus(CampaignStatus.SENDING);
             smsCampaignRepository.save(campaign);
             smsCampaignSendService.sendCampaignAsync(campaign.getId());
-            log.info("Fired scheduled campaign ID: {} for event ID: {}", campaign.getId(), campaign.getEvent().getId());
+            log.atInfo()
+                    .addKeyValue("event", "campaign.fired")
+                    .addKeyValue("channel", MessageChannel.SMS)
+                    .addKeyValue("eventId", campaign.getEvent().getId())
+                    .addKeyValue("campaignId", campaign.getId())
+                    .log("Scheduled campaign fired");
         }
     }
 
@@ -65,17 +71,29 @@ public class SmsCampaignScheduler {
         List<SmsCampaign> stuck = smsCampaignRepository.findStuckCampaigns(CampaignStatus.SENDING, stuckThreshold);
 
         for (SmsCampaign campaign : stuck) {
-            if (campaign.getRetryCount() > schedulerProperties.getMaxRetryCount()) {
+            if (campaign.getRetryCount() >= schedulerProperties.getMaxRetryCount()) {
                 campaign.setStatus(CampaignStatus.FAILED);
                 smsCampaignRepository.save(campaign);
-                log.error("Campaign ID: {} exceeded max retries ({}) — marked FAILED",
-                        campaign.getId(), schedulerProperties.getMaxRetryCount());
+                log.atError()
+                        .addKeyValue("event", "campaign.failed")
+                        .addKeyValue("channel", MessageChannel.SMS)
+                        .addKeyValue("eventId", campaign.getEvent().getId())
+                        .addKeyValue("campaignId", campaign.getId())
+                        .addKeyValue("reason", "retries_exhausted")
+                        .addKeyValue("retryCount", campaign.getRetryCount())
+                        .log("Campaign failed");
                 campaignNotifier.notifyFailed(campaign.getId(), campaign.getName(), campaign.getOrganizationId(), "SMS");
             } else {
                 campaign.setRetryCount(campaign.getRetryCount() + 1);
                 smsCampaignRepository.save(campaign);
                 smsCampaignSendService.sendCampaignAsync(campaign.getId());
-                log.warn("Retrying stuck campaign ID: {} (attempt {})", campaign.getId(), campaign.getRetryCount());
+                log.atWarn()
+                        .addKeyValue("event", "campaign.retried")
+                        .addKeyValue("channel", MessageChannel.SMS)
+                        .addKeyValue("eventId", campaign.getEvent().getId())
+                        .addKeyValue("campaignId", campaign.getId())
+                        .addKeyValue("retryCount", campaign.getRetryCount())
+                        .log("Stuck campaign retried");
             }
         }
     }
