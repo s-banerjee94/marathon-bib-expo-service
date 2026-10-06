@@ -121,7 +121,7 @@ public interface OrganizationCampaignProviderControllerApi {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization not found, or no override configured",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "502", description = "Provider call failed",
+            @ApiResponse(responseCode = "502", description = "Provider call failed, or the provider's address points to a private network",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/{channel}/test")

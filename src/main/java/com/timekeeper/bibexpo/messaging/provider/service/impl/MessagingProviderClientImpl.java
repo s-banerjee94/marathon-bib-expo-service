@@ -18,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 
 /**
  * Reads the channel's provider row and replays it into one HTTP call. Every value — the URL, each
@@ -69,10 +72,14 @@ public class MessagingProviderClientImpl implements MessagingProviderClient {
         try {
             // url is already fully percent-encoded (uri.build().encode()); pass a URI so RestClient's
             // default UriBuilderFactory does not encode it a second time (double-encoding query values).
+            URI uri = URI.create(request.url());
+            if (provider.getOrganizationId() != null) {
+                requirePublicHost(provider, uri);
+            }
             String response;
             if (ProviderRequestBuilder.carriesBody(request.method())) {
                 RestClient.RequestBodySpec spec = restClient
-                        .method(HttpMethod.valueOf(request.method().name())).uri(URI.create(request.url()));
+                        .method(HttpMethod.valueOf(request.method().name())).uri(uri);
                 request.headers().forEach(spec::header);
                 spec.contentType(mediaTypeFor(provider.getContentType()));
                 if (request.body() != null && !request.body().isBlank()) {
@@ -80,7 +87,7 @@ public class MessagingProviderClientImpl implements MessagingProviderClient {
                 }
                 response = spec.retrieve().body(String.class);
             } else {
-                RestClient.RequestHeadersSpec<?> spec = restClient.get().uri(URI.create(request.url()));
+                RestClient.RequestHeadersSpec<?> spec = restClient.get().uri(uri);
                 request.headers().forEach(spec::header);
                 response = spec.retrieve().body(String.class);
             }
@@ -112,6 +119,34 @@ public class MessagingProviderClientImpl implements MessagingProviderClient {
                     .log("Messaging provider could not be reached");
             throw new MessagingProviderException("The " + channel + " provider call failed.");
         }
+    }
+
+    /**
+     * An organization's admin chooses this address and our server makes the call, so it must not reach our
+     * own network or the cloud metadata service. Root-managed rows are trusted and not checked. The lookup
+     * lands in the JVM's DNS cache, so the client connects to the address checked here rather than
+     * resolving again to a different one.
+     */
+    private void requirePublicHost(MessagingProvider provider, URI uri) throws UnknownHostException {
+        for (InetAddress address : InetAddress.getAllByName(uri.getHost())) {
+            if (isInternal(address)) {
+                log.atWarn()
+                        .addKeyValue("event", "message.provider_blocked")
+                        .addKeyValue("channel", provider.getChannel())
+                        .addKeyValue("organizationId", provider.getOrganizationId())
+                        .addKeyValue("host", uri.getHost())
+                        .log("Messaging provider address points to a private network");
+                throw new MessagingProviderException("The " + provider.getChannel()
+                        + " provider's address points to a private network, which is not allowed.");
+            }
+        }
+    }
+
+    // Unique-local IPv6 (fc00::/7) has no InetAddress check of its own and holds AWS's IPv6 metadata address.
+    private static boolean isInternal(InetAddress address) {
+        return address.isLoopbackAddress() || address.isAnyLocalAddress() || address.isLinkLocalAddress()
+                || address.isSiteLocalAddress() || address.isMulticastAddress()
+                || (address instanceof Inet6Address && (address.getAddress()[0] & 0xfe) == 0xfc);
     }
 
     /**
