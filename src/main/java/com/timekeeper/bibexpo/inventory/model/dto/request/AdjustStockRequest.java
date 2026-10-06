@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.inventory.model.dto.request;
 
 import com.timekeeper.bibexpo.inventory.model.enums.MovementReason;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 import lombok.Data;
@@ -19,7 +21,9 @@ public class AdjustStockRequest {
     private Long locationId;
 
     @NotNull(message = "Quantity is required")
-    @Schema(description = "Change in quantity, never zero. With CORRECTION the sign decides the direction — negative removes, "
+    @Min(value = -1_000_000, message = "Quantity must be between -1,000,000 and 1,000,000")
+    @Max(value = 1_000_000, message = "Quantity must be between -1,000,000 and 1,000,000")
+    @Schema(description = "Change in quantity, never zero and at most 1,000,000 either way. With CORRECTION the sign decides the direction — negative removes, "
             + "positive adds. With DAMAGED or LOST the sign is ignored and this many units are always removed.", example = "-5")
     private Integer quantity;
 

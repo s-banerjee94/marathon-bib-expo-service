@@ -38,10 +38,14 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
     int deduct(@Param("id") Long id, @Param("qty") Integer qty, @Param("allowNegative") boolean allowNegative,
                @Param("now") Instant now, @Param("actor") String actor);
 
-    /** Adds {@code qty} to {@code onHand} in one statement, stamping the change onto the balance. */
+    /**
+     * Adds {@code qty} to {@code onHand} in one statement, stamping the change onto the balance. Succeeds
+     * only if the balance stays at or below 1,000,000, or {@code allowAboveCap} is true. Returns 0 rows
+     * affected otherwise — the caller must then throw {@code StockCapacityExceededException}.
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE InventoryStock s SET s.onHand = s.onHand + :qty, s.updatedAt = :now, s.lastModifiedBy = :actor "
-            + "WHERE s.id = :id")
-    int add(@Param("id") Long id, @Param("qty") Integer qty, @Param("now") Instant now,
-            @Param("actor") String actor);
+            + "WHERE s.id = :id AND (s.onHand + :qty <= 1000000 OR :allowAboveCap = true)")
+    int add(@Param("id") Long id, @Param("qty") Integer qty, @Param("allowAboveCap") boolean allowAboveCap,
+            @Param("now") Instant now, @Param("actor") String actor);
 }

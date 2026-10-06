@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.inventory.model.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -24,6 +25,7 @@ public class TransferStockRequest {
 
     @NotNull(message = "Quantity is required")
     @Positive(message = "Quantity must be at least 1")
+    @Max(value = 1_000_000, message = "Quantity must be at most 1,000,000")
     @Schema(description = "Quantity to move", example = "900")
     private Integer quantity;
 

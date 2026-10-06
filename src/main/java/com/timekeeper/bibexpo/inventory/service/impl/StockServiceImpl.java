@@ -10,6 +10,7 @@ import com.timekeeper.bibexpo.inventory.exception.InsufficientStockException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantNotFoundException;
+import com.timekeeper.bibexpo.inventory.exception.StockCapacityExceededException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.AdjustStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.ReceiveStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.TransferStockRequest;
@@ -236,7 +237,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         InventoryLocation location = requireLocationInOrg(request.getLocationId(), organizationId);
 
         InventoryStock stock = findOrCreateStock(variant.getId(), location.getId());
-        addStock(stock.getId(), request.getQuantity(), currentUser);
+        addOrThrow(stock.getId(), request.getQuantity(), currentUser);
 
         InventoryMovement movement = movementRepository.save(InventoryMovement.builder()
                 .organizationId(organizationId)
@@ -278,7 +279,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         deductOrThrow(sourceStock.getId(), request.getQuantity(), currentUser);
 
         InventoryStock destStock = findOrCreateStock(variant.getId(), toLocation.getId());
-        addStock(destStock.getId(), request.getQuantity(), currentUser);
+        addOrThrow(destStock.getId(), request.getQuantity(), currentUser);
 
         // A transfer is two ledger lines, not one row with both locations set, so each location's
         // own history reads as a plain list of what arrived or left it.
@@ -351,7 +352,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         Long stockId;
         if (delta > 0) {
             InventoryStock stock = findOrCreateStock(variant.getId(), location.getId());
-            addStock(stock.getId(), delta, currentUser);
+            addOrThrow(stock.getId(), delta, currentUser);
             stockId = stock.getId();
             movement.toLocationId(location.getId());
         } else {
@@ -386,7 +387,8 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
     }
 
     // One unit per line. An issue may overdraw the shelf, since the runner is already holding the goody,
-    // and a reversal lands back on the location the unit left, wherever the goody hands out from now.
+    // and a reversal lands back on the location the unit left, wherever the goody hands out from now and
+    // however full that shelf is: the counter is never refused.
     private void postHandover(GoodieIssue issue, MovementType type, String bibNumber, String actor) {
         InventoryVariant variant = requireVariant(issue.variantId());
         InventoryItem item = itemRepository.findById(variant.getItemId())
@@ -402,7 +404,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 alertBelowZero(item, issue, bibNumber);
             }
         } else {
-            stockRepository.add(stock.getId(), 1, now, actor);
+            stockRepository.add(stock.getId(), 1, true, now, actor);
         }
 
         movementRepository.save(InventoryMovement.builder()
@@ -482,8 +484,11 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .orElseThrow(InsufficientStockException::new);
     }
 
-    private void addStock(Long stockId, int qty, User currentUser) {
-        stockRepository.add(stockId, qty, Instant.now(), currentUser.getUsername());
+    private void addOrThrow(Long stockId, int qty, User currentUser) {
+        int updated = stockRepository.add(stockId, qty, false, Instant.now(), currentUser.getUsername());
+        if (updated == 0) {
+            throw new StockCapacityExceededException();
+        }
     }
 
     private void deductOrThrow(Long stockId, int qty, User currentUser) {
