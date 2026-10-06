@@ -30,14 +30,14 @@ import java.util.List;
 public interface SystemMessagingProviderControllerApi {
 
     @Operation(summary = "List all provider configurations",
-            description = "Returns every configured provider connection, secrets masked. Root only.")
+            description = "**Roles:** `ROOT`\n\nEvery configured provider connection, secrets masked.")
     @ApiResponse(responseCode = "200", description = "Providers retrieved")
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT')")
     ResponseEntity<List<MessagingProviderResponse>> list();
 
     @Operation(summary = "Get one channel's provider configuration",
-            description = "Returns the provider connection for the channel, secret values masked. Root only.")
+            description = "**Roles:** `ROOT`\n\nThe provider connection for the channel, secrets masked.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Provider retrieved",
                     content = @Content(mediaType = "application/json",
@@ -53,13 +53,16 @@ public interface SystemMessagingProviderControllerApi {
 
     @Operation(summary = "Create or replace a channel's provider configuration",
             description = """
+                    **Roles:** `ROOT`
+
                     Upserts the provider connection for the channel. Secret fields (authToken, \
-                    password) are write-only — leave them blank to keep the stored value. Root only.""")
+                    password) are write-only — leave them blank to keep the stored value. An enabled provider \
+                    must have an endpoint and a request mapping that matches its templateMode.""")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Provider saved",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = MessagingProviderResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Validation failure",
+            @ApiResponse(responseCode = "400", description = "Validation failed, or the request mapping does not match the provider's mode",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })

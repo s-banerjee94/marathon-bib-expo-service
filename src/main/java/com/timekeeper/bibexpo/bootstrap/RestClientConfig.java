@@ -11,8 +11,8 @@ import java.time.Duration;
 @Configuration
 public class RestClientConfig {
 
-    // Messaging providers are called from inside a bib collection, so a provider that hangs must not hold the
-    // counter: RestClient.create() has no timeouts at all.
+    // A messaging provider that hangs must not hold the request or worker thread that called it:
+    // RestClient.create() has no timeouts at all.
     @Bean
     public RestClient restClient() {
         HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();

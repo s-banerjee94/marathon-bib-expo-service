@@ -52,6 +52,9 @@ public class ProviderMappingValidator {
      * @return the problem, or empty when the mode and the mapping agree
      */
     public Optional<String> inconsistency(MessagingProvider provider) {
+        if (provider.getBaseUrl() == null || provider.getBaseUrl().isBlank()) {
+            return Optional.of("Set the address this provider sends to.");
+        }
         TemplateMode mode = provider.getTemplateMode();
         if (mode == null) {
             return Optional.empty();
@@ -60,29 +63,28 @@ public class ProviderMappingValidator {
         Set<String> tokens = mappedTokens(provider);
 
         if (provider.getChannel() == MessageChannel.EMAIL && !tokens.contains(RECIPIENT_EMAIL_TOKEN)) {
-            return Optional.of("This provider sends email but its request never uses {{RECIPIENT_EMAIL}}, so it has "
-                    + "no address to send to. Add it.");
+            return Optional.of("Add {{RECIPIENT_EMAIL}} to this provider's request, or it has no address to send "
+                    + "email to.");
         }
         if (provider.getChannel() != MessageChannel.EMAIL
                 && tokens.stream().noneMatch(PHONE_TOKENS::contains)) {
-            return Optional.of("This provider's request never uses {{RECIPIENT}} or {{RECIPIENT_E164}}, so it has no "
-                    + "number to send to. Add one.");
+            return Optional.of("Add {{RECIPIENT}} or {{RECIPIENT_E164}} to this provider's request, or it has no "
+                    + "number to send to.");
         }
 
         if (tokens.stream().anyMatch(COUNTRY_CODE_TOKENS::contains)
                 && (provider.getDefaultCountryCode() == null || provider.getDefaultCountryCode().isBlank())) {
-            return Optional.of("This provider's request builds an international number, so it needs a country code. "
-                    + "Set one, or use {{RECIPIENT}} to send the number exactly as it is stored.");
+            return Optional.of("This provider's request builds an international number, so set a country code or use "
+                    + "{{RECIPIENT}} to send numbers as they are stored.");
         }
 
         if (mode == TemplateMode.CLIENT_RENDERED && !tokens.contains(MESSAGE_TOKEN)) {
-            return Optional.of("This provider is set to send the finished message text, but its request never uses "
-                    + "{{MESSAGE}}. Add it, or set the provider to render the message itself.");
+            return Optional.of("This provider is set to send the finished message text, so add {{MESSAGE}} to its "
+                    + "request or set it to render the message itself.");
         }
         if (mode == TemplateMode.PROVIDER_RENDERED && tokens.stream().noneMatch(VARIABLE_TOKENS::contains)) {
-            return Optional.of("This provider is set to render the message from its own registered template, but its "
-                    + "request never uses {{VAR:n}} or {{VARIABLES_JSON}}. Add one, or set the provider to send the "
-                    + "finished message text.");
+            return Optional.of("This provider is set to render its own registered template, so add {{VAR:n}} or "
+                    + "{{VARIABLES_JSON}} to its request or set it to send the finished message text.");
         }
         return Optional.empty();
     }
@@ -107,15 +109,15 @@ public class ProviderMappingValidator {
 
         if (tokens.contains(MESSAGE_TOKEN) && !content.hasMessageText()) {
             return Optional.of(provider.getChannel() == MessageChannel.WHATSAPP
-                    ? "Your WhatsApp sender expects the finished message text, but WhatsApp campaigns send the "
-                            + "approved template instead. Set the sender to use the template variables."
+                    ? "Your WhatsApp sender expects the finished message text, but WhatsApp campaigns send an "
+                            + "approved template, so set the sender to use template variables."
                     : "Your " + channel + " sender expects the finished message text, but this template does not have any.");
         }
 
         int expected = maxVariableIndex(provider) + 1;
         if (expected > content.variableCount()) {
             return Optional.of("Your " + channel + " sender fills " + expected + " variable(s), but this template "
-                    + "supplies " + content.variableCount() + ". Add the missing variables before sending.");
+                    + "supplies " + content.variableCount() + ", so add the missing ones before sending.");
         }
 
         if (tokens.contains(SENDER_ID_TOKEN) && !content.hasSenderId()) {
