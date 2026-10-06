@@ -42,6 +42,8 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "List stock",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     One page of what the organization has on hand, one entry per item, carrying the \
                     variant-and-location rows behind its total.
 
@@ -85,6 +87,8 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "List ledger movements",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     One page of the organization's append-only stock ledger.
 
                     Every filter is optional and they combine. Filtering happens in the database, so \
@@ -143,6 +147,8 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "Receive stock",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Records stock arriving at a location from outside the system — an opening balance or a \
                     manual receipt. Always succeeds; a receipt can never be short. The variant and the
                     location must both belong to this organization."""
@@ -167,6 +173,8 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "Transfer stock between locations",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Moves stock from one location to another. Posts two ledger lines, one per location, and \
                     returns the resulting balance at each — source first, then destination. Answers 409
                     when the source location does not hold enough stock."""
@@ -194,6 +202,8 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "Adjust a counted quantity",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Corrects the counted quantity at a location. The reason must say whether the stock was
                     damaged, lost, or simply miscounted. DAMAGED and LOST always remove stock, whatever sign the
                     quantity carries; CORRECTION adds or removes according to the sign. An adjustment can never

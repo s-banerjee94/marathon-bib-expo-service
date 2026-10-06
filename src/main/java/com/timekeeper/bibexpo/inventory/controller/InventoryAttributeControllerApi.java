@@ -35,6 +35,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "List attributes",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     This organization's attributes, sorted by name. Every attribute belongs to one \
                     organization: there is no shared list, so an organizer defines Size, Colour and \
                     anything else exactly as their own products need them."""
@@ -56,7 +58,7 @@ public interface InventoryAttributeControllerApi {
 
     @Operation(
             summary = "Get one attribute",
-            description = "Returns one of this organization's attributes with its allowed values."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nReturns one of this organization's attributes with its allowed values."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Attribute retrieved successfully",
@@ -75,7 +77,7 @@ public interface InventoryAttributeControllerApi {
 
     @Operation(
             summary = "Add an attribute",
-            description = "Adds an attribute to this organization's own set. Names must be unique, and only a SELECT attribute may define variants."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nAdds an attribute to this organization's own set. Names must be unique, and only a SELECT attribute may define variants."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Attribute created successfully",
@@ -97,6 +99,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Rename an attribute or change whether it is required",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Renames one of this organization's own attributes or changes whether it is required. \
                     Its type and whether it defines variants are fixed at creation."""
     )
@@ -123,6 +127,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Delete an attribute",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Removes one of this organization's own attributes. An attribute an item or a variant \
                     still uses cannot be removed."""
     )
@@ -145,6 +151,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Add an allowed value",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Adds a value to a SELECT attribute's choice list. Values must be unique within the \
                     attribute, and each attribute has a limited number of value slots."""
     )
@@ -171,6 +179,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Rename an allowed value",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Renames one value in a SELECT attribute's choice list. The new value must be unique \
                     within the attribute."""
     )
@@ -198,6 +208,8 @@ public interface InventoryAttributeControllerApi {
     @Operation(
             summary = "Remove an allowed value",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Removes one value from a SELECT attribute's choice list. A value an item or a variant \
                     still carries cannot be removed."""
     )

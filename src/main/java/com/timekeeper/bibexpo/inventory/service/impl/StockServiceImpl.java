@@ -40,6 +40,7 @@ import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
 import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
+import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -88,7 +89,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
     public Page<StockItemResponse> listStock(Long organizationId, String search, Long locationId, Boolean lowOnly,
                                              Pageable pageable, User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        String needle = blankToNull(search);
+        String needle = TextUtils.trimToNull(search);
         Pageable effective = pageable.getSort().isSorted() ? pageable
                 : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("name"));
 
@@ -221,12 +222,8 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
                         Sort.by(Sort.Direction.DESC, "occurredAt", "id"));
         return movementRepository.search(organizationId, itemId, variantId, type, reason,
-                        blankToNull(performedBy), occurredFrom, occurredTo, effective)
+                        TextUtils.trimToNull(performedBy), occurredFrom, occurredTo, effective)
                 .map(StockMovementResponse::fromEntity);
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
     @Auditable(entityType = AuditEntityType.STOCK_MOVEMENT, action = AuditAction.CREATE)
@@ -253,8 +250,13 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .build());
         auditAgainst(organizationId, movement);
 
-        log.info("Received {} of variant {} at location {} for organization {}",
-                request.getQuantity(), variant.getId(), location.getId(), organizationId);
+        log.atInfo()
+                .addKeyValue("event", "inventory.stock_received")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("variantId", variant.getId())
+                .addKeyValue("locationId", location.getId())
+                .addKeyValue("quantity", request.getQuantity())
+                .log("Stock received");
         return StockBalanceResponse.fromEntity(reload(stock.getId()));
     }
 
@@ -303,8 +305,14 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .build());
         auditAgainst(organizationId, out);
 
-        log.info("Transferred {} of variant {} from location {} to location {} for organization {}",
-                request.getQuantity(), variant.getId(), fromLocation.getId(), toLocation.getId(), organizationId);
+        log.atInfo()
+                .addKeyValue("event", "inventory.stock_transferred")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("variantId", variant.getId())
+                .addKeyValue("fromLocationId", fromLocation.getId())
+                .addKeyValue("toLocationId", toLocation.getId())
+                .addKeyValue("quantity", request.getQuantity())
+                .log("Stock transferred");
         return List.of(
                 StockBalanceResponse.fromEntity(reload(sourceStock.getId())),
                 StockBalanceResponse.fromEntity(reload(destStock.getId())));
@@ -354,8 +362,14 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         }
 
         auditAgainst(organizationId, movementRepository.save(movement.build()));
-        log.info("Adjusted variant {} at location {} by {} for organization {}, reason {}",
-                variant.getId(), location.getId(), delta, organizationId, request.getReason());
+        log.atInfo()
+                .addKeyValue("event", "inventory.stock_adjusted")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("variantId", variant.getId())
+                .addKeyValue("locationId", location.getId())
+                .addKeyValue("delta", delta)
+                .addKeyValue("reason", request.getReason())
+                .log("Stock adjusted");
         return StockBalanceResponse.fromEntity(reload(stockId));
     }
 
@@ -423,6 +437,12 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+                log.atInfo()
+                        .addKeyValue("event", "inventory.stock_overdrawn")
+                        .addKeyValue("targetOrgId", item.getOrganizationId())
+                        .addKeyValue("variantId", issue.variantId())
+                        .addKeyValue("locationId", issue.locationId())
+                        .log("A hand-over took a shelf below zero");
                 notificationService.notify(request);
             }
         });

@@ -63,8 +63,6 @@ public class InventoryItemController implements InventoryItemControllerApi {
             @PathVariable Long organizationId,
             @Valid @RequestBody CreateInventoryItemRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Creating inventory item '{}' for organization {} by user {}",
-                request.getName(), organizationId, currentUser.getUsername());
         InventoryItemResponse response = itemService.createItem(organizationId, request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -75,8 +73,6 @@ public class InventoryItemController implements InventoryItemControllerApi {
             @PathVariable Long itemId,
             @Valid @RequestBody UpdateInventoryItemRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Updating inventory item {} for organization {} by user {}",
-                itemId, organizationId, currentUser.getUsername());
         return ResponseEntity.ok(itemService.updateItem(organizationId, itemId, request, currentUser));
     }
 
@@ -85,8 +81,6 @@ public class InventoryItemController implements InventoryItemControllerApi {
             @PathVariable Long organizationId,
             @PathVariable Long itemId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Deleting inventory item {} for organization {} by user {}",
-                itemId, organizationId, currentUser.getUsername());
         itemService.deleteItem(organizationId, itemId, currentUser);
         return ResponseEntity.noContent().build();
     }
@@ -97,8 +91,6 @@ public class InventoryItemController implements InventoryItemControllerApi {
             @PathVariable Long itemId,
             @Valid @RequestBody CreateInventoryVariantRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Adding variant to inventory item {} for organization {} by user {}",
-                itemId, organizationId, currentUser.getUsername());
         InventoryItemResponse response = itemService.addVariant(organizationId, itemId, request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -109,8 +101,6 @@ public class InventoryItemController implements InventoryItemControllerApi {
             @PathVariable Long itemId,
             @PathVariable Long variantId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Removing variant {} from inventory item {} for organization {} by user {}",
-                variantId, itemId, organizationId, currentUser.getUsername());
         return ResponseEntity.ok(itemService.removeVariant(organizationId, itemId, variantId, currentUser));
     }
 
@@ -121,8 +111,6 @@ public class InventoryItemController implements InventoryItemControllerApi {
             @PathVariable Long variantId,
             @Valid @RequestBody PresignUploadRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Request variant image upload URL for variant {} on inventory item {} for organization {} by user {}",
-                variantId, itemId, organizationId, currentUser.getUsername());
         PresignUploadResponse response = itemService.createVariantImageUploadUrl(
                 organizationId, itemId, variantId, request.getContentType(), currentUser);
         return ResponseEntity.ok(response);
@@ -135,8 +123,6 @@ public class InventoryItemController implements InventoryItemControllerApi {
             @PathVariable Long variantId,
             @Valid @RequestBody AttachUploadRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Attaching image to variant {} on inventory item {} for organization {} by user {}",
-                variantId, itemId, organizationId, currentUser.getUsername());
         InventoryItemResponse response = itemService.attachVariantImage(
                 organizationId, itemId, variantId, request.getObjectKey(), currentUser);
         return ResponseEntity.ok(response);
@@ -148,15 +134,18 @@ public class InventoryItemController implements InventoryItemControllerApi {
             @PathVariable Long itemId,
             @PathVariable Long variantId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Removing image from variant {} on inventory item {} for organization {} by user {}",
-                variantId, itemId, organizationId, currentUser.getUsername());
         return ResponseEntity.ok(itemService.removeVariantImage(organizationId, itemId, variantId, currentUser));
     }
 
     @ExceptionHandler(InventoryVariantLimitReachedException.class)
     public ResponseEntity<ErrorResponse> handleVariantLimitReached(
             InventoryVariantLimitReachedException ex, WebRequest request) {
-        log.info("Inventory variant limit reached: {}", ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.CONFLICT.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }

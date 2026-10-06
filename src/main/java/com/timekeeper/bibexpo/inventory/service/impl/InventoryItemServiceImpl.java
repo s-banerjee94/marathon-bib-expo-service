@@ -44,10 +44,12 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryItemService;
+import com.timekeeper.bibexpo.inventory.service.util.InventoryLimitLog;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
 import com.timekeeper.bibexpo.organization.api.InventoryLimits;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
+import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.storage.exception.InvalidFileException;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.storage.model.enums.UploadCategory;
@@ -55,6 +57,7 @@ import com.timekeeper.bibexpo.storage.service.StorageService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -112,7 +115,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         Pageable effective = pageable.getSort().isSorted() ? pageable
                 : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
                         Sort.by(Sort.Direction.DESC, "createdAt", "id"));
-        return itemRepository.search(organizationId, blankToNull(name), categoryId, createdFrom, createdTo, effective)
+        return itemRepository.search(organizationId, TextUtils.trimToNull(name), categoryId, createdFrom, createdTo, effective)
                 .map(InventoryItemSummaryResponse::fromEntity);
     }
 
@@ -160,11 +163,11 @@ public class InventoryItemServiceImpl implements InventoryItemService {
             item.setLowStockThreshold(request.getLowStockThreshold());
         }
         if (request.getNote() != null) {
-            item.setNote(blankToNull(request.getNote()));
+            item.setNote(TextUtils.trimToNull(request.getNote()));
         }
 
         InventoryItem saved = itemRepository.saveAndFlush(item);
-        log.info("Updated inventory item {} for organization {}", itemId, organizationId);
+        change("inventory.item_updated", organizationId, itemId).log("Inventory item updated");
         return toItemResponse(saved, variantRepository.findByItemId(itemId));
     }
 
@@ -195,7 +198,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         AuditContextHolder.setEntityLabel(item.getName());
         AuditContextHolder.setOrganizationId(organizationId);
         itemRepository.delete(item);
-        log.info("Deleted inventory item {} for organization {}", itemId, organizationId);
+        change("inventory.item_deleted", organizationId, itemId).log("Inventory item deleted");
     }
 
     @Auditable(entityType = AuditEntityType.INVENTORY_ITEM, action = AuditAction.UPDATE)
@@ -225,7 +228,8 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         List<InventoryVariant> variants = variantRepository.findByItemId(itemId);
         syncVariantCount(item, variants);
 
-        log.info("Added variant {} to inventory item {} for organization {}", variant.getId(), itemId, organizationId);
+        change("inventory.variant_added", organizationId, itemId).addKeyValue("variantId", variant.getId())
+                .log("Inventory variant added");
         return toItemResponse(item, variants);
     }
 
@@ -239,7 +243,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
         List<InventoryVariant> variants = variantRepository.findByItemId(itemId);
         if (variants.size() <= 1) {
-            throw new InvalidUserDataException("An item must keep at least one variant. Delete the item instead.");
+            throw new InvalidUserDataException("An item must keep at least one variant, so delete the item instead.");
         }
         requireNoStock(List.of(variant), InventoryVariantInUseException::new);
         if (variantAliasRepository.existsByVariantId(variantId)) {
@@ -254,7 +258,8 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         List<InventoryVariant> remaining = variantRepository.findByItemId(itemId);
         syncVariantCount(item, remaining);
 
-        log.info("Removed variant {} from inventory item {} for organization {}", variantId, itemId, organizationId);
+        change("inventory.variant_removed", organizationId, itemId).addKeyValue("variantId", variantId)
+                .log("Inventory variant removed");
         return toItemResponse(item, remaining);
     }
 
@@ -291,7 +296,8 @@ public class InventoryItemServiceImpl implements InventoryItemService {
             deleteImageQuietly(previousKey);
         }
 
-        log.info("Attached image to variant {} on inventory item {} for organization {}", variantId, itemId, organizationId);
+        change("inventory.variant_image_attached", organizationId, itemId).addKeyValue("variantId", variantId)
+                .log("Inventory variant image attached");
         return toItemResponse(item, variantRepository.findByItemId(itemId));
     }
 
@@ -308,7 +314,8 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         variantRepository.saveAndFlush(variant);
         deleteImageQuietly(previousKey);
 
-        log.info("Removed image from variant {} on inventory item {} for organization {}", variantId, itemId, organizationId);
+        change("inventory.variant_image_removed", organizationId, itemId).addKeyValue("variantId", variantId)
+                .log("Inventory variant image removed");
         return toItemResponse(item, variantRepository.findByItemId(itemId));
     }
 
@@ -316,8 +323,19 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         try {
             storageService.delete(objectKey);
         } catch (Exception e) {
-            log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "storage.delete.failed")
+                    .addKeyValue("objectKey", objectKey)
+                    .addKeyValue("exception", e.getClass().getSimpleName())
+                    .log("Stored object could not be deleted");
         }
+    }
+
+    private static LoggingEventBuilder change(String event, Long organizationId, Long itemId) {
+        return log.atInfo()
+                .addKeyValue("event", event)
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("itemId", itemId);
     }
 
     // ---- creation ----------------------------------------------------------------
@@ -337,7 +355,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
                 .categoryId(request.getCategoryId())
                 .unitId(request.getUnitId())
                 .lowStockThreshold(request.getLowStockThreshold())
-                .note(blankToNull(request.getNote()))
+                .note(TextUtils.trimToNull(request.getNote()))
                 .build());
 
         List<ResolvedAttributeValue> itemAttributes = resolveAttributeValues(request.getAttributes(), false, organizationId);
@@ -346,7 +364,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         List<InventoryVariant> variants = createVariants(item.getId(), organizationId, request.getVariants());
         syncVariantCount(item, variants);
 
-        log.info("Created inventory item '{}' for organization {}", name, organizationId);
+        change("inventory.item_created", organizationId, item.getId()).log("Inventory item created");
         return toItemResponse(item, variants);
     }
 
@@ -507,20 +525,13 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     private InventoryAttribute requireVisibleAttribute(Long attributeId, Long organizationId) {
         InventoryAttribute attribute = attributeRepository.findById(attributeId)
                 .orElseThrow(InventoryAttributeNotFoundException::new);
-        boolean visible = attribute.getOrganizationId() == null || attribute.getOrganizationId().equals(organizationId);
-        if (!visible) {
+        if (!attribute.getOrganizationId().equals(organizationId)) {
             throw new InventoryAttributeNotFoundException();
         }
         return attribute;
     }
 
     // ---- response assembly ----------------------------------------------------------------
-
-    // A blank note is stored as absent, so clearing one and never writing one look the same to
-    // every reader; a blank search term is likewise no search at all.
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
 
     // Set from the variants just read, never incremented, so the stored count cannot drift away
     // from the rows it counts.
@@ -601,9 +612,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     private void requireVisibleTerm(Long termId, TermKind kind, Long organizationId) {
         InventoryTerm term = termRepository.findById(termId)
                 .orElseThrow(InventoryTermNotFoundException::new);
-        boolean visible = term.getKind() == kind
-                && (term.getOrganizationId() == null || term.getOrganizationId().equals(organizationId));
-        if (!visible) {
+        if (term.getKind() != kind || !term.getOrganizationId().equals(organizationId)) {
             throw new InventoryTermNotFoundException();
         }
     }
@@ -625,12 +634,12 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     private void enforceVariantLimits(Long organizationId, int variantCount, int variantAttributeCount) {
         InventoryLimits limits = organizationDirectory.inventoryLimits(organizationId);
         if (variantCount > limits.maxVariantsPerItem()) {
-            log.error("Organization {} has reached its variant limit on an inventory item", organizationId);
+            InventoryLimitLog.limitReached(organizationId, "VARIANTS_PER_ITEM");
             throw new InventoryVariantLimitReachedException(
                     "This item already has as many variants as your plan allows.");
         }
         if (variantAttributeCount > limits.maxVariantAttributesPerItem()) {
-            log.error("Organization {} has reached its variant-attribute limit on an inventory item", organizationId);
+            InventoryLimitLog.limitReached(organizationId, "VARIANT_ATTRIBUTES_PER_ITEM");
             throw new InventoryVariantLimitReachedException(
                     "This item is split by more attributes than your plan allows.");
         }

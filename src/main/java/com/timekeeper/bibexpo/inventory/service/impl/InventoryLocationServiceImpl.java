@@ -17,8 +17,10 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryLocationRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryMovementRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryLocationService;
+import com.timekeeper.bibexpo.inventory.service.util.InventoryLimitLog;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
 import com.timekeeper.bibexpo.organization.api.InventoryQuota;
+import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +46,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
     public List<InventoryLocationResponse> listLocations(Long organizationId, String name, Long typeId,
                                                           User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        return locationRepository.search(organizationId, blankToNull(name), typeId).stream()
+        return locationRepository.search(organizationId, TextUtils.trimToNull(name), typeId).stream()
                 .map(InventoryLocationResponse::fromEntity)
                 .toList();
     }
@@ -69,7 +71,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
                 .typeId(request.getTypeId())
                 .build());
 
-        log.info("Created inventory location '{}' for organization {}", name, organizationId);
+        logLocation("inventory.location_created", "Inventory location created", organizationId, location.getId());
         return InventoryLocationResponse.fromEntity(location);
     }
 
@@ -95,7 +97,7 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
         }
 
         InventoryLocation saved = locationRepository.saveAndFlush(location);
-        log.info("Updated inventory location {} for organization {}", locationId, organizationId);
+        logLocation("inventory.location_updated", "Inventory location updated", organizationId, locationId);
         return InventoryLocationResponse.fromEntity(saved);
     }
 
@@ -116,28 +118,30 @@ public class InventoryLocationServiceImpl implements InventoryLocationService {
 
         locationRepository.delete(location);
         inventoryQuota.releaseLocation(organizationId);
-        log.info("Deleted inventory location {} for organization {}", locationId, organizationId);
+        logLocation("inventory.location_deleted", "Inventory location deleted", organizationId, locationId);
     }
 
     // ---- lookups ----------------------------------------------------------------
 
     private void reserveLocationSlot(Long organizationId) {
         if (!inventoryQuota.tryReserveLocation(organizationId)) {
-            log.error("Organization {} has reached its inventory location limit", organizationId);
+            InventoryLimitLog.limitReached(organizationId, "LOCATIONS");
             throw new InventoryLocationLimitReachedException();
         }
     }
 
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+    private static void logLocation(String event, String message, Long organizationId, Long locationId) {
+        log.atInfo()
+                .addKeyValue("event", event)
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("locationId", locationId)
+                .log(message);
     }
 
     private void requireVisibleTerm(Long termId, Long organizationId) {
         InventoryTerm term = termRepository.findById(termId)
                 .orElseThrow(InventoryTermNotFoundException::new);
-        boolean visible = term.getKind() == TermKind.LOCATION_TYPE
-                && (term.getOrganizationId() == null || term.getOrganizationId().equals(organizationId));
-        if (!visible) {
+        if (term.getKind() != TermKind.LOCATION_TYPE || !term.getOrganizationId().equals(organizationId)) {
             throw new InventoryTermNotFoundException();
         }
     }

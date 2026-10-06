@@ -5,7 +5,7 @@ import org.springframework.http.HttpStatus;
 
 public class InventoryLocationAlreadyExistsException extends ApiException {
 
-    public static final String DEFAULT_MESSAGE = "A location with this name already exists in this scope.";
+    public static final String DEFAULT_MESSAGE = "Your organization already has a location with this name.";
 
     public InventoryLocationAlreadyExistsException() {
         super(HttpStatus.CONFLICT, DEFAULT_MESSAGE);

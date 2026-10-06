@@ -51,8 +51,6 @@ public class InventoryAttributeController implements InventoryAttributeControlle
             @PathVariable Long organizationId,
             @Valid @RequestBody CreateInventoryAttributeRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Creating inventory attribute '{}' for organization {} by user {}",
-                request.getName(), organizationId, currentUser.getUsername());
         InventoryAttributeResponse response =
                 attributeService.createAttribute(organizationId, request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -64,8 +62,6 @@ public class InventoryAttributeController implements InventoryAttributeControlle
             @PathVariable Long attributeId,
             @Valid @RequestBody UpdateInventoryAttributeRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Updating inventory attribute {} for organization {} by user {}",
-                attributeId, organizationId, currentUser.getUsername());
         return ResponseEntity.ok(attributeService.updateAttribute(organizationId, attributeId, request, currentUser));
     }
 
@@ -74,8 +70,6 @@ public class InventoryAttributeController implements InventoryAttributeControlle
             @PathVariable Long organizationId,
             @PathVariable Long attributeId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Deleting inventory attribute {} for organization {} by user {}",
-                attributeId, organizationId, currentUser.getUsername());
         attributeService.deleteAttribute(organizationId, attributeId, currentUser);
         return ResponseEntity.noContent().build();
     }
@@ -86,8 +80,6 @@ public class InventoryAttributeController implements InventoryAttributeControlle
             @PathVariable Long attributeId,
             @Valid @RequestBody CreateInventoryAttributeOptionRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Adding value '{}' to inventory attribute {} for organization {} by user {}",
-                request.getValue(), attributeId, organizationId, currentUser.getUsername());
         InventoryAttributeResponse response =
                 attributeService.addOption(organizationId, attributeId, request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -100,8 +92,6 @@ public class InventoryAttributeController implements InventoryAttributeControlle
             @PathVariable Long optionId,
             @Valid @RequestBody UpdateInventoryAttributeOptionRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Renaming value {} on inventory attribute {} for organization {} by user {}",
-                optionId, attributeId, organizationId, currentUser.getUsername());
         return ResponseEntity.ok(attributeService.updateOption(organizationId, attributeId, optionId, request, currentUser));
     }
 
@@ -111,15 +101,18 @@ public class InventoryAttributeController implements InventoryAttributeControlle
             @PathVariable Long attributeId,
             @PathVariable Long optionId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Removing value {} from inventory attribute {} for organization {} by user {}",
-                optionId, attributeId, organizationId, currentUser.getUsername());
         return ResponseEntity.ok(attributeService.removeOption(organizationId, attributeId, optionId, currentUser));
     }
 
     @ExceptionHandler(InventoryAttributeOptionLimitReachedException.class)
     public ResponseEntity<ErrorResponse> handleOptionLimitReached(
             InventoryAttributeOptionLimitReachedException ex, WebRequest request) {
-        log.info("Inventory attribute value limit reached: {}", ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.CONFLICT.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }

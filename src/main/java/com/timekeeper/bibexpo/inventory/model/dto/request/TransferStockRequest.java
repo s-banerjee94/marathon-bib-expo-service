@@ -10,24 +10,24 @@ import lombok.Data;
 @Schema(description = "Moves stock from one location to another. A deliberate act — blocked, never allowed to go negative.")
 public class TransferStockRequest {
 
-    @NotNull
+    @NotNull(message = "Variant is required")
     @Schema(description = "Variant being moved", example = "1")
     private Long variantId;
 
-    @NotNull
+    @NotNull(message = "Source location is required")
     @Schema(description = "Location the stock is leaving", example = "1")
     private Long fromLocationId;
 
-    @NotNull
+    @NotNull(message = "Destination location is required")
     @Schema(description = "Location the stock is arriving at", example = "2")
     private Long toLocationId;
 
-    @NotNull
-    @Positive
+    @NotNull(message = "Quantity is required")
+    @Positive(message = "Quantity must be at least 1")
     @Schema(description = "Quantity to move", example = "900")
     private Integer quantity;
 
-    @Size(max = 100)
+    @Size(max = 100, message = "Reference must be at most 100 characters")
     @Schema(description = "Optional note for this transfer", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String reference;
 }

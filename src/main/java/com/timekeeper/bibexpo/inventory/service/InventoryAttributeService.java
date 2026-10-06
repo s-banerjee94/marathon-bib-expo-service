@@ -29,19 +29,24 @@ public interface InventoryAttributeService {
      */
     InventoryAttributeListResponse listVisible(Long organizationId, User currentUser);
 
+    /**
+     * Fetches one of this organization's attributes with its allowed values.
+     *
+     * @throws InventoryAttributeNotFoundException if no such attribute exists in this organization
+     */
     InventoryAttributeResponse getAttribute(Long organizationId, Long attributeId, User currentUser);
 
     /**
      * Adds a new attribute.
      *
-     * @throws InventoryAttributeAlreadyExistsException if a attribute with this name already exists in scope
+     * @throws InventoryAttributeAlreadyExistsException if an attribute with this name already exists in scope
      */
     InventoryAttributeResponse createAttribute(Long organizationId,
                                                             CreateInventoryAttributeRequest request,
                                                             User currentUser);
 
     /**
-     * Renames a attribute and/or changes whether it is required. {@code type} and
+     * Renames an attribute and/or changes whether it is required. {@code type} and
      * {@code variantAttribute} cannot be changed after creation.
      *
      * @throws InventoryAttributeNotFoundException if no such attribute exists in this scope

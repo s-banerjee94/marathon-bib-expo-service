@@ -21,12 +21,14 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryAttributeOptionRepos
 import com.timekeeper.bibexpo.inventory.repository.InventoryItemAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryAttributeService;
+import com.timekeeper.bibexpo.inventory.service.util.InventoryLimitLog;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,7 +88,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                 .required(request.getRequired())
                 .build());
 
-        log.info("Created inventory attribute '{}' ({}) for organization {}", name, request.getType(), organizationId);
+        change("inventory.attribute_created", organizationId, attribute.getId()).log("Inventory attribute created");
         return InventoryAttributeResponse.fromEntity(attribute, List.of());
     }
 
@@ -110,7 +112,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
         }
 
         InventoryAttribute saved = attributeRepository.saveAndFlush(attribute);
-        log.info("Updated inventory attribute {} for organization {}", attributeId, organizationId);
+        change("inventory.attribute_updated", organizationId, attributeId).log("Inventory attribute updated");
         return toResponse(saved);
     }
 
@@ -128,7 +130,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
 
         optionRepository.deleteAll(optionRepository.findByAttributeId(attributeId));
         attributeRepository.delete(attribute);
-        log.info("Deleted inventory attribute {} for organization {}", attributeId, organizationId);
+        change("inventory.attribute_deleted", organizationId, attributeId).log("Inventory attribute deleted");
     }
 
     @Override
@@ -145,12 +147,13 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
         if (optionRepository.existsByAttributeIdAndValue(attributeId, value)) {
             throw new InventoryAttributeOptionAlreadyExistsException();
         }
-        optionRepository.save(InventoryAttributeOption.builder()
+        InventoryAttributeOption option = optionRepository.save(InventoryAttributeOption.builder()
                 .attributeId(attributeId)
                 .value(value)
                 .build());
 
-        log.info("Added value '{}' to inventory attribute {} for organization {}", value, attributeId, organizationId);
+        change("inventory.option_added", organizationId, attributeId).addKeyValue("optionId", option.getId())
+                .log("Inventory attribute value added");
         return toResponseCountingOptions(attribute);
     }
 
@@ -171,8 +174,8 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
         option.setValue(value);
         optionRepository.saveAndFlush(option);
 
-        log.info("Renamed value {} to '{}' on inventory attribute {} for organization {}",
-                optionId, value, attributeId, organizationId);
+        change("inventory.option_renamed", organizationId, attributeId).addKeyValue("optionId", optionId)
+                .log("Inventory attribute value renamed");
         return toResponse(attribute);
     }
 
@@ -191,7 +194,8 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
         }
 
         optionRepository.delete(option);
-        log.info("Removed value {} from inventory attribute {} for organization {}", optionId, attributeId, organizationId);
+        change("inventory.option_removed", organizationId, attributeId).addKeyValue("optionId", optionId)
+                .log("Inventory attribute value removed");
         return toResponseCountingOptions(attribute);
     }
 
@@ -228,10 +232,16 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     private void enforceOptionLimit(Long organizationId, InventoryAttribute attribute) {
         if (attribute.getOptionCount()
                 >= organizationDirectory.inventoryLimits(organizationId).maxOptionsPerAttribute()) {
-            log.error("Organization {} has reached its value limit on inventory attribute {}",
-                    organizationId, attribute.getId());
+            InventoryLimitLog.limitReached(organizationId, "OPTIONS_PER_ATTRIBUTE");
             throw new InventoryAttributeOptionLimitReachedException();
         }
+    }
+
+    private static LoggingEventBuilder change(String event, Long organizationId, Long attributeId) {
+        return log.atInfo()
+                .addKeyValue("event", event)
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("attributeId", attributeId);
     }
 
     private boolean existsByName(Long organizationId, String name) {

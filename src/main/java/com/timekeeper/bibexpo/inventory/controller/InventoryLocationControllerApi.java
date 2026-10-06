@@ -35,6 +35,8 @@ public interface InventoryLocationControllerApi {
     @Operation(
             summary = "List locations",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     The organization's locations, in name order. Both filters are optional and they \
                     combine; each one left out narrows nothing.
 
@@ -67,6 +69,8 @@ public interface InventoryLocationControllerApi {
     @Operation(
             summary = "Add a location",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Adds a place where stock can sit. The type must be a location-type term this \
                     organization can see, and names must be unique within the organization. The \
                     number of locations one organization may keep is capped by its plan."""
@@ -93,6 +97,8 @@ public interface InventoryLocationControllerApi {
     @Operation(
             summary = "Rename or retype a location",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Renames a location, changes its type, or both; fields left out are unchanged."""
     )
     @ApiResponses(value = {
@@ -118,6 +124,8 @@ public interface InventoryLocationControllerApi {
     @Operation(
             summary = "Delete a location",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Removes a location no stock has ever moved through — a typo, or a place that \
                     turned out not to be needed. Once a location appears on the ledger it is kept \
                     for good, since the history names it; rename it instead. A location an event's \
