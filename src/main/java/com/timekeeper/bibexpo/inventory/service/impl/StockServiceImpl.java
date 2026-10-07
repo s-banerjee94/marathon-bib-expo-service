@@ -231,7 +231,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         requireItemInOrg(variant.getItemId(), organizationId);
         InventoryLocation location = requireLocationInOrg(request.getLocationId(), organizationId);
 
-        InventoryStock stock = findOrCreateStock(variant.getId(), location.getId());
+        InventoryStock stock = findOrCreateStock(variant.getId(), location.getId(), currentUser.getUsername());
         addOrThrow(stock.getId(), request.getQuantity(), currentUser);
 
         InventoryMovement movement = movementRepository.save(InventoryMovement.builder()
@@ -274,7 +274,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         InventoryStock sourceStock = requireStockForDeduction(variant.getId(), fromLocation.getId());
         deductOrThrow(sourceStock.getId(), request.getQuantity(), currentUser);
 
-        InventoryStock destStock = findOrCreateStock(variant.getId(), toLocation.getId());
+        InventoryStock destStock = findOrCreateStock(variant.getId(), toLocation.getId(), currentUser.getUsername());
         addOrThrow(destStock.getId(), request.getQuantity(), currentUser);
 
         // A transfer is two ledger lines, not one row with both locations set, so each location's
@@ -347,7 +347,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
 
         Long stockId;
         if (delta > 0) {
-            InventoryStock stock = findOrCreateStock(variant.getId(), location.getId());
+            InventoryStock stock = findOrCreateStock(variant.getId(), location.getId(), currentUser.getUsername());
             addOrThrow(stock.getId(), delta, currentUser);
             stockId = stock.getId();
             movement.toLocationId(location.getId());
@@ -391,7 +391,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         InventoryVariant variant = requireVariant(issue.variantId());
         InventoryItem item = itemRepository.findById(variant.getItemId())
                 .orElseThrow(InventoryItemNotFoundException::new);
-        InventoryStock stock = findOrCreateStock(variant.getId(), issue.locationId());
+        InventoryStock stock = findOrCreateStock(variant.getId(), issue.locationId(), actor);
         Instant now = Instant.now();
         boolean out = type == MovementType.ISSUE;
         if (out) {
@@ -439,14 +439,11 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
 
     // ---- balance updates ----------------------------------------------------------------
 
-    private InventoryStock findOrCreateStock(Long variantId, Long locationId) {
-        return stockRepository.findByVariantIdAndLocationId(variantId, locationId)
-                .orElseGet(() -> stockRepository.save(InventoryStock.builder()
-                        .variantId(variantId)
-                        .locationId(locationId)
-                        .onHand(0)
-                        .reserved(0)
-                        .build()));
+    // Two counters can post the first unit of a variant at a location at the same instant, so the row is
+    // created by a statement that cannot fail on the unique key, never by a read followed by an insert.
+    private InventoryStock findOrCreateStock(Long variantId, Long locationId, String actor) {
+        stockRepository.insertIfMissing(variantId, locationId, Instant.now(), actor);
+        return stockRepository.lockByVariantIdAndLocationId(variantId, locationId);
     }
 
     private InventoryStock requireStockForDeduction(Long variantId, Long locationId) {
