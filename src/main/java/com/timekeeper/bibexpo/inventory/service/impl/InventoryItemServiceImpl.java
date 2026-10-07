@@ -45,6 +45,7 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValu
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryItemService;
 import com.timekeeper.bibexpo.inventory.service.util.InventoryLimitLog;
+import com.timekeeper.bibexpo.inventory.service.util.StockAlerts;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
 import com.timekeeper.bibexpo.organization.api.InventoryLimits;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
@@ -96,6 +97,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     private final OrganizationDirectory organizationDirectory;
     private final InventoryAccessGuard accessGuard;
     private final StorageService storageService;
+    private final StockAlerts stockAlerts;
 
     // A resolved attribute value ready to persist, either an optionId (SELECT) or a rawValue (any other type).
     private record ResolvedAttributeValue(Long attributeId, Long optionId, String rawValue) {
@@ -161,6 +163,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         }
         if (request.getLowStockThreshold() != null) {
             item.setLowStockThreshold(request.getLowStockThreshold());
+            stockAlerts.rearm(itemId);
         }
         if (request.getNote() != null) {
             item.setNote(TextUtils.trimToNull(request.getNote()));

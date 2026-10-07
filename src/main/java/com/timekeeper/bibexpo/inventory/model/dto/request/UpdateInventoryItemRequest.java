@@ -20,7 +20,7 @@ public class UpdateInventoryItemRequest {
     private Long unitId;
 
     @Min(value = 0, message = "Low stock threshold cannot be negative")
-    @Schema(description = "New balance at or below which the item is considered low on stock", example = "50",
+    @Schema(description = "New balance across all locations at or below which the item is low on stock. Organization admins and users are told once when stock drops to it", example = "50",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Integer lowStockThreshold;
 

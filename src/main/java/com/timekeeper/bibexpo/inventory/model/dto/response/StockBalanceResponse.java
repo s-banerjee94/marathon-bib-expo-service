@@ -7,7 +7,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
 @Data
@@ -32,9 +31,6 @@ public class StockBalanceResponse {
     @Schema(description = "Quantity reserved", example = "0")
     private Integer reserved;
 
-    @Schema(description = "Weighted average unit cost, when known", example = "150.00")
-    private BigDecimal avgUnitCost;
-
     @Schema(description = "When this variant first held stock at this location")
     private Instant createdAt;
 
@@ -54,7 +50,6 @@ public class StockBalanceResponse {
                 .locationId(stock.getLocationId())
                 .onHand(stock.getOnHand())
                 .reserved(stock.getReserved())
-                .avgUnitCost(stock.getAvgUnitCost())
                 .createdAt(stock.getCreatedAt())
                 .createdBy(stock.getCreatedBy())
                 .updatedAt(stock.getUpdatedAt())

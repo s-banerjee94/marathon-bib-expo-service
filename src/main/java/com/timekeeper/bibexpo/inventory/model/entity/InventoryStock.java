@@ -19,7 +19,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
@@ -57,9 +56,6 @@ public class InventoryStock implements Serializable {
     @Column(nullable = false)
     @Builder.Default
     private Integer reserved = 0;
-
-    @Column(name = "avg_unit_cost", precision = 14, scale = 2)
-    private BigDecimal avgUnitCost;
 
     @CreatedDate
     @Column(updatable = false)

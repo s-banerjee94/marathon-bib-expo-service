@@ -35,11 +35,8 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryStockRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantRepository;
 import com.timekeeper.bibexpo.inventory.service.StockService;
+import com.timekeeper.bibexpo.inventory.service.util.StockAlerts;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
-import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
-import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
-import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
-import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -51,8 +48,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -83,7 +78,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
     private final InventoryAccessGuard accessGuard;
-    private final NotificationService notificationService;
+    private final StockAlerts stockAlerts;
 
     @Override
     @Transactional(readOnly = true)
@@ -250,6 +245,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .occurredAt(Instant.now())
                 .build());
         auditAgainst(organizationId, movement);
+        stockAlerts.rearm(variant.getItemId());
 
         log.atInfo()
                 .addKeyValue("event", "inventory.stock_received")
@@ -355,11 +351,13 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
             addOrThrow(stock.getId(), delta, currentUser);
             stockId = stock.getId();
             movement.toLocationId(location.getId());
+            stockAlerts.rearm(variant.getItemId());
         } else {
             InventoryStock stock = requireStockForDeduction(variant.getId(), location.getId());
             deductOrThrow(stock.getId(), Math.abs(delta), currentUser);
             stockId = stock.getId();
             movement.fromLocationId(location.getId());
+            stockAlerts.stockDropped(variant.getItemId());
         }
 
         auditAgainst(organizationId, movementRepository.save(movement.build()));
@@ -401,10 +399,12 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
             // The deduct holds this balance row until commit, so the number read back is this hand-over's
             // own. One unit at a time lands on -1 only on the hand-over that crossed below zero.
             if (reload(stock.getId()).getOnHand() == -1) {
-                alertBelowZero(item, issue, bibNumber);
+                stockAlerts.shelfOverdrawn(item, issue, bibNumber);
             }
+            stockAlerts.stockDropped(item.getId());
         } else {
             stockRepository.add(stock.getId(), 1, true, now, actor);
+            stockAlerts.rearm(item.getId());
         }
 
         movementRepository.save(InventoryMovement.builder()
@@ -418,36 +418,6 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .reference(bibNumber)
                 .occurredAt(now)
                 .build());
-    }
-
-    // Sent only once the hand-over commits, so one that rolls back never raises an alert.
-    private void alertBelowZero(InventoryItem item, GoodieIssue issue, String bibNumber) {
-        String location = locationRepository.findById(issue.locationId())
-                .map(InventoryLocation::getName).orElse("its location");
-        String goody = issue.variantLabel() == null || issue.variantLabel().isBlank()
-                ? item.getName() : item.getName() + " (" + issue.variantLabel() + ")";
-        NotifyRequest request = NotifyRequest.builder()
-                .audience(NotificationAudience.ORGANIZATION_STAFF)
-                .organizationId(item.getOrganizationId())
-                .type(NotificationType.OUT_OF_STOCK)
-                .title("Out of Stock")
-                .message(String.format("%s has run out at %s: bib %s got one the shelf did not have. "
-                        + "Receive or move stock there to put the count right.", goody, location, bibNumber))
-                .entityType("INVENTORY_ITEM")
-                .entityId(String.valueOf(item.getId()))
-                .build();
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                log.atInfo()
-                        .addKeyValue("event", "inventory.stock_overdrawn")
-                        .addKeyValue("targetOrgId", item.getOrganizationId())
-                        .addKeyValue("variantId", issue.variantId())
-                        .addKeyValue("locationId", issue.locationId())
-                        .log("A hand-over took a shelf below zero");
-                notificationService.notify(request);
-            }
-        });
     }
 
     // ---- lookups ----------------------------------------------------------------

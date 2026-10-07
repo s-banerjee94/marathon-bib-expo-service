@@ -27,6 +27,10 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
     /** Every balance held for any of these variants — one page of the stock list, in one query. */
     List<InventoryStock> findByVariantIdIn(List<Long> variantIds);
 
+    @Query("SELECT COALESCE(SUM(s.onHand), 0) FROM InventoryStock s "
+            + "WHERE s.variantId IN (SELECT v.id FROM InventoryVariant v WHERE v.itemId = :itemId)")
+    long sumOnHandByItemId(@Param("itemId") Long itemId);
+
     /**
      * Deducts {@code qty} from {@code onHand} in one statement. Succeeds only if enough stock is on
      * hand, or {@code allowNegative} is true. Returns 0 rows affected when a {@code BLOCK} policy
