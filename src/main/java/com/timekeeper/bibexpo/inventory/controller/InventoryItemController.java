@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.inventory.controller;
 
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantLimitReachedException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryItemRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryVariantRequest;
@@ -137,9 +138,8 @@ public class InventoryItemController implements InventoryItemControllerApi {
         return ResponseEntity.ok(itemService.removeVariantImage(organizationId, itemId, variantId, currentUser));
     }
 
-    @ExceptionHandler(InventoryVariantLimitReachedException.class)
-    public ResponseEntity<ErrorResponse> handleVariantLimitReached(
-            InventoryVariantLimitReachedException ex, WebRequest request) {
+    @ExceptionHandler({InventoryItemLimitReachedException.class, InventoryVariantLimitReachedException.class})
+    public ResponseEntity<ErrorResponse> handleLimitReached(RuntimeException ex, WebRequest request) {
         log.atWarn()
                 .addKeyValue("event", "request.rejected")
                 .addKeyValue("status", HttpStatus.CONFLICT.value())

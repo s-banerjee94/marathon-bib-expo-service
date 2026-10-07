@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.inventory.service;
 
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemLinkedToGoodieException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
@@ -55,6 +56,7 @@ public interface InventoryItemService {
      *
      * @throws InventoryTermNotFoundException if the category or unit term is not visible to this organization
      * @throws InventoryItemAlreadyExistsException if an item with this name already exists
+     * @throws InventoryItemLimitReachedException if the organization already holds as many items as its plan allows
      */
     InventoryItemResponse createItem(Long organizationId, CreateInventoryItemRequest request, User currentUser);
 

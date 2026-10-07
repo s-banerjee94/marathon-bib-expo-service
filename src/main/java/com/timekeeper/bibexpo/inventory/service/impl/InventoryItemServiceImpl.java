@@ -8,6 +8,7 @@ import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeNotFoundExce
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeOptionNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemLinkedToGoodieException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryTermNotFoundException;
@@ -48,6 +49,7 @@ import com.timekeeper.bibexpo.inventory.service.util.InventoryLimitLog;
 import com.timekeeper.bibexpo.inventory.service.util.StockAlerts;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
 import com.timekeeper.bibexpo.organization.api.InventoryLimits;
+import com.timekeeper.bibexpo.organization.api.InventoryQuota;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.shared.util.TextUtils;
@@ -95,6 +97,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     private final InventoryItemAttributeValueRepository itemAttributeValueRepository;
     private final InventoryVariantAttributeValueRepository variantAttributeValueRepository;
     private final OrganizationDirectory organizationDirectory;
+    private final InventoryQuota inventoryQuota;
     private final InventoryAccessGuard accessGuard;
     private final StorageService storageService;
     private final StockAlerts stockAlerts;
@@ -201,6 +204,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         AuditContextHolder.setEntityLabel(item.getName());
         AuditContextHolder.setOrganizationId(organizationId);
         itemRepository.delete(item);
+        inventoryQuota.releaseItem(organizationId);
         change("inventory.item_deleted", organizationId, itemId).log("Inventory item deleted");
     }
 
@@ -344,6 +348,10 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     // ---- creation ----------------------------------------------------------------
 
     private InventoryItemResponse createItemInternal(Long organizationId, CreateInventoryItemRequest request) {
+        if (!inventoryQuota.tryReserveItem(organizationId)) {
+            InventoryLimitLog.limitReached(organizationId, "ITEMS");
+            throw new InventoryItemLimitReachedException();
+        }
         requireVisibleTerm(request.getCategoryId(), TermKind.ITEM_CATEGORY, organizationId);
         requireVisibleTerm(request.getUnitId(), TermKind.UNIT, organizationId);
 

@@ -310,7 +310,7 @@ public class OrganizationServiceImpl implements OrganizationService {
                 "You cannot reduce the distributor limit below the current number of distributors (%d).");
     }
 
-    // Only the two counted caps can be checked against usage. The other three are ceilings on a
+    // Only the four counted caps can be checked against usage. The other three are ceilings on a
     // single item or attribute: lowering one leaves the rows already over it alone and simply
     // stops them growing, which is the intended effect of tightening a plan.
     private void validateInventoryLimits(OrganizationLimit limit, InventoryQuotaRequest quota) {
@@ -321,6 +321,10 @@ public class OrganizationServiceImpl implements OrganizationService {
                 "You cannot reduce the inventory vocabulary limit below the number of entries in use (%d).");
         rejectIfBelowUsage(quota.getLocations(), limit.getUsedInventoryLocations(),
                 "You cannot reduce the inventory location limit below the number of locations in use (%d).");
+        rejectIfBelowUsage(quota.getItems(), limit.getUsedInventoryItems(),
+                "You cannot reduce the inventory item limit below the number of items in use (%d).");
+        rejectIfBelowUsage(quota.getAttributes(), limit.getUsedInventoryAttributes(),
+                "You cannot reduce the inventory attribute limit below the number of attributes in use (%d).");
     }
 
     /**
@@ -458,6 +462,8 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
         applyCap(quota.getTerms(), limit::setMaxInventoryTerms);
         applyCap(quota.getLocations(), limit::setMaxInventoryLocations);
+        applyCap(quota.getItems(), limit::setMaxInventoryItems);
+        applyCap(quota.getAttributes(), limit::setMaxInventoryAttributes);
         applyCap(quota.getOptionsPerAttribute(), limit::setMaxInventoryAttributeOptions);
         applyCap(quota.getVariantAttributesPerItem(), limit::setMaxVariantAttributesPerItem);
         applyCap(quota.getVariantsPerItem(), limit::setMaxItemVariants);

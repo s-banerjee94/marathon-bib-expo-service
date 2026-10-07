@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.inventory.service;
 
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeOptionAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeOptionInUseException;
@@ -40,6 +41,7 @@ public interface InventoryAttributeService {
      * Adds a new attribute.
      *
      * @throws InventoryAttributeAlreadyExistsException if an attribute with this name already exists in scope
+     * @throws InventoryAttributeLimitReachedException if the organization already holds as many attributes as its plan allows
      */
     InventoryAttributeResponse createAttribute(Long organizationId,
                                                             CreateInventoryAttributeRequest request,

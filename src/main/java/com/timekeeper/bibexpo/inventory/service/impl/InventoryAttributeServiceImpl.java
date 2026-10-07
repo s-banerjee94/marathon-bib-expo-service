@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.inventory.service.impl;
 
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeOptionAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeOptionInUseException;
@@ -23,6 +24,7 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValu
 import com.timekeeper.bibexpo.inventory.service.InventoryAttributeService;
 import com.timekeeper.bibexpo.inventory.service.util.InventoryLimitLog;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
+import com.timekeeper.bibexpo.organization.api.InventoryQuota;
 import com.timekeeper.bibexpo.organization.api.OrganizationDirectory;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -46,6 +48,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     private final InventoryItemAttributeValueRepository itemAttributeValueRepository;
     private final InventoryVariantAttributeValueRepository variantAttributeValueRepository;
     private final OrganizationDirectory organizationDirectory;
+    private final InventoryQuota inventoryQuota;
     private final InventoryAccessGuard accessGuard;
 
     @Override
@@ -73,6 +76,10 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
         // "red" become two stock lines for one colour.
         if (Boolean.TRUE.equals(request.getVariantAttribute()) && request.getType() != AttributeType.SELECT) {
             throw new InvalidUserDataException("Only a SELECT attribute can define variants.");
+        }
+        if (!inventoryQuota.tryReserveAttribute(organizationId)) {
+            InventoryLimitLog.limitReached(organizationId, "ATTRIBUTES");
+            throw new InventoryAttributeLimitReachedException();
         }
 
         String name = request.getName().trim();
@@ -130,6 +137,7 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
 
         optionRepository.deleteAll(optionRepository.findByAttributeId(attributeId));
         attributeRepository.delete(attribute);
+        inventoryQuota.releaseAttribute(organizationId);
         change("inventory.attribute_deleted", organizationId, attributeId).log("Inventory attribute deleted");
     }
 

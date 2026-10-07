@@ -1,9 +1,10 @@
 package com.timekeeper.bibexpo.organization.api;
 
 /**
- * The two organization-wide inventory caps and the reservation that enforces them. The caps and
- * counters belong to the organization; the inventory module reserves and releases as terms and
- * locations are created and removed, so this port is what keeps that dependency pointing one way.
+ * The organization-wide inventory caps and the reservation that enforces them. The caps and
+ * counters belong to the organization; the inventory module reserves and releases as items,
+ * attributes, terms and locations are created and removed, so this port is what keeps that
+ * dependency pointing one way.
  *
  * <p>The reservations return a boolean rather than throwing, because the message a user sees for a
  * full inventory belongs to the inventory module, not to this one.
@@ -45,4 +46,34 @@ public interface InventoryQuota {
      * @param organizationId the organization to release against
      */
     void releaseLocation(Long organizationId);
+
+    /**
+     * Takes one item slot, atomically against the cap.
+     *
+     * @param organizationId the organization to reserve against
+     * @return {@code true} when a slot was taken, {@code false} when the cap is already reached
+     */
+    boolean tryReserveItem(Long organizationId);
+
+    /**
+     * Gives back an item slot as one is deleted, floored at zero.
+     *
+     * @param organizationId the organization to release against
+     */
+    void releaseItem(Long organizationId);
+
+    /**
+     * Takes one attribute slot, atomically against the cap.
+     *
+     * @param organizationId the organization to reserve against
+     * @return {@code true} when a slot was taken, {@code false} when the cap is already reached
+     */
+    boolean tryReserveAttribute(Long organizationId);
+
+    /**
+     * Gives back an attribute slot as one is deleted, floored at zero.
+     *
+     * @param organizationId the organization to release against
+     */
+    void releaseAttribute(Long organizationId);
 }

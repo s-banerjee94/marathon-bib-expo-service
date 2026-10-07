@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.inventory.controller;
 
+import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeOptionLimitReachedException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryAttributeRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryAttributeOptionRequest;
@@ -104,9 +105,8 @@ public class InventoryAttributeController implements InventoryAttributeControlle
         return ResponseEntity.ok(attributeService.removeOption(organizationId, attributeId, optionId, currentUser));
     }
 
-    @ExceptionHandler(InventoryAttributeOptionLimitReachedException.class)
-    public ResponseEntity<ErrorResponse> handleOptionLimitReached(
-            InventoryAttributeOptionLimitReachedException ex, WebRequest request) {
+    @ExceptionHandler({InventoryAttributeLimitReachedException.class, InventoryAttributeOptionLimitReachedException.class})
+    public ResponseEntity<ErrorResponse> handleLimitReached(RuntimeException ex, WebRequest request) {
         log.atWarn()
                 .addKeyValue("event", "request.rejected")
                 .addKeyValue("status", HttpStatus.CONFLICT.value())
