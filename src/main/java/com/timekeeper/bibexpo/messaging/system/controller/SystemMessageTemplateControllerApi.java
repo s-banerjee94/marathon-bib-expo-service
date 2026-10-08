@@ -31,14 +31,14 @@ import java.util.List;
 public interface SystemMessageTemplateControllerApi {
 
     @Operation(summary = "List all system message templates",
-            description = "Returns every configured template across purposes and channels. Root only.")
+            description = "**Roles:** ROOT. Returns every configured template across purposes and channels.")
     @ApiResponse(responseCode = "200", description = "Templates retrieved")
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT')")
     ResponseEntity<List<SystemMessageTemplateResponse>> list();
 
     @Operation(summary = "Get one purpose × channel template",
-            description = "Returns the template for the purpose and channel. Root only.")
+            description = "**Roles:** ROOT. Returns the template for the purpose and channel.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Template retrieved",
                     content = @Content(mediaType = "application/json",
@@ -55,9 +55,10 @@ public interface SystemMessageTemplateControllerApi {
 
     @Operation(summary = "Create or replace a purpose × channel template",
             description = """
+                    **Roles:** ROOT. \
                     Upserts the template content for the purpose and channel. Use body for \
                     client-rendered channels (SMS) and variables for provider-rendered channels \
-                    (WhatsApp). Root only. \
+                    (WhatsApp). \
 
                     **Placeholder rules.** Each purpose supplies a fixed set of `#{...}` variables, \
                     and one of them carries the link or code the message exists to deliver: \
@@ -80,7 +81,8 @@ public interface SystemMessageTemplateControllerApi {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = SystemMessageTemplateResponse.class))),
             @ApiResponse(responseCode = "400",
-                    description = "Unknown placeholder, or an enabled template missing content or its required variable",
+                    description = "Unknown placeholder, an enabled template missing content or its required variable, "
+                            + "or a template id or sender id that is too long",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })

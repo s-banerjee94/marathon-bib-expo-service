@@ -6,7 +6,6 @@ import com.timekeeper.bibexpo.messaging.system.model.dto.request.SaveSystemMessa
 import com.timekeeper.bibexpo.messaging.system.model.dto.response.SystemMessageTemplateResponse;
 import com.timekeeper.bibexpo.messaging.system.service.SystemMessageTemplateAdminService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -14,7 +13,6 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@Slf4j
 public class SystemMessageTemplateController implements SystemMessageTemplateControllerApi {
 
     private final SystemMessageTemplateAdminService templateAdminService;
@@ -32,7 +30,6 @@ public class SystemMessageTemplateController implements SystemMessageTemplateCon
     @Override
     public ResponseEntity<SystemMessageTemplateResponse> save(SystemTemplatePurpose purpose, MessageChannel channel,
                                                               SaveSystemMessageTemplateRequest request) {
-        log.info("Root saving {} {} template", purpose, channel);
         return ResponseEntity.ok(templateAdminService.save(purpose, channel, request));
     }
 }

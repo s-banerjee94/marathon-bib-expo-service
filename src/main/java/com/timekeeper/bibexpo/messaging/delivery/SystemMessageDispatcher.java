@@ -52,7 +52,9 @@ public class SystemMessageDispatcher {
                 messagingProviderClient.send(channel, buildMessage(purpose, channel, recipientPhone, context));
                 results.add(DeliveryResult.builder().channel(channel).sent(true).build());
             } catch (Exception e) {
-                log.warn("{} delivery over {} failed: {}", purpose, channel, e.getMessage());
+                log.atWarn().addKeyValue("event", "message.system_failed").addKeyValue("purpose", purpose)
+                        .addKeyValue("channel", channel).addKeyValue("reason", e.getMessage())
+                        .log("System message not sent");
                 results.add(DeliveryResult.builder().channel(channel).sent(false).detail(e.getMessage()).build());
             }
         }

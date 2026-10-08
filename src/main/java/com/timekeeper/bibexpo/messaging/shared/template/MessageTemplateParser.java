@@ -131,7 +131,8 @@ public class MessageTemplateParser {
             Object value = getter.invoke(obj);
             return value != null ? value.toString() : "";
         } catch (Exception e) {
-            log.warn("Template placeholder '{}' could not be resolved: {}", fieldName, e.getMessage());
+            log.atWarn().addKeyValue("event", "message.placeholder_unresolved").addKeyValue("placeholder", fieldName)
+                    .addKeyValue("reason", e.getMessage()).log("Template placeholder could not be resolved");
             return "";
         }
     }
