@@ -8,8 +8,8 @@ import com.timekeeper.bibexpo.reporting.service.DashboardQueryLimits;
 import com.timekeeper.bibexpo.reporting.service.PlatformDashboardQuery;
 import com.timekeeper.bibexpo.reporting.service.PlatformDashboardService;
 import com.timekeeper.bibexpo.reporting.service.PlatformRevenueService;
+import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequiredArgsConstructor
-@Slf4j
 public class PlatformDashboardController implements PlatformDashboardControllerApi {
 
     private final PlatformDashboardService platformDashboardService;
@@ -31,7 +30,6 @@ public class PlatformDashboardController implements PlatformDashboardControllerA
         rejectOrgIdParam(organizationId);
         PlatformDashboardQuery query = buildQuery(range, tierRange, statusRange, citiesRange,
                 trendBuckets, trendInterval, topCities, topOrgs);
-        log.info("GET /dashboard/platform — range: {}", range);
         return ResponseEntity.ok(platformDashboardService.loadFor(query));
     }
 
@@ -42,14 +40,12 @@ public class PlatformDashboardController implements PlatformDashboardControllerA
         rejectOrgIdParam(organizationId);
         PlatformDashboardQuery query = buildQuery(range, tierRange, statusRange, citiesRange,
                 trendBuckets, trendInterval, topCities, topOrgs);
-        log.info("POST /dashboard/platform/refresh — range: {}", range);
         return ResponseEntity.ok(platformDashboardService.refreshFor(query));
     }
 
     @Override
     public ResponseEntity<PlatformRevenueResponse> getRevenue(
             DashboardRange range, int trendBuckets, TrendInterval trendInterval) {
-        log.info("GET /dashboard/platform/revenue — range: {}", range);
         return ResponseEntity.ok(platformRevenueService.buildRevenue(
                 range, DashboardQueryLimits.trendBuckets(trendBuckets), trendInterval));
     }
@@ -72,7 +68,8 @@ public class PlatformDashboardController implements PlatformDashboardControllerA
 
     private void rejectOrgIdParam(Long organizationId) {
         if (organizationId != null) {
-            throw new IllegalArgumentException("organizationId is not a valid parameter for the platform dashboard; it is always global.");
+            throw new InvalidUserDataException(
+                    "The platform dashboard covers every organization, so an organization cannot be chosen.");
         }
     }
 }

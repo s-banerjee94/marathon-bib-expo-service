@@ -2,7 +2,6 @@ package com.timekeeper.bibexpo.reporting.service;
 
 import com.timekeeper.bibexpo.reporting.repository.OrgDailyStatsRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,7 +9,6 @@ import java.time.LocalDate;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class OrgDailyStatsService {
 
     private final OrgDailyStatsRepository orgDailyStatsRepository;
@@ -28,7 +26,5 @@ public class OrgDailyStatsService {
         int distinctCities = liveStatsQueries.countDistinctCities(orgId);
 
         orgDailyStatsRepository.upsert(orgId, date, totalEvents, activeEvents, totalUsers, distinctCities);
-        log.info("Snapshot saved — orgId: {}, date: {}, events: {}, active: {}, users: {}, cities: {}",
-                orgId, date, totalEvents, activeEvents, totalUsers, distinctCities);
     }
 }
