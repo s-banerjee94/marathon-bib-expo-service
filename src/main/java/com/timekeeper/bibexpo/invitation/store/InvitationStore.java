@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.invitation.store;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.timekeeper.bibexpo.invitation.model.Invitation;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
@@ -16,7 +15,6 @@ import java.util.Base64;
  */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class InvitationStore {
 
     private static final int TOKEN_BYTES = 32;
@@ -31,8 +29,6 @@ public class InvitationStore {
     public String issue(Invitation invitation) {
         String token = generateToken();
         invitationCache.put(token, invitation);
-        log.debug("Issued invite for role {} (org {}) by {}",
-                invitation.getRole(), invitation.getOrganizationId(), invitation.getInvitedBy());
         return token;
     }
 
@@ -44,8 +40,7 @@ public class InvitationStore {
     }
 
     /**
-     * Atomically removes and returns the invite, or null if it is missing or expired.
-     * The atomic removal guarantees a token can only be accepted once.
+     * Removes the invite so its token cannot be opened or accepted again.
      */
     public void consume(String token) {
         if (token != null) {

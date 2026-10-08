@@ -23,20 +23,23 @@ public class PublicInvitationController implements PublicInvitationControllerApi
 
     @Override
     public ResponseEntity<InvitationDetailsResponse> getInvitation(String token) {
-        log.info("Public request to read invite");
         return ResponseEntity.ok(invitationService.getInvitation(token));
     }
 
     @Override
     public ResponseEntity<UserResponse> acceptInvitation(String token, AcceptInvitationRequest request) {
-        log.info("Public request to accept invite for username: {}", request.getUsername());
         UserResponse response = invitationService.acceptInvitation(token, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @ExceptionHandler(InvitationInvalidException.class)
     public ResponseEntity<ErrorResponse> handleInvitationInvalid(InvitationInvalidException ex, WebRequest request) {
-        log.warn("Invite rejected: {}", ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.NOT_FOUND.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
     }
