@@ -28,9 +28,6 @@ public class StockBalanceResponse {
     @Schema(description = "Quantity on hand", example = "1300")
     private Integer onHand;
 
-    @Schema(description = "Quantity reserved", example = "0")
-    private Integer reserved;
-
     @Schema(description = "When this variant first held stock at this location")
     private Instant createdAt;
 
@@ -49,7 +46,6 @@ public class StockBalanceResponse {
                 .variantId(stock.getVariantId())
                 .locationId(stock.getLocationId())
                 .onHand(stock.getOnHand())
-                .reserved(stock.getReserved())
                 .createdAt(stock.getCreatedAt())
                 .createdBy(stock.getCreatedBy())
                 .updatedAt(stock.getUpdatedAt())

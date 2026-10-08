@@ -53,10 +53,6 @@ public class InventoryStock implements Serializable {
     @Builder.Default
     private Integer onHand = 0;
 
-    @Column(nullable = false)
-    @Builder.Default
-    private Integer reserved = 0;
-
     @CreatedDate
     @Column(updatable = false)
     private Instant createdAt;

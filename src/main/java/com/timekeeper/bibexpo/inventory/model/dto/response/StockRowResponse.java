@@ -34,9 +34,6 @@ public class StockRowResponse {
     @Schema(description = "Quantity on hand", example = "2200")
     private Integer onHand;
 
-    @Schema(description = "Quantity reserved", example = "0")
-    private Integer reserved;
-
     @Schema(description = "When this balance last changed")
     private Instant updatedAt;
 

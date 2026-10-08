@@ -92,7 +92,6 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                 .name(name)
                 .type(request.getType())
                 .variantAttribute(request.getVariantAttribute())
-                .required(request.getRequired())
                 .build());
 
         change("inventory.attribute_created", organizationId, attribute.getId()).log("Inventory attribute created");
@@ -113,9 +112,6 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
                 throw new InventoryAttributeAlreadyExistsException();
             }
             attribute.setName(name);
-        }
-        if (request.getRequired() != null) {
-            attribute.setRequired(request.getRequired());
         }
 
         InventoryAttribute saved = attributeRepository.saveAndFlush(attribute);

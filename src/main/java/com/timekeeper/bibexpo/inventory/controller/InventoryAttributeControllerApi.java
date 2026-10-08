@@ -97,12 +97,12 @@ public interface InventoryAttributeControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
-            summary = "Rename an attribute or change whether it is required",
+            summary = "Rename an attribute",
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
-                    Renames one of this organization's own attributes or changes whether it is required. \
-                    Its type and whether it defines variants are fixed at creation."""
+                    Renames one of this organization's own attributes. Its type and whether it defines \
+                    variants are fixed at creation."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Attribute updated successfully",

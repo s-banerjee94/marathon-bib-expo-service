@@ -37,8 +37,8 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
     @Modifying
     @Query(value = """
             INSERT INTO inventory_stock
-              (variant_id, location_id, on_hand, reserved, created_at, created_by, updated_at, last_modified_by)
-            VALUES (:variantId, :locationId, 0, 0, :now, :actor, :now, :actor)
+              (variant_id, location_id, on_hand, created_at, created_by, updated_at, last_modified_by)
+            VALUES (:variantId, :locationId, 0, :now, :actor, :now, :actor)
             ON DUPLICATE KEY UPDATE id = id
             """, nativeQuery = true)
     void insertIfMissing(@Param("variantId") Long variantId, @Param("locationId") Long locationId,

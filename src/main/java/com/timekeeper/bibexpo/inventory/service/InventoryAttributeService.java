@@ -48,8 +48,7 @@ public interface InventoryAttributeService {
                                                             User currentUser);
 
     /**
-     * Renames an attribute and/or changes whether it is required. {@code type} and
-     * {@code variantAttribute} cannot be changed after creation.
+     * Renames an attribute. {@code type} and {@code variantAttribute} cannot be changed after creation.
      *
      * @throws InventoryAttributeNotFoundException if no such attribute exists in this scope
      * @throws InventoryAttributeAlreadyExistsException if the new name collides with another attribute in scope

@@ -127,7 +127,6 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                             .locationId(balance.getLocationId())
                             .locationName(locationNames.get(balance.getLocationId()))
                             .onHand(balance.getOnHand())
-                            .reserved(balance.getReserved())
                             .updatedAt(balance.getUpdatedAt())
                             .updatedBy(balance.getLastModifiedBy())
                             .build());
