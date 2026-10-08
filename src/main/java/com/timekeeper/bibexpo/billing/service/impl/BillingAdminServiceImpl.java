@@ -105,7 +105,7 @@ public class BillingAdminServiceImpl implements BillingAdminService {
         invoice.setPaymentStatus(PaymentStatus.PAID);
         invoice.setPaidAt(Instant.now());
         Invoice saved = invoiceRepository.save(invoice);
-        log.info("Bill {} marked PAID", billId);
+        log.atInfo().addKeyValue("event", "billing.bill.paid").addKeyValue("billId", billId).log("Bill marked paid");
         // The stats recompute lives in the Lambda — fire async, best-effort, never blocking the action.
         billStatsTriggerService.recomputeAsync("PAYMENT");
         return BillResponse.fromEntity(saved, storageService.createDownloadUrl(saved.getPdfKey()));

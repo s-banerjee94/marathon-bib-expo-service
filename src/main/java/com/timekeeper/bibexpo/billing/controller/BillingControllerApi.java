@@ -41,6 +41,7 @@ public interface BillingControllerApi {
     @Operation(
             summary = "List an event's bills",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN. \
                     Return every bill for the event, newest first — each with its full line items and \
                     recomputed totals (see BillResponse). Bills are produced by the billing pipeline: an \
                     automatic timer 24 hours after the event turns terminal (always a draft), or on-demand \
@@ -85,6 +86,7 @@ public interface BillingControllerApi {
     @Operation(
             summary = "Generate a bill on demand",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN. \
                     Ask the billing pipeline to generate a bill for a completed or cancelled event now, \
                     and get back the outcome plus the event's refreshed bill list.
 
@@ -166,6 +168,7 @@ public interface BillingControllerApi {
     @Operation(
             summary = "Add a line item to a draft bill",
             description = """
+                    **Roles:** ROOT, ADMIN. \
                     Add one charge or adjustment line to a DRAFT bill and get back the whole bill with \
                     its line items and recomputed totals.
 
@@ -211,6 +214,7 @@ public interface BillingControllerApi {
     @Operation(
             summary = "Update a manual line item on a draft bill",
             description = """
+                    **Roles:** ROOT, ADMIN. \
                     Replace the values of one **manual** line on a DRAFT bill (a charge or a discount) and \
                     get back the whole bill with its line items. The body follows the same rules as the add \
                     endpoint (charge → `unitPrice` with optional `quantity`; discount → `amount` or `percent`).
@@ -249,6 +253,7 @@ public interface BillingControllerApi {
     @Operation(
             summary = "Update the participant fee line on a draft bill",
             description = """
+                    **Roles:** ROOT, ADMIN. \
                     Change the system-generated PARTICIPANT fee line's **unit price and/or quantity** on a \
                     DRAFT bill, and get back the whole bill. Send only the field(s) you want to change — an \
                     omitted field keeps its current value (so you can change just the unit price without \
@@ -285,6 +290,7 @@ public interface BillingControllerApi {
     @Operation(
             summary = "Remove a line item from a draft bill",
             description = """
+                    **Roles:** ROOT, ADMIN. \
                     Remove one line from a DRAFT bill and get back the whole bill with its recomputed \
                     totals. The PARTICIPANT line cannot be removed (it is the core charge), and other \
                     system-managed lines cannot be removed. A percentage discount on the bill re-derives \

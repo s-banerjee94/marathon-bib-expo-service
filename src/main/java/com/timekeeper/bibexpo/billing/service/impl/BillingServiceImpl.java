@@ -67,7 +67,6 @@ public class BillingServiceImpl implements BillingService {
 
     @Override
     public List<BillResponse> listBills(Long eventId, User currentUser) {
-        log.info("Listing bills for event ID: {} by user: {}", eventId, currentUser.getUsername());
         loadAndAuthorize(eventId, currentUser);
         return toResponses(invoiceRepository.findByEventIdOrderByCreatedAtDesc(eventId));
     }
@@ -75,8 +74,6 @@ public class BillingServiceImpl implements BillingService {
     @Override
     @Auditable(entityType = AuditEntityType.INVOICE, action = AuditAction.GENERATE)
     public BillGenerationResponse generateBill(Long eventId, InvoiceStatus mode, User currentUser) {
-        log.info("Manual {} bill requested for event ID: {} by user: {}", mode, eventId, currentUser.getUsername());
-
         Event event = loadAndAuthorize(eventId, currentUser);
         if (!isTerminal(event.getStatus())) {
             throw new BillNotAllowedException(
@@ -113,7 +110,7 @@ public class BillingServiceImpl implements BillingService {
                     case "SKIPPED_DUPLICATE" -> "A bill already exists for the current participant count.";
                     case "SKIPPED_NOT_BILLABLE" -> "This event is not eligible for billing.";
                     case "ALREADY_FINAL" -> "This event has already been finalized and cannot be billed again.";
-                    default -> throw new BillGenerationException("Bill generation failed. Please try again.");
+                    default -> throw new BillGenerationException("The bill could not be generated, please try again.");
                 };
             } catch (BillGenerationException e) {
                 // No bill was produced — return the slot the caller just spent.
@@ -129,6 +126,12 @@ public class BillingServiceImpl implements BillingService {
             billingScheduleService.cancel(eventId);
         }
 
+        log.atInfo()
+                .addKeyValue("event", "billing.bill.generated")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("mode", effectiveMode)
+                .addKeyValue("status", status)
+                .log("Bill requested");
         return BillGenerationResponse.builder()
                 .status(status)
                 .message(message)
@@ -168,7 +171,7 @@ public class BillingServiceImpl implements BillingService {
         }
         if (!"CREATED_FINAL".equals(status)) {
             revertToDraft(draft);
-            throw new BillGenerationException("Bill generation failed. Please try again.");
+            throw new BillGenerationException("The bill could not be generated, please try again.");
         }
         // The Lambda wrote the number, totals and PDF key straight to the database; drop the copy
         // this request still holds so the response reads the issued bill, not the marked draft.
@@ -183,6 +186,11 @@ public class BillingServiceImpl implements BillingService {
         invoice.setStatus(InvoiceStatus.DRAFT);
         invoice.setUpdatedAt(Instant.now());
         invoiceRepository.save(invoice);
+        log.atWarn()
+                .addKeyValue("event", "billing.final.reverted")
+                .addKeyValue("billId", invoice.getBillId())
+                .addKeyValue("eventId", invoice.getEventId())
+                .log("Final mark undone; the bill is a draft again");
     }
 
     /** Invoke the billing Lambda synchronously and return the {@code status} it reports. */
@@ -197,23 +205,32 @@ public class BillingServiceImpl implements BillingService {
                     .payload(SdkBytes.fromUtf8String(payload))
                     .build());
         } catch (SdkException e) {
-            log.error("[billing] Lambda invoke failed for event {}: {}", eventId, e.getMessage());
-            throw new BillGenerationException("Bill generation is currently unavailable. Please try again later.");
+            logLambdaFailure(eventId, mode, "invoke", e.getMessage());
+            throw new BillGenerationException("Bill generation is unavailable right now, please try again later.");
         }
 
         if (response.functionError() != null) {
-            log.error("[billing] Lambda reported an error for event {}: {}",
-                    eventId, response.payload().asUtf8String());
-            throw new BillGenerationException("Bill generation failed. Please try again.");
+            logLambdaFailure(eventId, mode, "function_error", response.payload().asUtf8String());
+            throw new BillGenerationException("The bill could not be generated, please try again.");
         }
 
         try {
             JsonNode node = OBJECT_MAPPER.readTree(response.payload().asUtf8String());
             return node.path("status").asText("");
         } catch (Exception e) {
-            log.error("[billing] could not parse Lambda response for event {}: {}", eventId, e.getMessage());
-            throw new BillGenerationException("Bill generation failed. Please try again.");
+            logLambdaFailure(eventId, mode, "unreadable_response", e.getMessage());
+            throw new BillGenerationException("The bill could not be generated, please try again.");
         }
+    }
+
+    private static void logLambdaFailure(Long eventId, InvoiceStatus mode, String failure, String detail) {
+        log.atError()
+                .addKeyValue("event", "billing.lambda.failed")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("mode", mode)
+                .addKeyValue("failure", failure)
+                .addKeyValue("detail", detail)
+                .log("Billing Lambda gave no usable result");
     }
 
     private Event loadAndAuthorize(Long eventId, User currentUser) {

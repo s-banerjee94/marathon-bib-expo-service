@@ -39,9 +39,6 @@ public class BillingController implements BillingControllerApi {
     public ResponseEntity<List<BillResponse>> listBills(
             @PathVariable Long eventId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to list bills for event ID: {} by user: {}",
-                eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(billingService.listBills(eventId, currentUser));
     }
 
@@ -50,9 +47,6 @@ public class BillingController implements BillingControllerApi {
             @PathVariable Long eventId,
             @RequestParam(defaultValue = "DRAFT") InvoiceStatus mode,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to generate a {} bill for event ID: {} by user: {}",
-                mode, eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(billingService.generateBill(eventId, mode, currentUser));
     }
 
@@ -62,9 +56,6 @@ public class BillingController implements BillingControllerApi {
             @PathVariable String invoiceId,
             @Valid @RequestBody LineItemRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to add a {} line item to bill {} of event {} by user: {}",
-                request.getKind(), invoiceId, eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(billingLineItemService.addLineItem(eventId, invoiceId, request, currentUser));
     }
 
@@ -75,9 +66,6 @@ public class BillingController implements BillingControllerApi {
             @PathVariable Long lineItemId,
             @Valid @RequestBody LineItemRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update line item {} on bill {} of event {} by user: {}",
-                lineItemId, invoiceId, eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(
                 billingLineItemService.updateLineItem(eventId, invoiceId, lineItemId, request, currentUser));
     }
@@ -88,9 +76,6 @@ public class BillingController implements BillingControllerApi {
             @PathVariable String invoiceId,
             @Valid @RequestBody ParticipantLineRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update the participant line on bill {} of event {} by user: {}",
-                invoiceId, eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(
                 billingLineItemService.updateParticipantLine(eventId, invoiceId, request, currentUser));
     }
@@ -101,9 +86,6 @@ public class BillingController implements BillingControllerApi {
             @PathVariable String invoiceId,
             @PathVariable Long lineItemId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to delete line item {} from bill {} of event {} by user: {}",
-                lineItemId, invoiceId, eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(
                 billingLineItemService.deleteLineItem(eventId, invoiceId, lineItemId, currentUser));
     }
@@ -112,7 +94,13 @@ public class BillingController implements BillingControllerApi {
     // shared with the admin billing controllers and handled by the global ApiException handler.
     @ExceptionHandler(BillGenerationException.class)
     public ResponseEntity<ErrorResponse> handleBillGeneration(BillGenerationException ex, WebRequest request) {
-        log.error("Bill generation failed: {}", ex.getMessage());
+        // ERROR like the shared handler's 5xx; the Lambda failure itself is logged where it happened.
+        log.atError()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.BAD_GATEWAY.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(ErrorResponse.of(HttpStatus.BAD_GATEWAY, "Bad Gateway", ex.getMessage(), request));
     }

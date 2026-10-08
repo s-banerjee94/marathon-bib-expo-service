@@ -42,6 +42,7 @@ public interface GlobalBillingControllerApi {
     @Operation(
             summary = "List all bills (global feed)",
             description = """
+                    **Roles:** ROOT, ADMIN. \
                     The master feed of every bill across all organizations, paginated and filterable.
 
                     **Response:** a `PageableResponse` whose `content[]` is an array of `BillResponse` \
@@ -111,6 +112,7 @@ public interface GlobalBillingControllerApi {
     @Operation(
             summary = "Global bill statistics",
             description = """
+                    **Roles:** ROOT, ADMIN. \
                     Auditor-grade billing statistics for the platform overview, served from a snapshot that is \
                     computed **entirely in a dedicated Lambda** (never in Spring) and recomputed asynchronously \
                     whenever a new draft bill is created, a bill is finalized, a bill is marked paid, or the \
@@ -190,6 +192,7 @@ public interface GlobalBillingControllerApi {
     @Operation(
             summary = "Refresh bill statistics",
             description = """
+                    **Roles:** ROOT, ADMIN. \
                     Asynchronously trigger the bill-stats Lambda to recompute the snapshot. Use this when an \
                     automatic recompute (on finalize or payment toggle) was missed — Spring never recomputes \
                     the figures itself.
@@ -228,6 +231,7 @@ public interface GlobalBillingControllerApi {
     @Operation(
             summary = "Mark a bill paid",
             description = """
+                    **Roles:** ROOT, ADMIN. \
                     Mark a bill `PAID` (request body: `{ "paymentStatus": "PAID" }`) — a manual admin action, \
                     not derived from any payment gateway. The bill is addressed by its `billId` (UUID).
 
