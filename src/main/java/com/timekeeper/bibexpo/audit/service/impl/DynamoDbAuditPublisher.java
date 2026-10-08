@@ -51,14 +51,22 @@ public class DynamoDbAuditPublisher implements AuditPublisher {
                     repository.save(orgRow);
                     repository.save(allRow);
                 } catch (Exception e) {
-                    log.error("Failed to persist audit entry: action={} entityType={} entityId={}",
-                            event.getAction(), event.getEntityType(), event.getEntityId(), e);
+                    logLost("audit.write.failed", event, e);
                 }
             });
         } catch (RejectedExecutionException e) {
-            log.error("Audit queue is full, dropping entry: action={} entityType={} entityId={}",
-                    event.getAction(), event.getEntityType(), event.getEntityId(), e);
+            logLost("audit.queue.full", event, null);
         }
+    }
+
+    private static void logLost(String reason, AuditEvent event, Exception cause) {
+        log.atError()
+                .addKeyValue("event", reason)
+                .addKeyValue("action", event.getAction())
+                .addKeyValue("entityType", event.getEntityType())
+                .addKeyValue("entityId", event.getEntityId())
+                .setCause(cause)
+                .log("Audit entry lost");
     }
 
     private AuditLogDDB toRow(AuditEvent event, Long partition, String entryId, Instant now) {

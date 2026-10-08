@@ -23,7 +23,8 @@ public interface AuditService {
      * <ul>
      *   <li>Organizer roles: always scoped to their own organization (any supplied
      *       {@code organizationId} is ignored).</li>
-     *   <li>ROOT/ADMIN: must pass {@code organizationId} — a single partition is queried.</li>
+     *   <li>ROOT/ADMIN: {@code organizationId} picks one organization ({@code 0} for system
+     *       events); without it the cross-organization feed is returned.</li>
      * </ul>
      */
     AuditLogListResponse getAuditLogs(Long organizationId,

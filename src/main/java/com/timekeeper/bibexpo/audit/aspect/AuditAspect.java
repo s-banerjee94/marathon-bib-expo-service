@@ -24,8 +24,8 @@ import java.time.Instant;
 /**
  * Captures audit events for {@link Auditable}-annotated service methods.
  *
- * <p>Order is set to the lowest precedence so the aspect runs OUTSIDE any
- * {@code @Transactional} boundary — the business transaction has committed
+ * <p>Ordered one above the transaction advisor, which defaults to the lowest precedence, so the
+ * aspect wraps any {@code @Transactional} boundary — the business transaction has committed
  * before the audit event is published.
  */
 @Aspect
@@ -76,9 +76,11 @@ public class AuditAspect {
                     .build();
             publisher.publish(event);
         } catch (Exception e) {
-            log.warn("Failed to capture audit event for {}.{}",
-                    pjp.getTarget().getClass().getSimpleName(),
-                    pjp.getSignature().getName(), e);
+            log.atWarn()
+                    .addKeyValue("event", "audit.capture.failed")
+                    .addKeyValue("method", pjp.getTarget().getClass().getSimpleName() + "." + pjp.getSignature().getName())
+                    .setCause(e)
+                    .log("Audit entry could not be built");
         } finally {
             AuditContextHolder.clear();
         }

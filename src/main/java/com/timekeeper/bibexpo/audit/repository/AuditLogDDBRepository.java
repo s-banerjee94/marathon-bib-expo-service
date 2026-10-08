@@ -4,7 +4,6 @@ import com.timekeeper.bibexpo.audit.model.dto.AuditLogQuery;
 import com.timekeeper.bibexpo.audit.model.dynamodb.AuditLogDDB;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
@@ -21,7 +20,6 @@ import java.util.Map;
 
 @Repository
 @RequiredArgsConstructor
-@Slf4j
 public class AuditLogDDBRepository {
 
     public static final String INDEX_ACTION = "LSI-ActionTimeIndex";
@@ -52,7 +50,7 @@ public class AuditLogDDBRepository {
 
     /**
      * One direct DynamoDB Query, newest first. The partition is the organization; a single
-     * indexed dimension (entityType+entityId, username, action, or entityType) becomes the
+     * indexed dimension (username, action, or entityType) becomes the
      * sort-key prefix, optionally narrowed by a date range. Everything is a key condition —
      * no FilterExpression, so the page size equals the read size.
      *

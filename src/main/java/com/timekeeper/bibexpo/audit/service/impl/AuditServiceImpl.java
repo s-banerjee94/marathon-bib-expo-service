@@ -14,7 +14,6 @@ import com.timekeeper.bibexpo.shared.persistence.DynamoDBPaginationCodec;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -25,7 +24,6 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class AuditServiceImpl implements AuditService {
 
     private final AuditLogDDBRepository auditLogRepository;
