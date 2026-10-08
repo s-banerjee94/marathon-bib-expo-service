@@ -45,8 +45,8 @@ public interface PublicPasswordResetControllerApi {
 
     @Operation(
             summary = "Validate a reset token",
-            description = "Returns the masked username and expiry for a valid token so the set-new-password "
-                    + "form can render. No authentication required."
+            description = "Returns the account's username, full name and link expiry for a valid token so the "
+                    + "set-new-password form can render. No authentication required."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Token is valid",
@@ -69,7 +69,8 @@ public interface PublicPasswordResetControllerApi {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Password set successfully"),
-            @ApiResponse(responseCode = "400", description = "New password invalid",
+            @ApiResponse(responseCode = "400",
+                    description = "New password invalid, or the account's organization is disabled",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Token is invalid or has expired",

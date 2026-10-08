@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.passwordreset.store;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.timekeeper.bibexpo.passwordreset.model.PasswordResetToken;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
@@ -16,7 +15,6 @@ import java.util.Base64;
  */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class PasswordResetStore {
 
     private static final int TOKEN_BYTES = 32;
@@ -31,7 +29,6 @@ public class PasswordResetStore {
     public String issue(PasswordResetToken token) {
         String value = generateToken();
         passwordResetCache.put(value, token);
-        log.debug("Issued password reset for user {} (issuedBy {})", token.getUserId(), token.getIssuedBy());
         return value;
     }
 
