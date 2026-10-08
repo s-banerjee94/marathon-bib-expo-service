@@ -24,14 +24,18 @@ public class PublicVerificationController implements PublicVerificationControlle
 
     @Override
     public ResponseEntity<ParticipantVerificationResponse> resolveShortUrl(@PathVariable String shortCode) {
-        log.info("Public verification request for short code {}", shortCode);
         return ResponseEntity.ok(participantAccessService.resolveShortUrl(shortCode));
     }
 
     @ExceptionHandler(ShortUrlNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleShortUrlNotFound(
             ShortUrlNotFoundException ex, WebRequest request) {
-        log.warn("Short URL not found: {}", ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.NOT_FOUND.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
     }

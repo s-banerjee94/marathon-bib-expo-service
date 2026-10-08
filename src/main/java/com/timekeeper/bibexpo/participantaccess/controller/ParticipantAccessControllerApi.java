@@ -31,7 +31,8 @@ public interface ParticipantAccessControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Generate short URLs for all event participants",
-            description = "Kicks off async generation of a short verification code for every participant. The first call generates codes for all participants; later calls only fill in participants that do not yet have one. Returns 202 immediately. "
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. "
+                    + "Checks the event and your access, then generates a short verification code for every participant in the background. The first call generates codes for all participants; later calls only fill in participants that do not yet have one. Returns 202 immediately. "
                     + "UI note: processing happens in the background and can take a while for large events. After the 202 response, show the user an informational pop-up/dialog such as \"Verification links are being generated in the background and will be ready shortly — you can keep working.\" so they do not expect the links to be ready instantly or trigger the action repeatedly."
     )
     @ApiResponses({
@@ -48,7 +49,8 @@ public interface ParticipantAccessControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get QR code PNG for a participant",
-            description = "Returns a 300×300 PNG QR code whose payload is AES-GCM encrypted. Only this application can decode it. Intended for delivery via email or WhatsApp to the participant, who shows it at the distribution counter."
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. "
+                    + "Returns a 300×300 PNG QR code whose payload is AES-GCM encrypted. Only this application can decode it. Intended for delivery via email or WhatsApp to the participant, who shows it at the distribution counter."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "QR code image",
@@ -66,7 +68,8 @@ public interface ParticipantAccessControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER', 'ROLE_DISTRIBUTOR')")
     @Operation(
             summary = "Scan a participant QR code at the distribution counter",
-            description = "Decrypts the QR token, verifies it belongs to this event, and returns the participant's full distribution status. Allows distributors to pull up a participant record instantly by scanning."
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR. "
+                    + "Decrypts the QR token, verifies it belongs to this event, and returns the participant's full distribution status. Allows distributors to pull up a participant record instantly by scanning."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Participant distribution status",

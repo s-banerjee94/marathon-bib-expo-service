@@ -27,12 +27,12 @@ import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.Executor;
 
 @Service
 @RequiredArgsConstructor
@@ -49,39 +49,51 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     private final NotificationService notificationService;
     private final AuditPublisher auditPublisher;
     private final RaceCategoryNameQuery nameResolver;
+    private final Executor participantAccessTaskExecutor;
 
     private static final int MAX_CODE_ATTEMPTS = 5;
     private static final int SHORT_URL_TTL_DAYS_AFTER_EVENT_END = 3;
 
     @Override
-    @Async("participantAccessTaskExecutor")
     public void generateShortUrls(Long eventId, User currentUser) {
         Event event = findEventOrThrow(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        participantAccessTaskExecutor.execute(() -> generateInBackground(event, currentUser));
+    }
 
+    private void generateInBackground(Event event, User currentUser) {
+        Long eventId = event.getId();
         int total = 0;
         int generated = 0;
         int skipped = 0;
         String now = Instant.now().truncatedTo(ChronoUnit.SECONDS).toString();
         Long expiresAt = resolveExpiry(event);
 
-        for (Page<ParticipantDDB> page : participantStore.findPagesByEventId(eventId, 100)) {
-            for (ParticipantDDB participant : page.items()) {
-                total++;
-                String existingCode = participant.getVerifyShortCode();
-                // A stored code can outlive its short URL row, which TTL removes after the event ends; regenerate when the row is gone.
-                if (existingCode != null && !existingCode.isBlank()
-                        && shortUrlRepository.findByCode(existingCode) != null) {
-                    skipped++;
-                    continue;
+        try {
+            for (Page<ParticipantDDB> page : participantStore.findPagesByEventId(eventId, 100)) {
+                for (ParticipantDDB participant : page.items()) {
+                    total++;
+                    String existingCode = participant.getVerifyShortCode();
+                    // A stored code can outlive its short URL row, which TTL removes after the event ends; regenerate when the row is gone.
+                    if (existingCode != null && !existingCode.isBlank()
+                            && shortUrlRepository.findByCode(existingCode) != null) {
+                        skipped++;
+                        continue;
+                    }
+                    String code = allocateShortCode(eventId, participant.getBibNumber(), now, expiresAt);
+                    participantStore.updateVerifyShortCode(eventId, participant.getBibNumber(), code);
+                    generated++;
                 }
-                String code = allocateShortCode(eventId, participant.getBibNumber(), now, expiresAt);
-                participantStore.updateVerifyShortCode(eventId, participant.getBibNumber(), code);
-                generated++;
             }
+        } catch (RuntimeException e) {
+            log.atError().addKeyValue("event", "participant_access.short_urls.failed").addKeyValue("eventId", eventId)
+                    .addKeyValue("generated", generated).setCause(e).log("Verification link generation failed");
+            return;
         }
 
-        log.info("Short URL generation for event {}: total={}, generated={}, skipped={}", eventId, total, generated, skipped);
+        log.atInfo().addKeyValue("event", "participant_access.short_urls.generated").addKeyValue("eventId", eventId)
+                .addKeyValue("total", total).addKeyValue("generated", generated).addKeyValue("skipped", skipped)
+                .log("Verification links generated");
 
         publishGenerationAudit(event, currentUser);
 
@@ -98,8 +110,8 @@ public class ParticipantAccessServiceImpl implements ParticipantAccessService {
     }
 
     /**
-     * Published via a direct call rather than {@code @Auditable}: this method is {@code @Async}
-     * and returns void, so the aspect would fire on dispatch (before the work succeeds) with no result.
+     * Published via a direct call rather than {@code @Auditable}: the work runs in the background, so
+     * the aspect would fire on dispatch (before the work succeeds) with no result.
      */
     private void publishGenerationAudit(Event event, User actor) {
         Long actorOrgId = actor.getOrganization() != null ? actor.getOrganization().getId() : 0L;
