@@ -24,11 +24,13 @@ public class NotificationResponse {
                     - `EVENT_CREATED` — an organizer created an event; sent to ROOT/ADMIN (entity: EVENT).
                     - `EVENT_PUBLISHED` / `EVENT_COMPLETED` — event went live / was completed; sent to ROOT/ADMIN (entity: EVENT).
                     - `EVENT_CANCELLED` — event cancelled; sent to the organization's staff (entity: EVENT).
-                    - `CAMPAIGN_COMPLETED` / `CAMPAIGN_FAILED` — SMS/WhatsApp campaign lifecycle (entity: CAMPAIGN).""",
+                    - `CAMPAIGN_COMPLETED` / `CAMPAIGN_FAILED` — SMS/WhatsApp campaign lifecycle (entity: CAMPAIGN).
+                    - `OUT_OF_STOCK` / `LOW_STOCK` — a shelf went below zero / an item ran low; sent to the \
+                    organization's staff (entity: INVENTORY_ITEM).""",
             allowableValues = {
                     "IMPORT_COMPLETED", "IMPORT_FAILED", "SHORT_URLS_COMPLETED",
                     "EVENT_CREATED", "EVENT_PUBLISHED", "EVENT_CANCELLED", "EVENT_COMPLETED",
-                    "CAMPAIGN_COMPLETED", "CAMPAIGN_FAILED"
+                    "CAMPAIGN_COMPLETED", "CAMPAIGN_FAILED", "OUT_OF_STOCK", "LOW_STOCK"
             },
             example = "EVENT_CREATED")
     private String type;
@@ -43,7 +45,7 @@ public class NotificationResponse {
     private Boolean read;
 
     @Schema(description = "Deep-link target type (nullable). Pair with `entityId` to route on click.",
-            allowableValues = {"EVENT", "CAMPAIGN"}, example = "EVENT")
+            allowableValues = {"EVENT", "CAMPAIGN", "INVENTORY_ITEM"}, example = "EVENT")
     private String entityType;
 
     @Schema(description = "Deep-link target id (nullable)", example = "42")

@@ -84,15 +84,25 @@ public class NotificationServiceImpl implements NotificationService {
                         .build());
             }
 
-            if (rows.isEmpty()) {
-                log.debug("No recipients for {} notification to audience {}", request.getType(), request.getAudience());
-                return;
+            if (!rows.isEmpty()) {
+                notificationRepository.saveAll(rows);
+                evictUnreadCounts(rows);
             }
-            notificationRepository.saveAll(rows);
-            evictUnreadCounts(rows);
-            log.debug("Wrote {} '{}' notification(s) to audience {}", rows.size(), request.getType(), request.getAudience());
+            log.atDebug()
+                    .addKeyValue("event", "notification.sent")
+                    .addKeyValue("type", request.getType())
+                    .addKeyValue("audience", request.getAudience())
+                    .addKeyValue("targetOrgId", request.getOrganizationId())
+                    .addKeyValue("recipients", rows.size())
+                    .log("Notification sent");
         } catch (Exception e) {
-            log.error("Failed to send {} notification to audience {}", request.getType(), request.getAudience(), e);
+            log.atError()
+                    .addKeyValue("event", "notification.send.failed")
+                    .addKeyValue("type", request.getType())
+                    .addKeyValue("audience", request.getAudience())
+                    .addKeyValue("targetOrgId", request.getOrganizationId())
+                    .setCause(e)
+                    .log("Notification could not be sent");
         }
     }
 
@@ -176,7 +186,7 @@ public class NotificationServiceImpl implements NotificationService {
         try {
             return new String(Base64.getUrlDecoder().decode(id), StandardCharsets.UTF_8);
         } catch (IllegalArgumentException e) {
-            throw new InvalidUserDataException("Invalid notification id.");
+            throw new InvalidUserDataException("This notification is not valid.");
         }
     }
 
