@@ -10,6 +10,8 @@ import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,6 +42,8 @@ public class SystemMessageDispatcher {
      * @param context        the variable source whose getters back the template's {@code #{field}} placeholders
      * @return one {@link DeliveryResult} per channel, in iteration order
      */
+    // Outside the caller's transaction: a channel failing inside it would mark it rollback-only.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<DeliveryResult> deliver(SystemTemplatePurpose purpose, Set<MessageChannel> channels,
                                         String recipientPhone, Object context) {
         List<DeliveryResult> results = new ArrayList<>();
