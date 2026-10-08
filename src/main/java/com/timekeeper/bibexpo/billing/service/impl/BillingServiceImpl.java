@@ -181,16 +181,19 @@ public class BillingServiceImpl implements BillingService {
         return status;
     }
 
-    /** Undo the FINAL mark when the Lambda did not issue the final, returning the bill to an editable draft. */
+    /**
+     * Undo the FINAL mark when this request did not see the final issued. A conditional update, not a
+     * save of this request's copy: that copy predates the Lambda, and writing it back would erase an
+     * invoice number the Lambda issued anyway.
+     */
     private void revertToDraft(Invoice invoice) {
-        invoice.setStatus(InvoiceStatus.DRAFT);
-        invoice.setUpdatedAt(Instant.now());
-        invoiceRepository.save(invoice);
+        boolean reverted = invoiceRepository.revertUnissuedFinal(invoice.getBillId(), Instant.now()) == 1;
         log.atWarn()
-                .addKeyValue("event", "billing.final.reverted")
+                .addKeyValue("event", reverted ? "billing.final.reverted" : "billing.final.kept")
                 .addKeyValue("billId", invoice.getBillId())
                 .addKeyValue("eventId", invoice.getEventId())
-                .log("Final mark undone; the bill is a draft again");
+                .log(reverted ? "Final mark undone; the bill is a draft again"
+                        : "Final mark kept; the billing Lambda already issued this bill");
     }
 
     /** Invoke the billing Lambda synchronously and return the {@code status} it reports. */
