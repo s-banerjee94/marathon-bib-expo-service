@@ -11,7 +11,6 @@ import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppTemplateService
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -20,7 +19,6 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class MessagingTemplateMcpTools implements McpToolGroup {
 
     private final SmsTemplateService smsTemplateService;
@@ -38,7 +36,6 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
 
         User currentUser = McpToolSupport.requireCurrentUser();
         String search = McpToolSupport.normalizeSearch(query);
-        log.info("MCP search_sms_templates - event {}, query '{}', by {}", eventId, search, currentUser.getUsername());
         return smsTemplateService.getSmsTemplatesByEvent(eventId, search, currentUser);
     }
 
@@ -54,8 +51,6 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP create_sms_template - name '{}', event {}, by {}",
-                request.getName(), eventId, currentUser.getUsername());
         return smsTemplateService.createSmsTemplate(eventId, request, currentUser);
     }
 
@@ -72,8 +67,6 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP update_sms_template - template {}, event {}, by {}",
-                templateId, eventId, currentUser.getUsername());
         return smsTemplateService.updateSmsTemplate(eventId, templateId, request, currentUser);
     }
 
@@ -88,7 +81,6 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
 
         User currentUser = McpToolSupport.requireCurrentUser();
         String search = McpToolSupport.normalizeSearch(query);
-        log.info("MCP search_whatsapp_templates - event {}, query '{}', by {}", eventId, search, currentUser.getUsername());
         return whatsAppTemplateService.getTemplatesByEvent(eventId, search, currentUser);
     }
 
@@ -104,8 +96,6 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP create_whatsapp_template - name '{}', event {}, by {}",
-                request.getName(), eventId, currentUser.getUsername());
         return whatsAppTemplateService.createTemplate(eventId, request, currentUser);
     }
 
@@ -123,8 +113,6 @@ public class MessagingTemplateMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP update_whatsapp_template - template {}, event {}, by {}",
-                templateId, eventId, currentUser.getUsername());
         return whatsAppTemplateService.updateTemplate(eventId, templateId, request, currentUser);
     }
 }

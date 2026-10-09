@@ -7,7 +7,6 @@ import com.timekeeper.bibexpo.event.race.category.service.CategoryService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -16,7 +15,6 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class CategoryMcpTools implements McpToolGroup {
 
     private final CategoryService categoryService;
@@ -31,8 +29,6 @@ public class CategoryMcpTools implements McpToolGroup {
             @ToolParam(description = "The id of the race whose categories to list. Resolve it from the race name with list_event_races") Long raceId) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-        log.info("MCP list_race_categories - event {}, race {}, by {}",
-                eventId, raceId, currentUser.getUsername());
         return categoryService.getCategoriesByRaceId(eventId, raceId, currentUser);
     }
 
@@ -49,8 +45,6 @@ public class CategoryMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP create_category - name '{}', event {}, race {}, by {}",
-                request.getCategoryName(), eventId, raceId, currentUser.getUsername());
         return categoryService.createCategory(eventId, raceId, request, currentUser);
     }
 
@@ -68,8 +62,6 @@ public class CategoryMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP update_category - event {}, race {}, category {}, by {}",
-                eventId, raceId, categoryId, currentUser.getUsername());
         return categoryService.updateCategory(eventId, raceId, categoryId, request, currentUser);
     }
 }

@@ -10,7 +10,6 @@ import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.data.domain.PageRequest;
@@ -20,7 +19,6 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class OrganizationMcpTools implements McpToolGroup {
 
     private static final int SEARCH_LIMIT = 20;
@@ -43,7 +41,6 @@ public class OrganizationMcpTools implements McpToolGroup {
         }
 
         String search = McpToolSupport.normalizeSearch(query);
-        log.info("MCP search_organizations - query '{}', by {}", search, currentUser.getUsername());
 
         return organizationService
                 .getAllOrganizations(null, search, PageRequest.of(0, SEARCH_LIMIT), CurrentActor.from(currentUser))
@@ -63,8 +60,6 @@ public class OrganizationMcpTools implements McpToolGroup {
 
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP create_organization - name '{}', by {}",
-                request.getOrganizerName(), currentUser.getUsername());
         return organizationService.createOrganization(request);
     }
 
@@ -81,7 +76,6 @@ public class OrganizationMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP update_organization - org {}, by {}", organizationId, currentUser.getUsername());
         return organizationService.updateOrganization(organizationId, request, CurrentActor.from(currentUser));
     }
 }

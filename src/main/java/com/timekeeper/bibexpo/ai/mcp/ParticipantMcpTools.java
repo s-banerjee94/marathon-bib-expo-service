@@ -9,14 +9,12 @@ import com.timekeeper.bibexpo.participant.service.ParticipantService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class ParticipantMcpTools implements McpToolGroup {
 
     private static final int DEFAULT_LIMIT = 10;
@@ -38,8 +36,6 @@ public class ParticipantMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         int effectiveLimit = clampLimit(limit);
 
-        log.info("MCP search_participants - event {}, type {}, value '{}', limit {}, user {}",
-                eventId, searchType, searchValue, effectiveLimit, currentUser.getUsername());
 
         return participantService.lookupParticipants(
                 eventId, searchType, searchValue, effectiveLimit, null, currentUser);
@@ -59,8 +55,6 @@ public class ParticipantMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP create_participant - bib '{}', event {}, by {}",
-                request.getBibNumber(), eventId, currentUser.getUsername());
         return participantService.createParticipant(eventId, request, currentUser);
     }
 
@@ -79,7 +73,6 @@ public class ParticipantMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP update_participant - event {}, bib '{}', by {}", eventId, bibNumber, currentUser.getUsername());
         return participantService.updateParticipant(eventId, bibNumber, request, currentUser);
     }
 
