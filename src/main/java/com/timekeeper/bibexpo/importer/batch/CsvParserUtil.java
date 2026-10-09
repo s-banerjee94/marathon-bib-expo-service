@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.importer.batch;
 
 import com.timekeeper.bibexpo.importer.model.dto.request.ImportMappingRequest;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.springframework.stereotype.Component;
@@ -17,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-@Slf4j
 public class CsvParserUtil {
 
     private static final char DEFAULT_DELIMITER = ',';
@@ -46,13 +44,8 @@ public class CsvParserUtil {
 
         Map<Integer, String> goodiesByIndex = toIndexKeyMap(mapping.getGoodies());
         Map<Integer, String> otherByIndex = toIndexKeyMap(mapping.getOther());
-        List<String> goodiesColumns = new ArrayList<>(goodiesByIndex.values());
-
-        log.info("Opening dynamic CSV stream: {} mapped fields, {} goodies columns, {} additional columns",
-                fieldByIndex.size(), goodiesByIndex.size(), otherByIndex.size());
-
         return new CsvParseStream(csvParser, mapping.isHasHeader(),
-                fieldByIndex, goodiesByIndex, otherByIndex, goodiesColumns);
+                fieldByIndex, goodiesByIndex, otherByIndex, new ArrayList<>(goodiesByIndex.values()));
     }
 
     private Map<Integer, String> toIndexKeyMap(List<ImportMappingRequest.ExtraColumn> columns) {

@@ -32,6 +32,7 @@ public interface InvitationControllerApi {
     @Operation(
             summary = "Issue a user-invite link",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Issues a one-time, short-lived link the invitee opens to create their own account. \
                     The role and organization are fixed in the link and cannot be changed by the invitee. \
                     The issuer must be allowed to create that role: \
@@ -47,7 +48,8 @@ public interface InvitationControllerApi {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = InvitationLinkResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid role, organization required but missing or disabled, "
-                    + "missing event for a distributor, or the event is completed or cancelled",
+                    + "missing event for a distributor, the event is completed or cancelled, "
+                    + "or a phone channel was chosen without a phone number",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Issuer not allowed to create the requested role or organization",

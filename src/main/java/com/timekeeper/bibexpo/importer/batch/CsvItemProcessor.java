@@ -62,14 +62,22 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
     private long participantLimit;
     private long initialParticipantCount;
     private int processedThisJob;
+    private boolean limitLogged;
 
     @Override
     public ParticipantDDB process(CsvRow row) {
         initIfNeeded();
 
         if (isAddOn && initialParticipantCount + processedThisJob >= participantLimit) {
-            log.warn("Participant limit reached at row {} (limit={}, existing={}, added={})",
-                    row.getRowNumber(), participantLimit, initialParticipantCount, processedThisJob);
+            if (!limitLogged) {
+                limitLogged = true;
+                log.atWarn()
+                        .addKeyValue("event", "import.participant_limit_reached")
+                        .addKeyValue("eventId", eventId)
+                        .addKeyValue("row", row.getRowNumber())
+                        .addKeyValue("limit", participantLimit)
+                        .log("Participant limit reached; remaining rows skipped");
+            }
             throw new BatchValidationException(
                     "Participant limit reached. This row and all following rows have been skipped.",
                     List.of(new ValidationError("participants", "Participant limit reached for this event.")),
@@ -78,7 +86,6 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
 
         List<ValidationError> errors = csvRowValidator.validate(row);
         if (!errors.isEmpty()) {
-            log.warn("Skipping row {} due to validation errors: {}", row.getRowNumber(), errors);
             throw new BatchValidationException("Row " + row.getRowNumber() + " invalid", errors);
         }
 
@@ -97,9 +104,14 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
             processedThisJob++;
             return result;
         } catch (Exception e) {
-            log.warn("Processing error for row {}: {}", row.getRowNumber(), e.getMessage());
+            log.atWarn()
+                    .setCause(e)
+                    .addKeyValue("event", "import.row_failed")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("row", row.getRowNumber())
+                    .log("Import row failed");
             throw new BatchValidationException(
-                    "Row " + row.getRowNumber() + " processing failed: " + e.getMessage(),
+                    "This row could not be imported.",
                     List.of(),
                     BatchValidationException.TYPE_PROCESSING);
         }
@@ -121,7 +133,6 @@ public class CsvItemProcessor implements ItemProcessor<CsvRow, ParticipantDDB> {
                 participantLimit = limits.maxParticipants();
                 initialParticipantCount = eventStatsQuery.participantCount(eventId);
                 processedThisJob = 0;
-                log.info("ADD_ON import: existingCount={}, limit={}", initialParticipantCount, participantLimit);
             }
         }
     }

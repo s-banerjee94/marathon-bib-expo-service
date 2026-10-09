@@ -67,7 +67,7 @@ public class InventoryVariantAliasServiceImpl implements InventoryVariantAliasSe
                 .variantId(request.getVariantId())
                 .build());
 
-        log.info("Item {} now reads '{}' as variant {}", itemId, sourceValue, request.getVariantId());
+        logAlias("inventory.alias_created", "Inventory spelling taught", alias);
         return InventoryVariantAliasResponse.of(alias, labels.get(alias.getVariantId()));
     }
 
@@ -86,7 +86,7 @@ public class InventoryVariantAliasServiceImpl implements InventoryVariantAliasSe
         alias.setVariantId(request.getVariantId());
         InventoryVariantAlias saved = aliasRepository.saveAndFlush(alias);
 
-        log.info("Item {} now reads '{}' as variant {}", itemId, saved.getSourceValue(), request.getVariantId());
+        logAlias("inventory.alias_updated", "Inventory spelling repointed", saved);
         return InventoryVariantAliasResponse.of(saved, labels.get(saved.getVariantId()));
     }
 
@@ -98,7 +98,17 @@ public class InventoryVariantAliasServiceImpl implements InventoryVariantAliasSe
 
         InventoryVariantAlias alias = requireAlias(aliasId, itemId, organizationId);
         aliasRepository.delete(alias);
-        log.info("Item {} no longer reads '{}'", itemId, alias.getSourceValue());
+        logAlias("inventory.alias_deleted", "Inventory spelling forgotten", alias);
+    }
+
+    private static void logAlias(String event, String message, InventoryVariantAlias alias) {
+        log.atInfo()
+                .addKeyValue("event", event)
+                .addKeyValue("targetOrgId", alias.getOrganizationId())
+                .addKeyValue("itemId", alias.getItemId())
+                .addKeyValue("aliasId", alias.getId())
+                .addKeyValue("variantId", alias.getVariantId())
+                .log(message);
     }
 
     // ---- lookups ----------------------------------------------------------------

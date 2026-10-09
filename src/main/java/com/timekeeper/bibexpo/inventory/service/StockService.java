@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.inventory.service;
 import com.timekeeper.bibexpo.inventory.exception.InsufficientStockException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantNotFoundException;
+import com.timekeeper.bibexpo.inventory.exception.StockCapacityExceededException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.AdjustStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.ReceiveStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.TransferStockRequest;
@@ -68,10 +69,12 @@ public interface StockService {
 
     /**
      * Records stock arriving at a location from outside the system — an opening balance or a
-     * manual receipt. Always succeeds; a receipt can never be short.
+     * manual receipt. A receipt can never be short, but a location holds at most 1,000,000 units of
+     * one variant.
      *
      * @throws InventoryVariantNotFoundException if the variant does not belong to this organization
      * @throws InventoryLocationNotFoundException if the location does not belong to this organization
+     * @throws StockCapacityExceededException if the location would hold more than 1,000,000 units
      */
     StockBalanceResponse receiveStock(Long organizationId, ReceiveStockRequest request, User currentUser);
 
@@ -80,16 +83,18 @@ public interface StockService {
      * returns the resulting balance at each — source first, then destination.
      *
      * @throws InsufficientStockException if the source location does not hold enough stock
+     * @throws StockCapacityExceededException if the destination would hold more than 1,000,000 units
      */
     List<StockBalanceResponse> transferStock(Long organizationId, TransferStockRequest request, User currentUser);
 
     /**
      * Corrects the counted quantity at a location. {@code DAMAGED} and {@code LOST} always remove
      * stock, whatever sign the quantity carries; {@code CORRECTION} follows the sign. An adjustment
-     * can never take the balance below zero.
+     * can never take the balance below zero or above 1,000,000.
      *
      * @throws InvalidUserDataException if the quantity is zero, or the reason does not explain a recount
      * @throws InsufficientStockException if the adjustment removes more than is on hand
+     * @throws StockCapacityExceededException if the location would hold more than 1,000,000 units
      */
     StockBalanceResponse adjustStock(Long organizationId, AdjustStockRequest request, User currentUser);
 }

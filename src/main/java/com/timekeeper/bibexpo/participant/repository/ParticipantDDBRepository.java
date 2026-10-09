@@ -1,6 +1,8 @@
 package com.timekeeper.bibexpo.participant.repository;
 
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.exception.BibNumberAlreadyExistsException;
+import com.timekeeper.bibexpo.participant.exception.ParticipantChangedException;
 import com.timekeeper.bibexpo.participant.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
@@ -15,13 +17,19 @@ import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchWriteItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchWriteResult;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
+import software.amazon.awssdk.enhanced.dynamodb.model.PutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.ReadBatch;
+import software.amazon.awssdk.enhanced.dynamodb.model.TransactDeleteItemEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.WriteBatch;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.ArrayList;
@@ -44,6 +52,8 @@ public class ParticipantDDBRepository implements ParticipantStore {
 
     private static final int BATCH_SIZE = 25;
     private static final int GET_BATCH_SIZE = 100;
+    private static final String VERSION = "version";
+    private static final Expression BIB_FREE = Expression.builder().expression("attribute_not_exists(bibNumber)").build();
 
     private DynamoDbTable<ParticipantDDB> getTable() {
         if (table == null) {
@@ -114,29 +124,120 @@ public class ParticipantDDBRepository implements ParticipantStore {
     }
 
     @Override
-    public void save(ParticipantDDB participant) {
-        getTable().putItem(participant);
-        log.debug("Saved participant with bib {} for event {}",
+    public void update(ParticipantDDB participant) {
+        Long read = participant.getVersion();
+        participant.setVersion(nextVersion(read));
+        try {
+            getTable().putItem(PutItemEnhancedRequest.builder(ParticipantDDB.class)
+                    .item(participant)
+                    .conditionExpression(unchangedSince(read))
+                    .build());
+        } catch (ConditionalCheckFailedException e) {
+            throw new ParticipantChangedException();
+        }
+        log.debug("Updated participant with bib {} for event {}",
                 participant.getBibNumber(), participant.getEventId());
     }
 
     /**
-     * Sets only the verifyShortCode attribute via a targeted update, leaving every other
-     * attribute untouched so a concurrent edit (e.g. a bib collection) is not overwritten.
+     * Writes a new participant only if its bib is still free. DynamoDB checks and writes in one step,
+     * so of two requests racing for the same bib exactly one wins and the other gets the conflict.
+     *
+     * @param participant the record to write
+     * @throws BibNumberAlreadyExistsException if the bib is already taken in the event
+     */
+    public void create(ParticipantDDB participant) {
+        participant.setVersion(1L);
+        try {
+            getTable().putItem(PutItemEnhancedRequest.builder(ParticipantDDB.class)
+                    .item(participant)
+                    .conditionExpression(BIB_FREE)
+                    .build());
+        } catch (ConditionalCheckFailedException e) {
+            throw new BibNumberAlreadyExistsException();
+        }
+    }
+
+    /**
+     * Moves a participant to the bib it now carries in one transaction: the new bib must be free and the
+     * record under the old bib unchanged since it was read, or nothing is written.
+     *
+     * @param participant  the record, already carrying its new bib number
+     * @param oldBibNumber the bib it is moving from
+     * @throws BibNumberAlreadyExistsException if the new bib is already taken in the event
+     * @throws ParticipantChangedException     if the old record was changed or deleted since it was read
+     */
+    public void changeBib(ParticipantDDB participant, String oldBibNumber) {
+        Long read = participant.getVersion();
+        participant.setVersion(nextVersion(read));
+        try {
+            dynamoDbEnhancedClient.transactWriteItems(TransactWriteItemsEnhancedRequest.builder()
+                    .addPutItem(getTable(), TransactPutItemEnhancedRequest.builder(ParticipantDDB.class)
+                            .item(participant)
+                            .conditionExpression(BIB_FREE)
+                            .build())
+                    .addDeleteItem(getTable(), TransactDeleteItemEnhancedRequest.builder()
+                            .key(Key.builder().partitionValue(participant.getEventId()).sortValue(oldBibNumber).build())
+                            .conditionExpression(unchangedSince(read))
+                            .build())
+                    .build());
+        } catch (TransactionCanceledException e) {
+            if (e.hasCancellationReasons()
+                    && "ConditionalCheckFailed".equals(e.cancellationReasons().get(0).code())) {
+                throw new BibNumberAlreadyExistsException();
+            }
+            throw new ParticipantChangedException();
+        }
+    }
+
+    /** The record still exists and nobody has written it since it was read at {@code version}. */
+    private static Expression unchangedSince(Long version) {
+        if (version == null) {
+            // Written before records carried a version.
+            return Expression.builder()
+                    .expression("attribute_exists(bibNumber) AND attribute_not_exists(#version)")
+                    .putExpressionName("#version", VERSION)
+                    .build();
+        }
+        return Expression.builder()
+                .expression("#version = :version")
+                .putExpressionName("#version", VERSION)
+                .putExpressionValue(":version", AttributeValue.fromN(version.toString()))
+                .build();
+    }
+
+    private static long nextVersion(Long version) {
+        return version == null ? 1 : version + 1;
+    }
+
+    /**
+     * Sets only the verifyShortCode attribute via a targeted update, leaving every other attribute
+     * untouched. It raises the version too, so a copy read before it cannot be written back over the code.
+     * A participant deleted meanwhile is skipped.
      */
     @Override
     public void updateVerifyShortCode(Long eventId, String bibNumber, String code) {
-        dynamoDbClient.updateItem(UpdateItemRequest.builder()
-                .tableName(dynamoDbProperties.participantsTable())
-                .key(primaryKey(String.valueOf(eventId), bibNumber))
-                .updateExpression("SET verifyShortCode = :code")
-                .expressionAttributeValues(Map.of(":code", AttributeValue.fromS(code)))
-                .build());
+        try {
+            dynamoDbClient.updateItem(UpdateItemRequest.builder()
+                    .tableName(dynamoDbProperties.participantsTable())
+                    .key(primaryKey(String.valueOf(eventId), bibNumber))
+                    .updateExpression("SET verifyShortCode = :code ADD #version :one")
+                    .conditionExpression("attribute_exists(bibNumber)")
+                    .expressionAttributeNames(Map.of("#version", VERSION))
+                    .expressionAttributeValues(Map.of(":code", AttributeValue.fromS(code), ":one", AttributeValue.fromN("1")))
+                    .build());
+        } catch (ConditionalCheckFailedException e) {
+            log.debug("Participant with bib {} for event {} was deleted before its short code was set", bibNumber, eventId);
+        }
     }
 
     @Override
     public void batchSave(List<ParticipantDDB> participants) {
         if (participants == null || participants.isEmpty()) return;
+
+        // ponytail: a batch write cannot be conditional, so it overwrites anything changed since its read; only the
+        // import and the draft-only goody purge use it. Raising the version still stops older copies landing over it.
+        participants.forEach(participant -> participant.setVersion(nextVersion(participant.getVersion())));
 
         for (int i = 0; i < participants.size(); i += BATCH_SIZE) {
             List<ParticipantDDB> batch = participants.subList(i, Math.min(i + BATCH_SIZE, participants.size()));
@@ -153,11 +254,8 @@ public class ParticipantDDBRepository implements ParticipantStore {
 
             List<ParticipantDDB> unprocessed = result.unprocessedPutItemsForTable(getTable());
             if (!unprocessed.isEmpty()) {
-                log.warn("DynamoDB batch write had {} unprocessed items, retrying individually", unprocessed.size());
-                unprocessed.forEach(p -> {
-                    getTable().putItem(p);
-                    log.debug("Retry-saved participant bib {} for event {}", p.getBibNumber(), p.getEventId());
-                });
+                logUnprocessed("put", unprocessed.size());
+                unprocessed.forEach(getTable()::putItem);
             }
         }
 
@@ -166,9 +264,7 @@ public class ParticipantDDBRepository implements ParticipantStore {
 
     @Override
     public int deleteAllByEventId(String eventId) {
-        int deleted = deleteAll(findAllByEventId(eventId));
-        log.info("Deleted {} participants for event {}", deleted, eventId);
-        return deleted;
+        return deleteAll(findAllByEventId(eventId));
     }
 
     /** Every participant of an event, read through as many round trips as it takes. */
@@ -182,14 +278,13 @@ public class ParticipantDDBRepository implements ParticipantStore {
      * Deletes the given participants in batches of 25.
      *
      * @param participants the records to delete
-     * @return how many were deleted; a shortfall means DynamoDB left some unprocessed
+     * @return how many were deleted
      */
     public int deleteAll(List<ParticipantDDB> participants) {
         if (participants == null || participants.isEmpty()) {
             return 0;
         }
 
-        int deleted = 0;
         for (int i = 0; i < participants.size(); i += BATCH_SIZE) {
             List<ParticipantDDB> batch = participants.subList(i, Math.min(i + BATCH_SIZE, participants.size()));
             WriteBatch.Builder<ParticipantDDB> batchBuilder = WriteBatch.builder(ParticipantDDB.class)
@@ -200,13 +295,21 @@ public class ParticipantDDBRepository implements ParticipantStore {
                             .writeBatches(batchBuilder.build())
                             .build()
             );
-            int unprocessed = result.unprocessedDeleteItemsForTable(getTable()).size();
-            if (unprocessed > 0) {
-                log.warn("Delete batch left {} of {} items unprocessed", unprocessed, batch.size());
+            List<Key> unprocessed = result.unprocessedDeleteItemsForTable(getTable());
+            if (!unprocessed.isEmpty()) {
+                logUnprocessed("delete", unprocessed.size());
+                unprocessed.forEach(key -> getTable().deleteItem(key));
             }
-            deleted += batch.size() - unprocessed;
         }
-        return deleted;
+        return participants.size();
+    }
+
+    private static void logUnprocessed(String operation, int count) {
+        log.atWarn()
+                .addKeyValue("event", "participant.batch_unprocessed")
+                .addKeyValue("operation", operation)
+                .addKeyValue("count", count)
+                .log("DynamoDB left batch items unprocessed; retrying them one by one");
     }
 
     @Override
@@ -243,11 +346,20 @@ public class ParticipantDDBRepository implements ParticipantStore {
             // One more passes, so there is a next page, and it starts right after the last one kept.
             if (kept.size() == limit) {
                 ParticipantDDB last = kept.get(limit - 1);
-                return Page.create(kept, primaryKey(last.getEventId(), last.getBibNumber()));
+                return page(kept, primaryKey(last.getEventId(), last.getBibNumber()));
             }
             kept.add(participant);
         }
-        return Page.create(kept, null);
+        return page(kept, null);
+    }
+
+    private static Page<ParticipantDDB> page(List<ParticipantDDB> items, Map<String, AttributeValue> lastEvaluatedKey) {
+        // The builder copies the key map, so a null key (last page) must be left unset.
+        Page.Builder<ParticipantDDB> builder = Page.builder(ParticipantDDB.class).items(items);
+        if (lastEvaluatedKey != null) {
+            builder.lastEvaluatedKey(lastEvaluatedKey);
+        }
+        return builder.build();
     }
 
     /**

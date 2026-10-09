@@ -13,5 +13,6 @@ public enum NotificationType {
     EVENT_COMPLETED,
     CAMPAIGN_COMPLETED,
     CAMPAIGN_FAILED,
-    OUT_OF_STOCK
+    OUT_OF_STOCK,
+    LOW_STOCK
 }

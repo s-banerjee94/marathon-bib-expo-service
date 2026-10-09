@@ -96,7 +96,7 @@ public class DemoSessionServiceImpl implements DemoSessionService {
             throw new DemoSessionAlreadyCollectedException();
         }
         events.publish(code, DemoSessionStatus.COLLECTED);
-        log.info("Demo bib {} collected", session.getBib());
+        log.atInfo().addKeyValue("event", "demo.session.collected").log("Demo bib collected");
         return new DemoSessionStatusResponse(DemoSessionStatus.COLLECTED);
     }
 

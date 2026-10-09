@@ -71,6 +71,12 @@ public class InventoryItem implements Serializable {
     @Column(name = "low_stock_threshold")
     private Integer lowStockThreshold;
 
+    // Whether staff were already told this item is low, so each low spell raises one alert. Written only
+    // by the conditional updates in InventoryItemRepository, never by saving the item.
+    @Column(name = "low_stock_alerted", nullable = false, updatable = false)
+    @Builder.Default
+    private Boolean lowStockAlerted = false;
+
     // A free-text warning for whoever opens this item next — not a property of the product itself,
     // which belongs in an attribute. Blank is stored as null, so a stale note can be removed.
     @Column(length = 500)

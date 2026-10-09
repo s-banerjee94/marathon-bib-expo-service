@@ -1,9 +1,11 @@
 package com.timekeeper.bibexpo.shared.error;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.event.Level;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -53,11 +55,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ErrorResponse> handleApiException(ApiException ex, WebRequest request) {
-        if (ex.getStatus().is5xxServerError()) {
-            log.error("{}: {}", ex.getClass().getSimpleName(), ex.getMessage());
-        } else {
-            log.warn("{}: {}", ex.getClass().getSimpleName(), ex.getMessage());
-        }
+        logRejected(ex.getStatus(), ex, ex.getMessage());
         return ResponseEntity.status(ex.getStatus())
                 .body(ErrorResponse.of(ex.getStatus(), ex.getError(), ex.getMessage(), request));
     }
@@ -65,7 +63,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthenticationException(
             AuthenticationException ex, WebRequest request) {
-        log.error("Authentication failed: {}", ex.getMessage());
+        logRejected(HttpStatus.UNAUTHORIZED, ex, ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, UNAUTHORIZED, "Authentication failed", request));
     }
@@ -73,7 +71,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(
             AccessDeniedException ex, WebRequest request) {
-        log.error("Access denied: {}", ex.getMessage());
+        logRejected(HttpStatus.FORBIDDEN, ex, ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(HttpStatus.FORBIDDEN, FORBIDDEN,
                         "You do not have permission to access this resource", request));
@@ -136,7 +134,7 @@ public class GlobalExceptionHandler {
                 .stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .toList();
-        log.warn("Validation failed: {}", errors);
+        logRejected(HttpStatus.BAD_REQUEST, ex, errors);
 
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(Instant.now())
@@ -153,7 +151,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(
             MaxUploadSizeExceededException ex, WebRequest request) {
-        log.error("File size exceeded: {}", ex.getMessage());
+        logRejected(HttpStatus.CONTENT_TOO_LARGE, ex, ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
                 .body(ErrorResponse.of(HttpStatus.CONTENT_TOO_LARGE, "File Too Large",
                         "CSV file size exceeds maximum allowed size (10MB)", request));
@@ -178,8 +176,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(
             MethodArgumentTypeMismatchException ex, WebRequest request) {
-        log.warn("Invalid query param '{}' = '{}'", ex.getName(), ex.getValue());
         String message = "Invalid value '" + ex.getValue() + "' for parameter '" + ex.getName() + "'.";
+        logRejected(HttpStatus.BAD_REQUEST, ex, message);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, BAD_REQUEST, message, request));
     }
@@ -192,7 +190,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadableRequestBody(
             HttpMessageNotReadableException ex, WebRequest request) {
-        log.warn("Unreadable request body: {}", ex.getMostSpecificCause().getMessage());
+        logRejected(HttpStatus.BAD_REQUEST, ex, ex.getMostSpecificCause().getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, BAD_REQUEST, describeUnreadableBody(ex), request));
     }
@@ -241,8 +239,8 @@ public class GlobalExceptionHandler {
         String name = ex instanceof MissingServletRequestParameterException missingParam
                 ? missingParam.getParameterName()
                 : ((MissingServletRequestPartException) ex).getRequestPartName();
-        log.warn("Missing required request parameter '{}'", name);
         String message = "The '" + name + "' parameter is required.";
+        logRejected(HttpStatus.BAD_REQUEST, ex, message);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, BAD_REQUEST, message, request));
     }
@@ -250,7 +248,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(
             HttpRequestMethodNotSupportedException ex, WebRequest request) {
-        log.warn("Method not supported: {}", ex.getMessage());
+        logRejected(HttpStatus.METHOD_NOT_ALLOWED, ex, ex.getMessage());
         ErrorResponse error = ErrorResponse.of(HttpStatus.METHOD_NOT_ALLOWED, METHOD_NOT_ALLOWED,
                 "The " + ex.getMethod() + " method is not supported for this endpoint.", request);
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
@@ -275,9 +273,29 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(
             Exception ex, WebRequest request) {
-        log.error("Unexpected error: ", ex);
+        log.atError()
+                .addKeyValue("event", "request.failed")
+                .addKeyValue("status", HttpStatus.INTERNAL_SERVER_ERROR.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .setCause(ex)
+                .log("Unexpected error");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse.of(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
                         "An unexpected error occurred", request));
+    }
+
+    /**
+     * One shape for every handled failure, so a single query or alarm on {@code event=request.rejected}
+     * covers them all. Client errors are WARN; server errors are ERROR with the stack trace.
+     */
+    private static void logRejected(HttpStatusCode status, Exception ex, Object reason) {
+        boolean serverError = status.is5xxServerError();
+        log.atLevel(serverError ? Level.ERROR : Level.WARN)
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", reason)
+                .setCause(serverError ? ex : null)
+                .log("Request rejected");
     }
 }

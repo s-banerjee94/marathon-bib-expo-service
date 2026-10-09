@@ -42,7 +42,10 @@ public class StuckJobRecoveryListener {
             job.setErrorSummary("{\"reason\":\"Application restarted before import completed\"}");
         }
         importJobRepository.saveAll(stuck);
-        log.warn("Recovered {} stuck ImportJob records on startup", stuck.size());
+        log.atWarn()
+                .addKeyValue("event", "import.abandoned_on_startup")
+                .addKeyValue("importIds", stuck.stream().map(ImportJob::getImportId).toList())
+                .log("Imports left running by a previous run marked failed");
     }
 
     private void recoverSpringBatchExecutions() {
@@ -65,7 +68,10 @@ public class StuckJobRecoveryListener {
             }
         }
         if (recovered > 0) {
-            log.warn("Marked {} stuck Spring Batch executions as ABANDONED on startup", recovered);
+            log.atWarn()
+                    .addKeyValue("event", "import.executions_abandoned")
+                    .addKeyValue("count", recovered)
+                    .log("Batch executions left running by a previous run marked abandoned");
         }
     }
 }

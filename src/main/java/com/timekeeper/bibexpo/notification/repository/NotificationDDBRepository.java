@@ -63,7 +63,10 @@ public class NotificationDDBRepository {
 
             List<NotificationDDB> unprocessed = result.unprocessedPutItemsForTable(getTable());
             if (!unprocessed.isEmpty()) {
-                log.warn("{} notification row(s) left unprocessed by BatchWriteItem", unprocessed.size());
+                log.atWarn()
+                        .addKeyValue("event", "notification.write.unprocessed")
+                        .addKeyValue("rows", unprocessed.size())
+                        .log("Notification rows left unwritten by BatchWriteItem");
             }
         }
     }

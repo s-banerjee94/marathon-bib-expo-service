@@ -25,6 +25,16 @@ public class InventoryQuotaRequest {
     private Integer locations;
 
     @Min(value = 1, message = "Maximum must be at least 1")
+    @Schema(description = "Items the organization may stock", example = "1000",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private Integer items;
+
+    @Min(value = 1, message = "Maximum must be at least 1")
+    @Schema(description = "The organization's own attributes", example = "30",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private Integer attributes;
+
+    @Min(value = 1, message = "Maximum must be at least 1")
     @Schema(description = "Choices allowed on one of the organization's own attributes", example = "30",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Integer optionsPerAttribute;

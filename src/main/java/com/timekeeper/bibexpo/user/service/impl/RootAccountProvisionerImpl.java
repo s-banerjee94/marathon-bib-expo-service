@@ -22,7 +22,7 @@ public class RootAccountProvisionerImpl implements RootAccountProvisioner {
     @Transactional
     public void ensureRootAccount(String username, String rawPassword) {
         if (userRepository.existsByUsername(username)) {
-            log.info("Root user '{}' already exists. Skipping creation.", username);
+            log.debug("Root account already exists");
             return;
         }
 
@@ -31,13 +31,12 @@ public class RootAccountProvisionerImpl implements RootAccountProvisioner {
                 .password(passwordEncoder.encode(rawPassword))
                 .fullName("System Root Administrator")
                 .role(UserRole.ROOT)
-                .email(null)  // Optional for root user
-                .organization(null)  // Root users don't belong to any organization
                 .enabled(true)
                 .accountNonLocked(true)
                 .build();
 
         userRepository.save(rootUser);
-        log.info("Root user '{}' created successfully with role ROOT", username);
+        log.atInfo().addKeyValue("event", "user.root.created").addKeyValue("targetUsername", username)
+                .log("Root account created");
     }
 }

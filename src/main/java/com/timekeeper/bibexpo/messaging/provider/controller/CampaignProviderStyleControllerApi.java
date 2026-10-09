@@ -37,6 +37,8 @@ public interface CampaignProviderStyleControllerApi {
      */
     @Operation(summary = "Get the effective campaign provider's rendering style for a channel",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Returns the rendering hints of the provider that will send campaigns for this event's \
                     organization on the given channel: the organization's own override if enabled, otherwise \
                     the platform default. `hasProvider` is false when neither exists — the UI should prompt to \
@@ -45,6 +47,9 @@ public interface CampaignProviderStyleControllerApi {
             @ApiResponse(responseCode = "200", description = "Rendering style resolved",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = CampaignProviderStyleResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Your account is not assigned to an organization",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found or not visible to the caller",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))

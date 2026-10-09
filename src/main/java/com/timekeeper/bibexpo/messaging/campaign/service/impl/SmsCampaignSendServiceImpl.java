@@ -31,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,7 +56,12 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
     public void sendCampaignAsync(Long campaignId) {
         SmsCampaign campaign = smsCampaignRepository.findByIdWithDetails(campaignId).orElse(null);
         if (campaign == null) {
-            log.warn("Campaign ID: {} not found during async send — skipping", campaignId);
+            log.atWarn()
+                    .addKeyValue("event", "campaign.send_skipped")
+                    .addKeyValue("channel", MessageChannel.SMS)
+                    .addKeyValue("campaignId", campaignId)
+                    .addKeyValue("reason", "campaign_not_found")
+                    .log("Campaign send skipped");
             return;
         }
 
@@ -71,7 +77,7 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
         } catch (MessagingProviderException e) {
             campaign.setStatus(CampaignStatus.FAILED);
             smsCampaignRepository.save(campaign);
-            log.error("SMS campaign ID: {} failed: {}", campaignId, e.getMessage());
+            logFailed(campaign, e.getMessage());
             campaignNotifier.notifyFailed(campaignId, campaign.getName(), campaign.getOrganizationId(), "SMS");
             return;
         }
@@ -87,13 +93,11 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
         if (incompatible.isPresent()) {
             campaign.setStatus(CampaignStatus.FAILED);
             smsCampaignRepository.save(campaign);
-            log.error("SMS campaign ID: {} not sent — {}", campaignId, incompatible.get());
+            logFailed(campaign, incompatible.get());
             campaignNotifier.notifyFailed(campaignId, campaign.getName(), campaign.getOrganizationId(), "SMS",
                     incompatible.get());
             return;
         }
-
-        log.info("Starting async SMS send for campaign ID: {} event ID: {}", campaignId, event.getId());
 
         EventNames names = nameResolver.forEvent(event.getId());
 
@@ -121,7 +125,7 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
                             .build());
                     return null;
                 })
-                .checkpoint(sentCount -> saveSentCount(campaign, sentCount))
+                .checkpoint(sentCount -> smsCampaignRepository.saveProgress(campaignId, sentCount, Instant.now()))
                 .abortExceptionFactory(failures -> new SmsSendException(
                         "Campaign " + campaignId + " aborted: " + failures + " consecutive gateway failures"))
                 .build());
@@ -133,13 +137,24 @@ public class SmsCampaignSendServiceImpl implements SmsCampaignSendService {
         campaign.setStatus(CampaignStatus.SENT);
         campaign.setSentCount(outcome.getSentCount());
         smsCampaignRepository.save(campaign);
-        log.info("Campaign ID: {} completed — {} SMS sent", campaignId, outcome.getSentCount());
+        log.atInfo()
+                .addKeyValue("event", "campaign.completed")
+                .addKeyValue("channel", MessageChannel.SMS)
+                .addKeyValue("eventId", event.getId())
+                .addKeyValue("campaignId", campaignId)
+                .addKeyValue("sentCount", outcome.getSentCount())
+                .log("Campaign completed");
         campaignNotifier.notifyCompleted(campaignId, campaign.getName(), campaign.getOrganizationId(), "SMS", outcome.getSentCount());
     }
 
-    private void saveSentCount(SmsCampaign campaign, int sentCount) {
-        campaign.setSentCount(sentCount);
-        smsCampaignRepository.save(campaign);
+    private void logFailed(SmsCampaign campaign, String reason) {
+        log.atError()
+                .addKeyValue("event", "campaign.failed")
+                .addKeyValue("channel", MessageChannel.SMS)
+                .addKeyValue("eventId", campaign.getEvent().getId())
+                .addKeyValue("campaignId", campaign.getId())
+                .addKeyValue("reason", reason)
+                .log("Campaign failed");
     }
 
     private boolean matchesFilter(ParticipantDDB participant, CampaignTargetFilter filter) {

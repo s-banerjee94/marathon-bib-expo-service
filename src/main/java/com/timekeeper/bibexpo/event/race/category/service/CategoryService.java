@@ -4,7 +4,6 @@ import com.timekeeper.bibexpo.event.race.category.exception.CategoryNotFoundExce
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.response.CategoryResponse;
-import com.timekeeper.bibexpo.event.race.category.model.enums.Gender;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.user.model.entity.User;
 
@@ -53,17 +52,16 @@ public interface CategoryService {
     CategoryResponse getCategoryById(Long eventId, Long raceId, Long categoryId, User currentUser);
 
     /**
-     * Get all categories for a race with optional gender filter
+     * Get all categories for a race
      * Authorization:
      * - ROOT and ADMIN can view categories for any race
      * - ORGANIZER_ADMIN and ORGANIZER_USER can only view categories in their organization's events
      * @param eventId The event ID
      * @param raceId The race ID
-     * @param gender Filter by gender (null for all)
      * @param currentUser The authenticated user
      * @return List of category responses
      */
-    List<CategoryResponse> getCategoriesByRaceId(Long eventId, Long raceId, Gender gender, User currentUser);
+    List<CategoryResponse> getCategoriesByRaceId(Long eventId, Long raceId, User currentUser);
 
     /**
      * Permanently delete a category

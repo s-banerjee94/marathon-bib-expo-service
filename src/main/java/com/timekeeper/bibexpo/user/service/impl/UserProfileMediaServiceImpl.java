@@ -40,7 +40,6 @@ public class UserProfileMediaServiceImpl implements UserProfileMediaService {
     @Override
     @Transactional
     public UserResponse attachProfilePicture(Long userId, String objectKey, CurrentActor actor) {
-        log.info("Attaching profile picture for user ID: {} by: {}", userId, actor.username());
         User targetUser = fetchTargetUser(userId);
         accessPolicy.validateUpdateUserAuthorization(actor, targetUser);
 
@@ -58,14 +57,14 @@ public class UserProfileMediaServiceImpl implements UserProfileMediaService {
         if (previousKey != null && !previousKey.equals(objectKey)) {
             deletePictureQuietly(previousKey);
         }
-        log.info("Successfully attached profile picture for user ID: {}", userId);
+        log.atInfo().addKeyValue("event", "user.picture.attached").addKeyValue("targetUserId", userId)
+                .log("Profile picture attached");
         return responseMapper.toResponse(saved);
     }
 
     @Override
     @Transactional
     public UserResponse removeProfilePicture(Long userId, CurrentActor actor) {
-        log.info("Removing profile picture for user ID: {} by: {}", userId, actor.username());
         User targetUser = fetchTargetUser(userId);
         accessPolicy.validateUpdateUserAuthorization(actor, targetUser);
 
@@ -74,7 +73,8 @@ public class UserProfileMediaServiceImpl implements UserProfileMediaService {
         User saved = userRepository.saveAndFlush(targetUser);
         authUserCache.evict(saved.getUsername());
         deletePictureQuietly(previousKey);
-        log.info("Successfully removed profile picture for user ID: {}", userId);
+        log.atInfo().addKeyValue("event", "user.picture.removed").addKeyValue("targetUserId", userId)
+                .log("Profile picture removed");
         return responseMapper.toResponse(saved);
     }
 
@@ -83,15 +83,15 @@ public class UserProfileMediaServiceImpl implements UserProfileMediaService {
         try {
             storageService.delete(objectKey);
         } catch (Exception e) {
-            log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "storage.delete.failed")
+                    .addKeyValue("objectKey", objectKey)
+                    .setCause(e)
+                    .log("Could not delete an orphaned profile picture");
         }
     }
 
     private User fetchTargetUser(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> {
-                    log.error("User not found with ID: {}", userId);
-                    return new UserNotFoundException();
-                });
+        return userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
     }
 }

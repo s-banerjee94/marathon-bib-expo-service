@@ -24,6 +24,7 @@ import com.timekeeper.bibexpo.user.model.dto.response.UserResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import com.timekeeper.bibexpo.user.model.event.PasswordChangedEvent;
 import com.timekeeper.bibexpo.user.model.entity.UserArchive;
+import com.timekeeper.bibexpo.user.model.enums.LockReason;
 import com.timekeeper.bibexpo.user.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.user.repository.UserRepository;
 import com.timekeeper.bibexpo.user.service.cache.AuthUserCache;
@@ -72,8 +73,6 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse createUser(CreateUserRequest request, CurrentActor actor) {
-        log.info("Creating user with username: {} by: {}", request.getUsername(), actor.username());
-
         UserRole role = UserRole.valueOf(request.getRole());
         assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), actor);
 
@@ -93,8 +92,6 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse createInvitedUser(CreateUserRequest request) {
-        log.info("Creating invited user with username: {}", request.getUsername());
-
         // Authorization was enforced when the invite was issued; the role and organization
         // on the request are the trusted values carried by the invitation, so provision directly.
         UserRole role = UserRole.valueOf(request.getRole());
@@ -115,7 +112,12 @@ public class UserServiceImpl implements UserService {
         reserveUserSlot(organization, role);
         User savedUser = userRepository.save(user);
 
-        log.info("Successfully created user with ID: {} and role: {}", savedUser.getId(), savedUser.getRole());
+        log.atInfo()
+                .addKeyValue("event", "user.created")
+                .addKeyValue("targetUserId", savedUser.getId())
+                .addKeyValue("targetRole", savedUser.getRole())
+                .addKeyValue("targetOrgId", organization != null ? organization.getId() : null)
+                .log("User created");
         return responseMapper.toResponse(savedUser);
     }
 
@@ -123,21 +125,24 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse reassignDistributorEvent(Long userId, Long eventId, CurrentActor actor) {
-        log.info("Reassigning distributor ID: {} to event ID: {} by: {}", userId, eventId, actor.username());
-
         User targetUser = fetchTargetUser(userId);
 
         if (targetUser.getRole() != UserRole.DISTRIBUTOR) {
             throw new InvalidUserDataException("Only a distributor can be assigned to an event.");
         }
         accessPolicy.validateReassignAuthorization(actor, targetUser);
+        rejectIfOrganizationDisabled(targetUser);
 
         Event event = resolveDistributorEvent(eventId, targetUser.getOrganization(), UserRole.DISTRIBUTOR);
         targetUser.setEvent(event);
         User saved = userRepository.save(targetUser);
         authUserCache.evict(saved.getUsername());
 
-        log.info("Reassigned distributor ID: {} to event ID: {}", userId, eventId);
+        log.atInfo()
+                .addKeyValue("event", "user.distributor.reassigned")
+                .addKeyValue("targetUserId", userId)
+                .addKeyValue("eventId", eventId)
+                .log("Distributor reassigned");
         return responseMapper.toResponse(saved);
     }
 
@@ -148,8 +153,10 @@ public class UserServiceImpl implements UserService {
     private User fetchCurrentUser(String currentUsername) {
         return userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> {
-                    log.error("Current user not found: {}", currentUsername);
-                    return new InvalidUserDataException("Current user not found: " + currentUsername);
+                    log.atError().addKeyValue("event", "user.current.missing")
+                            .addKeyValue("username", currentUsername)
+                            .log("Authenticated user has no account row");
+                    return new InvalidUserDataException("Your account could not be found.");
                 });
     }
 
@@ -162,12 +169,10 @@ public class UserServiceImpl implements UserService {
         }
 
         if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
-            log.error("Email is required for role: {}", role);
             throw new InvalidUserDataException("Email is required.");
         }
 
         if (request.getPhoneNumber() == null || request.getPhoneNumber().trim().isEmpty()) {
-            log.error("Phone number is required for role: {}", role);
             throw new InvalidUserDataException("Phone number is required.");
         }
     }
@@ -177,19 +182,16 @@ public class UserServiceImpl implements UserService {
      */
     private void validateUniqueness(CreateUserRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
-            log.error("Username already exists: {}", request.getUsername());
             throw new UserAlreadyExistsException("This username is already taken.");
         }
 
         if (request.getEmail() != null && !request.getEmail().trim().isEmpty()
                 && userRepository.existsByEmail(request.getEmail())) {
-            log.error("Email already exists: {}", request.getEmail());
             throw new UserAlreadyExistsException("This email is already registered.");
         }
 
         if (request.getPhoneNumber() != null && !request.getPhoneNumber().trim().isEmpty()
                 && userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
-            log.error("Phone number already exists: {}", request.getPhoneNumber());
             throw new UserAlreadyExistsException("This phone number is already registered.");
         }
     }
@@ -200,20 +202,18 @@ public class UserServiceImpl implements UserService {
     private Organization fetchAndValidateOrganization(Long organizationId, UserRole role) {
         if (!isOrganizationRole(role)) {
             if (isSystemRole(role) && organizationId != null) {
-                log.warn("Organization ID provided for system role {}, will be ignored", role);
+                log.debug("Organization ID ignored for system role {}", role);
             }
             return null;
         }
 
         if (organizationId == null) {
-            log.error("Organization ID is required for role: {}", role);
             throw new InvalidUserDataException("Organization is required.");
         }
 
         Organization organization = organizationDirectory.requireById(organizationId);
 
         if (Boolean.FALSE.equals(organization.getEnabled())) {
-            log.error("Cannot create user for disabled organization ID: {}", organizationId);
             throw new InvalidUserDataException("This organization is currently disabled.");
         }
 
@@ -317,33 +317,35 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse updateUser(Long userId, UpdateUserRequest request, CurrentActor actor) {
-        log.info("Updating user with ID: {} by: {}", userId, actor.username());
-
         User targetUser = fetchTargetUser(userId);
 
         accessPolicy.validateUpdateUserAuthorization(actor, targetUser);
 
-        // Update fields if provided
+        List<String> changedFields = new ArrayList<>();
         if (request.getEmail() != null) {
             validateEmailUniqueness(request.getEmail(), targetUser.getId());
             targetUser.setEmail(request.getEmail());
-            log.debug("Email updated for user ID: {}", userId);
+            changedFields.add("email");
         }
 
         if (request.getFullName() != null) {
             targetUser.setFullName(request.getFullName());
-            log.debug("Full name updated for user ID: {}", userId);
+            changedFields.add("fullName");
         }
 
         if (request.getPhoneNumber() != null) {
             validatePhoneNumberUniqueness(request.getPhoneNumber(), targetUser.getId());
             targetUser.setPhoneNumber(request.getPhoneNumber());
-            log.debug("Phone number updated for user ID: {}", userId);
+            changedFields.add("phoneNumber");
         }
 
         User updatedUser = userRepository.save(targetUser);
         authUserCache.evict(updatedUser.getUsername());
-        log.info("Successfully updated user with ID: {}", updatedUser.getId());
+        log.atInfo()
+                .addKeyValue("event", "user.updated")
+                .addKeyValue("targetUserId", updatedUser.getId())
+                .addKeyValue("changedFields", changedFields)
+                .log("User updated");
 
         return responseMapper.toResponse(updatedUser);
     }
@@ -351,12 +353,12 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void changeOwnPassword(CurrentActor actor, ChangePasswordRequest request) {
-        log.info("Password change requested by: {}", actor.username());
-
         User currentUser = fetchCurrentUser(actor.username());
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), currentUser.getPassword())) {
-            log.warn("Password change rejected for {}: current password did not match", actor.username());
+            log.atWarn().addKeyValue("event", "user.password.change_rejected")
+                    .addKeyValue("reason", "wrong_current_password")
+                    .log("Password change rejected");
             throw new InvalidUserDataException("Your current password is incorrect.");
         }
         if (passwordEncoder.matches(request.getNewPassword(), currentUser.getPassword())) {
@@ -364,13 +366,14 @@ public class UserServiceImpl implements UserService {
         }
 
         storeNewPassword(currentUser, request.getNewPassword());
-        log.info("Password changed for user ID: {}", currentUser.getId());
     }
 
     @Override
     @Transactional
     public void applyNewPassword(Long userId, String rawPassword) {
-        storeNewPassword(fetchTargetUser(userId), rawPassword);
+        User user = fetchTargetUser(userId);
+        rejectIfOrganizationDisabled(user);
+        storeNewPassword(user, rawPassword);
     }
 
     /**
@@ -383,6 +386,8 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
         authUserCache.evict(user.getUsername());
         eventPublisher.publishEvent(new PasswordChangedEvent(user.getUsername()));
+        log.atInfo().addKeyValue("event", "user.password.changed").addKeyValue("targetUserId", user.getId())
+                .log("Password changed");
     }
 
     @Override
@@ -390,17 +395,23 @@ public class UserServiceImpl implements UserService {
     public void assertCanUpdateUser(Long userId, CurrentActor actor) {
         User targetUser = fetchTargetUser(userId);
         accessPolicy.validateUpdateUserAuthorization(actor, targetUser);
+        rejectIfOrganizationDisabled(targetUser);
+    }
+
+    // While an organization is disabled its members' access is frozen: nothing may re-enable,
+    // unlock, reassign or reset them until the organization is enabled again.
+    private void rejectIfOrganizationDisabled(User user) {
+        Organization organization = user.getOrganization();
+        if (organization != null && Boolean.FALSE.equals(organization.getEnabled())) {
+            throw new InvalidUserDataException("You cannot change this account while its organization is disabled.");
+        }
     }
 
     /**
      * Fetch the target user to be updated
      */
     private User fetchTargetUser(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> {
-                    log.error("User not found with ID: {}", userId);
-                    return new UserNotFoundException();
-                });
+        return userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
     }
 
     /**
@@ -411,7 +422,6 @@ public class UserServiceImpl implements UserService {
             userRepository.findByEmail(email)
                     .filter(user -> !user.getId().equals(currentUserId))
                     .ifPresent(user -> {
-                        log.error("Email already exists: {}", email);
                         throw new UserAlreadyExistsException("This email is already registered.");
                     });
         }
@@ -425,7 +435,6 @@ public class UserServiceImpl implements UserService {
             userRepository.findByPhoneNumber(phoneNumber)
                     .filter(user -> !user.getId().equals(currentUserId))
                     .ifPresent(user -> {
-                        log.error("Phone number already exists: {}", phoneNumber);
                         throw new UserAlreadyExistsException("This phone number is already registered.");
                     });
         }
@@ -435,11 +444,10 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse toggleUserEnabled(Long userId, CurrentActor actor) {
-        log.info("Toggling enabled status for user ID: {} by: {}", userId, actor.username());
-
         User targetUser = fetchTargetUser(userId);
 
         accessPolicy.validateToggleEnabledAuthorization(actor, targetUser);
+        rejectIfOrganizationDisabled(targetUser);
 
         // Toggle the enabled status
         boolean newEnabledStatus = !targetUser.getEnabled();
@@ -447,7 +455,11 @@ public class UserServiceImpl implements UserService {
 
         User updatedUser = userRepository.save(targetUser);
         authUserCache.evict(updatedUser.getUsername());
-        log.info("Successfully toggled enabled status for user ID: {} to: {}", userId, newEnabledStatus);
+        log.atInfo()
+                .addKeyValue("event", "user.enabled.changed")
+                .addKeyValue("targetUserId", userId)
+                .addKeyValue("enabled", newEnabledStatus)
+                .log("User enabled status changed");
 
         return responseMapper.toResponse(updatedUser);
     }
@@ -456,18 +468,22 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse toggleUserLocked(Long userId, CurrentActor actor) {
-        log.info("Toggling locked status for user ID: {} by: {}", userId, actor.username());
-
         User targetUser = fetchTargetUser(userId);
 
         accessPolicy.validateToggleLockedAuthorization(actor, targetUser);
+        rejectIfOrganizationDisabled(targetUser);
 
         boolean newNonLockedStatus = !targetUser.getAccountNonLocked();
         targetUser.setAccountNonLocked(newNonLockedStatus);
+        targetUser.setLockReason(newNonLockedStatus ? null : LockReason.MANUAL);
 
         User updatedUser = userRepository.save(targetUser);
         authUserCache.evict(updatedUser.getUsername());
-        log.info("Successfully toggled locked status for user ID: {} to accountNonLocked: {}", userId, newNonLockedStatus);
+        log.atInfo()
+                .addKeyValue("event", "user.locked.changed")
+                .addKeyValue("targetUserId", userId)
+                .addKeyValue("locked", !newNonLockedStatus)
+                .log("User locked status changed");
 
         return responseMapper.toResponse(updatedUser);
     }
@@ -475,39 +491,31 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserResponse getUserById(Long userId, CurrentActor actor) {
-        log.info("Getting user with ID: {} by: {}", userId, actor.username());
-
         User targetUser = fetchTargetUser(userId);
 
         // A target the caller may not view is reported as not found, so its existence
         // is not disclosed across organizations or privilege levels.
         if (!accessPolicy.canViewUser(actor, targetUser)) {
-            log.warn("{} {} not permitted to view user ID {}; reporting as not found",
-                    actor.role(), actor.username(), userId);
+            logViewHidden("targetUserId", userId);
             throw new UserNotFoundException();
         }
 
-        log.info("Successfully retrieved user with ID: {}", userId);
         return responseMapper.toResponse(targetUser);
     }
 
     @Override
     @Transactional(readOnly = true)
     public UserResponse getUserByUsername(String username, CurrentActor actor) {
-        log.info("Getting user with username: {} by: {}", username, actor.username());
-
         User targetUser = fetchTargetUserByUsername(username);
 
         // A target the caller may not view is reported as not found, so that a username
         // belonging to a privileged or cross-organization account cannot be distinguished
         // from one that does not exist (no account-existence disclosure by username).
         if (!accessPolicy.canViewUser(actor, targetUser)) {
-            log.warn("{} {} not permitted to view user '{}'; reporting as not found",
-                    actor.role(), actor.username(), username);
+            logViewHidden("targetUsername", username);
             throw new UserNotFoundException();
         }
 
-        log.info("Successfully retrieved user with username: {}", username);
         return responseMapper.toResponse(targetUser);
     }
 
@@ -515,11 +523,15 @@ public class UserServiceImpl implements UserService {
      * Fetch the target user by username
      */
     private User fetchTargetUserByUsername(String username) {
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> {
-                    log.error("User not found with username: {}", username);
-                    return new UserNotFoundException();
-                });
+        return userRepository.findByUsername(username).orElseThrow(UserNotFoundException::new);
+    }
+
+    private void logViewHidden(String targetKey, Object target) {
+        log.atWarn()
+                .addKeyValue("event", "authz.denied")
+                .addKeyValue("reason", "user_not_viewable")
+                .addKeyValue(targetKey, target)
+                .log("User read hidden as not found");
     }
 
     @Override
@@ -527,9 +539,6 @@ public class UserServiceImpl implements UserService {
     public Page<UserResponse> getUsers(List<UserRole> roles, Long organizationId, Long eventId, Boolean enabled,
                                        String search, Pageable pageable,
                                        CurrentActor actor) {
-        log.info("Getting users - roles: {}, orgId: {}, eventId: {}, enabled: {}, search: {} by: {}",
-                roles, organizationId, eventId, enabled, search, actor.username());
-
         UserRole currentRole = actor.role();
 
         Long scopedOrgId = organizationId;
@@ -540,11 +549,7 @@ public class UserServiceImpl implements UserService {
         }
 
         Specification<User> spec = buildUserSpecification(roles, scopedOrgId, eventId, enabled, search);
-        Page<UserResponse> responsePage = userRepository.findAll(spec, pageable).map(responseMapper::toResponse);
-
-        log.info("Successfully retrieved {} users (page {} of {})",
-                responsePage.getNumberOfElements(), responsePage.getNumber() + 1, responsePage.getTotalPages());
-        return responsePage;
+        return userRepository.findAll(spec, pageable).map(responseMapper::toResponse);
     }
 
     private Specification<User> buildUserSpecification(
@@ -585,20 +590,13 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserResponse getCurrentUser(CurrentActor actor) {
-        log.info("Getting current user profile for: {}", actor.username());
-
-        User currentUser = fetchCurrentUser(actor.username());
-
-        log.info("Successfully retrieved current user profile for: {}", actor.username());
-        return responseMapper.toResponse(currentUser);
+        return responseMapper.toResponse(fetchCurrentUser(actor.username()));
     }
 
     @Auditable(entityType = AuditEntityType.USER, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteUser(Long userId, CurrentActor actor) {
-        log.info("Archiving user ID: {} by: {}", userId, actor.username());
-
         User targetUser = fetchTargetUser(userId);
 
         accessPolicy.validateDeleteUserAuthorization(actor, targetUser);
@@ -607,7 +605,6 @@ public class UserServiceImpl implements UserService {
         userArchiveRepository.save(archive);
 
         int notificationsDeleted = notificationService.deleteAllForUser(targetUser.getId());
-        log.debug("Deleted {} notifications for user ID: {}", notificationsDeleted, userId);
 
         Organization organization = targetUser.getOrganization();
         UserRole role = targetUser.getRole();
@@ -624,7 +621,13 @@ public class UserServiceImpl implements UserService {
         authUserCache.evict(username);
         profileMediaService.deletePictureQuietly(pictureKey);
 
-        log.info("Successfully archived user ID: {} (username: {})", userId, username);
+        log.atInfo()
+                .addKeyValue("event", "user.archived")
+                .addKeyValue("targetUserId", userId)
+                .addKeyValue("targetUsername", username)
+                .addKeyValue("targetRole", role)
+                .addKeyValue("notificationsDeleted", notificationsDeleted)
+                .log("User archived");
     }
 
     private UserArchive buildArchiveFromUser(User user, String archivedBy) {

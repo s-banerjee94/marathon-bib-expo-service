@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,12 +29,16 @@ public class BulkCollectBibRequest {
             requiredMode = Schema.RequiredMode.REQUIRED)
     private List<CollectItem> items;
 
-    @Schema(description = "Name of the person collecting every bib in this request; each participant is their own "
-            + "collector when left out", example = "John Doe", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Size(max = 200, message = "The collector name cannot be longer than 200 characters.")
+    @Schema(description = "Name of the person collecting every bib in this request, up to 200 characters; each "
+            + "participant is their own collector when left out", example = "John Doe",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String collectorName;
 
-    @Schema(description = "Phone number of the person collecting every bib in this request; each participant's own "
-            + "number when left out", example = "+919876543210", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Pattern(regexp = "^\\s*(\\d{10})?\\s*$", message = "The collector phone number must be 10 digits.")
+    @Schema(description = "Phone number of the person collecting every bib in this request, 10 digits; each "
+            + "participant's own number when left out", example = "9876543210",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String collectorPhone;
 
     @Data

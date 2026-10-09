@@ -60,7 +60,9 @@ public interface EventLimitControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
     @Operation(
             summary = "Override resource limits for an event",
-            description = "Partially updates resource limits for the specified event. Only provided fields are changed. ROOT and ADMIN only."
+            description = "**Roles:** ROOT, ADMIN. Partially updates resource limits for the specified event. "
+                    + "Only provided fields are changed. Not available once the event is completed or cancelled, "
+                    + "or its bill is finalized."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -84,6 +86,12 @@ public interface EventLimitControllerApi {
             @ApiResponse(
                     responseCode = "404",
                     description = "Event not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "422",
+                    description = "Event is completed or cancelled, or its bill is finalized",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))
             )

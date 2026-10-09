@@ -36,8 +36,6 @@ public class InventoryTermController implements InventoryTermControllerApi {
             @PathVariable Long organizationId,
             @RequestParam TermKind kind,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Listing inventory terms of kind {} for organization {} by user {}",
-                kind, organizationId, currentUser.getUsername());
         return ResponseEntity.ok(termService.listVisible(organizationId, kind, currentUser));
     }
 
@@ -55,8 +53,6 @@ public class InventoryTermController implements InventoryTermControllerApi {
             @RequestParam TermKind kind,
             @Valid @RequestBody CreateInventoryTermRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Creating inventory term of kind {} for organization {} by user {}",
-                kind, organizationId, currentUser.getUsername());
         InventoryTermResponse response = termService.createTerm(organizationId, kind, request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -67,8 +63,6 @@ public class InventoryTermController implements InventoryTermControllerApi {
             @PathVariable Long termId,
             @Valid @RequestBody UpdateInventoryTermRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Renaming inventory term {} for organization {} by user {}",
-                termId, organizationId, currentUser.getUsername());
         return ResponseEntity.ok(termService.updateTerm(organizationId, termId, request, currentUser));
     }
 
@@ -77,8 +71,6 @@ public class InventoryTermController implements InventoryTermControllerApi {
             @PathVariable Long organizationId,
             @PathVariable Long termId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Deleting inventory term {} for organization {} by user {}",
-                termId, organizationId, currentUser.getUsername());
         termService.deleteTerm(organizationId, termId, currentUser);
         return ResponseEntity.noContent().build();
     }
@@ -86,7 +78,12 @@ public class InventoryTermController implements InventoryTermControllerApi {
     @ExceptionHandler(InventoryTermLimitReachedException.class)
     public ResponseEntity<ErrorResponse> handleTermLimitReached(
             InventoryTermLimitReachedException ex, WebRequest request) {
-        log.info("Inventory term limit reached: {}", ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.CONFLICT.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }

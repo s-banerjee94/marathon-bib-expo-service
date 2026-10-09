@@ -6,7 +6,6 @@ import com.timekeeper.bibexpo.participant.service.EventGoodieService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,7 +20,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/events")
 @RequiredArgsConstructor
-@Slf4j
 public class EventGoodieController implements EventGoodieControllerApi {
 
     private final EventGoodieService eventGoodieService;
@@ -38,7 +36,6 @@ public class EventGoodieController implements EventGoodieControllerApi {
             @PathVariable Long eventId,
             @Valid @RequestBody AddEventGoodieRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Adding goody '{}' to event {} by user {}", request.getName(), eventId, currentUser.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(eventGoodieService.addGoodie(eventId, request, currentUser));
     }
@@ -48,7 +45,6 @@ public class EventGoodieController implements EventGoodieControllerApi {
             @PathVariable Long eventId,
             @RequestParam String name,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Removing goody '{}' from event {} by user {}", name, eventId, currentUser.getUsername());
         eventGoodieService.removeGoodie(eventId, name, currentUser);
         return ResponseEntity.noContent().build();
     }

@@ -51,7 +51,7 @@ public interface PasswordResetService {
      * Public: validate a reset token and return minimal display detail for the set-new-password form.
      *
      * @param token the reset token
-     * @return the masked username and expiry of the pending reset
+     * @return the username, full name and expiry of the pending reset
      * @throws com.timekeeper.bibexpo.passwordreset.exception.PasswordResetInvalidException
      *         if the token is missing, expired, or no longer resolves to a user
      */
@@ -60,13 +60,13 @@ public interface PasswordResetService {
     /**
      * Public: complete a reset by setting the new password, then consume the token so it cannot be
      * reused, and audit the change (marking whether it began as a forgot-password request or an
-     * administrator-issued link). No session is ended: the app enforces single-device login, so the
-     * next sign-in overwrites any prior session.
+     * administrator-issued link). Every active session for the account is ended with the change.
      *
      * @param token   the reset token
      * @param request the new password
      * @throws com.timekeeper.bibexpo.passwordreset.exception.PasswordResetInvalidException
      *         if the token is missing, expired, or no longer resolves to a user
+     * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the account's organization is disabled
      */
     void completeReset(String token, CompletePasswordResetRequest request);
 }

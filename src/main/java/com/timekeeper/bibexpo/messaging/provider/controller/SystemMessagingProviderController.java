@@ -5,7 +5,6 @@ import com.timekeeper.bibexpo.messaging.provider.model.dto.request.SaveMessaging
 import com.timekeeper.bibexpo.messaging.provider.model.dto.response.MessagingProviderResponse;
 import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderAdminService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -13,7 +12,6 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@Slf4j
 public class SystemMessagingProviderController implements SystemMessagingProviderControllerApi {
 
     private final MessagingProviderAdminService providerAdminService;
@@ -30,7 +28,6 @@ public class SystemMessagingProviderController implements SystemMessagingProvide
 
     @Override
     public ResponseEntity<MessagingProviderResponse> save(MessageChannel channel, SaveMessagingProviderRequest request) {
-        log.info("Root saving {} provider configuration", channel);
         return ResponseEntity.ok(providerAdminService.save(channel, request));
     }
 }

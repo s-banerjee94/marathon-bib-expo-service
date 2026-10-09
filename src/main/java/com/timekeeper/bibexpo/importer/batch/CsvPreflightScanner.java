@@ -81,9 +81,6 @@ public class CsvPreflightScanner {
         checkParticipantLimit(rowsByBib.size(), eventId, mode, limits);
         Map<String, Long> raceIdByRawName = checkRaceLimit(categoriesByRace.keySet(), eventId, limits);
         checkCategoryLimits(categoriesByRace, raceIdByRawName, limits);
-
-        log.info("Pre-flight scan passed for event {}: {} rows, {} unique races", eventId, rowsByBib.size(),
-                categoriesByRace.size());
     }
 
     /**
@@ -107,8 +104,6 @@ public class CsvPreflightScanner {
                 .map(entry -> "\"" + goodieNames.get(entry.getKey()) + "\" has " + entry.getValue().size())
                 .toList();
         if (!tooMany.isEmpty()) {
-            log.warn("Import for event {} refused: {} column(s) hold more than {} distinct values",
-                    eventId, tooMany.size(), MAX_VALUES_PER_GOODIE);
             throw new InvalidUserDataException("A goodies column may hold at most " + MAX_VALUES_PER_GOODIE
                     + " different values, but " + TextUtils.joinAsSentence(tooMany)
                     + ", so it was most likely marked as goodies by mistake; unmark it and import again.");
@@ -190,7 +185,10 @@ public class CsvPreflightScanner {
                 rowsByBib.putIfAbsent(row.getBibNumber(), new ScannedRow(raceName, catName, row.getGoodies()));
             }
         } catch (IOException e) {
-            log.warn("Pre-flight CSV scan could not read file {}: {}", csvPath, e.getMessage());
+            log.atWarn()
+                    .setCause(e)
+                    .addKeyValue("event", "import.preflight_unreadable")
+                    .log("Pre-flight scan could not read the upload; the job will surface the problem");
             return null;
         }
 

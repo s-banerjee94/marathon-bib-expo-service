@@ -8,6 +8,7 @@ public interface ParticipantEventSmsService {
     /**
      * Auto-triggered SMS sent to a participant immediately after their bib is collected.
      * Uses the active AUTO_BIB_COLLECTED campaign for the event.
+     * Runs asynchronously, so the call returns before anything is sent.
      * Silently no-ops if no active campaign exists or the participant has no phone number.
      * Never throws — bib collection must not fail due to SMS.
      *

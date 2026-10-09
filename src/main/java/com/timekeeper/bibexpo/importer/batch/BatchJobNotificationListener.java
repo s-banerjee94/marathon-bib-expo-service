@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.importer.batch;
 
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import com.timekeeper.bibexpo.importer.model.dto.response.ErrorSummary;
 import com.timekeeper.bibexpo.importer.model.entity.ImportJob;
@@ -19,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
+import org.springframework.batch.core.JobParameters;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -30,6 +32,8 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class BatchJobNotificationListener implements JobExecutionListener {
+
+    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
     private final NotificationService notificationService;
     private final ImportJobRepository importJobRepository;
@@ -47,16 +51,18 @@ public class BatchJobNotificationListener implements JobExecutionListener {
 
         // ADD_ON appends to the existing roster; only a full IMPORT wipes first.
         if (ImportMode.ADD_ON.name().equals(jobExecution.getJobParameters().getString("mode"))) {
-            log.info("ADD_ON run for event {} — keeping existing participants (no wipe)", eventIdParam);
             return;
         }
 
         try {
             int deleted = participantStore.deleteAllByEventId(eventIdParam);
-            log.info("Deleted {} existing participants for event {} before import", deleted, eventIdParam);
+            log.atInfo()
+                    .addKeyValue("event", "import.roster_cleared")
+                    .addKeyValue("eventId", eventIdParam)
+                    .addKeyValue("deleted", deleted)
+                    .log("Roster cleared before a full import");
         } catch (Exception e) {
-            log.error("Failed to delete existing participants for event {} — aborting import", eventIdParam, e);
-            throw new RuntimeException("Failed to clear existing participants before import.", e);
+            throw new IllegalStateException("Failed to clear existing participants before import.", e);
         }
     }
 
@@ -64,18 +70,16 @@ public class BatchJobNotificationListener implements JobExecutionListener {
     public void afterJob(JobExecution jobExecution) {
         deleteTempFile(jobExecution);
 
-        String userIdParam = jobExecution.getJobParameters().getString("uploadedByUserId");
-        String eventIdParam = jobExecution.getJobParameters().getString("eventId");
-
+        JobParameters params = jobExecution.getJobParameters();
+        String userIdParam = params.getString("uploadedByUserId");
+        String eventIdParam = params.getString("eventId");
         if (userIdParam == null || eventIdParam == null) {
-            log.warn("Missing uploadedByUserId or eventId in job parameters, skipping notification");
             return;
         }
 
         Long userId = Long.parseLong(userIdParam);
         Long eventId = Long.parseLong(eventIdParam);
-
-        Long jobExecutionId = jobExecution.getId();
+        String eventName = params.getString("eventName", "");
         String jobStatus = jobExecution.getStatus().toString();
 
         int writeCount = 0;
@@ -88,27 +92,51 @@ public class BatchJobNotificationListener implements JobExecutionListener {
             skipCount = (int) step.getSkipCount();
             readCount = (int) step.getReadCount();
             readSkipCount = (int) step.getReadSkipCount();
+            // The reader drops repeated bibs and chips itself, so Spring Batch never counts them.
+            int duplicateRows = step.getExecutionContext().getInt(CsvItemReader.DUPLICATE_ROWS_KEY, 0);
+            readSkipCount += duplicateRows;
+            skipCount += duplicateRows;
+        }
+
+        List<String> goodiesColumns = goodiesColumns(jobExecution);
+
+        try {
+            if (!goodiesColumns.isEmpty()) {
+                eventGoodieService.addImportedGoodies(eventId, goodiesColumns);
+            }
+        } catch (Exception e) {
+            logFailure("import.goodies_update_failed", eventId, jobExecution, e);
         }
 
         try {
-            updateEventGoodies(eventId, jobExecution);
+            saveImportJob(jobExecution, eventId, userId, jobStatus, goodiesColumns,
+                    writeCount, skipCount, readCount, readSkipCount);
         } catch (Exception e) {
-            log.error("Failed to update goodies for event {} job {}", eventId, jobExecutionId, e);
+            logFailure("import.job_save_failed", eventId, jobExecution, e);
         }
 
-        try {
-            saveImportJob(jobExecution, eventId, userId, jobExecutionId, jobStatus, writeCount, skipCount, readCount, readSkipCount);
-        } catch (Exception e) {
-            log.error("Failed to persist import job for job {} event {}", jobExecutionId, eventId, e);
-        }
+        log.atInfo()
+                .addKeyValue("event", "import.finished")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("importId", params.getString("importId"))
+                .addKeyValue("status", jobStatus)
+                .addKeyValue("read", readCount + readSkipCount)
+                .addKeyValue("written", writeCount)
+                .addKeyValue("skipped", skipCount)
+                .log("Import finished");
 
         if ("COMPLETED".equals(jobStatus)) {
             User uploader = userDirectory.findById(userId).orElse(null);
-            reconcileStats(eventId, uploader, jobExecutionId);
-            notifyOrgAdminsOfImport(uploader, eventId, writeCount, skipCount);
+            reconcileStats(eventId, uploader, jobExecution);
+            notifyOrgAdminsOfImport(uploader, eventId, eventName, writeCount, skipCount);
         }
 
-        sendImportNotification(userId, eventId, jobStatus, writeCount, skipCount);
+        sendImportNotification(userId, eventId, eventName, jobStatus, writeCount, skipCount);
+    }
+
+    private List<String> goodiesColumns(JobExecution jobExecution) {
+        String json = jobExecution.getExecutionContext().getString(CsvItemReader.GOODIES_COLUMNS_KEY, null);
+        return json == null ? List.of() : objectMapper.readValue(json, STRING_LIST);
     }
 
     /**
@@ -116,7 +144,7 @@ public class BatchJobNotificationListener implements JobExecutionListener {
      * actor so an admin who ran the import themselves is excluded here and only gets their own
      * {@code USER} notification — no duplicate.
      */
-    private void notifyOrgAdminsOfImport(User uploader, Long eventId, int writeCount, int skipCount) {
+    private void notifyOrgAdminsOfImport(User uploader, Long eventId, String eventName, int writeCount, int skipCount) {
         if (uploader == null || uploader.getOrganization() == null) {
             return;
         }
@@ -125,22 +153,23 @@ public class BatchJobNotificationListener implements JobExecutionListener {
                 .organizationId(uploader.getOrganization().getId())
                 .type(NotificationType.IMPORT_COMPLETED)
                 .title("CSV Import Completed")
-                .message(String.format("%s imported %d participant(s) for event #%d. %d row(s) skipped.",
-                        uploader.getUsername(), writeCount, eventId, skipCount))
+                .message(String.format("%s imported %d participant(s) for %s. %d row(s) skipped.",
+                        uploader.getUsername(), writeCount, eventName, skipCount))
                 .entityType("EVENT")
                 .entityId(String.valueOf(eventId))
                 .actor(uploader)
                 .build());
     }
 
-    private void sendImportNotification(Long userId, Long eventId, String jobStatus, int writeCount, int skipCount) {
+    private void sendImportNotification(Long userId, Long eventId, String eventName, String jobStatus,
+                                        int writeCount, int skipCount) {
         boolean completed = "COMPLETED".equals(jobStatus);
         String title = completed ? "CSV Import Completed" : "CSV Import Failed";
         String message = completed
-                ? String.format("Successfully imported %d participant(s) for event #%d. %d row(s) skipped.",
-                        writeCount, eventId, skipCount)
-                : String.format("Import job for event #%d ended with status %s. %d row(s) written, %d skipped.",
-                        eventId, jobStatus, writeCount, skipCount);
+                ? String.format("Successfully imported %d participant(s) for %s. %d row(s) skipped.",
+                        writeCount, eventName, skipCount)
+                : String.format("The import for %s ended with status %s. %d row(s) written, %d skipped.",
+                        eventName, jobStatus, writeCount, skipCount);
 
         notificationService.notify(NotifyRequest.builder()
                 .audience(NotificationAudience.USER)
@@ -153,68 +182,58 @@ public class BatchJobNotificationListener implements JobExecutionListener {
                 .build());
     }
 
-    private void reconcileStats(Long eventId, User user, Long jobExecutionId) {
+    private void reconcileStats(Long eventId, User user, JobExecution jobExecution) {
+        if (user == null) {
+            log.atWarn()
+                    .addKeyValue("event", "import.stats_reconcile_skipped")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("reason", "uploader_not_found")
+                    .log("Stats not reconciled after import");
+            return;
+        }
         try {
-            if (user == null) {
-                log.warn("Skipping stats reconcile for job {} event {}: uploader user not found",
-                        jobExecutionId, eventId);
-                return;
-            }
             participantStatisticsService.reconcile(eventId, user);
-            log.info("Reconciled stats counters after batch import job {} for event {}", jobExecutionId, eventId);
         } catch (Exception e) {
-            log.error("Failed to reconcile stats counters after batch import job {} for event {}",
-                    jobExecutionId, eventId, e);
+            logFailure("import.stats_reconcile_failed", eventId, jobExecution, e);
         }
     }
 
-    private void saveImportJob(JobExecution jobExecution, Long eventId, Long userId,
-                                Long jobExecutionId, String jobStatus,
-                                int writeCount, int skipCount, int readCount, int readSkipCount) {
-        String eventName = jobExecution.getJobParameters().getString("eventName");
-        String fileName = jobExecution.getJobParameters().getString("fileName");
-        String goodiesDetected = jobExecution.getExecutionContext().getString("goodiesColumns", null);
+    private void saveImportJob(JobExecution jobExecution, Long eventId, Long userId, String jobStatus,
+                               List<String> goodiesColumns,
+                               int writeCount, int skipCount, int readCount, int readSkipCount) {
+        JobParameters params = jobExecution.getJobParameters();
 
         String errorSummaryJson;
         if ("STOPPED".equals(jobStatus)) {
             errorSummaryJson = "{\"reason\":\"Stopped by user\"}";
         } else {
             // Only validationErrors is reliably tracked; other breakdown fields are unknown from Spring Batch counters
-            ErrorSummary errorSummary = ErrorSummary.builder()
-                    .validationErrors(skipCount)
-                    .build();
-            try {
-                errorSummaryJson = objectMapper.writeValueAsString(errorSummary);
-            } catch (Exception e) {
-                log.warn("Failed to serialize error summary for job {}", jobExecutionId, e);
-                errorSummaryJson = null;
-            }
+            errorSummaryJson = objectMapper.writeValueAsString(ErrorSummary.builder().validationErrors(skipCount).build());
         }
 
         ImportJob.ImportStatus status = "COMPLETED".equals(jobStatus)
                 ? ImportJob.ImportStatus.COMPLETED
                 : ImportJob.ImportStatus.FAILED;
 
-        String modeParam = jobExecution.getJobParameters().getString("mode");
-        ImportMode mode = ImportMode.ADD_ON.name().equals(modeParam) ? ImportMode.ADD_ON : ImportMode.IMPORT;
+        ImportMode mode = ImportMode.ADD_ON.name().equals(params.getString("mode")) ? ImportMode.ADD_ON : ImportMode.IMPORT;
 
         // The row created at launch is updated in place. It must keep its id for the whole run:
         // the error rows reference it, and replacing it would cascade them away.
-        String importId = jobExecution.getJobParameters().getString("importId");
+        String importId = params.getString("importId");
         ImportJob importJob = importJobRepository.findById(importId).orElseGet(() ->
                 ImportJob.builder().importId(importId).build());
 
-        importJob.setJobExecutionId(jobExecutionId);
+        importJob.setJobExecutionId(jobExecution.getId());
         importJob.setEventId(eventId);
-        importJob.setEventName(eventName != null ? eventName : "");
-        importJob.setFileName(fileName != null ? fileName : "");
+        importJob.setEventName(params.getString("eventName", ""));
+        importJob.setFileName(params.getString("fileName", ""));
         importJob.setTotalRows(readCount + readSkipCount);
         importJob.setSuccessCount(writeCount);
         importJob.setFailureCount(skipCount);
         importJob.setStatus(status);
         importJob.setMode(mode);
         importJob.setErrorSummary(errorSummaryJson);
-        importJob.setGoodiesDetected(goodiesDetected);
+        importJob.setGoodiesDetected(goodiesColumns.isEmpty() ? null : objectMapper.writeValueAsString(goodiesColumns));
         importJob.setImportedBy(userId);
 
         importJobRepository.save(importJob);
@@ -228,13 +247,15 @@ public class BatchJobNotificationListener implements JobExecutionListener {
                 eventQuota.recordFullImport(eventId);
             }
         }
-        log.info("Saved ImportJob {} for event {} status={}", importId, eventId, status);
     }
 
-    private void updateEventGoodies(Long eventId, JobExecution jobExecution) {
-        String goodiesColumns = jobExecution.getExecutionContext().getString("goodiesColumns", null);
-        if (goodiesColumns == null || goodiesColumns.isBlank()) return;
-        eventGoodieService.addImportedGoodies(eventId, List.of(goodiesColumns.split(",")));
+    private void logFailure(String event, Long eventId, JobExecution jobExecution, Exception e) {
+        log.atError()
+                .setCause(e)
+                .addKeyValue("event", event)
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("importId", jobExecution.getJobParameters().getString("importId"))
+                .log("Post-import step failed");
     }
 
     private void deleteTempFile(JobExecution jobExecution) {
@@ -247,7 +268,11 @@ public class BatchJobNotificationListener implements JobExecutionListener {
         try {
             Files.deleteIfExists(Paths.get(path));
         } catch (IOException e) {
-            log.warn("Failed to delete temp file: {}", path, e);
+            log.atWarn()
+                    .setCause(e)
+                    .addKeyValue("event", "import.temp_file_left")
+                    .addKeyValue("path", path)
+                    .log("Temp file could not be deleted");
         }
     }
 }

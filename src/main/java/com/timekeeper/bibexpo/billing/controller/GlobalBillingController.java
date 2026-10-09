@@ -11,7 +11,6 @@ import com.timekeeper.bibexpo.shared.model.enums.DashboardRange;
 import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,7 +24,6 @@ import java.time.Instant;
 @RestController
 @RequestMapping("/api/billing")
 @RequiredArgsConstructor
-@Slf4j
 public class GlobalBillingController implements GlobalBillingControllerApi {
 
     private final BillingAdminService billingAdminService;
@@ -41,9 +39,6 @@ public class GlobalBillingController implements GlobalBillingControllerApi {
             @RequestParam(required = false) PaymentStatus paymentStatus,
             @RequestParam(required = false) String q,
             Pageable pageable) {
-        log.info("GET /api/billing — org: {} event: {} reason: {} paymentStatus: {} q: {}",
-                organizationId, eventId, reason, paymentStatus, q);
-
         return ResponseEntity.ok(PageableResponse.of(
                 billingAdminService.listAllBills(organizationId, eventId, from, to, reason, paymentStatus, q, pageable)));
     }
@@ -51,15 +46,11 @@ public class GlobalBillingController implements GlobalBillingControllerApi {
     @Override
     public ResponseEntity<BillStatsResponse> getStats(
             @RequestParam(defaultValue = "ALL") DashboardRange range) {
-        log.info("GET /api/billing/stats — range: {}", range);
-
         return ResponseEntity.ok(billStatsService.getStats(range));
     }
 
     @Override
     public ResponseEntity<BillStatsRefreshResponse> refreshStats() {
-        log.info("POST /api/billing/stats/refresh");
-
         return ResponseEntity.accepted().body(billStatsService.refresh());
     }
 
@@ -67,8 +58,6 @@ public class GlobalBillingController implements GlobalBillingControllerApi {
     public ResponseEntity<BillResponse> updatePaymentStatus(
             @PathVariable String billId,
             @Valid @RequestBody UpdatePaymentStatusRequest request) {
-        log.info("PATCH /api/billing/{}/payment-status — {}", billId, request.getPaymentStatus());
-
         return ResponseEntity.ok(billingAdminService.updatePaymentStatus(billId, request.getPaymentStatus()));
     }
 }

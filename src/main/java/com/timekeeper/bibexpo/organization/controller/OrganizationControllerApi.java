@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.organization.controller;
 
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationSubscriptionRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.MembersUnlockedResponse;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.shared.web.PageableResponse;
@@ -114,8 +116,11 @@ public interface OrganizationControllerApi {
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
-            summary = "Update an organization",
-            description = "Partially update an organization. ROOT and ADMIN can update any organization. ORGANIZER_ADMIN can only update their own organization."
+            summary = "Update an organization's profile",
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN. Partially updates an organization's profile "
+                    + "(name, contact, address, business and billing details). ROOT and ADMIN can update any "
+                    + "organization; ORGANIZER_ADMIN only their own. The subscription tier and limits are changed "
+                    + "through PATCH /api/organizations/{id}/subscription."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -136,7 +141,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - insufficient permissions or trying to update another organization",
+                    description = "Access forbidden - insufficient permissions",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -144,7 +149,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Organization not found",
+                    description = "Organization not found, or not the caller's own organization",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -152,8 +157,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "An organization with the same email, name, phone number, or tax ID already exists, "
-                            + "or a limit was reduced below what is currently in use",
+                    description = "An organization with the same email, name, phone number, or tax ID already exists",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -165,14 +169,71 @@ public interface OrganizationControllerApi {
             @Valid @RequestBody UpdateOrganizationRequest request,
             @AuthenticationPrincipal User currentUser);
 
+    @PatchMapping("/{id}/subscription")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
+    @Operation(
+            summary = "Change an organization's plan",
+            description = "**Roles:** ROOT, ADMIN. Changes an organization's subscription tier and its user and "
+                    + "inventory limits. Only the fields sent are changed. Moving from PAY_AS_YOU_GO to PREMIUM or "
+                    + "PARTNER starts a one-year term; sending PAY_AS_YOU_GO returns to the "
+                    + "baseline. A limit cannot be set below what is already in use."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Plan changed",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = OrganizationResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request data",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - requires ROOT or ADMIN",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "A limit was reduced below what is currently in use",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<OrganizationResponse> updateSubscription(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateOrganizationSubscriptionRequest request);
+
+    @PostMapping("/{id}/members/unlock")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
+    @Operation(
+            summary = "Unlock the users locked by disabling the organization",
+            description = """
+                    **Roles:** ROOT, ADMIN. Unlocks the organization's users whose lockReason is \
+                    ORGANIZATION_DISABLED. Users locked manually (lockReason MANUAL) stay locked, and users \
+                    disabled by their organization stay disabled. The organization must be enabled first."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Users unlocked",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = MembersUnlockedResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden - requires ROOT or ADMIN",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "The organization is still disabled",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    ResponseEntity<MembersUnlockedResponse> unlockMembers(@PathVariable Long id);
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN')")
     @Operation(
             summary = "Enable or disable an organization",
             description = """
-                    Enable or disable an organization. Only accessible by ROOT or ADMIN users. \
-                    When an organization is disabled, all its users will be automatically disabled. \
-                    When an organization is enabled, its users will NOT be automatically enabled."""
+                    **Roles:** ROOT, ADMIN. Enable or disable an organization. \
+                    Disabling locks all its users (lockReason ORGANIZATION_DISABLED; users already locked \
+                    keep their own reason), and while it is disabled no user of it can be enabled, disabled, \
+                    locked, unlocked, reassigned or sent a password reset. Enabling does NOT unlock them: \
+                    call POST /api/organizations/{id}/members/unlock."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -249,7 +310,9 @@ public interface OrganizationControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get organization by ID",
-            description = "Retrieve organization details. ROOT/ADMIN can view any organization. ORGANIZER users can only view their own organization."
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. Retrieve organization details. "
+                    + "ROOT/ADMIN can view any organization. ORGANIZER users can only view their own; any other id "
+                    + "returns 404, the same as an id that does not exist."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -262,7 +325,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - insufficient permissions or trying to view another organization",
+                    description = "Access forbidden - insufficient permissions",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -270,7 +333,7 @@ public interface OrganizationControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Organization not found",
+                    description = "Organization not found, or not the caller's own organization",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -313,6 +376,7 @@ public interface OrganizationControllerApi {
     @Operation(
             summary = "Get a presigned URL to upload an organization logo",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN (own organization only). \
                     Returns a short-lived presigned S3 PUT URL. The client uploads the file bytes \
                     directly to that URL with the given Content-Type, then calls \
                     PUT /api/organizations/{id}/logo with the returned objectKey to attach it. \
@@ -328,7 +392,7 @@ public interface OrganizationControllerApi {
             @ApiResponse(responseCode = "403", description = "Insufficient permissions",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization not found",
+            @ApiResponse(responseCode = "404", description = "Organization not found, or not the caller's own organization",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -342,6 +406,7 @@ public interface OrganizationControllerApi {
     @Operation(
             summary = "Attach an uploaded organization logo",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN (own organization only). \
                     Confirms a completed upload and sets it as the organization's logo. \
                     The object key must belong to this organization and the object must exist in S3. \
                     Any previous logo is deleted."""
@@ -356,7 +421,7 @@ public interface OrganizationControllerApi {
             @ApiResponse(responseCode = "403", description = "Insufficient permissions",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization not found",
+            @ApiResponse(responseCode = "404", description = "Organization not found, or not the caller's own organization",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -369,7 +434,7 @@ public interface OrganizationControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     @Operation(
             summary = "Remove the organization logo",
-            description = "Deletes the organization's logo from storage."
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN (own organization only). Deletes the organization's logo from storage."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Logo removed",
@@ -378,7 +443,7 @@ public interface OrganizationControllerApi {
             @ApiResponse(responseCode = "403", description = "Insufficient permissions",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization not found",
+            @ApiResponse(responseCode = "404", description = "Organization not found, or not the caller's own organization",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })

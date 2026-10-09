@@ -24,8 +24,4 @@ public class CreateInventoryAttributeRequest {
     @Schema(description = "True if choosing a value splits stock into a separate variant; "
             + "false if the value is the same for the whole item", example = "true")
     private Boolean variantAttribute;
-
-    @NotNull(message = "required must be set explicitly")
-    @Schema(description = "Whether an item using this attribute must supply a value", example = "true")
-    private Boolean required;
 }

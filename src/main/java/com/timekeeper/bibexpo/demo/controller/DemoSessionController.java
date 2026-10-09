@@ -72,27 +72,33 @@ public class DemoSessionController implements DemoSessionControllerApi {
 
     @ExceptionHandler(DemoSessionNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(DemoSessionNotFoundException ex, WebRequest request) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
+        return rejected(HttpStatus.NOT_FOUND, ex, request);
     }
 
     @ExceptionHandler(DemoSessionExpiredException.class)
     public ResponseEntity<ErrorResponse> handleExpired(DemoSessionExpiredException ex, WebRequest request) {
-        return ResponseEntity.status(HttpStatus.GONE)
-                .body(ErrorResponse.of(HttpStatus.GONE, "Gone", ex.getMessage(), request));
+        return rejected(HttpStatus.GONE, ex, request);
     }
 
     @ExceptionHandler(DemoSessionAlreadyCollectedException.class)
     public ResponseEntity<ErrorResponse> handleAlreadyCollected(DemoSessionAlreadyCollectedException ex,
                                                                 WebRequest request) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+        return rejected(HttpStatus.CONFLICT, ex, request);
     }
 
     @ExceptionHandler({DemoRateLimitExceededException.class, DemoCapacityExceededException.class})
     public ResponseEntity<ErrorResponse> handleThrottled(RuntimeException ex, WebRequest request) {
-        log.warn("Demo request throttled: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(ErrorResponse.of(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests", ex.getMessage(), request));
+        return rejected(HttpStatus.TOO_MANY_REQUESTS, ex, request);
+    }
+
+    private static ResponseEntity<ErrorResponse> rejected(HttpStatus status, RuntimeException ex, WebRequest request) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
+        return ResponseEntity.status(status)
+                .body(ErrorResponse.of(status, status.getReasonPhrase(), ex.getMessage(), request));
     }
 }

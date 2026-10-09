@@ -7,7 +7,6 @@ import com.timekeeper.bibexpo.messaging.provider.service.MessagingProviderAdminS
 import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -15,7 +14,6 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@Slf4j
 public class DefaultCampaignProviderController implements DefaultCampaignProviderControllerApi {
 
     private final MessagingProviderAdminService providerAdminService;
@@ -33,13 +31,11 @@ public class DefaultCampaignProviderController implements DefaultCampaignProvide
     @Override
     public ResponseEntity<MessagingProviderResponse> save(MessageChannel channel, boolean force,
                                                           SaveMessagingProviderRequest request, User currentUser) {
-        log.info("Root saving default {} campaign provider", channel);
         return ResponseEntity.ok(providerAdminService.saveCampaignProvider(channel, null, force, request, currentUser));
     }
 
     @Override
     public ResponseEntity<Void> delete(MessageChannel channel, boolean force, User currentUser) {
-        log.info("Root deleting default {} campaign provider", channel);
         providerAdminService.deleteCampaignProvider(channel, null, force, currentUser);
         return ResponseEntity.noContent().build();
     }
@@ -47,7 +43,6 @@ public class DefaultCampaignProviderController implements DefaultCampaignProvide
     @Override
     public ResponseEntity<MessagingProviderResponse> testSend(MessageChannel channel,
                                                               ProviderTestSendRequest request, User currentUser) {
-        log.info("Root test-sending default {} campaign provider", channel);
         return ResponseEntity.ok(providerAdminService.testSendCampaignProvider(channel, null, request, currentUser));
     }
 }

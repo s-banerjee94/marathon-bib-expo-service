@@ -35,6 +35,8 @@ public interface InventoryTermControllerApi {
     @Operation(
             summary = "List terms of one kind",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     This organization's terms of the given kind, sorted by name. Every term belongs to \
                     one organization: there is no shared vocabulary, so an organizer names their own \
                     categories, units and location types exactly as they want them."""
@@ -58,7 +60,7 @@ public interface InventoryTermControllerApi {
 
     @Operation(
             summary = "Get one term",
-            description = "Returns one of this organization's terms."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nReturns one of this organization's terms."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Term retrieved successfully",
@@ -78,6 +80,8 @@ public interface InventoryTermControllerApi {
     @Operation(
             summary = "Add a term",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Adds a term to this organization's own vocabulary. Names must be unique within the \
                     kind, and each organization has a limited number of term slots."""
     )
@@ -103,6 +107,8 @@ public interface InventoryTermControllerApi {
     @Operation(
             summary = "Rename a term",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Renames one of this organization's terms."""
     )
     @ApiResponses(value = {
@@ -128,6 +134,8 @@ public interface InventoryTermControllerApi {
     @Operation(
             summary = "Delete a term",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Removes one of this organization's own terms. A term an item or a location still \
                     points at cannot be removed."""
     )

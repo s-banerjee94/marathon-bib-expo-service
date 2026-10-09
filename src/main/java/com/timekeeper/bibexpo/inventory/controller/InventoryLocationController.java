@@ -44,8 +44,6 @@ public class InventoryLocationController implements InventoryLocationControllerA
             @PathVariable Long organizationId,
             @Valid @RequestBody CreateInventoryLocationRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Creating inventory location '{}' for organization {} by user {}",
-                request.getName(), organizationId, currentUser.getUsername());
         InventoryLocationResponse response = locationService.createLocation(organizationId, request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -56,8 +54,6 @@ public class InventoryLocationController implements InventoryLocationControllerA
             @PathVariable Long locationId,
             @Valid @RequestBody UpdateInventoryLocationRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Updating inventory location {} for organization {} by user {}",
-                locationId, organizationId, currentUser.getUsername());
         return ResponseEntity.ok(locationService.updateLocation(organizationId, locationId, request, currentUser));
     }
 
@@ -66,8 +62,6 @@ public class InventoryLocationController implements InventoryLocationControllerA
             @PathVariable Long organizationId,
             @PathVariable Long locationId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Deleting inventory location {} for organization {} by user {}",
-                locationId, organizationId, currentUser.getUsername());
         locationService.deleteLocation(organizationId, locationId, currentUser);
         return ResponseEntity.noContent().build();
     }
@@ -75,7 +69,12 @@ public class InventoryLocationController implements InventoryLocationControllerA
     @ExceptionHandler(InventoryLocationLimitReachedException.class)
     public ResponseEntity<ErrorResponse> handleLocationLimitReached(
             InventoryLocationLimitReachedException ex, WebRequest request) {
-        log.info("Inventory location limit reached: {}", ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.CONFLICT.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }

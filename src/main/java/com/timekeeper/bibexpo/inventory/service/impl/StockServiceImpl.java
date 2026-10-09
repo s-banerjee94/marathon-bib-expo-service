@@ -10,6 +10,7 @@ import com.timekeeper.bibexpo.inventory.exception.InsufficientStockException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantNotFoundException;
+import com.timekeeper.bibexpo.inventory.exception.StockCapacityExceededException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.AdjustStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.ReceiveStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.TransferStockRequest;
@@ -34,12 +35,10 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryStockRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValueRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantRepository;
 import com.timekeeper.bibexpo.inventory.service.StockService;
+import com.timekeeper.bibexpo.inventory.service.util.StockAlerts;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
-import com.timekeeper.bibexpo.notification.model.dto.NotifyRequest;
-import com.timekeeper.bibexpo.notification.model.enums.NotificationAudience;
-import com.timekeeper.bibexpo.notification.model.enums.NotificationType;
-import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
+import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,8 +48,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -81,14 +78,14 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
     private final InventoryItemRepository itemRepository;
     private final InventoryLocationRepository locationRepository;
     private final InventoryAccessGuard accessGuard;
-    private final NotificationService notificationService;
+    private final StockAlerts stockAlerts;
 
     @Override
     @Transactional(readOnly = true)
     public Page<StockItemResponse> listStock(Long organizationId, String search, Long locationId, Boolean lowOnly,
                                              Pageable pageable, User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        String needle = blankToNull(search);
+        String needle = TextUtils.trimToNull(search);
         Pageable effective = pageable.getSort().isSorted() ? pageable
                 : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("name"));
 
@@ -130,7 +127,6 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                             .locationId(balance.getLocationId())
                             .locationName(locationNames.get(balance.getLocationId()))
                             .onHand(balance.getOnHand())
-                            .reserved(balance.getReserved())
                             .updatedAt(balance.getUpdatedAt())
                             .updatedBy(balance.getLastModifiedBy())
                             .build());
@@ -221,12 +217,8 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
                         Sort.by(Sort.Direction.DESC, "occurredAt", "id"));
         return movementRepository.search(organizationId, itemId, variantId, type, reason,
-                        blankToNull(performedBy), occurredFrom, occurredTo, effective)
+                        TextUtils.trimToNull(performedBy), occurredFrom, occurredTo, effective)
                 .map(StockMovementResponse::fromEntity);
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
     @Auditable(entityType = AuditEntityType.STOCK_MOVEMENT, action = AuditAction.CREATE)
@@ -238,8 +230,8 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         requireItemInOrg(variant.getItemId(), organizationId);
         InventoryLocation location = requireLocationInOrg(request.getLocationId(), organizationId);
 
-        InventoryStock stock = findOrCreateStock(variant.getId(), location.getId());
-        addStock(stock.getId(), request.getQuantity(), currentUser);
+        InventoryStock stock = findOrCreateStock(variant.getId(), location.getId(), currentUser.getUsername());
+        addOrThrow(stock.getId(), request.getQuantity(), currentUser);
 
         InventoryMovement movement = movementRepository.save(InventoryMovement.builder()
                 .organizationId(organizationId)
@@ -252,9 +244,15 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .occurredAt(Instant.now())
                 .build());
         auditAgainst(organizationId, movement);
+        stockAlerts.rearm(variant.getItemId());
 
-        log.info("Received {} of variant {} at location {} for organization {}",
-                request.getQuantity(), variant.getId(), location.getId(), organizationId);
+        log.atInfo()
+                .addKeyValue("event", "inventory.stock_received")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("variantId", variant.getId())
+                .addKeyValue("locationId", location.getId())
+                .addKeyValue("quantity", request.getQuantity())
+                .log("Stock received");
         return StockBalanceResponse.fromEntity(reload(stock.getId()));
     }
 
@@ -275,8 +273,8 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         InventoryStock sourceStock = requireStockForDeduction(variant.getId(), fromLocation.getId());
         deductOrThrow(sourceStock.getId(), request.getQuantity(), currentUser);
 
-        InventoryStock destStock = findOrCreateStock(variant.getId(), toLocation.getId());
-        addStock(destStock.getId(), request.getQuantity(), currentUser);
+        InventoryStock destStock = findOrCreateStock(variant.getId(), toLocation.getId(), currentUser.getUsername());
+        addOrThrow(destStock.getId(), request.getQuantity(), currentUser);
 
         // A transfer is two ledger lines, not one row with both locations set, so each location's
         // own history reads as a plain list of what arrived or left it.
@@ -303,8 +301,14 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .build());
         auditAgainst(organizationId, out);
 
-        log.info("Transferred {} of variant {} from location {} to location {} for organization {}",
-                request.getQuantity(), variant.getId(), fromLocation.getId(), toLocation.getId(), organizationId);
+        log.atInfo()
+                .addKeyValue("event", "inventory.stock_transferred")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("variantId", variant.getId())
+                .addKeyValue("fromLocationId", fromLocation.getId())
+                .addKeyValue("toLocationId", toLocation.getId())
+                .addKeyValue("quantity", request.getQuantity())
+                .log("Stock transferred");
         return List.of(
                 StockBalanceResponse.fromEntity(reload(sourceStock.getId())),
                 StockBalanceResponse.fromEntity(reload(destStock.getId())));
@@ -342,20 +346,28 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
 
         Long stockId;
         if (delta > 0) {
-            InventoryStock stock = findOrCreateStock(variant.getId(), location.getId());
-            addStock(stock.getId(), delta, currentUser);
+            InventoryStock stock = findOrCreateStock(variant.getId(), location.getId(), currentUser.getUsername());
+            addOrThrow(stock.getId(), delta, currentUser);
             stockId = stock.getId();
             movement.toLocationId(location.getId());
+            stockAlerts.rearm(variant.getItemId());
         } else {
             InventoryStock stock = requireStockForDeduction(variant.getId(), location.getId());
             deductOrThrow(stock.getId(), Math.abs(delta), currentUser);
             stockId = stock.getId();
             movement.fromLocationId(location.getId());
+            stockAlerts.stockDropped(variant.getItemId());
         }
 
         auditAgainst(organizationId, movementRepository.save(movement.build()));
-        log.info("Adjusted variant {} at location {} by {} for organization {}, reason {}",
-                variant.getId(), location.getId(), delta, organizationId, request.getReason());
+        log.atInfo()
+                .addKeyValue("event", "inventory.stock_adjusted")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("variantId", variant.getId())
+                .addKeyValue("locationId", location.getId())
+                .addKeyValue("delta", delta)
+                .addKeyValue("reason", request.getReason())
+                .log("Stock adjusted");
         return StockBalanceResponse.fromEntity(reload(stockId));
     }
 
@@ -372,12 +384,13 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
     }
 
     // One unit per line. An issue may overdraw the shelf, since the runner is already holding the goody,
-    // and a reversal lands back on the location the unit left, wherever the goody hands out from now.
+    // and a reversal lands back on the location the unit left, wherever the goody hands out from now and
+    // however full that shelf is: the counter is never refused.
     private void postHandover(GoodieIssue issue, MovementType type, String bibNumber, String actor) {
         InventoryVariant variant = requireVariant(issue.variantId());
         InventoryItem item = itemRepository.findById(variant.getItemId())
                 .orElseThrow(InventoryItemNotFoundException::new);
-        InventoryStock stock = findOrCreateStock(variant.getId(), issue.locationId());
+        InventoryStock stock = findOrCreateStock(variant.getId(), issue.locationId(), actor);
         Instant now = Instant.now();
         boolean out = type == MovementType.ISSUE;
         if (out) {
@@ -385,10 +398,12 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
             // The deduct holds this balance row until commit, so the number read back is this hand-over's
             // own. One unit at a time lands on -1 only on the hand-over that crossed below zero.
             if (reload(stock.getId()).getOnHand() == -1) {
-                alertBelowZero(item, issue, bibNumber);
+                stockAlerts.shelfOverdrawn(item, issue, bibNumber);
             }
+            stockAlerts.stockDropped(item.getId());
         } else {
-            stockRepository.add(stock.getId(), 1, now, actor);
+            stockRepository.add(stock.getId(), 1, true, now, actor);
+            stockAlerts.rearm(item.getId());
         }
 
         movementRepository.save(InventoryMovement.builder()
@@ -402,30 +417,6 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .reference(bibNumber)
                 .occurredAt(now)
                 .build());
-    }
-
-    // Sent only once the hand-over commits, so one that rolls back never raises an alert.
-    private void alertBelowZero(InventoryItem item, GoodieIssue issue, String bibNumber) {
-        String location = locationRepository.findById(issue.locationId())
-                .map(InventoryLocation::getName).orElse("its location");
-        String goody = issue.variantLabel() == null || issue.variantLabel().isBlank()
-                ? item.getName() : item.getName() + " (" + issue.variantLabel() + ")";
-        NotifyRequest request = NotifyRequest.builder()
-                .audience(NotificationAudience.ORGANIZATION_STAFF)
-                .organizationId(item.getOrganizationId())
-                .type(NotificationType.OUT_OF_STOCK)
-                .title("Out of Stock")
-                .message(String.format("%s has run out at %s: bib %s got one the shelf did not have. "
-                        + "Receive or move stock there to put the count right.", goody, location, bibNumber))
-                .entityType("INVENTORY_ITEM")
-                .entityId(String.valueOf(item.getId()))
-                .build();
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                notificationService.notify(request);
-            }
-        });
     }
 
     // ---- lookups ----------------------------------------------------------------
@@ -447,14 +438,11 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
 
     // ---- balance updates ----------------------------------------------------------------
 
-    private InventoryStock findOrCreateStock(Long variantId, Long locationId) {
-        return stockRepository.findByVariantIdAndLocationId(variantId, locationId)
-                .orElseGet(() -> stockRepository.save(InventoryStock.builder()
-                        .variantId(variantId)
-                        .locationId(locationId)
-                        .onHand(0)
-                        .reserved(0)
-                        .build()));
+    // Two counters can post the first unit of a variant at a location at the same instant, so the row is
+    // created by a statement that cannot fail on the unique key, never by a read followed by an insert.
+    private InventoryStock findOrCreateStock(Long variantId, Long locationId, String actor) {
+        stockRepository.insertIfMissing(variantId, locationId, Instant.now(), actor);
+        return stockRepository.lockByVariantIdAndLocationId(variantId, locationId);
     }
 
     private InventoryStock requireStockForDeduction(Long variantId, Long locationId) {
@@ -462,8 +450,11 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .orElseThrow(InsufficientStockException::new);
     }
 
-    private void addStock(Long stockId, int qty, User currentUser) {
-        stockRepository.add(stockId, qty, Instant.now(), currentUser.getUsername());
+    private void addOrThrow(Long stockId, int qty, User currentUser) {
+        int updated = stockRepository.add(stockId, qty, false, Instant.now(), currentUser.getUsername());
+        if (updated == 0) {
+            throw new StockCapacityExceededException();
+        }
     }
 
     private void deductOrThrow(Long stockId, int qty, User currentUser) {

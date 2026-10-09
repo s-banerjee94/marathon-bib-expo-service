@@ -45,14 +45,10 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
 
     @Override
     public ParticipantStatisticsResponse getParticipantStatistics(Long eventId, User currentUser) {
-        log.info("Getting participant statistics for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
 
         List<EventStatsDDB> rows = eventStatsQuery.counters(eventId);
         if (rows.isEmpty()) {
-            log.warn("No stats counters found for event {} — counters are built on participant writes "
-                    + "and rebuilt by reconcile after a batch import", eventId);
             return emptyStatistics(eventId);
         }
 
@@ -61,7 +57,6 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
 
     @Override
     public void reconcile(Long eventId, User currentUser) {
-        log.info("Reconciling event stats for event ID: {} by user: {}", eventId, currentUser.getUsername());
         rebuild(accessGuard.forRead(eventId, currentUser));
     }
 
@@ -71,8 +66,13 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
 
         EventStatsRebuild result = eventStatsRecorder.rebuild(event.getId(), zone, roster(event.getId()));
 
-        log.info("Reconciled event {}: total={} bibCollected={} statRows={}",
-                event.getId(), result.participants(), result.bibCollected(), result.counterRows());
+        log.atInfo()
+                .addKeyValue("event", "event.stats.rebuilt")
+                .addKeyValue("eventId", event.getId())
+                .addKeyValue("participants", result.participants())
+                .addKeyValue("bibCollected", result.bibCollected())
+                .addKeyValue("counterRows", result.counterRows())
+                .log("Event counters rebuilt from the roster");
     }
 
     private Stream<ParticipantCounters> roster(Long eventId) {
@@ -106,8 +106,6 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
             }
         }
 
-        log.info("Loaded statistics for event {} from counters: total={} bibCollected={}",
-                eventId, total, bibCollected);
         warnOnUnresolvedIds(eventId, raceMap, categoryMap, names);
 
         return ParticipantStatisticsResponse.builder()
@@ -229,11 +227,13 @@ public class ParticipantStatisticsServiceImpl implements ParticipantStatisticsSe
                 .mapToLong(e -> e.getValue().getCount() != null ? e.getValue().getCount() : 0)
                 .sum();
 
-        log.warn("Event {} has participants pointing at races/categories that no longer exist — "
-                        + "unresolved races: {}, unresolved categories: {} ({} participant(s) unlabelled). "
-                        + "Reconcile will not repair this; the participant records must be re-imported or "
-                        + "reassigned to live races/categories.",
-                eventId, races, categories, affected);
+        log.atWarn()
+                .addKeyValue("event", "participant.unresolved_refs")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("raceIds", races)
+                .addKeyValue("categoryIds", categories)
+                .addKeyValue("affected", affected)
+                .log("Participants point at races or categories that no longer exist; reconcile will not repair this");
     }
 
     private ParticipantStatisticsResponse emptyStatistics(Long eventId) {

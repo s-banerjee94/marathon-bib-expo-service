@@ -1,9 +1,6 @@
 package com.timekeeper.bibexpo.organization.model.dto.request;
 
-import com.timekeeper.bibexpo.organization.model.enums.SubscriptionTier;
-import com.timekeeper.bibexpo.shared.validation.ValidEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -16,7 +13,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Schema(description = "Request payload for updating an organization (all fields optional)")
+@Schema(description = "Request payload for updating an organization's profile (all fields optional)")
 public class UpdateOrganizationRequest {
 
     @Size(min = 2, max = 200, message = "Organizer name must be between 2 and 200 characters")
@@ -65,19 +62,6 @@ public class UpdateOrganizationRequest {
     @Size(max = 50, message = "Registration number must not exceed 50 characters")
     @Schema(description = "Business registration number", example = "U74999DL2020PTC123456", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String registrationNumber;
-
-    @Valid
-    @Schema(description = "Per-role user quota caps. Optional; only the roles you include are changed.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private UserQuotaRequest userQuota;
-
-    @Valid
-    @Schema(description = "Inventory caps. Optional; only the caps you include are changed.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private InventoryQuotaRequest inventoryQuota;
-
-    @ValidEnum(enumClass = SubscriptionTier.class)
-    @Schema(description = "Subscription tier; set to PAY_AS_YOU_GO (or send empty/null) to fall back to the baseline",
-            example = "PREMIUM", allowableValues = {"PAY_AS_YOU_GO", "PREMIUM", "PARTNER"}, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private String subscriptionTier;
 
     @Email(message = "Billing email must be valid")
     @Schema(description = "Billing email address", example = "billing@indiabookexpo.in", requiredMode = Schema.RequiredMode.NOT_REQUIRED)

@@ -29,8 +29,9 @@ import java.util.Map;
                 a notification you didn't qualify for simply never appears in your list):
                 - **ROOT / ADMIN** — platform-wide: `EVENT_CREATED` (an organizer made an event), \
                   `EVENT_PUBLISHED`, `EVENT_COMPLETED`.
-                - **Organization staff (ORGANIZER_ADMIN / ORGANIZER_USER)** — `EVENT_CANCELLED` and \
-                  campaign lifecycle (`CAMPAIGN_COMPLETED` / `CAMPAIGN_FAILED`) for their own organization.
+                - **Organization staff (ORGANIZER_ADMIN / ORGANIZER_USER)** — `EVENT_CANCELLED`, \
+                  campaign lifecycle (`CAMPAIGN_COMPLETED` / `CAMPAIGN_FAILED`) and stock alerts \
+                  (`OUT_OF_STOCK` / `LOW_STOCK`) for their own organization.
                 - **Organization admins (ORGANIZER_ADMIN)** — additionally `IMPORT_COMPLETED` whenever anyone \
                   in their organization completes a CSV import.
                 - **The acting user** — their own `IMPORT_COMPLETED` / `IMPORT_FAILED` and `SHORT_URLS_COMPLETED`.
@@ -48,6 +49,7 @@ public interface NotificationControllerApi {
     @Operation(
             summary = "List my notifications (paginated, newest first)",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR. \
                     Returns one page of the authenticated user's notifications, newest first. \
                     Pagination is cursor-based: when `hasMore` is true, pass the returned `lastEvaluatedKey` \
                     back as the `cursor` query param to fetch the next page. Cursors are tied to the calling \
@@ -79,7 +81,8 @@ public interface NotificationControllerApi {
     @GetMapping("/unread-count")
     @Operation(
             summary = "Get my unread notification count",
-            description = "Returns `{ \"count\": N }` for the bell badge. This is the cheap call to poll every "
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR. "
+                    + "Returns `{ \"count\": N }` for the bell badge. This is the cheap call to poll every "
                     + "20–30s; only fetch the full list when the count changes or the bell is opened.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Unread count",
@@ -95,7 +98,8 @@ public interface NotificationControllerApi {
      */
     @PatchMapping("/{id}/read")
     @Operation(summary = "Mark one notification as read",
-            description = "Idempotent: marking an unknown or already-read notification still returns 204.")
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR. "
+                    + "Idempotent: marking an unknown or already-read notification still returns 204.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Marked as read"),
             @ApiResponse(responseCode = "400", description = "Invalid notification id",
@@ -114,7 +118,8 @@ public interface NotificationControllerApi {
      */
     @PatchMapping("/read-all")
     @Operation(summary = "Mark all my notifications as read",
-            description = "Clears the unread badge in one call. Returns `{ \"updated\": N }` with how many changed.")
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR. "
+                    + "Clears the unread badge in one call. Returns `{ \"updated\": N }` with how many changed.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "All marked read",
                     content = @Content(mediaType = "application/json",

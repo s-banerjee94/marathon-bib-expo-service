@@ -10,6 +10,8 @@ import com.timekeeper.bibexpo.messaging.shared.template.MessageTemplateParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,6 +42,8 @@ public class SystemMessageDispatcher {
      * @param context        the variable source whose getters back the template's {@code #{field}} placeholders
      * @return one {@link DeliveryResult} per channel, in iteration order
      */
+    // Outside the caller's transaction: a channel failing inside it would mark it rollback-only.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public List<DeliveryResult> deliver(SystemTemplatePurpose purpose, Set<MessageChannel> channels,
                                         String recipientPhone, Object context) {
         List<DeliveryResult> results = new ArrayList<>();
@@ -48,7 +52,9 @@ public class SystemMessageDispatcher {
                 messagingProviderClient.send(channel, buildMessage(purpose, channel, recipientPhone, context));
                 results.add(DeliveryResult.builder().channel(channel).sent(true).build());
             } catch (Exception e) {
-                log.warn("{} delivery over {} failed: {}", purpose, channel, e.getMessage());
+                log.atWarn().addKeyValue("event", "message.system_failed").addKeyValue("purpose", purpose)
+                        .addKeyValue("channel", channel).addKeyValue("reason", e.getMessage())
+                        .log("System message not sent");
                 results.add(DeliveryResult.builder().channel(channel).sent(false).detail(e.getMessage()).build());
             }
         }

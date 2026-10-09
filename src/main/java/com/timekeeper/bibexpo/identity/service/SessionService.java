@@ -41,10 +41,10 @@ public interface SessionService {
     Set<String> getActiveSids(String username);
 
     /**
-     * Extends one device's refresh window and marks it as just used. Used by the refresh-token
-     * flow, so the least-recently-used eviction measures real activity rather than login age.
+     * Marks one device as just used, so the least-recently-used eviction measures real activity
+     * rather than login age. The session's expiry is not moved: it ends a fixed time after login.
      */
-    void extendSession(String username, String sid);
+    void markSessionUsed(String username, String sid);
 
     /**
      * Ends one of the user's own sessions: deletes the row and evicts the cached sids, so the

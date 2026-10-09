@@ -42,6 +42,8 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "List stock",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     One page of what the organization has on hand, one entry per item, carrying the \
                     variant-and-location rows behind its total.
 
@@ -85,6 +87,8 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "List ledger movements",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     One page of the organization's append-only stock ledger.
 
                     Every filter is optional and they combine. Filtering happens in the database, so \
@@ -143,8 +147,10 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "Receive stock",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Records stock arriving at a location from outside the system — an opening balance or a \
-                    manual receipt. Always succeeds; a receipt can never be short. The variant and the
+                    manual receipt. A receipt can never be short, but a location holds at most 1,000,000 units of one variant. The variant and the
                     location must both belong to this organization."""
     )
     @ApiResponses(value = {
@@ -155,6 +161,8 @@ public interface InventoryStockControllerApi {
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization, variant, or location not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "The location would hold more than 1,000,000 units of the variant",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/receipts")
@@ -167,6 +175,8 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "Transfer stock between locations",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Moves stock from one location to another. Posts two ledger lines, one per location, and \
                     returns the resulting balance at each — source first, then destination. Answers 409
                     when the source location does not hold enough stock."""
@@ -181,7 +191,7 @@ public interface InventoryStockControllerApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization, variant, or location not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Not enough stock at the source location",
+            @ApiResponse(responseCode = "409", description = "Not enough stock at the source location, or the destination would hold more than 1,000,000 units",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/transfers")
@@ -194,21 +204,23 @@ public interface InventoryStockControllerApi {
     @Operation(
             summary = "Adjust a counted quantity",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Corrects the counted quantity at a location. The reason must say whether the stock was
                     damaged, lost, or simply miscounted. DAMAGED and LOST always remove stock, whatever sign the
                     quantity carries; CORRECTION adds or removes according to the sign. An adjustment can never
-                    take the balance below zero."""
+                    take the balance below zero or above 1,000,000."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Stock adjusted successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = StockBalanceResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Zero quantity, or a reason that does not explain a recount",
+            @ApiResponse(responseCode = "400", description = "Zero quantity, a quantity beyond 1,000,000 either way, or a reason that does not explain a recount",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization, variant, or location not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "The adjustment would take the balance below zero",
+            @ApiResponse(responseCode = "409", description = "The adjustment would take the balance below zero or above 1,000,000",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/adjustments")

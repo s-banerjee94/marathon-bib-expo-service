@@ -29,6 +29,10 @@ public class SecretAttributeConverter implements AttributeConverter<String, Stri
     private final SecureRandom secureRandom = new SecureRandom();
 
     public SecretAttributeConverter(@Value("${app.system-messaging.secret-key}") String secret) {
+        // An empty key still derives a working AES key, one that anybody can derive too.
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("app.system-messaging.secret-key is empty; set SYSTEM_MESSAGING_SECRET_KEY.");
+        }
         try {
             byte[] keyBytes = MessageDigest.getInstance("SHA-256")
                     .digest(secret.getBytes(StandardCharsets.UTF_8));

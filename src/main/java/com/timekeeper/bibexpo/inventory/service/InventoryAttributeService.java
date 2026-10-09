@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.inventory.service;
 
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeInUseException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeOptionAlreadyExistsException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryAttributeOptionInUseException;
@@ -29,20 +30,25 @@ public interface InventoryAttributeService {
      */
     InventoryAttributeListResponse listVisible(Long organizationId, User currentUser);
 
+    /**
+     * Fetches one of this organization's attributes with its allowed values.
+     *
+     * @throws InventoryAttributeNotFoundException if no such attribute exists in this organization
+     */
     InventoryAttributeResponse getAttribute(Long organizationId, Long attributeId, User currentUser);
 
     /**
      * Adds a new attribute.
      *
-     * @throws InventoryAttributeAlreadyExistsException if a attribute with this name already exists in scope
+     * @throws InventoryAttributeAlreadyExistsException if an attribute with this name already exists in scope
+     * @throws InventoryAttributeLimitReachedException if the organization already holds as many attributes as its plan allows
      */
     InventoryAttributeResponse createAttribute(Long organizationId,
                                                             CreateInventoryAttributeRequest request,
                                                             User currentUser);
 
     /**
-     * Renames a attribute and/or changes whether it is required. {@code type} and
-     * {@code variantAttribute} cannot be changed after creation.
+     * Renames an attribute. {@code type} and {@code variantAttribute} cannot be changed after creation.
      *
      * @throws InventoryAttributeNotFoundException if no such attribute exists in this scope
      * @throws InventoryAttributeAlreadyExistsException if the new name collides with another attribute in scope

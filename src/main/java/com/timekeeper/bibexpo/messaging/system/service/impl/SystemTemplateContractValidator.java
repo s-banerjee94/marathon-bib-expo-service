@@ -29,15 +29,22 @@ public class SystemTemplateContractValidator {
     @PostConstruct
     void verifyContracts() {
         List<String> problems = new ArrayList<>();
+        List<SystemTemplatePurpose> unverified = new ArrayList<>();
         for (SystemTemplatePurpose purpose : SystemTemplatePurpose.values()) {
             problems.addAll(problemsFor(purpose));
+            if (contextOf(purpose) == null) {
+                unverified.add(purpose);
+            }
         }
         if (!problems.isEmpty()) {
             throw new IllegalStateException("System message template variable contracts are out of step "
                     + "with the objects that render them: " + String.join("; ", problems));
         }
-        log.info("Verified system message template variable contracts for {} purposes",
-                SystemTemplatePurpose.values().length);
+        log.atInfo()
+                .addKeyValue("event", "message.template_contracts_verified")
+                .addKeyValue("purposes", SystemTemplatePurpose.values().length)
+                .addKeyValue("unverified", unverified)
+                .log("Verified system message template variable contracts");
     }
 
     private List<String> problemsFor(SystemTemplatePurpose purpose) {
@@ -47,10 +54,9 @@ public class SystemTemplateContractValidator {
                     + "}, which is not among its declared variables " + purpose.getVariables());
         }
 
+        // A purpose with no sending flow yet stays unverified until one exists.
         Class<?> context = contextOf(purpose);
         if (context == null) {
-            log.info("{} has no sending flow yet; its variable contract stays unverified until one exists",
-                    purpose);
             return problems;
         }
 

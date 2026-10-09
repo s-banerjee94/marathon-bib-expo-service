@@ -44,9 +44,6 @@ public class EventController implements EventControllerApi {
             @RequestParam(required = false) String search,
             Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get all events by user: {} with filters - organizationId: {}, status: {}, search: {}",
-                currentUser.getUsername(), organizationId, status, search);
-
         Page<EventResponse> eventsPage = eventService.getAllEvents(
                 organizationId, status, search, pageable, currentUser);
 
@@ -61,9 +58,6 @@ public class EventController implements EventControllerApi {
             @RequestParam(required = false) String search,
             Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get organization events by user: {} with filters - status: {}, search: {}",
-                currentUser.getUsername(), status, search);
-
         Page<EventResponse> eventsPage = eventService.getOrganizationEvents(
                 status, search, pageable, currentUser);
 
@@ -76,9 +70,6 @@ public class EventController implements EventControllerApi {
     public ResponseEntity<EventResponse> getEventById(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get event by ID: {} for user: {}",
-                id, currentUser.getUsername());
-
         EventResponse response = eventService.getEventById(id, currentUser);
 
         return ResponseEntity.ok(response);
@@ -88,9 +79,6 @@ public class EventController implements EventControllerApi {
     public ResponseEntity<EventResponse> createEvent(
             @Valid @RequestBody CreateEventRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to create event: {} for organization ID: {} by user: {}",
-                request.getEventName(), request.getOrganizationId(), currentUser.getUsername());
-
         EventResponse response = eventService.createEvent(request, currentUser);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -101,9 +89,6 @@ public class EventController implements EventControllerApi {
             @PathVariable Long id,
             @Valid @RequestBody UpdateEventRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update event with ID: {} by user: {}",
-                id, currentUser.getUsername());
-
         EventResponse response = eventService.updateEvent(id, request, currentUser);
 
         return ResponseEntity.ok(response);
@@ -113,9 +98,6 @@ public class EventController implements EventControllerApi {
     public ResponseEntity<EventResponse> toggleEventEnabled(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to toggle enabled status for event with ID: {} by user: {}",
-                id, currentUser.getUsername());
-
         EventResponse response = eventService.toggleEventEnabled(id, currentUser);
 
         return ResponseEntity.ok(response);
@@ -126,9 +108,6 @@ public class EventController implements EventControllerApi {
             @PathVariable Long id,
             @RequestParam EventStatus status,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to change status for event with ID: {} to {} by user: {}",
-                id, status, currentUser.getUsername());
-
         EventResponse response = eventService.changeEventStatus(id, status, currentUser);
 
         return ResponseEntity.ok(response);
@@ -138,9 +117,6 @@ public class EventController implements EventControllerApi {
     public ResponseEntity<Void> deleteEvent(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to delete event with ID: {} by user: {}",
-                id, currentUser.getUsername());
-
         eventService.deleteEvent(id, currentUser);
 
         return ResponseEntity.noContent().build();
@@ -149,7 +125,6 @@ public class EventController implements EventControllerApi {
     @Override
     public ResponseEntity<PresignUploadResponse> createLogoUploadUrl(
             Long id, PresignUploadRequest request, User currentUser) {
-        log.info("Request logo upload URL for event ID: {} by user: {}", id, currentUser.getUsername());
         PresignUploadResponse response = eventService.createLogoUploadUrl(
                 id, request.getContentType(), currentUser);
         return ResponseEntity.ok(response);
@@ -158,14 +133,12 @@ public class EventController implements EventControllerApi {
     @Override
     public ResponseEntity<EventResponse> attachLogo(
             Long id, AttachUploadRequest request, User currentUser) {
-        log.info("Request to attach logo for event ID: {} by user: {}", id, currentUser.getUsername());
         EventResponse response = eventService.attachLogo(id, request.getObjectKey(), currentUser);
         return ResponseEntity.ok(response);
     }
 
     @Override
     public ResponseEntity<EventResponse> removeLogo(Long id, User currentUser) {
-        log.info("Request to remove logo for event ID: {} by user: {}", id, currentUser.getUsername());
         EventResponse response = eventService.removeLogo(id, currentUser);
         return ResponseEntity.ok(response);
     }
@@ -173,7 +146,7 @@ public class EventController implements EventControllerApi {
     @ExceptionHandler(EventAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleEventAlreadyExists(
             EventAlreadyExistsException ex, WebRequest request) {
-        log.warn("Event already exists: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
@@ -181,8 +154,17 @@ public class EventController implements EventControllerApi {
     @ExceptionHandler(EventDeletionNotAllowedException.class)
     public ResponseEntity<ErrorResponse> handleEventDeletionNotAllowed(
             EventDeletionNotAllowedException ex, WebRequest request) {
-        log.warn("Event deletion not allowed: {}", ex.getMessage());
+        logRejected(HttpStatus.BAD_REQUEST, ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    private void logRejected(HttpStatus status, Exception ex) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
     }
 }

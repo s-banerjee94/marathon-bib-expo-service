@@ -47,8 +47,6 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
     @Override
     @Auditable(entityType = AuditEntityType.INVOICE, action = AuditAction.UPDATE)
     public BillResponse addLineItem(Long eventId, String invoiceId, LineItemRequest request, User currentUser) {
-        log.info("Adding {} line item to bill {} of event {} by user: {}",
-                request.getKind(), invoiceId, eventId, currentUser.getUsername());
         if (request.getKind() == LineItemKind.PARTICIPANT) {
             throw new BillNotAllowedException("The participant charge cannot be added manually.");
         }
@@ -66,6 +64,7 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
         applyRequest(line, request.getKind(), request);
         invoiceLineItemRepository.save(line);
 
+        logLineChange("billing.line_item.added", invoice, line.getId());
         return touchAndRespond(invoice);
     }
 
@@ -73,9 +72,6 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
     @Auditable(entityType = AuditEntityType.INVOICE, action = AuditAction.UPDATE)
     public BillResponse updateLineItem(Long eventId, String invoiceId, Long lineItemId,
                                        LineItemRequest request, User currentUser) {
-        log.info("Updating line item {} on bill {} of event {} by user: {}",
-                lineItemId, invoiceId, eventId, currentUser.getUsername());
-
         Invoice invoice = loadEditableDraft(eventId, invoiceId, currentUser);
         InvoiceLineItem line = loadEditableLine(invoice, lineItemId);
         if (line.getKind() == LineItemKind.PARTICIPANT) {
@@ -90,6 +86,7 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
         line.setUpdatedAt(Instant.now());
         invoiceLineItemRepository.save(line);
 
+        logLineChange("billing.line_item.updated", invoice, lineItemId);
         return touchAndRespond(invoice);
     }
 
@@ -97,8 +94,6 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
     @Auditable(entityType = AuditEntityType.INVOICE, action = AuditAction.UPDATE)
     public BillResponse updateParticipantLine(Long eventId, String invoiceId,
                                               ParticipantLineRequest request, User currentUser) {
-        log.info("Updating participant line on bill {} of event {} by user: {}",
-                invoiceId, eventId, currentUser.getUsername());
         if (request.getUnitPrice() == null && request.getQuantity() == null) {
             throw new BillNotAllowedException("Provide a new unit price or quantity.");
         }
@@ -119,15 +114,13 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
         line.setUpdatedAt(Instant.now());
         invoiceLineItemRepository.save(line);
 
+        logLineChange("billing.participant_line.updated", invoice, line.getId());
         return touchAndRespond(invoice);
     }
 
     @Override
     @Auditable(entityType = AuditEntityType.INVOICE, action = AuditAction.UPDATE)
     public BillResponse deleteLineItem(Long eventId, String invoiceId, Long lineItemId, User currentUser) {
-        log.info("Deleting line item {} from bill {} of event {} by user: {}",
-                lineItemId, invoiceId, eventId, currentUser.getUsername());
-
         Invoice invoice = loadEditableDraft(eventId, invoiceId, currentUser);
         InvoiceLineItem line = loadEditableLine(invoice, lineItemId);
         if (line.getKind() == LineItemKind.PARTICIPANT) {
@@ -136,7 +129,17 @@ public class BillingLineItemServiceImpl implements BillingLineItemService {
 
         invoiceLineItemRepository.delete(line);
 
+        logLineChange("billing.line_item.removed", invoice, lineItemId);
         return touchAndRespond(invoice);
+    }
+
+    private static void logLineChange(String event, Invoice invoice, Long lineItemId) {
+        log.atInfo()
+                .addKeyValue("event", event)
+                .addKeyValue("billId", invoice.getBillId())
+                .addKeyValue("eventId", invoice.getEventId())
+                .addKeyValue("lineItemId", lineItemId)
+                .log("Draft bill line changed");
     }
 
     /** Load the bill, confirm it is under the event, the caller may access it, and it is still a draft. */

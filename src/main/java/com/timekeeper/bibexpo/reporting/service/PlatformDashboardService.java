@@ -29,13 +29,13 @@ public class PlatformDashboardService {
 
     @Cacheable(value = DASHBOARD_CACHE, key = CACHE_KEY)
     public PlatformDashboardResponse loadFor(PlatformDashboardQuery query) {
-        log.debug("Cache miss — computing platform dashboard for range: {}", query.getRange());
         return compute(query);
     }
 
     @CachePut(value = DASHBOARD_CACHE, key = CACHE_KEY)
     public PlatformDashboardResponse refreshFor(PlatformDashboardQuery query) {
-        log.info("Force refresh — recomputing platform dashboard for range: {}", query.getRange());
+        log.atInfo().addKeyValue("event", "reporting.platform_dashboard.refreshed").addKeyValue("range", query.getRange())
+                .log("Platform dashboard recomputed on request");
         return compute(query);
     }
 

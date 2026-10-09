@@ -7,12 +7,11 @@ import com.timekeeper.bibexpo.user.model.entity.User;
 public interface ParticipantAccessService {
 
     /**
-     * Ensures every participant of an event has a verification short URL.
-     * Runs asynchronously. The first call generates a code for all participants;
-     * later calls only generate codes for participants that do not yet have one.
-     * Each short URL expires three days after the event end date.
-     * TODO: add per-event call-rate limit to prevent concurrent duplicate runs.
-     * TODO: add idempotency key support so clients can safely retry without double-processing.
+     * Ensures every participant of an event has a verification short URL. The event and the caller's
+     * access are checked before this returns; the codes are then generated in the background. The first
+     * call generates a code for all participants; later calls only fill in participants that do not yet
+     * have one, and a repeated or concurrent call yields the same codes. Each short URL expires three
+     * days after the event end date.
      */
     void generateShortUrls(Long eventId, User currentUser);
 

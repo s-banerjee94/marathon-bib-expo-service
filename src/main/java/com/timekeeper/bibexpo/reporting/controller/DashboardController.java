@@ -6,9 +6,10 @@ import com.timekeeper.bibexpo.reporting.model.enums.TrendInterval;
 import com.timekeeper.bibexpo.reporting.service.DashboardQueryLimits;
 import com.timekeeper.bibexpo.reporting.service.OrgDashboardQuery;
 import com.timekeeper.bibexpo.reporting.service.OrgDashboardService;
+import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
+import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequiredArgsConstructor
-@Slf4j
 public class DashboardController implements DashboardControllerApi {
 
     private final OrgDashboardService orgDashboardService;
@@ -29,7 +29,6 @@ public class DashboardController implements DashboardControllerApi {
             int topCities, Long organizationId, User currentUser) {
         rejectOrgIdParam(organizationId);
         OrgDashboardQuery query = buildQuery(currentUser, range, statusRange, citiesRange, trendBuckets, trendInterval, topCities);
-        log.info("GET /dashboard/organization — orgId: {} range: {}", query.getOrgId(), range);
         return ResponseEntity.ok(orgDashboardService.loadFor(query));
     }
 
@@ -40,7 +39,6 @@ public class DashboardController implements DashboardControllerApi {
             int topCities, Long organizationId, User currentUser) {
         rejectOrgIdParam(organizationId);
         OrgDashboardQuery query = buildQuery(currentUser, range, statusRange, citiesRange, trendBuckets, trendInterval, topCities);
-        log.info("POST /dashboard/organization/refresh — orgId: {} range: {}", query.getOrgId(), range);
         return ResponseEntity.ok(orgDashboardService.refreshFor(query));
     }
 
@@ -48,7 +46,7 @@ public class DashboardController implements DashboardControllerApi {
                                          DashboardRange statusRange, DashboardRange citiesRange,
                                          int trendBuckets, TrendInterval trendInterval, int topCities) {
         if (currentUser.getOrganization() == null) {
-            throw new IllegalStateException("Your account is not assigned to an organization.");
+            throw new AccessForbiddenException("Your account is not assigned to an organization.");
         }
         return OrgDashboardQuery.builder()
                 .orgId(currentUser.getOrganization().getId())
@@ -63,7 +61,8 @@ public class DashboardController implements DashboardControllerApi {
 
     private void rejectOrgIdParam(Long organizationId) {
         if (organizationId != null) {
-            throw new IllegalArgumentException("organizationId query parameter is not allowed; organization is resolved from the JWT.");
+            throw new InvalidUserDataException(
+                    "Your dashboard always shows your own organization, so an organization cannot be chosen.");
         }
     }
 }

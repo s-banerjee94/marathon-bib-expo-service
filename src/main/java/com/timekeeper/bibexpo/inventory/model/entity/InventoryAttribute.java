@@ -65,9 +65,6 @@ public class InventoryAttribute implements Serializable {
     @Column(name = "variant_attribute", nullable = false)
     private boolean variantAttribute;
 
-    @Column(nullable = false)
-    private boolean required;
-
     // Kept in step with the option rows so the per-attribute cap costs no count query, and the
     // list can show "12 of 30" without one either. Always 0 for a type that has no option list.
     @Column(name = "option_count", nullable = false)

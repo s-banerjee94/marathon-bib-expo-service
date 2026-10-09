@@ -12,6 +12,7 @@ import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -35,6 +36,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Create a new participant",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Create a single participant for an event. \
                     Adding is allowed while the event is in draft or published; it is blocked once the event is completed or cancelled. \
 
@@ -44,7 +46,11 @@ public interface ParticipantControllerApi {
 
                     **Optional:** chipNumber, country, city, bibCollectedAt, goodies, additionalFields, emergencyContactName, emergencyContactPhone, notes. \
 
-                    **additionalFields:** free-form key-value columns, matching the dynamic columns retained from a CSV import. \
+                    **additionalFields:** free-form key-value columns, matching the dynamic columns retained from a CSV import: \
+                    at most 50, names up to 100 characters, values up to 200. \
+
+                    **goodies:** every goody name must already be on the event's goody list; it is matched ignoring case and \
+                    surrounding spaces and stored under the list's spelling. An unknown name returns 400, and values are up to 100 characters. \
 
                     **Uniqueness:** bibNumber must be unique within the event; chipNumber, when provided, must also be unique within the event (blank or omitted chip numbers are exempt). \
 
@@ -85,6 +91,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Get all participants for an event",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Retrieve paginated list of participants for a specific event. \
                     Supports DynamoDB-style pagination with lastEvaluatedKey (base64 encoded). \
                     Default limit is 50, maximum is 100."""
@@ -113,7 +120,8 @@ public interface ParticipantControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Get participant count for an event",
-            description = "Returns the total number of participants registered for an event as a simple count object {count: number}"
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. Returns the total number of "
+                    + "participants registered for an event as a simple count object {count: number}"
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Count retrieved successfully",
@@ -138,6 +146,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Lookup participants using LSI (cost-efficient alternative to search)",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR. \
                     Efficient participant lookup using DynamoDB Local Secondary Indexes (LSI). \
                     **Recommended over /search endpoint** - Uses Query operations instead of Scan, resulting in lower cost and faster performance. \
 
@@ -194,22 +203,67 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Export participants to CSV",
             description = """
-                    Export all participants for an event to CSV format. \
-                    User can select which fields to include in the export using the 'fields' parameter. \
-                    If no fields are specified, all fields are exported. \
-                    Goodies columns are dynamically generated based on participant data. \
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
+                    Downloads every participant of the event as a UTF-8, comma-separated CSV file named \
+                    `participants-event-{eventId}.csv`. The first row holds the headers, then one row per \
+                    participant, sorted by bib number as text (so `10` comes before `2`).
 
-                    **Available fields:** BIB_NUMBER, CHIP_NUMBER, FULL_NAME, EMAIL, PHONE_NUMBER, \
-                    DATE_OF_BIRTH, AGE, GENDER, COUNTRY, CITY, RACE_NAME, CATEGORY_NAME, \
-                    BIB_COLLECTED_AT, EMERGENCY_CONTACT_NAME, EMERGENCY_CONTACT_PHONE, NOTES, GOODIES"""
+                    **Choosing columns (`fields`):** \
+                    Send the field names you want; the columns come out in the order you send them. \
+                    Both `?fields=FULL_NAME&fields=BIB_NUMBER` and `?fields=FULL_NAME,BIB_NUMBER` work. \
+                    A field sent twice is exported once. Send no `fields` to export every field in the \
+                    default order below. An unknown field name returns 400.
+
+                    **Default order, with the header each field writes:**
+                    1. `CHIP_NUMBER` → Chip Number
+                    2. `BIB_NUMBER` → Bib Number
+                    3. `FULL_NAME` → Full Name
+                    4. `PHONE_NUMBER` → Phone Number
+                    5. `EMAIL` → Email
+                    6. `RACE_NAME` → Race Name
+                    7. `CATEGORY_NAME` → Category Name
+                    8. `AGE` → Age
+                    9. `GENDER` → Gender
+                    10. `DATE_OF_BIRTH` → Date Of Birth
+                    11. `CITY` → City
+                    12. `COUNTRY` → Country
+                    13. `GOODIES` → one column per goody (see below)
+                    14. `BIB_COLLECTED_AT` → Bib Collected At
+                    15. `EMERGENCY_CONTACT_NAME` → Emergency Contact Name
+                    16. `EMERGENCY_CONTACT_PHONE` → Emergency Contact Phone
+                    17. `NOTES` → Notes
+                    18. `ADDITIONAL_FIELDS` → one column per additional field (see below)
+
+                    **GOODIES and ADDITIONAL_FIELDS** are groups, not single columns. `GOODIES` adds one \
+                    column per goody name any participant carries, holding what that participant is owed \
+                    (for example a T-shirt size), not what was handed out. `ADDITIONAL_FIELDS` adds one \
+                    column per extra column kept from the import (the participant's `additionalFields` keys). \
+                    Inside a group the columns are sorted by name. A participant without a value gets an \
+                    empty cell, and an event with no goodies or no additional fields gets no columns from \
+                    that group.
+
+                    **Header names:** a goody or additional-field key is written as words: split at \
+                    camelCase and underscores, each word capitalised. `tShirtSize` → "T Shirt Size", \
+                    `blood_group` → "Blood Group", `Medal` → "Medal". \
+                    If a header is already used by another column (ignoring case), the fixed field keeps \
+                    it and the group column gets its group added: an additional field `city` becomes \
+                    "City (Additional)", a goody named `Notes` becomes "Notes (Goody)". Goody headers are \
+                    settled before additional-field headers.
+
+                    **Cell values:** race and category are exported by their current names. Any cell or \
+                    header starting with `=`, `+`, `-`, `@`, a tab or a carriage return is prefixed with \
+                    `'` so spreadsheet apps show it as text instead of running it as a formula."""
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "CSV file generated successfully",
+            @ApiResponse(responseCode = "200", description = "CSV file, sent as an attachment",
                     content = @Content(mediaType = "text/csv")),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
+            @ApiResponse(responseCode = "400", description = "An unknown field name in `fields`",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Event not found",
+            @ApiResponse(responseCode = "403", description = "Access forbidden - insufficient permissions",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Event not found, or not visible to the caller",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -217,8 +271,9 @@ public interface ParticipantControllerApi {
             @Parameter(description = "Event ID", required = true, example = "1")
             @PathVariable Long eventId,
 
-            @Parameter(description = "Fields to include in export. If empty, all fields are exported.",
-                    schema = @Schema(implementation = ExportField.class))
+            @Parameter(description = "Fields to export, in the column order wanted. Omit to export every "
+                    + "field in the default order.",
+                    array = @ArraySchema(schema = @Schema(implementation = ExportField.class)))
             @RequestParam(required = false) List<ExportField> fields,
 
             @AuthenticationPrincipal User currentUser
@@ -229,6 +284,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Delete all participants for an event",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     ⚠️ WARNING: This will permanently delete ALL participants for the specified event. \
                     This action cannot be undone. Use with caution. \
                     Allowed only while the event is in DRAFT; deletion is blocked once the event is published, completed, or cancelled. \
@@ -260,6 +316,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Delete specific participants by bib numbers",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Delete multiple participants in a single batch operation. \
                     **Constraints:** \
                     - Minimum 1 bib number required (empty list will be rejected) \
@@ -297,6 +354,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Get participant by bib number",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Retrieve complete details of a specific participant using their bib number. \
                     Returns all participant information including goodies, contact details, and collection status. \
                     **Note:** BIB numbers are unique within an event."""
@@ -327,6 +385,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Update participant details",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Update participant information with partial (PATCH) semantics. Only fields present in the request are applied. \
                     Editing is allowed while the event is in draft or published; it is blocked once the event is completed or cancelled. \
 
@@ -339,7 +398,8 @@ public interface ParticipantControllerApi {
                     - Emergency Contact: emergencyContactName, emergencyContactPhone \
                     - Notes \
                     - additionalFields: free-form columns, merged (see below) \
-                    - BIB Number: via the separate `newBibNumber` field; because bibNumber is the DynamoDB sort key the record is deleted and recreated under the new number \
+                    - BIB Number: via the separate `newBibNumber` field; because bibNumber is the DynamoDB sort key the record is deleted and recreated under the new number. \
+                    Refused (400) once the bib has been handed out, because the hand-out history stays with the old number; undo the collection first. \
 
                     **What Cannot Be Updated here:** \
                     - Goodies allocation: fixed at creation/import. Only the handout status changes, through the distribution endpoints. \
@@ -360,7 +420,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "200", description = "Participant updated successfully. Returns the complete updated record.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ParticipantResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request data - invalid race/category ID, invalid field values, field validation errors, or the event is completed or cancelled",
+            @ApiResponse(responseCode = "400", description = "Invalid request data - invalid race/category ID, invalid field values, field validation errors, the event is completed or cancelled, or a bib number change on a bib already handed out",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access denied - user not authorized for this event",
@@ -369,7 +429,7 @@ public interface ParticipantControllerApi {
             @ApiResponse(responseCode = "404", description = "Event, participant, race, or category not found",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "BIB number or chip number already assigned to another participant in this event",
+            @ApiResponse(responseCode = "409", description = "BIB number or chip number already assigned to another participant in this event, or the participant was changed by someone else since it was read (reload and try again)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -394,6 +454,7 @@ public interface ParticipantControllerApi {
     @Operation(
             summary = "Delete a participant by bib number",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Permanently delete a single participant from an event using their bib number. \
                     This action cannot be undone. The participant record will be completely removed from DynamoDB. \
                     Allowed only while the event is in DRAFT; deletion is blocked once the event is published, completed, or cancelled."""

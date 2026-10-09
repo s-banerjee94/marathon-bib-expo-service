@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Inventory caps. The first two are counted for the whole organization and "
+@Schema(description = "Inventory caps. The first four are counted for the whole organization and "
         + "carry their usage; the rest are ceilings on one item or one attribute and report a null usage.")
 public class InventoryQuotaDto {
 
@@ -21,6 +21,12 @@ public class InventoryQuotaDto {
 
     @Schema(description = "Places the organization may keep stock in")
     private QuotaDto locations;
+
+    @Schema(description = "Items the organization may stock")
+    private QuotaDto items;
+
+    @Schema(description = "The organization's own attributes")
+    private QuotaDto attributes;
 
     @Schema(description = "Choices allowed on one of the organization's own attributes")
     private QuotaDto optionsPerAttribute;
@@ -35,6 +41,8 @@ public class InventoryQuotaDto {
         return InventoryQuotaDto.builder()
                 .terms(QuotaDto.of(limit.getMaxInventoryTerms(), limit.getUsedInventoryTerms()))
                 .locations(QuotaDto.of(limit.getMaxInventoryLocations(), limit.getUsedInventoryLocations()))
+                .items(QuotaDto.of(limit.getMaxInventoryItems(), limit.getUsedInventoryItems()))
+                .attributes(QuotaDto.of(limit.getMaxInventoryAttributes(), limit.getUsedInventoryAttributes()))
                 .optionsPerAttribute(QuotaDto.capOnly(limit.getMaxInventoryAttributeOptions()))
                 .variantAttributesPerItem(QuotaDto.capOnly(limit.getMaxVariantAttributesPerItem()))
                 .variantsPerItem(QuotaDto.capOnly(limit.getMaxItemVariants()))

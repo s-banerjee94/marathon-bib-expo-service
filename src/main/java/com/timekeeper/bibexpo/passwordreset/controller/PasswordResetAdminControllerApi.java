@@ -35,7 +35,9 @@ public interface PasswordResetAdminControllerApi {
     @Operation(
             summary = "Issue a password-reset link for a user",
             description = """
-                    Issues a one-time, short-lived link the user opens to set a new password. The caller \
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
+                    Issues a one-time, short-lived link the user opens to set a new password. Refused while \
+                    the user's organization is disabled, and a link issued earlier cannot be used then. The caller \
                     must be allowed to manage the target user (ROOT/ADMIN any user; ORGANIZER_ADMIN and \
                     ORGANIZER_USER only within their organization and only lower-privileged users). The \
                     link is always returned so the administrator can share it; if delivery channels are \
@@ -46,7 +48,8 @@ public interface PasswordResetAdminControllerApi {
             @ApiResponse(responseCode = "200", description = "Reset link issued",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = PasswordResetLinkResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Caller targeted their own account (use change/forgot password instead)",
+            @ApiResponse(responseCode = "400", description = "Caller targeted their own account (use change/forgot password instead), "
+                    + "or the user's organization is disabled",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Caller not allowed to manage the target user",

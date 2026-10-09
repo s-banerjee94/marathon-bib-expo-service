@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.event.model.entity.Event;
 import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Component;
  * feature-gate rules) added there apply to every event-scoped operation
  * automatically.
  */
+@Slf4j
 @Component
 public class EventAccessValidator {
 
@@ -90,8 +92,17 @@ public class EventAccessValidator {
         }
         Event assigned = currentUser.getEvent();
         if (assigned == null || !assigned.getId().equals(event.getId())) {
+            logHidden("event_not_assigned", event);
             throw new EventNotFoundException();
         }
+    }
+
+    private void logHidden(String reason, Event event) {
+        log.atWarn()
+                .addKeyValue("event", "authz.denied")
+                .addKeyValue("reason", reason)
+                .addKeyValue("eventId", event.getId())
+                .log("Event access hidden as not found");
     }
 
     private boolean isPlatformAdmin(User currentUser) {
@@ -106,6 +117,7 @@ public class EventAccessValidator {
         // Events outside the caller's organization are reported as not found so their
         // existence is not disclosed across organizations.
         if (!event.getOrganization().getId().equals(currentUser.getOrganization().getId())) {
+            logHidden("event_not_own_organization", event);
             throw new EventNotFoundException();
         }
         enforceDistributorEventScope(currentUser, event);

@@ -1,7 +1,9 @@
 package com.timekeeper.bibexpo.inventory.repository;
 
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryStock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -28,6 +30,34 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
     List<InventoryStock> findByVariantIdIn(List<Long> variantIds);
 
     /**
+     * Creates the balance at zero unless the variant already has one at this location. One statement,
+     * so two first postings at the same instant both end up on the same row: the second waits for the
+     * first to commit and then leaves its row alone, where a read-then-insert would fail on the unique key.
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO inventory_stock
+              (variant_id, location_id, on_hand, created_at, created_by, updated_at, last_modified_by)
+            VALUES (:variantId, :locationId, 0, :now, :actor, :now, :actor)
+            ON DUPLICATE KEY UPDATE id = id
+            """, nativeQuery = true)
+    void insertIfMissing(@Param("variantId") Long variantId, @Param("locationId") Long locationId,
+                         @Param("now") Instant now, @Param("actor") String actor);
+
+    /**
+     * The balance, read and locked as it stands now. A plain read would answer from the transaction's
+     * snapshot, which misses a row another posting created and committed after this transaction began.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM InventoryStock s WHERE s.variantId = :variantId AND s.locationId = :locationId")
+    InventoryStock lockByVariantIdAndLocationId(@Param("variantId") Long variantId,
+                                                @Param("locationId") Long locationId);
+
+    @Query("SELECT COALESCE(SUM(s.onHand), 0) FROM InventoryStock s "
+            + "WHERE s.variantId IN (SELECT v.id FROM InventoryVariant v WHERE v.itemId = :itemId)")
+    long sumOnHandByItemId(@Param("itemId") Long itemId);
+
+    /**
      * Deducts {@code qty} from {@code onHand} in one statement. Succeeds only if enough stock is on
      * hand, or {@code allowNegative} is true. Returns 0 rows affected when a {@code BLOCK} policy
      * shortage occurs — the caller must then throw {@code InsufficientStockException}.
@@ -38,10 +68,14 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
     int deduct(@Param("id") Long id, @Param("qty") Integer qty, @Param("allowNegative") boolean allowNegative,
                @Param("now") Instant now, @Param("actor") String actor);
 
-    /** Adds {@code qty} to {@code onHand} in one statement, stamping the change onto the balance. */
+    /**
+     * Adds {@code qty} to {@code onHand} in one statement, stamping the change onto the balance. Succeeds
+     * only if the balance stays at or below 1,000,000, or {@code allowAboveCap} is true. Returns 0 rows
+     * affected otherwise — the caller must then throw {@code StockCapacityExceededException}.
+     */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE InventoryStock s SET s.onHand = s.onHand + :qty, s.updatedAt = :now, s.lastModifiedBy = :actor "
-            + "WHERE s.id = :id")
-    int add(@Param("id") Long id, @Param("qty") Integer qty, @Param("now") Instant now,
-            @Param("actor") String actor);
+            + "WHERE s.id = :id AND (s.onHand + :qty <= 1000000 OR :allowAboveCap = true)")
+    int add(@Param("id") Long id, @Param("qty") Integer qty, @Param("allowAboveCap") boolean allowAboveCap,
+            @Param("now") Instant now, @Param("actor") String actor);
 }

@@ -37,6 +37,8 @@ public interface InventoryGoodieMappingControllerApi {
     @Operation(
             summary = "List an event's goody links",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Every goodies column of this event that has been pointed at an item, in name \
                     order. A column that has never been linked simply does not appear.
 
@@ -154,6 +156,8 @@ public interface InventoryGoodieMappingControllerApi {
     @Operation(
             summary = "Link a goody to an item and a location",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Points one goodies column at the item it is handed out from. The name must \
                     match the column heading the import stored, character for character, because \
                     that is the key a participant's entitlement is held under.
@@ -196,6 +200,8 @@ public interface InventoryGoodieMappingControllerApi {
     @Operation(
             summary = "Point a goody at a different item or location",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Changes which item a goody comes out of, and which location it is handed out \
                     from. Both are replaced, not merged: omitting `locationId` clears the \
                     location, which a published event does not allow, so send the current value \
@@ -230,6 +236,8 @@ public interface InventoryGoodieMappingControllerApi {
     @Operation(
             summary = "Unlink a goody",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Removes the link. Nothing else is touched: the participants keep their \
                     entitlements and the item keeps its stock, the goody simply stops pointing \
                     anywhere."""

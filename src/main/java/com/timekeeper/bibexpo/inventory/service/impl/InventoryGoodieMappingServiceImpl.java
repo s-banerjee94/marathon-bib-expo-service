@@ -113,8 +113,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                 .locationId(location == null ? null : location.getId())
                 .build());
 
-        log.info("Linked goody '{}' of event {} to inventory item {} at location {}",
-                goodieName, eventId, item.getId(), mapping.getLocationId());
+        logLink("inventory.goodie_linked", "Goody linked to inventory", mapping);
         return InventoryGoodieMappingResponse.of(mapping, item.getName(),
                 location == null ? null : location.getName());
     }
@@ -136,8 +135,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
         mapping.setLocationId(location == null ? null : location.getId());
         InventoryGoodieMapping saved = mappingRepository.saveAndFlush(mapping);
 
-        log.info("Goody '{}' of event {} now points at inventory item {} at location {}",
-                saved.getGoodieName(), eventId, item.getId(), saved.getLocationId());
+        logLink("inventory.goodie_relinked", "Goody link changed", saved);
         return InventoryGoodieMappingResponse.of(saved, item.getName(),
                 location == null ? null : location.getName());
     }
@@ -150,7 +148,18 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
 
         InventoryGoodieMapping mapping = requireMapping(mappingId, eventId, organizationId);
         mappingRepository.delete(mapping);
-        log.info("Unlinked goody '{}' of event {}", mapping.getGoodieName(), eventId);
+        logLink("inventory.goodie_unlinked", "Goody unlinked from inventory", mapping);
+    }
+
+    private static void logLink(String event, String message, InventoryGoodieMapping mapping) {
+        log.atInfo()
+                .addKeyValue("event", event)
+                .addKeyValue("targetOrgId", mapping.getOrganizationId())
+                .addKeyValue("eventId", mapping.getEventId())
+                .addKeyValue("goodie", mapping.getGoodieName())
+                .addKeyValue("itemId", mapping.getItemId())
+                .addKeyValue("locationId", mapping.getLocationId())
+                .log(message);
     }
 
     @Override
@@ -379,7 +388,6 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                 .orElseThrow(InventoryItemNotFoundException::new);
 
         if (variantAttributeValueRepository.findDistinctAttributeIdsByItemId(itemId).size() > 1) {
-            log.info("Item {} varies by more than one attribute and cannot back a goody", itemId);
             throw new InventoryItemNotMappableException();
         }
         return item;

@@ -24,11 +24,11 @@ public class PlatformDailyStatsSnapshotJob {
     @Scheduled(cron = "0 10 0 * * *", zone = "UTC")
     public void runDailySnapshot() {
         LocalDate yesterday = LocalDate.now(ZoneOffset.UTC).minusDays(1);
-        log.info("Platform daily snapshot job started for date: {}", yesterday);
         try {
             platformDailyStatsService.snapshotForDate(yesterday);
         } catch (Exception e) {
-            log.error("Platform daily snapshot failed for date: {}", yesterday, e);
+            log.atError().addKeyValue("event", "reporting.platform_snapshot.failed").addKeyValue("date", yesterday)
+                    .setCause(e).log("Platform daily snapshot failed");
         }
     }
 
@@ -37,7 +37,8 @@ public class PlatformDailyStatsSnapshotJob {
         try {
             platformDailyStatsService.backfillHistory();
         } catch (Exception e) {
-            log.error("Platform stats backfill failed on startup", e);
+            log.atError().addKeyValue("event", "reporting.platform_backfill.failed").setCause(e)
+                    .log("Platform stats backfill failed on startup");
         }
     }
 }

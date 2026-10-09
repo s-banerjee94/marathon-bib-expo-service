@@ -15,6 +15,7 @@ import java.util.List;
  */
 public interface MessagingProviderAdminService {
 
+    /** Every SYSTEM provider row, ordered by channel, secrets masked. */
     List<MessagingProviderResponse> list();
 
     /**
@@ -32,11 +33,32 @@ public interface MessagingProviderAdminService {
     /** Campaign providers for the scope: platform defaults when organizationId is null, else the org's overrides. */
     List<MessagingProviderResponse> listCampaignProviders(Long organizationId, User currentUser);
 
+    /**
+     * @throws com.timekeeper.bibexpo.messaging.shared.exception.MessagingConfigNotFoundException
+     *         if the scope has no campaign provider for the channel
+     */
     MessagingProviderResponse getCampaignProvider(MessageChannel channel, Long organizationId, User currentUser);
 
+    /**
+     * Creates the scope's campaign provider for the channel or replaces its fields. Blank secret fields keep
+     * the stored value. Switching off an enabled sender is refused while campaigns are armed on it, unless
+     * {@code force} is set on the platform default.
+     *
+     * @throws com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderInUseException
+     *         if armed campaigns depend on the sender being switched off
+     */
     MessagingProviderResponse saveCampaignProvider(MessageChannel channel, Long organizationId, boolean force,
                                                    SaveMessagingProviderRequest request, User currentUser);
 
+    /**
+     * Removes the scope's campaign provider for the channel, under the same armed-campaign rule as switching
+     * it off; campaigns then fall back to the platform default.
+     *
+     * @throws com.timekeeper.bibexpo.messaging.shared.exception.MessagingConfigNotFoundException
+     *         if the scope has no campaign provider for the channel
+     * @throws com.timekeeper.bibexpo.messaging.provider.exception.MessagingProviderInUseException
+     *         if armed campaigns depend on the sender
+     */
     void deleteCampaignProvider(MessageChannel channel, Long organizationId, boolean force, User currentUser);
 
     /** Fires one real message through the stored provider to verify it; throws if the send fails. */

@@ -14,6 +14,7 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryItemRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryLocationRepository;
 import com.timekeeper.bibexpo.inventory.repository.InventoryTermRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryTermService;
+import com.timekeeper.bibexpo.inventory.service.util.InventoryLimitLog;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
 import com.timekeeper.bibexpo.organization.api.InventoryQuota;
 import com.timekeeper.bibexpo.user.model.entity.User;
@@ -72,7 +73,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
                 .name(name)
                 .build());
 
-        log.info("Created inventory term '{}' ({}) for organization {}", name, kind, organizationId);
+        logTerm("inventory.term_created", "Inventory term created", term);
         return InventoryTermResponse.fromEntity(term);
     }
 
@@ -90,7 +91,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
         term.setName(name);
 
         InventoryTerm saved = termRepository.saveAndFlush(term);
-        log.info("Renamed inventory term {} to '{}' for organization {}", termId, name, organizationId);
+        logTerm("inventory.term_renamed", "Inventory term renamed", saved);
         return InventoryTermResponse.fromEntity(saved);
     }
 
@@ -109,7 +110,7 @@ public class InventoryTermServiceImpl implements InventoryTermService {
 
         termRepository.delete(term);
         inventoryQuota.releaseTerm(organizationId);
-        log.info("Deleted inventory term {} for organization {}", termId, organizationId);
+        logTerm("inventory.term_deleted", "Inventory term deleted", term);
     }
 
     // ---- lookups ----------------------------------------------------------------
@@ -133,8 +134,17 @@ public class InventoryTermServiceImpl implements InventoryTermService {
 
     private void reserveTermSlot(Long organizationId) {
         if (!inventoryQuota.tryReserveTerm(organizationId)) {
-            log.error("Organization {} has reached its inventory term limit", organizationId);
+            InventoryLimitLog.limitReached(organizationId, "TERMS");
             throw new InventoryTermLimitReachedException();
         }
+    }
+
+    private static void logTerm(String event, String message, InventoryTerm term) {
+        log.atInfo()
+                .addKeyValue("event", event)
+                .addKeyValue("targetOrgId", term.getOrganizationId())
+                .addKeyValue("termId", term.getId())
+                .addKeyValue("kind", term.getKind())
+                .log(message);
     }
 }

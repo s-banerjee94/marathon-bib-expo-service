@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.event.race.category.controller;
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.response.CategoryResponse;
-import com.timekeeper.bibexpo.event.race.category.model.enums.Gender;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,7 +31,8 @@ public interface CategoryControllerApi {
     @Operation(
             summary = "Get all categories for a race",
             description = """
-                    Retrieve all categories for a specific race with optional gender filtering. \
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER, DISTRIBUTOR. \
+                    Retrieve all categories for a specific race. \
                     ROOT and ADMIN can access categories for any race. \
                     ORGANIZER_ADMIN, ORGANIZER_USER and DISTRIBUTOR can only access categories for races in their organization's events."""
     )
@@ -67,8 +67,6 @@ public interface CategoryControllerApi {
             @PathVariable Long eventId,
             @Parameter(description = "Race ID", required = true)
             @PathVariable Long raceId,
-            @Parameter(description = "Filter by gender")
-            @RequestParam(required = false) Gender gender,
             @AuthenticationPrincipal User currentUser);
 
     @GetMapping("/{categoryId}")

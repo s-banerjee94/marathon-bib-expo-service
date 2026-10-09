@@ -3,7 +3,6 @@ package com.timekeeper.bibexpo.demo.service;
 import com.timekeeper.bibexpo.demo.model.DemoSession;
 import com.timekeeper.bibexpo.demo.model.DemoSessionStatus;
 import com.timekeeper.bibexpo.demo.model.dto.response.DemoSessionStatusResponse;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,7 +20,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * also caps concurrent streams. Polling /status remains the client's fallback.
  */
 @Component
-@Slf4j
 public class DemoSessionEvents {
 
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();

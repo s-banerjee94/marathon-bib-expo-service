@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.participant.model.dto.request;
 
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -33,11 +34,12 @@ public class UpdateParticipantRequest {
     @Schema(description = "Phone number (10 digits)", example = "9434739700", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String phoneNumber;
 
+    @Size(max = 50, message = "Date of birth cannot exceed 50 characters")
     @Schema(description = "Date of birth (dd-mm-yyyy)", example = "21-07-1984", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String dateOfBirth;
 
-    @Min(value = 0, message = "Age must be non-negative")
-    @Max(value = 150, message = "Age must be reasonable")
+    @Min(value = 4, message = "The age must be greater than 3.")
+    @Max(value = 150, message = "The age must be 150 or less.")
     @Schema(description = "Participant age", example = "41", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Integer age;
 
@@ -53,13 +55,16 @@ public class UpdateParticipantRequest {
     @Schema(description = "City", example = "RANIGANJ", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String city;
 
+    @Pattern(regexp = "^\\d*$", message = "Race ID must be a number")
     @Schema(description = "Race ID (must exist in event)", example = "3", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String raceId;
 
+    @Pattern(regexp = "^\\d*$", message = "Category ID must be a number")
     @Schema(description = "Category ID (must exist in race)", example = "35", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String categoryId;
 
-    @Schema(description = "New BIB number (WARNING: Changes require delete+create in DynamoDB)", example = "21002", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    @Size(max = 50, message = "BIB number cannot exceed 50 characters")
+    @Schema(description = "New BIB number. Refused once the bib has been handed out; undo the collection first.", example = "21002", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String newBibNumber;
 
     @Size(max = 200, message = "Emergency contact name cannot exceed 200 characters")
@@ -70,17 +75,20 @@ public class UpdateParticipantRequest {
     @Pattern(regexp = "^(\\d{10})?$", message = "must be a 10-digit number")
     private String emergencyContactPhone;
 
-    @Size(max = 500, message = "Notes cannot exceed 500 characters")
+    @Size(max = 200, message = "Notes cannot exceed 200 characters")
     @Schema(description = "Additional notes", example = "Special accommodation needed", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String notes;
 
+    @Size(max = 50, message = "Bib collection time cannot exceed 50 characters")
     @Schema(description = "Timestamp when bib was collected (ISO format)", example = "2026-01-14T10:30:00", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String bibCollectedAt;
 
     @Schema(description = """
             Additional free-form columns to merge. Include only the keys you want to change: a non-empty value \
             adds or overwrites that key, a null or empty value removes it, and any key you omit is left unchanged. \
-            Omit this object entirely to leave all extra columns untouched.""",
+            Omit this object entirely to leave all extra columns untouched. After the merge a participant may \
+            hold at most 50 additional fields; names are up to 100 characters and values up to 200.""",
             example = "{\"tShirtSize\": \"M\", \"oldColumn\": null}", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-    private Map<String, String> additionalFields;
+    private Map<@Size(max = ParticipantDDB.MAX_ADDITIONAL_FIELD_NAME, message = "An additional field name cannot exceed {max} characters") String,
+            @Size(max = ParticipantDDB.MAX_ADDITIONAL_FIELD_VALUE, message = "An additional field value cannot exceed {max} characters") String> additionalFields;
 }

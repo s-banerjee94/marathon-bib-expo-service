@@ -50,7 +50,7 @@ public class WhatsAppTemplateServiceImpl
                                        EventAccessValidator eventAccessValidator,
                                        EventOperationGuard eventOperationGuard,
                                        TemplateSenderStamp senderStamp) {
-        super("WhatsApp", templateRepository, eventStore, eventAccessValidator, eventOperationGuard);
+        super(MessageChannel.WHATSAPP, templateRepository, eventStore, eventAccessValidator, eventOperationGuard);
         this.templateRepository = templateRepository;
         this.campaignRepository = campaignRepository;
         this.senderStamp = senderStamp;
@@ -60,13 +60,11 @@ public class WhatsAppTemplateServiceImpl
     @Override
     @Transactional
     public WhatsAppTemplateResponse createTemplate(Long eventId, CreateWhatsAppTemplateRequest request, User currentUser) {
-        log.info("Creating WhatsApp template for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
         requireTemplateWriteAllowed(event);
 
         if (templateRepository.countByEventId(eventId) >= MAX_TEMPLATES_PER_EVENT) {
-            throw new InvalidWhatsAppTemplateException("An event can have a maximum of 20 WhatsApp templates.");
+            throw new InvalidWhatsAppTemplateException("You can have at most 20 WhatsApp templates per event.");
         }
 
         if (templateRepository.existsByContentSidAndEventId(request.getContentSid(), eventId)) {
@@ -95,8 +93,7 @@ public class WhatsAppTemplateServiceImpl
                 .build();
 
         WhatsAppTemplate saved = templateRepository.save(template);
-        log.info("Successfully created WhatsApp template with ID: {} for event ID: {} by user: {}",
-                saved.getId(), eventId, currentUser.getUsername());
+        logWrite("campaign.template.created", eventId, saved.getId());
 
         return WhatsAppTemplateResponse.fromEntity(saved, event);
     }
@@ -105,9 +102,6 @@ public class WhatsAppTemplateServiceImpl
     @Override
     @Transactional
     public WhatsAppTemplateResponse updateTemplate(Long eventId, Long templateId, UpdateWhatsAppTemplateRequest request, User currentUser) {
-        log.info("Updating WhatsApp template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
         requireTemplateWriteAllowed(event);
 
@@ -145,8 +139,7 @@ public class WhatsAppTemplateServiceImpl
         TextUtils.applyIfSent(request.getNote(), template::setNote);
 
         WhatsAppTemplate updated = templateRepository.saveAndFlush(template);
-        log.info("Successfully updated WhatsApp template ID: {} for event ID: {} by user: {}",
-                updated.getId(), eventId, currentUser.getUsername());
+        logWrite("campaign.template.updated", eventId, templateId);
 
         return WhatsAppTemplateResponse.fromEntity(updated, event);
     }

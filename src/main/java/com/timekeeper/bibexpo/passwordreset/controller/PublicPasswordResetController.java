@@ -23,7 +23,6 @@ public class PublicPasswordResetController implements PublicPasswordResetControl
 
     @Override
     public ResponseEntity<Void> forgotPassword(ForgotPasswordRequest request) {
-        log.info("Public forgot-password request received");
         passwordResetService.requestReset(request);
         // Always the same response, so account existence is never disclosed.
         return ResponseEntity.ok().build();
@@ -31,20 +30,23 @@ public class PublicPasswordResetController implements PublicPasswordResetControl
 
     @Override
     public ResponseEntity<PasswordResetTokenStatusResponse> validateToken(String token) {
-        log.info("Public request to validate a password reset token");
         return ResponseEntity.ok(passwordResetService.validate(token));
     }
 
     @Override
     public ResponseEntity<Void> completeReset(String token, CompletePasswordResetRequest request) {
-        log.info("Public request to complete a password reset");
         passwordResetService.completeReset(token, request);
         return ResponseEntity.noContent().build();
     }
 
     @ExceptionHandler(PasswordResetInvalidException.class)
     public ResponseEntity<ErrorResponse> handleResetInvalid(PasswordResetInvalidException ex, WebRequest request) {
-        log.warn("Password reset rejected: {}", ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.NOT_FOUND.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
     }

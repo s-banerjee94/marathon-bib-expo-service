@@ -20,16 +20,19 @@ public class OrgDailyStatsSnapshotJob {
     @Scheduled(cron = "0 5 0 * * *", zone = "UTC")
     public void runDailySnapshot() {
         LocalDate yesterday = LocalDate.now(ZoneOffset.UTC).minusDays(1);
-        log.info("Daily snapshot job started for date: {}", yesterday);
-
-        reportingOrganizationRepository.findAllActiveIds().forEach(orgId -> {
+        int saved = 0;
+        int failed = 0;
+        for (Long orgId : reportingOrganizationRepository.findAllActiveIds()) {
             try {
                 orgDailyStatsService.snapshotForDate(orgId, yesterday);
+                saved++;
             } catch (Exception e) {
-                log.error("Snapshot failed — orgId: {}, date: {}", orgId, yesterday, e);
+                failed++;
+                log.atError().addKeyValue("event", "reporting.org_snapshot.failed").addKeyValue("orgId", orgId)
+                        .addKeyValue("date", yesterday).setCause(e).log("Organization daily snapshot failed");
             }
-        });
-
-        log.info("Daily snapshot job completed for date: {}", yesterday);
+        }
+        log.atInfo().addKeyValue("event", "reporting.org_snapshot.completed").addKeyValue("date", yesterday)
+                .addKeyValue("saved", saved).addKeyValue("failed", failed).log("Organization daily snapshots done");
     }
 }

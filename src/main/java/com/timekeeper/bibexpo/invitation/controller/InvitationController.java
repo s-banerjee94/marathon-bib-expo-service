@@ -6,21 +6,18 @@ import com.timekeeper.bibexpo.invitation.service.InvitationService;
 import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@Slf4j
 public class InvitationController implements InvitationControllerApi {
 
     private final InvitationService invitationService;
 
     @Override
     public ResponseEntity<InvitationLinkResponse> createInvitation(CreateInvitationRequest request, User currentUser) {
-        log.info("Request to issue invite for role: {} by: {}", request.getRole(), currentUser.getUsername());
         InvitationLinkResponse response = invitationService.createInvitation(request, CurrentActor.from(currentUser));
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

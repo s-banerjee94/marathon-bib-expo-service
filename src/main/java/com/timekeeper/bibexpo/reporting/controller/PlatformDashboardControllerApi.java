@@ -30,7 +30,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface PlatformDashboardControllerApi {
 
     @Operation(summary = "Get platform dashboard snapshot",
-            description = "Returns a single global rollup of organization, event, and user stats plus the platform "
+            description = "**Roles:** ROOT, ADMIN. "
+                    + "Returns a single global rollup of organization, event, and user stats plus the platform "
                     + "growth trend. `range` drives KPI numbers and the range-able doughnuts; `tierRange`, `statusRange`, "
                     + "and `citiesRange` override it for their respective sections. Users and trends are always all-time. "
                     + "ROOT or ADMIN only.")
@@ -77,7 +78,7 @@ public interface PlatformDashboardControllerApi {
     );
 
     @Operation(summary = "Force-refresh the platform dashboard snapshot",
-            description = "Evicts the cached snapshot and recomputes it. Returns the fresh result. ROOT or ADMIN only.")
+            description = "**Roles:** ROOT, ADMIN. Evicts the cached snapshot and recomputes it. Returns the fresh result.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Dashboard snapshot refreshed",
                     content = @Content(mediaType = "application/json",
@@ -121,9 +122,10 @@ public interface PlatformDashboardControllerApi {
     );
 
     @Operation(summary = "Get platform revenue summary",
-            description = "Revenue collected (paid) across the platform: a headline figure for the range, a signed "
+            description = "**Roles:** ROOT, ADMIN. "
+                    + "Revenue collected (paid) across the platform: a headline figure for the range, a signed "
                     + "delta vs the previous equal-length period, and per-bucket bars. \"Earned\" = money collected "
-                    + "(FINAL bills marked PAID), summed by payment date. ROOT or ADMIN only.")
+                    + "(FINAL bills marked PAID), summed by payment date.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Revenue summary returned (zeroed when no data)",
                     content = @Content(mediaType = "application/json",

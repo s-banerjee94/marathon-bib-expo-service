@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.WhatsAppTemp
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -33,6 +34,8 @@ public interface WhatsAppTemplateControllerApi {
     @Operation(
             summary = "Create a WhatsApp template",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Registers an approved Twilio Content Template (by its `HX…` Content SID) for an \
                     event. `body` is the approved message text with positional `{{n}}` markers, stored \
                     so the message is readable in the app. `bodyVariables` is an ordered list — entry \
@@ -71,10 +74,12 @@ public interface WhatsAppTemplateControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "List WhatsApp templates",
-            description = "Lists an event's WhatsApp templates, optionally filtered by a search term over name and Content SID."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nLists an event's WhatsApp templates, optionally filtered by a search term over name and Content SID."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Templates retrieved"),
+            @ApiResponse(responseCode = "200", description = "Templates retrieved",
+                    content = @Content(mediaType = "application/json",
+                            array = @ArraySchema(schema = @Schema(implementation = WhatsAppTemplateResponse.class)))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
@@ -94,13 +99,13 @@ public interface WhatsAppTemplateControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Update a WhatsApp template",
-            description = "Partially updates a template; absent fields are left unchanged. Sending an empty `bodyVariables` list clears the variables."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nPartially updates a template; absent fields are left unchanged. Sending an empty `bodyVariables` list clears the variables. A template used by a campaign that is sending or has been sent cannot be changed."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Template updated",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = WhatsAppTemplateResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Validation error or invalid placeholders",
+            @ApiResponse(responseCode = "400", description = "Validation error, invalid placeholders, or the template is used by a sending or sent campaign",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
@@ -124,9 +129,13 @@ public interface WhatsAppTemplateControllerApi {
      */
     @DeleteMapping("/{templateId}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(summary = "Delete a WhatsApp template")
+    @Operation(summary = "Delete a WhatsApp template",
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nCannot delete a template that is referenced by one or more campaigns.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Template deleted"),
+            @ApiResponse(responseCode = "400", description = "Template is in use by one or more campaigns",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),

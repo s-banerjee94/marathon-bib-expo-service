@@ -40,6 +40,8 @@ public interface AuditLogControllerApi {
     @Operation(
             summary = "Get audit log entries (recent feed + filtered search)",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER.
+
                     <h3>Overview</h3>
                     <p>Returns audit log entries <strong>newest first</strong> with cursor-based pagination.
                     A single endpoint covers two use cases:</p>
@@ -68,10 +70,10 @@ public interface AuditLogControllerApi {
                     <table border="1" cellpadding="6" cellspacing="0">
                       <thead><tr><th>Value</th><th>Meaning</th><th>Emitted when</th></tr></thead>
                       <tbody>
-                        <tr><td><code>CREATE</code></td><td>A new entity was created</td><td>create-org / create-event / create-race / create-category / create-user / create-sms-template / create-sms-campaign</td></tr>
-                        <tr><td><code>UPDATE</code></td><td>An existing entity was modified</td><td>update endpoints for org / event / race / category / user / sms-template / sms-campaign</td></tr>
-                        <tr><td><code>DELETE</code></td><td>An entity was deleted</td><td>delete endpoints for event / race / category / user / sms-template / sms-campaign</td></tr>
-                        <tr><td><code>STATUS_CHANGE</code></td><td>An entity's status / enabled flag flipped</td><td>enable-or-disable on org / event / user, plus disarm on sms-campaign (ACTIVE → DRAFT)</td></tr>
+                        <tr><td><code>CREATE</code></td><td>A new entity was created</td><td>Any create endpoint of the entity types below; a stock receipt, transfer or adjustment creates a <code>STOCK_MOVEMENT</code></td></tr>
+                        <tr><td><code>UPDATE</code></td><td>An existing entity was modified</td><td>Any update endpoint of the entity types below</td></tr>
+                        <tr><td><code>DELETE</code></td><td>An entity was deleted</td><td>Any delete endpoint of the entity types below</td></tr>
+                        <tr><td><code>STATUS_CHANGE</code></td><td>An entity's status / enabled flag flipped</td><td>enable-or-disable on org / event / user, a campaign disarm (ACTIVE → DRAFT), or an invoice's payment status</td></tr>
                         <tr><td><code>LOGIN</code></td><td>A user successfully authenticated</td><td><code>POST /api/auth/login</code> after credentials accepted</td></tr>
                         <tr><td><code>GENERATE</code></td><td>A short-lived artifact was generated</td><td>Participant-access verification short-URLs (QR / SMS) issued in bulk</td></tr>
                         <tr><td><code>IMPORT</code></td><td>A bulk CSV participant import was launched</td><td><code>POST /api/events/{eventId}/participants/batch-import</code> after the mapping is accepted and the job starts</td></tr>
@@ -84,8 +86,8 @@ public interface AuditLogControllerApi {
                     <table border="1" cellpadding="6" cellspacing="0">
                       <thead><tr><th>Value</th><th>What it refers to</th><th>Actions that can target it</th></tr></thead>
                       <tbody>
-                        <tr><td><code>ORGANIZATION</code></td><td>A marathon organizer tenant</td><td>CREATE, UPDATE, STATUS_CHANGE</td></tr>
-                        <tr><td><code>USER</code></td><td>A platform user account (ROOT / ADMIN / ORGANIZER_ADMIN / ORGANIZER_USER)</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE, LOGIN, PASSWORD_RESET</td></tr>
+                        <tr><td><code>ORGANIZATION</code></td><td>A marathon organizer tenant</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE</td></tr>
+                        <tr><td><code>USER</code></td><td>A platform user account (ROOT / ADMIN / ORGANIZER_ADMIN / ORGANIZER_USER / DISTRIBUTOR)</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE, LOGIN, PASSWORD_RESET</td></tr>
                         <tr><td><code>EVENT</code></td><td>A marathon event under an organization</td><td>CREATE, UPDATE, STATUS_CHANGE, DELETE</td></tr>
                         <tr><td><code>RACE</code></td><td>A race inside an event</td><td>CREATE, UPDATE, DELETE</td></tr>
                         <tr><td><code>CATEGORY</code></td><td>An age / gender category inside a race</td><td>CREATE, UPDATE, DELETE</td></tr>
@@ -97,6 +99,8 @@ public interface AuditLogControllerApi {
                         <tr><td><code>PARTICIPANT</code></td><td>Participant records of an event (currently via bulk CSV import)</td><td>IMPORT</td></tr>
                         <tr><td><code>PARTICIPANT_MESSAGE</code></td><td>A targeted SMS / WhatsApp send to named participants; <code>entityLabel</code> carries the channel and bib numbers</td><td>SEND</td></tr>
                         <tr><td><code>INVOICE</code></td><td>A usage-based bill raised against an event</td><td>GENERATE, UPDATE, STATUS_CHANGE</td></tr>
+                        <tr><td><code>INVENTORY_ITEM</code></td><td>A stock item in the organization's inventory catalogue</td><td>CREATE, UPDATE, DELETE</td></tr>
+                        <tr><td><code>STOCK_MOVEMENT</code></td><td>A stock receipt, transfer or adjustment</td><td>CREATE</td></tr>
                       </tbody>
                     </table>
                     <p><em>Note:</em> Individual participant create / update / delete actions and distribution events (bib collected, goodies given) are <strong>not</strong> recorded in this audit log — distribution has its own dedicated log. Bulk CSV imports <strong>are</strong> recorded as <code>entityType=PARTICIPANT</code>, <code>action=IMPORT</code>, with the <code>entityId</code> set to the event id and the <code>entityLabel</code> set to the event name.</p>

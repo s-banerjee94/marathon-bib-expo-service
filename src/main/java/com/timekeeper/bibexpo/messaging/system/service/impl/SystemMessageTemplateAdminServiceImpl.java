@@ -12,8 +12,10 @@ import com.timekeeper.bibexpo.messaging.system.repository.SystemMessageTemplateR
 import com.timekeeper.bibexpo.messaging.system.service.SystemMessageTemplateAdminService;
 import com.timekeeper.bibexpo.messaging.system.service.SystemMessageTemplateCache;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.Comparator;
 import java.util.List;
@@ -21,6 +23,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SystemMessageTemplateAdminServiceImpl implements SystemMessageTemplateAdminService {
 
     private final SystemMessageTemplateRepository templateRepository;
@@ -59,6 +62,9 @@ public class SystemMessageTemplateAdminServiceImpl implements SystemMessageTempl
 
         SystemMessageTemplate saved = templateRepository.save(template);
         templateCache.evict(purpose, channel);
+        log.atInfo().addKeyValue("event", "message.system_template_saved").addKeyValue("purpose", purpose)
+                .addKeyValue("channel", channel).addKeyValue("enabled", saved.isEnabled())
+                .log("System message template saved");
         return toResponse(saved);
     }
 
@@ -74,7 +80,7 @@ public class SystemMessageTemplateAdminServiceImpl implements SystemMessageTempl
         if (!request.isEnabled()) {
             return;
         }
-        if (isBlank(request.getBody()) && isBlank(request.getVariables())) {
+        if (!StringUtils.hasText(request.getBody()) && !StringUtils.hasText(request.getVariables())) {
             throw new InvalidSystemMessageTemplateException(
                     "Add a body or variables before enabling this template.");
         }
@@ -87,13 +93,13 @@ public class SystemMessageTemplateAdminServiceImpl implements SystemMessageTempl
         if (!invalid.isEmpty()) {
             throw new InvalidSystemMessageTemplateException("The template " + field
                     + " uses placeholders this message cannot fill: " + String.join(", ", invalid)
-                    + ". Available: " + available(purpose) + ".");
+                    + " (available: " + available(purpose) + ").");
         }
     }
 
     private void requireVariable(SystemTemplatePurpose purpose, String content, String field) {
         String required = purpose.getRequiredVariable();
-        if (!isBlank(content) && !MessageTemplateParser.containsPlaceholder(content, required)) {
+        if (StringUtils.hasText(content) && !MessageTemplateParser.containsPlaceholder(content, required)) {
             throw new InvalidSystemMessageTemplateException("The template " + field
                     + " must include #{" + required + "}, otherwise the message goes out without it.");
         }
@@ -103,10 +109,6 @@ public class SystemMessageTemplateAdminServiceImpl implements SystemMessageTempl
         return purpose.getVariables().stream().sorted()
                 .map(name -> "#{" + name + "}")
                 .collect(Collectors.joining(", "));
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
     }
 
     private SystemMessageTemplate findOrThrow(SystemTemplatePurpose purpose, MessageChannel channel) {

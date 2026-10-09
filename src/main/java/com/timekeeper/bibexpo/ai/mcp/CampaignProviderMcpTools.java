@@ -7,7 +7,6 @@ import com.timekeeper.bibexpo.messaging.shared.enums.MessageChannel;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -16,7 +15,6 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class CampaignProviderMcpTools implements McpToolGroup {
 
     private final MessagingProviderAdminService messagingProviderAdminService;
@@ -31,7 +29,6 @@ public class CampaignProviderMcpTools implements McpToolGroup {
             @ToolParam(required = false, description = "The organization whose senders to list; omit for the platform defaults. Resolve it from the organization name with search_organizations") Long organizationId) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-        log.info("MCP list_campaign_providers - org {}, by {}", organizationId, currentUser.getUsername());
         return messagingProviderAdminService.listCampaignProviders(organizationId, currentUser);
     }
 
@@ -45,7 +42,6 @@ public class CampaignProviderMcpTools implements McpToolGroup {
             @ToolParam(required = false, description = "The organization whose sender to show; omit for the platform default. Resolve it from the organization name with search_organizations") Long organizationId) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-        log.info("MCP get_campaign_provider - channel {}, org {}, by {}", channel, organizationId, currentUser.getUsername());
         return messagingProviderAdminService.getCampaignProvider(channel, organizationId, currentUser);
     }
 
@@ -63,8 +59,6 @@ public class CampaignProviderMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP test_campaign_provider - channel {}, org {}, to '{}', by {}",
-                channel, organizationId, request.getRecipientPhone(), currentUser.getUsername());
         return messagingProviderAdminService.testSendCampaignProvider(channel, organizationId, request, currentUser);
     }
 }

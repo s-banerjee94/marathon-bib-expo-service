@@ -26,6 +26,7 @@ import com.timekeeper.bibexpo.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Instant;
@@ -53,7 +54,7 @@ public class InvitationServiceImpl implements InvitationService {
         userService.assertCanCreateUser(role, request.getOrganizationId(), request.getEventId(), actor);
 
         Set<MessageChannel> channels = request.getDeliveryChannels() == null ? Set.of() : request.getDeliveryChannels();
-        if (requiresPhone(channels) && isBlank(request.getRecipientPhone())) {
+        if (requiresPhone(channels) && !StringUtils.hasText(request.getRecipientPhone())) {
             throw new InvalidUserDataException("A phone number is required to send the invite.");
         }
 
@@ -62,7 +63,6 @@ public class InvitationServiceImpl implements InvitationService {
                 .role(role)
                 .organizationId(request.getOrganizationId())
                 .eventId(request.getEventId())
-                .invitedBy(actor.username())
                 .recipientPhone(request.getRecipientPhone())
                 .expiresAt(expiresAt)
                 .build());
@@ -72,8 +72,13 @@ public class InvitationServiceImpl implements InvitationService {
                 SystemTemplatePurpose.INVITE, channels, request.getRecipientPhone(),
                 buildContext(role, request.getOrganizationId(), inviteUrl));
 
-        log.info("Invite issued for role {} (org {}) by {} — channels: {}",
-                role, request.getOrganizationId(), actor.username(), channels);
+        log.atInfo()
+                .addKeyValue("event", "invitation.issued")
+                .addKeyValue("targetRole", role)
+                .addKeyValue("targetOrgId", request.getOrganizationId())
+                .addKeyValue("eventId", request.getEventId())
+                .addKeyValue("channels", channels)
+                .log("Invitation issued");
         return InvitationLinkResponse.builder()
                 .inviteUrl(inviteUrl)
                 .deliveries(deliveries)
@@ -82,11 +87,7 @@ public class InvitationServiceImpl implements InvitationService {
 
     @Override
     public InvitationDetailsResponse getInvitation(String token) {
-        Invitation invitation = invitationStore.peek(token);
-        if (invitation == null) {
-            throw new InvitationInvalidException("This invitation link is invalid or has expired.");
-        }
-
+        Invitation invitation = requirePending(token);
         return InvitationDetailsResponse.builder()
                 .role(invitation.getRole().name())
                 .organizationId(invitation.getOrganizationId())
@@ -100,18 +101,27 @@ public class InvitationServiceImpl implements InvitationService {
 
     @Override
     public UserResponse acceptInvitation(String token, AcceptInvitationRequest request) {
-        Invitation invitation = invitationStore.peek(token);
-        if (invitation == null) {
-            throw new InvitationInvalidException("This invitation link is invalid or has expired.");
-        }
+        Invitation invitation = requirePending(token);
 
         // Create first; only consume the token once creation succeeds, so a recoverable
         // failure (such as a username already taken) leaves the link usable for a retry.
         UserResponse response = userService.createInvitedUser(toCreateUserRequest(request, invitation));
         invitationStore.consume(token);
 
-        log.info("Invite accepted, created user {} with role {}", response.getUsername(), response.getRole());
+        log.atInfo()
+                .addKeyValue("event", "invitation.accepted")
+                .addKeyValue("targetUserId", response.getId())
+                .addKeyValue("targetRole", invitation.getRole())
+                .log("Invitation accepted");
         return response;
+    }
+
+    private Invitation requirePending(String token) {
+        Invitation invitation = invitationStore.peek(token);
+        if (invitation == null) {
+            throw new InvitationInvalidException("This invitation link is invalid or has expired.");
+        }
+        return invitation;
     }
 
     private CreateUserRequest toCreateUserRequest(AcceptInvitationRequest request, Invitation invitation) {
@@ -129,10 +139,6 @@ public class InvitationServiceImpl implements InvitationService {
 
     private boolean requiresPhone(Set<MessageChannel> channels) {
         return channels.contains(MessageChannel.WHATSAPP) || channels.contains(MessageChannel.SMS);
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
     }
 
     private InviteMessageContext buildContext(UserRole role, Long organizationId, String inviteUrl) {

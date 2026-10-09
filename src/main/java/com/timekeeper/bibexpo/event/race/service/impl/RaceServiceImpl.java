@@ -42,6 +42,8 @@ import java.util.List;
 @Slf4j
 public class RaceServiceImpl implements RaceService {
 
+    private static final String RACE_NAME_TAKEN = "A race with this name already exists for this event.";
+
     private final RaceRepository raceRepository;
     private final EventRepository eventRepository;
     private final EventAccessValidator eventAccessValidator;
@@ -53,13 +55,7 @@ public class RaceServiceImpl implements RaceService {
     @Override
     @Transactional
     public RaceResponse createRace(Long eventId, CreateRaceRequest request, User currentUser) {
-        log.info("Creating race: {} for event ID: {} by user: {}",
-                request.getRaceName(), eventId, currentUser.getUsername());
-
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        Event event = requireAccessibleEvent(eventId, currentUser);
         eventOperationGuard.requireAllowed(event, EventOperation.RACE_WRITE);
 
         EventLimits limits = eventQuota.forEvent(eventId);
@@ -69,8 +65,7 @@ public class RaceServiceImpl implements RaceService {
 
         String raceName = NameNormalizer.toStoredName(request.getRaceName());
         if (raceRepository.existsByRaceNameAndEventIdAndDeletedFalse(raceName, eventId)) {
-            throw new RaceAlreadyExistsException(
-                    "Race with name '" + raceName + "' already exists for this event");
+            throw new RaceAlreadyExistsException(RACE_NAME_TAKEN);
         }
 
         Race race = Race.builder()
@@ -83,8 +78,11 @@ public class RaceServiceImpl implements RaceService {
 
         Race savedRace = raceRepository.save(race);
         nameResolver.evict(eventId);
-        log.info("Successfully created race with ID: {} by user: {}",
-                savedRace.getId(), currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "race.created")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("raceId", savedRace.getId())
+                .log("Race created");
 
         return RaceResponse.fromEntity(savedRace);
     }
@@ -93,28 +91,16 @@ public class RaceServiceImpl implements RaceService {
     @Override
     @Transactional
     public RaceResponse updateRace(Long eventId, Long raceId, UpdateRaceRequest request, User currentUser) {
-        log.info("Updating race with ID: {} for event ID: {} by user: {}",
-                raceId, eventId, currentUser.getUsername());
-
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        Event event = requireAccessibleEvent(eventId, currentUser);
         eventOperationGuard.requireAllowed(event, EventOperation.RACE_WRITE);
 
-        Race race = raceRepository.findByIdAndDeletedFalse(raceId)
-                .orElseThrow(RaceNotFoundException::new);
-
-        if (!race.getEvent().getId().equals(eventId)) {
-            throw new RaceNotFoundException();
-        }
+        Race race = requireRaceOfEvent(raceId, eventId);
 
         String newRaceName = NameNormalizer.toStoredName(request.getRaceName());
         if (newRaceName != null && !newRaceName.isBlank() &&
                 !newRaceName.equals(race.getRaceName())) {
             if (raceRepository.existsByRaceNameAndEventIdAndDeletedFalse(newRaceName, eventId)) {
-                throw new RaceAlreadyExistsException(
-                        "Race with name '" + newRaceName + "' already exists for this event");
+                throw new RaceAlreadyExistsException(RACE_NAME_TAKEN);
             }
             race.setRaceName(newRaceName);
         }
@@ -127,9 +113,11 @@ public class RaceServiceImpl implements RaceService {
 
         Race updatedRace = raceRepository.save(race);
         nameResolver.evict(eventId);
-
-        log.info("Successfully updated race with ID: {} by user: {}",
-                updatedRace.getId(), currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "race.updated")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("raceId", raceId)
+                .log("Race updated");
 
         return RaceResponse.fromEntity(updatedRace);
     }
@@ -137,72 +125,31 @@ public class RaceServiceImpl implements RaceService {
     @Override
     @Transactional(readOnly = true)
     public RaceResponse getRaceById(Long eventId, Long raceId, User currentUser) {
-        log.info("Fetching race by ID: {} for event ID: {} for user: {}",
-                raceId, eventId, currentUser.getUsername());
-
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
-
-        Race race = raceRepository.findByIdAndDeletedFalse(raceId)
-                .orElseThrow(RaceNotFoundException::new);
-
-        if (!race.getEvent().getId().equals(eventId)) {
-            throw new RaceNotFoundException();
-        }
-
-        log.info("Successfully fetched race with ID: {} for user: {}",
-                race.getId(), currentUser.getUsername());
-
-        return RaceResponse.fromEntity(race);
+        requireAccessibleEvent(eventId, currentUser);
+        return RaceResponse.fromEntity(requireRaceOfEvent(raceId, eventId));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<RaceResponse> getRacesByEventId(Long eventId, User currentUser) {
-        log.info("Fetching races for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
-
-        List<Race> races = raceRepository.findByEventIdAndDeletedFalse(eventId);
-
-        List<RaceResponse> raceResponses = races.stream()
+        requireAccessibleEvent(eventId, currentUser);
+        return raceRepository.findByEventIdAndDeletedFalse(eventId).stream()
                 .map(RaceResponse::fromEntity)
                 .toList();
-
-        log.info("Successfully fetched {} races for event ID: {} by user: {}",
-                raceResponses.size(), eventId, currentUser.getUsername());
-
-        return raceResponses;
     }
 
     @Auditable(entityType = AuditEntityType.RACE, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteRace(Long eventId, Long raceId, User currentUser) {
-        log.info("Deleting race with ID: {} for event ID: {} by user: {}",
-                raceId, eventId, currentUser.getUsername());
-
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(EventNotFoundException::new);
-
-        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        Event event = requireAccessibleEvent(eventId, currentUser);
         eventOperationGuard.requireAllowed(event, EventOperation.RACE_WRITE);
 
-        Race race = raceRepository.findById(raceId)
-                .orElseThrow(RaceNotFoundException::new);
-
-        if (!race.getEvent().getId().equals(eventId)) {
-            throw new RaceNotFoundException();
-        }
+        Race race = requireRaceOfEvent(raceId, eventId);
 
         if (race.getCategories() != null && !race.getCategories().isEmpty()) {
             throw new RaceDeletionNotAllowedException(
-                    "Race cannot be deleted because it has categories. Please delete all categories first.");
+                    "You cannot delete this race while it still has categories. Delete them first.");
         }
 
         AuditContextHolder.setEntityId(String.valueOf(raceId));
@@ -211,8 +158,28 @@ public class RaceServiceImpl implements RaceService {
 
         raceRepository.delete(race);
         nameResolver.evict(eventId);
-        log.info("Successfully deleted race with ID: {} by user: {}",
-                raceId, currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "race.deleted")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("raceId", raceId)
+                .log("Race deleted");
+    }
+
+    private Event requireAccessibleEvent(Long eventId, User currentUser) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(EventNotFoundException::new);
+        eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
+        return event;
+    }
+
+    // A race of another event reads as not found, so the response never confirms that the id exists.
+    private Race requireRaceOfEvent(Long raceId, Long eventId) {
+        Race race = raceRepository.findByIdAndDeletedFalse(raceId)
+                .orElseThrow(RaceNotFoundException::new);
+        if (!race.getEvent().getId().equals(eventId)) {
+            throw new RaceNotFoundException();
+        }
+        return race;
     }
 
     private Instant resolveReportingInstant(Event event, String date, String time) {

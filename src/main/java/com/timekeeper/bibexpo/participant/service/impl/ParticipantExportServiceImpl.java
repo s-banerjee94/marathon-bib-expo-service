@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -22,9 +23,18 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -37,107 +47,119 @@ public class ParticipantExportServiceImpl implements ParticipantExportService {
 
     @Override
     public byte[] exportParticipantsToCsv(Long eventId, List<ExportField> fields, User currentUser) {
-        log.info("Exporting participants to CSV for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
 
         List<ParticipantDDB> allParticipants = participantRepository.findAllByEventId(eventId.toString());
 
-        log.info("Found {} participants to export for event ID: {}", allParticipants.size(), eventId);
-
         List<ExportField> exportFields = (fields == null || fields.isEmpty())
-                ? Arrays.asList(ExportField.values())
-                : fields;
+                ? List.of(ExportField.values())
+                : List.copyOf(new LinkedHashSet<>(fields));
 
-        Set<String> goodiesKeys = collectGoodiesKeys(allParticipants);
+        // Fixed columns claim their headers first, so a clashing goody or additional key is the one
+        // that gets the suffix, wherever its group sits in the column order.
+        Set<String> takenHeaders = new HashSet<>();
+        exportFields.stream()
+                .filter(field -> field != ExportField.GOODIES && field != ExportField.ADDITIONAL_FIELDS)
+                .forEach(field -> takenHeaders.add(headerOf(field).toLowerCase(Locale.ROOT)));
+        Map<String, String> goodieColumns = exportFields.contains(ExportField.GOODIES)
+                ? dynamicColumns(allParticipants, ParticipantDDB::getGoodies, "Goody", takenHeaders)
+                : Map.of();
+        Map<String, String> additionalColumns = exportFields.contains(ExportField.ADDITIONAL_FIELDS)
+                ? dynamicColumns(allParticipants, ParticipantDDB::getAdditionalFields, "Additional", takenHeaders)
+                : Map.of();
         EventNames names = nameResolver.forEvent(eventId);
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              OutputStreamWriter writer = new OutputStreamWriter(baos, StandardCharsets.UTF_8);
              CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT)) {
 
-            List<String> headers = buildCsvHeaders(exportFields, goodiesKeys);
-            csvPrinter.printRecord(headers);
+            List<String> headers = new ArrayList<>();
+            for (ExportField field : exportFields) {
+                switch (field) {
+                    case GOODIES -> headers.addAll(goodieColumns.values());
+                    case ADDITIONAL_FIELDS -> headers.addAll(additionalColumns.values());
+                    default -> headers.add(headerOf(field));
+                }
+            }
+            csvPrinter.printRecord(formulaSafe(headers));
 
             for (ParticipantDDB participant : allParticipants) {
-                List<String> row = buildCsvRow(participant, exportFields, goodiesKeys, names);
-                csvPrinter.printRecord(row);
+                List<String> row = new ArrayList<>(headers.size());
+                for (ExportField field : exportFields) {
+                    switch (field) {
+                        case GOODIES -> goodieColumns.keySet()
+                                .forEach(key -> row.add(valueOf(participant.getGoodies(), key)));
+                        case ADDITIONAL_FIELDS -> additionalColumns.keySet()
+                                .forEach(key -> row.add(valueOf(participant.getAdditionalFields(), key)));
+                        default -> row.add(getFieldValue(participant, field, names));
+                    }
+                }
+                csvPrinter.printRecord(formulaSafe(row));
             }
 
             csvPrinter.flush();
-            log.info("Successfully exported {} participants to CSV for event ID: {}", allParticipants.size(), eventId);
+            log.atInfo()
+                    .addKeyValue("event", "participant.exported")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("rows", allParticipants.size())
+                    .addKeyValue("fields", exportFields.size())
+                    .log("Participants exported");
             return baos.toByteArray();
 
         } catch (IOException e) {
-            log.error("Failed to generate CSV for event ID: {}", eventId, e);
+            log.atError()
+                    .addKeyValue("event", "participant.export_failed")
+                    .addKeyValue("eventId", eventId)
+                    .setCause(e)
+                    .log("Participant export failed");
             throw new ParticipantExportFailedException(e);
         }
     }
 
-    private Set<String> collectGoodiesKeys(List<ParticipantDDB> participants) {
-        Set<String> keys = new LinkedHashSet<>();
-        for (ParticipantDDB participant : participants) {
-            if (participant.getGoodies() != null) {
-                keys.addAll(participant.getGoodies().keySet());
-            }
-        }
-        return keys;
+    // Cells come from imported and hand-typed data; a leading = + - @ tab or CR would make a
+    // spreadsheet run the cell as a formula, so it is prefixed with ' to be read as plain text.
+    private static List<String> formulaSafe(List<String> cells) {
+        return cells.stream()
+                .map(cell -> cell != null && !cell.isEmpty() && "=+-@\t\r".indexOf(cell.charAt(0)) >= 0 ? "'" + cell : cell)
+                .toList();
     }
 
-    private List<String> buildCsvHeaders(List<ExportField> fields, Set<String> goodiesKeys) {
-        List<String> headers = new ArrayList<>();
+    /**
+     * One column per distinct key any participant holds, sorted by name, mapped to its header. A
+     * header another column already uses gets the group label, e.g. "City (Additional)".
+     */
+    private static Map<String, String> dynamicColumns(List<ParticipantDDB> participants,
+                                                      Function<ParticipantDDB, Map<String, String>> values,
+                                                      String label, Set<String> takenHeaders) {
+        Set<String> keys = new TreeSet<>(String.CASE_INSENSITIVE_ORDER.thenComparing(Comparator.naturalOrder()));
+        participants.stream().map(values).filter(Objects::nonNull).forEach(map -> keys.addAll(map.keySet()));
 
-        for (ExportField field : fields) {
-            if (field == ExportField.GOODIES) {
-                headers.addAll(goodiesKeys);
-            } else {
-                headers.add(getHeaderName(field));
+        Map<String, String> columns = new LinkedHashMap<>();
+        for (String key : keys) {
+            String header = toHeader(key);
+            if (!takenHeaders.add(header.toLowerCase(Locale.ROOT))) {
+                header = header + " (" + label + ")";
+                takenHeaders.add(header.toLowerCase(Locale.ROOT));
             }
+            columns.put(key, header);
         }
-
-        return headers;
+        return columns;
     }
 
-    private String getHeaderName(ExportField field) {
-        return switch (field) {
-            case CHIP_NUMBER -> "CHIP No";
-            case BIB_NUMBER -> "BIB No";
-            case FULL_NAME -> "NAME";
-            case DATE_OF_BIRTH -> "DOB(dd-mm-yyy)";
-            case AGE -> "Age";
-            case GENDER -> "Gender";
-            case RACE_NAME -> "Race";
-            case CATEGORY_NAME -> "Category";
-            case PHONE_NUMBER -> "Phone";
-            case EMAIL -> "Email-Id";
-            case COUNTRY -> "Country";
-            case CITY -> "City";
-            case BIB_COLLECTED_AT -> "Bib Collected At";
-            case EMERGENCY_CONTACT_NAME -> "Emergency Contact Name";
-            case EMERGENCY_CONTACT_PHONE -> "Emergency Contact Phone";
-            case NOTES -> "Notes";
-            case GOODIES -> "Goodies";
-        };
+    private static String headerOf(ExportField field) {
+        return toHeader(field.name().toLowerCase(Locale.ROOT));
     }
 
-    private List<String> buildCsvRow(ParticipantDDB participant, List<ExportField> fields,
-                                     Set<String> goodiesKeys, EventNames names) {
-        List<String> row = new ArrayList<>();
+    // "tShirtSize", "t_shirt_size" and "t shirt size" all read "T Shirt Size".
+    private static String toHeader(String key) {
+        String spaced = key.replace('_', ' ').replaceAll("(?<=[a-z0-9])(?=[A-Z])", " ").trim();
+        return Arrays.stream(spaced.split("\\s+"))
+                .map(StringUtils::capitalize)
+                .collect(Collectors.joining(" "));
+    }
 
-        for (ExportField field : fields) {
-            if (field == ExportField.GOODIES) {
-                for (String goodieKey : goodiesKeys) {
-                    String value = participant.getGoodies() != null
-                            ? participant.getGoodies().getOrDefault(goodieKey, "")
-                            : "";
-                    row.add(value);
-                }
-            } else {
-                row.add(getFieldValue(participant, field, names));
-            }
-        }
-
-        return row;
+    private static String valueOf(Map<String, String> values, String key) {
+        return values == null ? "" : TextUtils.nullSafe(values.get(key));
     }
 
     private String getFieldValue(ParticipantDDB participant, ExportField field, EventNames names) {
@@ -158,7 +180,7 @@ public class ParticipantExportServiceImpl implements ParticipantExportService {
             case EMERGENCY_CONTACT_NAME -> TextUtils.nullSafe(participant.getEmergencyContactName());
             case EMERGENCY_CONTACT_PHONE -> TextUtils.nullSafe(participant.getEmergencyContactPhone());
             case NOTES -> TextUtils.nullSafe(participant.getNotes());
-            case GOODIES -> "";
+            case GOODIES, ADDITIONAL_FIELDS -> "";
         };
     }
 }

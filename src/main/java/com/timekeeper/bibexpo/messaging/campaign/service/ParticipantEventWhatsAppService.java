@@ -8,8 +8,9 @@ public interface ParticipantEventWhatsAppService {
     /**
      * Auto-triggered WhatsApp message sent to a participant immediately after their bib is
      * collected. Uses the active AUTO_BIB_COLLECTED WhatsApp campaign for the event.
+     * Runs asynchronously, so the call returns before anything is sent.
      * Silently no-ops if no active campaign exists, the participant has no phone number, or
-     * the template's sender scope no longer matches the organization's resolved sender.
+     * the template no longer suits the organization's current provider.
      * Never throws — bib collection must not fail due to WhatsApp.
      *
      * @param event       event the bib was collected in

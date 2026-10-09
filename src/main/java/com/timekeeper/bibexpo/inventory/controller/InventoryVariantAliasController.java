@@ -7,7 +7,6 @@ import com.timekeeper.bibexpo.inventory.service.InventoryVariantAliasService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,7 +20,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/organizations/{organizationId}/inventory/items/{itemId}/variant-aliases")
 @RequiredArgsConstructor
-@Slf4j
 public class InventoryVariantAliasController implements InventoryVariantAliasControllerApi {
 
     private final InventoryVariantAliasService aliasService;
@@ -40,8 +38,6 @@ public class InventoryVariantAliasController implements InventoryVariantAliasCon
             @PathVariable Long itemId,
             @Valid @RequestBody CreateInventoryVariantAliasRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Teaching item {} to read '{}' as variant {} by user {}",
-                itemId, request.getSourceValue(), request.getVariantId(), currentUser.getUsername());
         InventoryVariantAliasResponse response =
                 aliasService.createAlias(organizationId, itemId, request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -54,8 +50,6 @@ public class InventoryVariantAliasController implements InventoryVariantAliasCon
             @PathVariable Long aliasId,
             @Valid @RequestBody UpdateInventoryVariantAliasRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Pointing spelling {} of item {} at variant {} by user {}",
-                aliasId, itemId, request.getVariantId(), currentUser.getUsername());
         return ResponseEntity.ok(
                 aliasService.updateAlias(organizationId, itemId, aliasId, request, currentUser));
     }
@@ -66,8 +60,6 @@ public class InventoryVariantAliasController implements InventoryVariantAliasCon
             @PathVariable Long itemId,
             @PathVariable Long aliasId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Removing spelling {} of item {} by user {}",
-                aliasId, itemId, currentUser.getUsername());
         aliasService.deleteAlias(organizationId, itemId, aliasId, currentUser);
         return ResponseEntity.noContent().build();
     }

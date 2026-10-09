@@ -31,9 +31,6 @@ public class RaceController implements RaceControllerApi {
     public ResponseEntity<List<RaceResponse>> getRacesByEventId(
             @PathVariable Long eventId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get races for event ID: {} by user: {}",
-                eventId, currentUser.getUsername());
-
         List<RaceResponse> races = raceService.getRacesByEventId(eventId, currentUser);
 
         return ResponseEntity.ok(races);
@@ -44,9 +41,6 @@ public class RaceController implements RaceControllerApi {
             @PathVariable Long eventId,
             @PathVariable Long raceId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get race by ID: {} for event ID: {} for user: {}",
-                raceId, eventId, currentUser.getUsername());
-
         RaceResponse response = raceService.getRaceById(eventId, raceId, currentUser);
 
         return ResponseEntity.ok(response);
@@ -57,9 +51,6 @@ public class RaceController implements RaceControllerApi {
             @PathVariable Long eventId,
             @Valid @RequestBody CreateRaceRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to create race: {} for event ID: {} by user: {}",
-                request.getRaceName(), eventId, currentUser.getUsername());
-
         RaceResponse response = raceService.createRace(eventId, request, currentUser);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -71,9 +62,6 @@ public class RaceController implements RaceControllerApi {
             @PathVariable Long raceId,
             @Valid @RequestBody UpdateRaceRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update race with ID: {} for event ID: {} by user: {}",
-                raceId, eventId, currentUser.getUsername());
-
         RaceResponse response = raceService.updateRace(eventId, raceId, request, currentUser);
 
         return ResponseEntity.ok(response);
@@ -84,9 +72,6 @@ public class RaceController implements RaceControllerApi {
             @PathVariable Long eventId,
             @PathVariable Long raceId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to delete race with ID: {} for event ID: {} by user: {}",
-                raceId, eventId, currentUser.getUsername());
-
         raceService.deleteRace(eventId, raceId, currentUser);
 
         return ResponseEntity.noContent().build();
@@ -95,7 +80,7 @@ public class RaceController implements RaceControllerApi {
     @ExceptionHandler(RaceAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleRaceAlreadyExists(
             RaceAlreadyExistsException ex, WebRequest request) {
-        log.warn("Race already exists: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
@@ -103,8 +88,17 @@ public class RaceController implements RaceControllerApi {
     @ExceptionHandler(RaceDeletionNotAllowedException.class)
     public ResponseEntity<ErrorResponse> handleRaceDeletionNotAllowed(
             RaceDeletionNotAllowedException ex, WebRequest request) {
-        log.warn("Race deletion not allowed: {}", ex.getMessage());
+        logRejected(HttpStatus.BAD_REQUEST, ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    private void logRejected(HttpStatus status, Exception ex) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
     }
 }

@@ -3,12 +3,10 @@ package com.timekeeper.bibexpo.ai.mcp;
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.CreateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.request.UpdateCategoryRequest;
 import com.timekeeper.bibexpo.event.race.category.model.dto.response.CategoryResponse;
-import com.timekeeper.bibexpo.event.race.category.model.enums.Gender;
 import com.timekeeper.bibexpo.event.race.category.service.CategoryService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -17,7 +15,6 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class CategoryMcpTools implements McpToolGroup {
 
     private final CategoryService categoryService;
@@ -29,13 +26,10 @@ public class CategoryMcpTools implements McpToolGroup {
                     + "first; never ask the user for numeric ids. Scoped to events the signed-in user may see.")
     public List<CategoryResponse> listRaceCategories(
             @ToolParam(description = "The id of the event the race belongs to. Resolve it from the event name with search_events") Long eventId,
-            @ToolParam(description = "The id of the race whose categories to list. Resolve it from the race name with list_event_races") Long raceId,
-            @ToolParam(required = false, description = "Optional gender filter: MALE, FEMALE, OTHER or OPEN") Gender gender) {
+            @ToolParam(description = "The id of the race whose categories to list. Resolve it from the race name with list_event_races") Long raceId) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-        log.info("MCP list_race_categories - event {}, race {}, gender {}, by {}",
-                eventId, raceId, gender, currentUser.getUsername());
-        return categoryService.getCategoriesByRaceId(eventId, raceId, gender, currentUser);
+        return categoryService.getCategoriesByRaceId(eventId, raceId, currentUser);
     }
 
     @Tool(name = "create_category",
@@ -51,8 +45,6 @@ public class CategoryMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP create_category - name '{}', event {}, race {}, by {}",
-                request.getCategoryName(), eventId, raceId, currentUser.getUsername());
         return categoryService.createCategory(eventId, raceId, request, currentUser);
     }
 
@@ -70,8 +62,6 @@ public class CategoryMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP update_category - event {}, race {}, category {}, by {}",
-                eventId, raceId, categoryId, currentUser.getUsername());
         return categoryService.updateCategory(eventId, raceId, categoryId, request, currentUser);
     }
 }

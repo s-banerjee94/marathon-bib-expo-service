@@ -35,14 +35,10 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
     @Value("#{jobParameters['importId']}")
     private String importId;
 
-    private final List<ImportRowError> collectedErrors = new ArrayList<>();
+    @Value("#{jobParameters['eventId']}")
+    private String eventId;
 
-    @Override
-    public void onSkipInWrite(ParticipantDDB item, Throwable t) {
-        collectedErrors.add(newError(null, "WRITE_ERROR", null,
-                t.getMessage() != null ? t.getMessage() : "Write failed"));
-        log.warn("Recorded write skip for participant {}: {}", item.getBibNumber(), t.getMessage());
-    }
+    private final List<ImportRowError> collectedErrors = new ArrayList<>();
 
     @Override
     public void onSkipInProcess(CsvRow item, Throwable t) {
@@ -56,61 +52,51 @@ public class BatchSkipListener implements SkipListener<CsvRow, ParticipantDDB>, 
             if (validationErrors != null && !validationErrors.isEmpty()) {
                 if (validationErrors.size() == 1) {
                     field = validationErrors.get(0).getField();
-                    message = validationErrors.get(0).getMessage();
-                } else {
-                    message = validationErrors.stream()
-                            .map(e -> e.getField() + ": " + e.getMessage())
-                            .collect(Collectors.joining("; "));
                 }
+                message = validationErrors.stream().map(ValidationError::getMessage).collect(Collectors.joining(" "));
             } else {
-                message = bve.getMessage() != null ? bve.getMessage() : "Processing failed";
+                message = bve.getMessage() != null ? bve.getMessage() : "This row could not be imported.";
             }
         } else {
-            message = t.getMessage() != null ? t.getMessage() : "Validation failed";
+            message = "This row could not be imported.";
         }
 
         collectedErrors.add(newError(item.getRowNumber(), errorType, field, message));
-        log.debug("Recorded skip for row {}: type={}, field={}, message={}",
-                item.getRowNumber(), errorType, field, message);
     }
 
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
-        String duplicateBibErrors = stepExecution.getExecutionContext().getString("duplicateBibErrors", "");
-        if (!duplicateBibErrors.isBlank()) {
-            for (String entry : duplicateBibErrors.split(",")) {
-                String[] parts = entry.split(":", 2);
-                if (parts.length == 2) {
-                    Integer rowNumber = parseRowNumber(parts[0]);
-                    String bibNumber = parts[1];
-                    collectedErrors.add(newError(rowNumber, BatchValidationException.TYPE_DUPLICATE_BIB, "bibNumber",
-                            "Duplicate BIB number '" + bibNumber + "' at row " + rowNumber));
-                }
-            }
-        }
-
-        String duplicateChipErrors = stepExecution.getExecutionContext().getString("duplicateChipErrors", "");
-        if (!duplicateChipErrors.isBlank()) {
-            for (String entry : duplicateChipErrors.split(",")) {
-                String[] parts = entry.split(":", 2);
-                if (parts.length == 2) {
-                    Integer rowNumber = parseRowNumber(parts[0]);
-                    String chipNumber = parts[1];
-                    collectedErrors.add(newError(rowNumber, "DUPLICATE_CHIP", "chipNumber",
-                            "Duplicate CHIP number '" + chipNumber + "' at row " + rowNumber));
-                }
-            }
-        }
+        collectDuplicates(stepExecution.getExecutionContext().getString("duplicateBibErrors", ""),
+                BatchValidationException.TYPE_DUPLICATE_BIB, "bibNumber", "Bib number");
+        collectDuplicates(stepExecution.getExecutionContext().getString("duplicateChipErrors", ""),
+                BatchValidationException.TYPE_DUPLICATE_CHIP, "chipNumber", "Chip number");
 
         if (!collectedErrors.isEmpty()) {
             // Sorted before insert so the auto-increment id ascends with the row number; the read
             // side can then paginate on the id alone and still return rows in file order.
             collectedErrors.sort(Comparator.comparing(ImportRowError::getRowNumber,
                     Comparator.nullsLast(Comparator.naturalOrder())));
-            log.info("Writing {} import errors for import {}", collectedErrors.size(), importId);
             importRowErrorRepository.saveAll(collectedErrors);
+            log.atInfo()
+                    .addKeyValue("event", "import.errors_recorded")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("importId", importId)
+                    .addKeyValue("count", collectedErrors.size())
+                    .log("Import row errors recorded");
         }
         return stepExecution.getExitStatus();
+    }
+
+    // Entries are "row:value", comma separated, as the reader records them.
+    private void collectDuplicates(String entries, String errorType, String field, String label) {
+        if (entries.isBlank()) return;
+        for (String entry : entries.split(",")) {
+            String[] parts = entry.split(":", 2);
+            if (parts.length == 2) {
+                collectedErrors.add(newError(parseRowNumber(parts[0]), errorType, field,
+                        label + " " + parts[1] + " appears earlier in the file, so this row was skipped."));
+            }
+        }
     }
 
     private ImportRowError newError(Integer rowNumber, String errorType, String field, String message) {

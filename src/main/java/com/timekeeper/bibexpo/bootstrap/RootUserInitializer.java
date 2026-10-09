@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 
 @Configuration
 @RequiredArgsConstructor
@@ -22,10 +23,9 @@ public class RootUserInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        // Skip if environment variables are not set
-        if (rootUsername == null || rootUsername.isBlank() ||
-            rootPassword == null || rootPassword.isBlank()) {
-            log.warn("ROOT_USERNAME or ROOT_PASSWORD not set. Skipping root user creation.");
+        if (!StringUtils.hasText(rootUsername) || !StringUtils.hasText(rootPassword)) {
+            log.atWarn().addKeyValue("event", "root.provision.skipped")
+                    .log("ROOT_USERNAME or ROOT_PASSWORD is not set, so no root account was provisioned");
             return;
         }
 
