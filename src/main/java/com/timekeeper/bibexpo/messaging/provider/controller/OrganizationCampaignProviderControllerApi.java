@@ -32,19 +32,29 @@ import java.util.List;
 @SecurityRequirement(name = "bearerAuth")
 public interface OrganizationCampaignProviderControllerApi {
 
-    @Operation(summary = "List the organization's campaign provider overrides")
-    @ApiResponse(responseCode = "200", description = "Providers retrieved")
+    @Operation(summary = "List the organization's campaign provider overrides",
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`\n\nThe organization's own campaign senders, secrets masked. `ORGANIZER_ADMIN` reaches only their own organization.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Providers retrieved"),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     ResponseEntity<List<MessagingProviderResponse>> list(
             @PathVariable Long organizationId,
             @AuthenticationPrincipal User currentUser);
 
-    @Operation(summary = "Get one channel's campaign provider override")
+    @Operation(summary = "Get one channel's campaign provider override",
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`\n\nThe organization's own sender for the channel, secrets masked.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Provider retrieved",
                     content = @Content(schema = @Schema(implementation = MessagingProviderResponse.class))),
-            @ApiResponse(responseCode = "404", description = "No override configured",
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found, or no override configured",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/{channel}")
@@ -55,11 +65,22 @@ public interface OrganizationCampaignProviderControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @Operation(summary = "Create or replace the organization's provider for a channel",
-            description = "Secret fields (authToken, password) are write-only — leave blank to keep the stored value.")
+            description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`
+
+                    Secret fields (authToken, password) are write-only — leave them blank to keep the stored value. \
+                    An enabled provider must have an endpoint and a request mapping that matches its templateMode. \
+                    Switching an enabled sender off is refused while the organization has armed campaigns.""")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Provider saved",
                     content = @Content(schema = @Schema(implementation = MessagingProviderResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Validation failure",
+            @ApiResponse(responseCode = "400", description = "Validation failed, or the request mapping does not match the provider's mode",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "The organization still has armed campaigns on the sender being switched off",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PutMapping("/{channel}")
@@ -71,8 +92,17 @@ public interface OrganizationCampaignProviderControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @Operation(summary = "Delete the organization's provider for a channel",
-            description = "Campaigns for the organization fall back to the platform-default provider.")
-    @ApiResponse(responseCode = "204", description = "Provider removed")
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`\n\nCampaigns for the organization fall back to the platform-default provider. "
+                    + "Removing an enabled sender is refused while the organization has armed campaigns.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Provider removed"),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found, or no override configured",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "The organization still has armed campaigns on the sender",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
     @DeleteMapping("/{channel}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN')")
     ResponseEntity<Void> delete(
@@ -80,11 +110,18 @@ public interface OrganizationCampaignProviderControllerApi {
             @Parameter(description = "Channel", example = "WHATSAPP") @PathVariable MessageChannel channel,
             @AuthenticationPrincipal User currentUser);
 
-    @Operation(summary = "Send a test message to verify the organization's provider")
+    @Operation(summary = "Send a test message to verify the organization's provider",
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`\n\nSends one real message through the stored provider, even while it is switched off.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Test message accepted by the provider",
                     content = @Content(schema = @Schema(implementation = MessagingProviderResponse.class))),
-            @ApiResponse(responseCode = "502", description = "Provider call failed",
+            @ApiResponse(responseCode = "400", description = "Validation failed",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization not found, or no override configured",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "502", description = "Provider call failed, or the provider's address points to a private network",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/{channel}/test")

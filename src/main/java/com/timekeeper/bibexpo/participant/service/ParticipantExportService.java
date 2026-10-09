@@ -13,7 +13,8 @@ public interface ParticipantExportService {
     /**
      * Export participants to CSV format with selectable fields
      * @param eventId The event ID
-     * @param fields List of fields to include in export (null or empty exports all fields)
+     * @param fields fields to export, in column order; a repeated field is exported once, and null or
+     *               empty exports every field in {@link ExportField} declaration order
      * @param currentUser The authenticated user
      * @return CSV content as byte array
      */

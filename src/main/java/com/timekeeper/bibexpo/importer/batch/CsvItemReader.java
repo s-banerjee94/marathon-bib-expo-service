@@ -30,6 +30,8 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
     private static final String CURRENT_INDEX_KEY = "csv.reader.current.index";
     private static final String DUPLICATES_KEY = "duplicateBibErrors";
     private static final String CHIP_DUPLICATES_KEY = "duplicateChipErrors";
+    static final String GOODIES_COLUMNS_KEY = "goodiesColumns";
+    public static final String DUPLICATE_ROWS_KEY = "duplicateRowCount";
 
     private final CsvParserUtil csvParserUtil;
     private final ObjectMapper objectMapper;
@@ -47,6 +49,7 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
     private StringJoiner duplicates;
     private Set<String> seenChips;
     private StringJoiner chipDuplicates;
+    private int duplicateRows;
     private int currentIndex;
     private int skipToIndex;
 
@@ -57,7 +60,6 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
 
     @Override
     public void open(ExecutionContext executionContext) throws ItemStreamException {
-        log.info("CsvItemReader: opening CSV file at {}", filePath);
         try {
             ImportMappingRequest mapping = objectMapper.readValue(new File(mappingPath), ImportMappingRequest.class);
             inputStream = new FileInputStream(filePath);
@@ -66,16 +68,15 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
             duplicates = new StringJoiner(",");
             seenChips = new HashSet<>();
             chipDuplicates = new StringJoiner(",");
+            duplicateRows = 0;
             currentIndex = 0;
 
+            // JSON rather than a joined string: a header may itself contain a comma.
             stepExecution.getJobExecution().getExecutionContext()
-                    .put("goodiesColumns", String.join(",", stream.getGoodiesColumns()));
+                    .putString(GOODIES_COLUMNS_KEY, objectMapper.writeValueAsString(stream.getGoodiesColumns()));
 
             skipToIndex = executionContext.containsKey(CURRENT_INDEX_KEY)
                     ? executionContext.getInt(CURRENT_INDEX_KEY) : 0;
-            if (skipToIndex > 0) {
-                log.info("Resuming CSV import from row index {}", skipToIndex);
-            }
         } catch (Exception e) {
             closeQuietly();
             throw new ItemStreamException("Failed to open CSV file: " + filePath, e);
@@ -90,15 +91,13 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
         while ((row = stream.nextRow()) != null) {
             if (!seenBibs.add(row.getBibNumber())) {
                 duplicates.add(row.getRowNumber() + ":" + row.getBibNumber());
-                log.warn("Duplicate BIB {} at row {}, excluding from import",
-                        row.getBibNumber(), row.getRowNumber());
+                duplicateRows++;
                 continue;
             }
             String chipNumber = row.getChipNumber();
             if (chipNumber != null && !chipNumber.isBlank() && !seenChips.add(chipNumber)) {
                 chipDuplicates.add(row.getRowNumber() + ":" + chipNumber);
-                log.warn("Duplicate CHIP {} at row {}, excluding from import",
-                        chipNumber, row.getRowNumber());
+                duplicateRows++;
                 continue;
             }
             if (currentIndex < skipToIndex) {
@@ -120,6 +119,7 @@ public class CsvItemReader implements ItemStreamReader<CsvRow> {
         if (chipDuplicates != null) {
             stepExecution.getExecutionContext().putString(CHIP_DUPLICATES_KEY, chipDuplicates.toString());
         }
+        stepExecution.getExecutionContext().putInt(DUPLICATE_ROWS_KEY, duplicateRows);
     }
 
     @Override

@@ -155,8 +155,10 @@ public interface EventControllerApi {
     @Operation(
             summary = "Create a new event",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Create a new marathon event. ROOT and ADMIN can create events for any organization. \
-                    ORGANIZER_ADMIN and ORGANIZER_USER can only create events for their own organization."""
+                    ORGANIZER_ADMIN and ORGANIZER_USER can only create events for their own organization; \
+                    any other organization id returns 404, the same as one that does not exist."""
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -177,7 +179,7 @@ public interface EventControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - insufficient permissions or trying to create event for another organization",
+                    description = "Access forbidden - insufficient permissions",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -185,7 +187,7 @@ public interface EventControllerApi {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Organization not found",
+                    description = "Organization not found, or not the caller's own organization",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -209,10 +211,13 @@ public interface EventControllerApi {
     @Operation(
             summary = "Update an existing event",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Update an existing marathon event. Only provided fields will be updated (partial update). \
                     Event status is not changed here; use the PATCH /{id}/status endpoint. \
                     Timezone cannot be changed once the event is PUBLISHED or COMPLETED. \
                     Once PUBLISHED the start date is locked and the end date can only be extended (never moved earlier); when COMPLETED, dates cannot be changed. \
+                    A COMPLETED event still accepts name, description, venue and address changes; a CANCELLED event, \
+                    or any event whose bill is finalized, accepts no changes from anyone. \
                     Permanent deletion is handled by a separate DELETE endpoint. \
                     ROOT and ADMIN can update events for any organization. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only update events for their own organization."""
@@ -251,6 +256,14 @@ public interface EventControllerApi {
                     )
             ),
             @ApiResponse(
+                    responseCode = "422",
+                    description = "Event is cancelled or its bill is finalized",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "409",
                     description = "Event with the same name already exists for this organization",
                     content = @Content(
@@ -269,8 +282,8 @@ public interface EventControllerApi {
     @Operation(
             summary = "Toggle event enabled status (ROOT/ADMIN only)",
             description = """
-                    Toggle the enabled/disabled status of an event. \
-                    Only ROOT and ADMIN can toggle event status. \
+                    **Roles:** ROOT, ADMIN. Toggle the enabled/disabled status of an event. \
+                    Once the event's bill is finalized, only ROOT can toggle it. \
                     When an event is disabled, all event and child entity endpoints become inaccessible."""
     )
     @ApiResponses(value = {
@@ -284,7 +297,7 @@ public interface EventControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - only ROOT and ADMIN can toggle event status",
+                    description = "Access forbidden - insufficient permissions, or the bill is finalized and the caller is not ROOT",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -363,10 +376,10 @@ public interface EventControllerApi {
     @Operation(
             summary = "Permanently delete an event",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Permanently delete an event from the system. \
-                    Event can only be deleted if: \
-                    1) Status is DRAFT or CANCELLED, \
-                    2) Participant list is empty (TODO: not yet implemented). \
+                    An event can only be deleted if its status is DRAFT or CANCELLED, its bill has not been \
+                    finalized, and it no longer holds races or other content. \
                     ROOT and ADMIN can delete any event. \
                     ORGANIZER_ADMIN and ORGANIZER_USER can only delete events from their own organization."""
     )
@@ -377,7 +390,7 @@ public interface EventControllerApi {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Event deletion not allowed - status is not DRAFT or CANCELLED, or participant list is not empty",
+                    description = "Event deletion not allowed - status is not DRAFT or CANCELLED, the bill is finalized, or the event still has content",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -385,7 +398,7 @@ public interface EventControllerApi {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Access forbidden - trying to delete event from another organization",
+                    description = "Access forbidden - insufficient permissions",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)
@@ -409,10 +422,11 @@ public interface EventControllerApi {
     @Operation(
             summary = "Get a presigned URL to upload an event logo",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Returns a short-lived presigned S3 PUT URL. The client uploads the file bytes \
                     directly to that URL with the given Content-Type, then calls \
                     PUT /api/events/{id}/logo with the returned objectKey to attach it. \
-                    Same authorization as updating the event."""
+                    Not available once the event is completed or cancelled, or its bill is finalized."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Presigned upload URL created",
@@ -422,6 +436,9 @@ public interface EventControllerApi {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "422", description = "Event is completed or cancelled, or its bill is finalized",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found",
@@ -438,9 +455,10 @@ public interface EventControllerApi {
     @Operation(
             summary = "Attach an uploaded event logo",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Confirms a completed upload and sets it as the event's logo. The object key \
                     must belong to this event and the object must exist in S3. Any previous logo \
-                    is deleted. Same authorization as updating the event."""
+                    is deleted. Not available once the event is completed or cancelled, or its bill is finalized."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Logo attached",
@@ -450,6 +468,9 @@ public interface EventControllerApi {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "422", description = "Event is completed or cancelled, or its bill is finalized",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found",
@@ -465,13 +486,17 @@ public interface EventControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Remove the event logo",
-            description = "Deletes the event's logo from storage. Same authorization as updating the event."
+            description = "**Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. Deletes the event's logo from storage. "
+                    + "Not available once the event is completed or cancelled, or its bill is finalized."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Logo removed",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = EventResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "422", description = "Event is completed or cancelled, or its bill is finalized",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event not found",

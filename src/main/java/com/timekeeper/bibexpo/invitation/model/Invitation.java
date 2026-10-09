@@ -19,7 +19,6 @@ public class Invitation {
     private final UserRole role;
     private final Long organizationId;
     private final Long eventId;
-    private final String invitedBy;
     private final String recipientPhone;
     private final Instant expiresAt;
 }

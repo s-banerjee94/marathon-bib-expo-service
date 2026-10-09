@@ -5,6 +5,7 @@ import com.timekeeper.bibexpo.messaging.shared.enums.MessageUsage;
 import com.timekeeper.bibexpo.messaging.provider.model.entity.MessagingProvider;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -20,11 +21,12 @@ public interface MessagingProviderRepository extends JpaRepository<MessagingProv
     Optional<MessagingProvider> findByUsageAndChannelAndOrganizationIdIsNull(
             MessageUsage usage, MessageChannel channel);
 
-    java.util.List<MessagingProvider> findByUsage(MessageUsage usage);
+    /** Every row of one usage, across channels and organizations. */
+    List<MessagingProvider> findByUsage(MessageUsage usage);
 
     /** An organization's campaign overrides across channels. */
-    java.util.List<MessagingProvider> findByUsageAndOrganizationId(MessageUsage usage, Long organizationId);
+    List<MessagingProvider> findByUsageAndOrganizationId(MessageUsage usage, Long organizationId);
 
     /** The platform-default rows across channels. */
-    java.util.List<MessagingProvider> findByUsageAndOrganizationIdIsNull(MessageUsage usage);
+    List<MessagingProvider> findByUsageAndOrganizationIdIsNull(MessageUsage usage);
 }

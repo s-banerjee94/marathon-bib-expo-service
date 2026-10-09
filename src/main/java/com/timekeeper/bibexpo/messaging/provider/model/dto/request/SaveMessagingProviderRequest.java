@@ -22,7 +22,8 @@ import java.util.List;
 @Schema(description = "Provider connection configuration for one channel")
 public class SaveMessagingProviderRequest {
 
-    @Schema(description = "Provider send endpoint", example = "https://www.fast2sms.com/dev/bulkV2")
+    @Size(max = 512, message = "The endpoint must not exceed 512 characters.")
+    @Schema(description = "Provider send endpoint; required to enable the provider", example = "https://www.fast2sms.com/dev/bulkV2")
     private String baseUrl;
 
     @NotNull
@@ -36,6 +37,7 @@ public class SaveMessagingProviderRequest {
     @Schema(description = "API key/token; required for TOKEN auth. Blank on update keeps the stored value", example = "your-api-key")
     private String authToken;
 
+    @Size(max = 128, message = "The username must not exceed 128 characters.")
     @Schema(description = "Username; required for USERNAME_PASSWORD auth", example = "acme")
     private String username;
 
@@ -61,15 +63,14 @@ public class SaveMessagingProviderRequest {
             example = "{ \"route\": \"q\", \"message\": \"{{MESSAGE}}\", \"numbers\": \"{{RECIPIENT}}\" }")
     private String bodyTemplate;
 
-    @Size(max = 6, message = "Country code must not exceed 6 characters")
-    @Pattern(regexp = "^\\+?[0-9]{1,5}$", message = "Country code must be digits, optionally prefixed with +")
+    @Pattern(regexp = "^\\+?[0-9]{1,5}$", message = "The country code must be up to 5 digits, optionally prefixed with +.")
     @Schema(description = "Country calling code prefixed by {{RECIPIENT_E164}} when a number is not already "
             + "international. Required when the request mapping uses {{RECIPIENT_E164}} or {{RECIPIENT_CC}}; "
             + "a provider that sends numbers exactly as stored, through {{RECIPIENT}}, needs none",
             example = "91", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private String defaultCountryCode;
 
-    @Size(max = 200, message = "Success marker must not exceed 200 characters")
+    @Size(max = 200, message = "The success marker must not exceed 200 characters.")
     @Schema(description = "Text the provider's response must contain for the send to count as successful. "
             + "Set it when the gateway answers HTTP 200 even for failures, otherwise leave blank and only the "
             + "status code decides", example = "\"type\":\"success\"", requiredMode = Schema.RequiredMode.NOT_REQUIRED)

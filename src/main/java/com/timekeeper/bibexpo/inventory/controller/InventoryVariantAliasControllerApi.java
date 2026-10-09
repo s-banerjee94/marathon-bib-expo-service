@@ -35,6 +35,8 @@ public interface InventoryVariantAliasControllerApi {
     @Operation(
             summary = "Read an item's spellings",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Every roster spelling this item understands beyond its own variant values, in \
                     spelling order.
 
@@ -62,6 +64,8 @@ public interface InventoryVariantAliasControllerApi {
     @Operation(
             summary = "Teach the item a spelling",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Records that one spelling found in rosters means one variant of this item.
 
                     Leave the variant out to record the opposite: that the spelling is owed nothing \
@@ -98,6 +102,8 @@ public interface InventoryVariantAliasControllerApi {
     @Operation(
             summary = "Point a spelling at a different variant",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Changes what one spelling means, or sends a null variant to make it mean \
                     nothing at all. The spelling itself is the line's identity and is never changed \
                     here — remove the line and add it again to correct a typo."""
@@ -122,6 +128,8 @@ public interface InventoryVariantAliasControllerApi {
     @Operation(
             summary = "Forget a spelling",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Removes one line. The spelling simply stops being understood and goes back to \
                     needing attention; the item, its variants and its stock are untouched."""
     )

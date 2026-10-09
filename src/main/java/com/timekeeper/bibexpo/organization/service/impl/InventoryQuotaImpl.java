@@ -34,4 +34,24 @@ public class InventoryQuotaImpl implements InventoryQuota {
     public void releaseLocation(Long organizationId) {
         organizationLimitRepository.decrementInventoryLocations(organizationId);
     }
+
+    @Override
+    public boolean tryReserveItem(Long organizationId) {
+        return organizationLimitRepository.tryIncrementInventoryItems(organizationId) > 0;
+    }
+
+    @Override
+    public void releaseItem(Long organizationId) {
+        organizationLimitRepository.decrementInventoryItems(organizationId);
+    }
+
+    @Override
+    public boolean tryReserveAttribute(Long organizationId) {
+        return organizationLimitRepository.tryIncrementInventoryAttributes(organizationId) > 0;
+    }
+
+    @Override
+    public void releaseAttribute(Long organizationId) {
+        organizationLimitRepository.decrementInventoryAttributes(organizationId);
+    }
 }

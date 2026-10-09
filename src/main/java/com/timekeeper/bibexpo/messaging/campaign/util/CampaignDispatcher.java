@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.messaging.campaign.util;
 
 import com.timekeeper.bibexpo.messaging.campaign.exception.MessageSendException;
 import com.timekeeper.bibexpo.participant.api.ParticipantStore;
+import com.timekeeper.bibexpo.participant.exception.ParticipantChangedException;
+import com.timekeeper.bibexpo.participant.exception.ParticipantNotFoundException;
 import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,6 +33,7 @@ import java.util.function.Predicate;
 public class CampaignDispatcher {
 
     private static final int PAGE_SIZE = 50;
+    private static final int STAMP_ATTEMPTS = 3;
 
     private final ParticipantStore participantStore;
 
@@ -56,7 +59,7 @@ public class CampaignDispatcher {
         /** Accessor for the channel's dedup map on the participant (smsCampaignSends / whatsAppCampaignSends). */
         private final Function<ParticipantDDB, Map<String, String>> sendsMapAccessor;
         private final ParticipantSender sender;
-        /** Persists the running sent count when the loop stops early (interrupt or abort). */
+        /** Persists the running sent count after every page and when the loop stops early (interrupt or abort). */
         private final IntConsumer checkpoint;
         /** Builds the channel-specific exception thrown when the consecutive-failure threshold is hit. */
         private final IntFunction<RuntimeException> abortExceptionFactory;
@@ -93,6 +96,10 @@ public class CampaignDispatcher {
                     return new DispatchOutcome(state.sentCount, false);
                 }
             }
+            // Doubles as a heartbeat: the scheduler treats a SENDING campaign not saved for a while as stuck and
+            // starts it again, and a large event takes longer than that to send, so without it every big
+            // campaign ran twice at once and both runs messaged the participants neither had stamped yet.
+            request.getCheckpoint().accept(state.sentCount);
         }
 
         return new DispatchOutcome(state.sentCount, true);
@@ -110,7 +117,7 @@ public class CampaignDispatcher {
         }
         String phone = participant.getPhoneNumber();
         if (phone == null || phone.isBlank()) {
-            log.warn("Skipping bib {} for campaign {}: no phone number", participant.getBibNumber(), campaignKey);
+            log.debug("Skipping bib {} for campaign {}: no phone number", participant.getBibNumber(), campaignKey);
             return false;
         }
         return true;
@@ -128,8 +135,7 @@ public class CampaignDispatcher {
 
             request.getSender().send(participant);
 
-            request.getSendsMapAccessor().apply(participant).put(campaignKey, Instant.now().toString());
-            participantStore.save(participant);
+            recordSent(request, participant.getBibNumber());
             state.sentCount++;
             state.consecutiveFailures = 0;
             log.debug("{} sent to bib {} for campaign {}", request.getChannelName(), participant.getBibNumber(), campaignKey);
@@ -138,7 +144,12 @@ public class CampaignDispatcher {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             request.getCheckpoint().accept(state.sentCount);
-            log.warn("Campaign ID: {} send interrupted at bib {}", campaignKey, participant.getBibNumber());
+            log.atWarn()
+                    .addKeyValue("event", "campaign.interrupted")
+                    .addKeyValue("channel", request.getChannelName())
+                    .addKeyValue("campaignId", campaignKey)
+                    .addKeyValue("sentCount", state.sentCount)
+                    .log("Campaign send interrupted");
             return true;
 
         } catch (MessageSendException | RuntimeException e) {
@@ -147,15 +158,51 @@ public class CampaignDispatcher {
         }
     }
 
+    /**
+     * Stamps the send on a fresh read. The page was read before its sends began, and writing that copy
+     * back would undo anything changed since, such as a bib collected at the counter.
+     */
+    private void recordSent(DispatchRequest request, String bibNumber) {
+        for (int attempt = 1; ; attempt++) {
+            ParticipantDDB current;
+            try {
+                current = participantStore.findByEventAndBibOrThrow(request.getEventId(), bibNumber);
+            } catch (ParticipantNotFoundException e) {
+                return;
+            }
+            request.getSendsMapAccessor().apply(current).put(request.getCampaignKey(), Instant.now().toString());
+            try {
+                participantStore.update(current);
+                return;
+            } catch (ParticipantChangedException e) {
+                if (attempt == STAMP_ATTEMPTS) {
+                    throw e;
+                }
+            }
+        }
+    }
+
     private void handleSendFailure(DispatchRequest request, ParticipantDDB participant, DispatchState state, Exception e) {
         state.consecutiveFailures++;
-        log.warn("{} failed for bib {} in campaign {}: {} (consecutive: {})",
-                request.getChannelName(), participant.getBibNumber(), request.getCampaignKey(), e.getMessage(), state.consecutiveFailures);
+        log.atWarn()
+                .addKeyValue("event", "campaign.send_failed")
+                .addKeyValue("channel", request.getChannelName())
+                .addKeyValue("campaignId", request.getCampaignKey())
+                .addKeyValue("bibNumber", participant.getBibNumber())
+                .addKeyValue("consecutiveFailures", state.consecutiveFailures)
+                .addKeyValue("exception", e.getClass().getSimpleName())
+                .addKeyValue("reason", e.getMessage())
+                .log("Campaign message failed");
 
         if (state.consecutiveFailures >= request.getConsecutiveFailureThreshold()) {
             request.getCheckpoint().accept(state.sentCount);
-            log.error("Campaign ID: {} aborted after {} consecutive gateway failures — scheduler will retry",
-                    request.getCampaignKey(), state.consecutiveFailures);
+            log.atError()
+                    .addKeyValue("event", "campaign.aborted")
+                    .addKeyValue("channel", request.getChannelName())
+                    .addKeyValue("campaignId", request.getCampaignKey())
+                    .addKeyValue("sentCount", state.sentCount)
+                    .addKeyValue("consecutiveFailures", state.consecutiveFailures)
+                    .log("Campaign aborted after consecutive failures; the scheduler retries it");
             throw request.getAbortExceptionFactory().apply(state.consecutiveFailures);
         }
     }

@@ -51,7 +51,6 @@ log/
 
 ### Docker ###
 docker-compose.override.yml
-.dockerignore
 
 ### OS ###
 .DS_Store

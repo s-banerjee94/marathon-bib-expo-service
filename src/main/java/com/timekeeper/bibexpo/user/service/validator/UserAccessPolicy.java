@@ -4,7 +4,6 @@ import com.timekeeper.bibexpo.shared.error.AccessForbiddenException;
 import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.EnumMap;
@@ -21,7 +20,6 @@ import java.util.Set;
  * organization scoping between the acting user and the target user.
  */
 @Component
-@Slf4j
 public class UserAccessPolicy {
 
     private static final Set<UserRole> PRIVILEGED_ROLES = EnumSet.of(UserRole.ROOT, UserRole.ADMIN, UserRole.ORGANIZER_ADMIN);
@@ -46,7 +44,6 @@ public class UserAccessPolicy {
      */
     public void validateRootCreationAttempt(UserRole requestedRole, String currentUsername) {
         if (requestedRole == UserRole.ROOT) {
-            log.error("Attempt to create ROOT user by: {}", currentUsername);
             throw new AccessForbiddenException("ROOT users cannot be created.");
         }
     }
@@ -63,25 +60,17 @@ public class UserAccessPolicy {
         Set<UserRole> allowed = CREATABLE_ROLES.getOrDefault(currentRole, EnumSet.noneOf(UserRole.class));
 
         if (!allowed.contains(requestedRole)) {
-            log.error("User {} with role {} attempted to create {} user",
-                    actor.username(), currentRole, requestedRole);
             throw new AccessForbiddenException("You are not allowed to create users with this role.");
         }
 
         if (currentRole == UserRole.ORGANIZER_ADMIN || currentRole == UserRole.ORGANIZER_USER) {
             if (actor.organizationId() == null) {
-                log.error("{} {} has no organization assigned", currentRole, actor.username());
                 throw new AccessForbiddenException("Your account is not assigned to an organization.");
             }
             if (!actor.organizationId().equals(targetOrganizationId)) {
-                log.error("{} {} attempted to create user for org {}. Own org: {}",
-                        currentRole, actor.username(),
-                        targetOrganizationId, actor.organizationId());
                 throw new AccessForbiddenException("You can only create users in your organization.");
             }
         }
-
-        log.debug("Authorization validated for {} to create role {}", actor.username(), requestedRole);
     }
 
     /**
@@ -117,7 +106,6 @@ public class UserAccessPolicy {
 
         // ROOT can update anyone
         if (currentRole == UserRole.ROOT) {
-            log.debug("ROOT user authorized to update user ID: {}", targetUser.getId());
             return;
         }
 
@@ -143,8 +131,6 @@ public class UserAccessPolicy {
         }
 
         // Other roles cannot update users
-        log.error("User {} with role {} attempted to update user",
-                actor.username(), currentRole);
         throw new AccessForbiddenException("You are not allowed to update users.");
     }
 
@@ -166,25 +152,20 @@ public class UserAccessPolicy {
 
         // No one may enable or disable their own account (prevents self-lockout).
         if (isSelfUpdate(actor, targetUser)) {
-            log.error("User {} attempted to toggle its own enabled status", actor.username());
             throw new AccessForbiddenException("You cannot enable or disable your own account.");
         }
 
         // ROOT can disable any other user
         if (currentRole == UserRole.ROOT) {
-            log.debug("ROOT user authorized to toggle enabled status for user ID: {}", targetUser.getId());
             return;
         }
 
         // ADMIN can disable organization roles, but not ROOT or another ADMIN
         if (currentRole == UserRole.ADMIN) {
             if (targetRole == UserRole.ROOT || targetRole == UserRole.ADMIN) {
-                log.error("ADMIN {} attempted to toggle enabled status for {} user",
-                        actor.username(), targetRole);
                 throw new AccessForbiddenException(
                         "You cannot enable or disable users with equal or higher privileges.");
             }
-            log.debug("ADMIN user authorized to toggle enabled status for user ID: {}", targetUser.getId());
             return;
         }
 
@@ -192,8 +173,6 @@ public class UserAccessPolicy {
         if (currentRole == UserRole.ORGANIZER_ADMIN) {
             // ORG_ADMIN cannot disable ROOT, ADMIN, or other ORG_ADMINs
             if (isPrivilegedRole(targetRole)) {
-                log.error("ORG_ADMIN {} attempted to toggle enabled status for {} user",
-                        actor.username(), targetRole);
                 throw new AccessForbiddenException(
                         "You cannot enable or disable users with equal or higher privileges.");
             }
@@ -201,28 +180,22 @@ public class UserAccessPolicy {
             // ORG_ADMIN can only disable users within their own organization
             validateSameOrganization(actor, targetUser, "disable");
 
-            log.debug("ORG_ADMIN user authorized to toggle enabled status for user ID: {}", targetUser.getId());
             return;
         }
 
         // ORG_USER restrictions
         if (currentRole == UserRole.ORGANIZER_USER) {
             if (targetRole != UserRole.DISTRIBUTOR) {
-                log.error("ORG_USER {} attempted to toggle enabled status for {} user",
-                        actor.username(), targetRole);
                 throw new AccessForbiddenException(
                         "You can only enable or disable distributor accounts.");
             }
 
             validateSameOrganization(actor, targetUser, "disable");
 
-            log.debug("ORG_USER user authorized to toggle enabled status for distributor ID: {}", targetUser.getId());
             return;
         }
 
         // Other roles (DISTRIBUTOR) cannot toggle enabled status
-        log.error("User {} with role {} attempted to toggle enabled status",
-                actor.username(), currentRole);
         throw new AccessForbiddenException("You are not allowed to enable or disable users.");
     }
 
@@ -242,30 +215,23 @@ public class UserAccessPolicy {
 
         // No one may lock or unlock their own account.
         if (isSelfUpdate(actor, targetUser)) {
-            log.error("User {} attempted to toggle its own locked status", actor.username());
             throw new AccessForbiddenException("You cannot lock or unlock your own account.");
         }
 
         // ROOT can lock/unlock any other user
         if (currentRole == UserRole.ROOT) {
-            log.debug("ROOT user authorized to toggle locked status for user ID: {}", targetUser.getId());
             return;
         }
 
         // ADMIN can lock/unlock organization roles, but not ROOT or another ADMIN
         if (currentRole == UserRole.ADMIN) {
             if (targetRole == UserRole.ROOT || targetRole == UserRole.ADMIN) {
-                log.error("ADMIN {} attempted to toggle locked status for {} user",
-                        actor.username(), targetRole);
                 throw new AccessForbiddenException(
                         "You cannot lock or unlock users with equal or higher privileges.");
             }
-            log.debug("ADMIN user authorized to toggle locked status for user ID: {}", targetUser.getId());
             return;
         }
 
-        log.error("User {} with role {} attempted to toggle locked status",
-                actor.username(), currentRole);
         throw new AccessForbiddenException("You are not allowed to lock or unlock users.");
     }
 
@@ -277,12 +243,10 @@ public class UserAccessPolicy {
      */
     public void validateDeleteUserAuthorization(CurrentActor actor, User targetUser) {
         if (targetUser.getRole() == UserRole.ROOT) {
-            log.error("Attempt to archive ROOT user by: {}", actor.username());
             throw new AccessForbiddenException("ROOT users cannot be archived.");
         }
 
         if (isSelfUpdate(actor, targetUser)) {
-            log.error("User {} attempted to archive itself", actor.username());
             throw new AccessForbiddenException("You cannot archive your own account.");
         }
 
@@ -309,16 +273,12 @@ public class UserAccessPolicy {
 
         if (currentRole == UserRole.ORGANIZER_USER) {
             if (targetUser.getRole() != UserRole.DISTRIBUTOR) {
-                log.error("ORG_USER {} attempted to archive {} user",
-                        actor.username(), targetUser.getRole());
                 throw new AccessForbiddenException("You can only archive distributor accounts.");
             }
             validateSameOrganization(actor, targetUser, "archive");
             return;
         }
 
-        log.error("User {} with role {} attempted to archive a user",
-                actor.username(), currentRole);
         throw new AccessForbiddenException("You are not allowed to archive users.");
     }
 
@@ -343,7 +303,6 @@ public class UserAccessPolicy {
      */
     public void requireOrganization(CurrentActor actor) {
         if (actor.organizationId() == null) {
-            log.error("{} {} has no organization assigned", actor.role(), actor.username());
             throw new AccessForbiddenException("Your account is not assigned to an organization.");
         }
     }
@@ -362,8 +321,6 @@ public class UserAccessPolicy {
 
         if (targetUser.getOrganization() == null ||
             !actor.organizationId().equals(targetUser.getOrganization().getId())) {
-            log.error("{} {} attempted to {} user from different organization",
-                    actor.role(), actor.username(), action);
             throw new AccessForbiddenException("You can only " + action + " users within your organization.");
         }
     }
@@ -373,7 +330,6 @@ public class UserAccessPolicy {
      */
     private void validateAdminUpdateAuthorization(CurrentActor actor, User targetUser) {
         if (isSelfUpdate(actor, targetUser)) {
-            log.debug("ADMIN user updating itself");
             return;
         }
 
@@ -381,18 +337,15 @@ public class UserAccessPolicy {
 
         // ADMIN cannot update ROOT
         if (targetRole == UserRole.ROOT) {
-            log.error("ADMIN {} attempted to update ROOT user", actor.username());
             throw new AccessForbiddenException("You cannot update users with equal or higher privileges.");
         }
 
         // ADMIN cannot update other ADMINs
         if (targetRole == UserRole.ADMIN) {
-            log.error("ADMIN {} attempted to update another ADMIN user", actor.username());
             throw new AccessForbiddenException("You cannot update users with equal or higher privileges.");
         }
 
         // ADMIN can update ORG_ADMIN, ORG_USER, DISTRIBUTOR
-        log.debug("ADMIN user authorized to update user ID: {}", targetUser.getId());
     }
 
     /**
@@ -400,7 +353,6 @@ public class UserAccessPolicy {
      */
     private void validateOrgAdminUpdateAuthorization(CurrentActor actor, User targetUser) {
         if (isSelfUpdate(actor, targetUser)) {
-            log.debug("ORG_ADMIN user updating itself");
             return;
         }
 
@@ -408,31 +360,23 @@ public class UserAccessPolicy {
 
         // ORG_ADMIN cannot update ROOT, ADMIN, or other ORG_ADMINs
         if (isPrivilegedRole(targetRole)) {
-            log.error("ORG_ADMIN {} attempted to update {} user",
-                    actor.username(), targetRole);
             throw new AccessForbiddenException("You cannot update users with equal or higher privileges.");
         }
 
         // ORG_ADMIN can only update users within their own organization
         validateSameOrganization(actor, targetUser, "update");
-
-        log.debug("ORG_ADMIN user authorized to update user ID: {}", targetUser.getId());
     }
 
     private void validateOrgUserUpdateAuthorization(CurrentActor actor, User targetUser) {
         if (isSelfUpdate(actor, targetUser)) {
-            log.debug("ORG_USER user updating itself");
             return;
         }
 
         if (targetUser.getRole() != UserRole.DISTRIBUTOR) {
-            log.error("ORG_USER {} attempted to update {} user",
-                    actor.username(), targetUser.getRole());
             throw new AccessForbiddenException("You can only update distributor accounts.");
         }
 
         validateSameOrganization(actor, targetUser, "update");
-        log.debug("ORG_USER user authorized to update distributor ID: {}", targetUser.getId());
     }
 
     /**
@@ -440,12 +384,9 @@ public class UserAccessPolicy {
      */
     private void validateSelfUpdateOnly(CurrentActor actor, User targetUser) {
         if (isSelfUpdate(actor, targetUser)) {
-            log.debug("{} user updating itself", actor.role());
             return;
         }
 
-        log.error("User {} with role {} attempted to update another user",
-                actor.username(), actor.role());
         throw new AccessForbiddenException("You can only update your own profile");
     }
 

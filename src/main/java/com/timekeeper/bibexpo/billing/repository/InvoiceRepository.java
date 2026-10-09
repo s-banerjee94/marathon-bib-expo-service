@@ -4,8 +4,10 @@ import com.timekeeper.bibexpo.billing.model.entity.Invoice;
 import com.timekeeper.bibexpo.billing.model.entity.InvoiceStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -80,4 +82,19 @@ public interface InvoiceRepository extends JpaRepository<Invoice, String>, JpaSp
               AND (:to IS NULL OR i.paidAt < :to)
             """)
     BigDecimal sumCollectedBetween(@Param("from") Instant from, @Param("to") Instant to);
+
+    /**
+     * Returns a bill marked FINAL to DRAFT, but only while it has no invoice number. Once the
+     * billing Lambda has issued it (a call that timed out here but finished there, or a second
+     * finalize request), the issued final stands.
+     *
+     * @param billId the bill to return to draft
+     * @param now    the new {@code updated_at}
+     * @return {@code 1} if the bill is a draft again, {@code 0} if it was already issued
+     */
+    @Modifying
+    @Transactional
+    @Query(value = "UPDATE invoices SET status = 'DRAFT', updated_at = :now "
+            + "WHERE bill_id = :billId AND status = 'FINAL' AND invoice_number IS NULL", nativeQuery = true)
+    int revertUnissuedFinal(@Param("billId") String billId, @Param("now") Instant now);
 }

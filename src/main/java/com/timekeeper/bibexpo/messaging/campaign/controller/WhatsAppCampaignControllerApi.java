@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.messaging.campaign.model.dto.response.WhatsAppCamp
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -33,19 +34,21 @@ public interface WhatsAppCampaignControllerApi {
     @Operation(
             summary = "Create a WhatsApp campaign",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Creates a WhatsApp campaign for an event. Without `triggerType` the campaign is \
                     saved as DRAFT; with it the campaign is armed immediately (ACTIVE). Arming \
-                    validates that the template's sender scope matches the organization's currently \
-                    resolved WhatsApp sender — a template registered under the organization's own \
-                    account cannot be armed while the organization is on the default sender, and \
-                    vice versa. One active AUTO_BIB_COLLECTED campaign per event; an event can have \
-                    a maximum of 20 WhatsApp campaigns."""
+                    checks that the template can be sent by the organization's current WhatsApp \
+                    sender: a template written for the organization's own provider cannot be armed \
+                    while the organization uses the platform default, and the other way round. \
+                    One active AUTO_BIB_COLLECTED campaign per event; an event can have a maximum \
+                    of 20 WhatsApp campaigns."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Campaign created",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = WhatsAppCampaignResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Validation error, campaign limit, schedule error, or template scope mismatch",
+            @ApiResponse(responseCode = "400", description = "Validation error, campaign limit, schedule error, or the template does not suit the current sender",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
@@ -70,19 +73,22 @@ public interface WhatsAppCampaignControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Update a WhatsApp campaign",
-            description = "Updates a DRAFT campaign. If `triggerType` is present the campaign is armed (same validations as create). Non-draft campaigns must be disarmed first."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nUpdates a DRAFT campaign. If `triggerType` is present the campaign is armed (same validations as create). Non-draft campaigns must be disarmed first."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Campaign updated",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = WhatsAppCampaignResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Validation error or campaign not in DRAFT",
+            @ApiResponse(responseCode = "400", description = "Validation error, campaign not in DRAFT, schedule error, or the template does not suit the current sender",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Event, campaign or template not found",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "An active bib collection campaign already exists",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -97,9 +103,12 @@ public interface WhatsAppCampaignControllerApi {
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(summary = "List WhatsApp campaigns")
+    @Operation(summary = "List WhatsApp campaigns",
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nAll of the event's WhatsApp campaigns, unpaged.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Campaigns retrieved"),
+            @ApiResponse(responseCode = "200", description = "Campaigns retrieved",
+                    content = @Content(mediaType = "application/json",
+                            array = @ArraySchema(schema = @Schema(implementation = WhatsAppCampaignResponse.class)))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
@@ -118,7 +127,7 @@ public interface WhatsAppCampaignControllerApi {
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
     @Operation(
             summary = "Disarm a WhatsApp campaign",
-            description = "Moves an ACTIVE campaign back to DRAFT and clears its trigger, filter and schedule. Scheduled campaigns cannot be disarmed within 30 seconds of the scheduled time."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nMoves an ACTIVE campaign back to DRAFT and clears its trigger, filter and schedule. Scheduled campaigns cannot be disarmed within 30 seconds of the scheduled time."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Campaign disarmed",
@@ -144,7 +153,8 @@ public interface WhatsAppCampaignControllerApi {
      */
     @DeleteMapping("/{campaignId}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    @Operation(summary = "Delete a WhatsApp campaign", description = "Only DRAFT campaigns can be deleted.")
+    @Operation(summary = "Delete a WhatsApp campaign",
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nOnly DRAFT campaigns can be deleted.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Campaign deleted"),
             @ApiResponse(responseCode = "400", description = "Campaign not in DRAFT",

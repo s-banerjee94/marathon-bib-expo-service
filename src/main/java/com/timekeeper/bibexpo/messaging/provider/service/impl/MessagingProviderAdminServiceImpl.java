@@ -60,8 +60,9 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
     @Override
     @Transactional
     public MessagingProviderResponse save(MessageChannel channel, SaveMessagingProviderRequest request) {
-        MessagingProvider saved = upsert(MessageUsage.SYSTEM, channel, null, request);
+        MessagingProvider saved = upsert(findOrNew(MessageUsage.SYSTEM, channel, null), request);
         providerCache.evictSystem(channel);
+        logWrite("message.provider_saved", saved);
         return toResponse(saved);
     }
 
@@ -97,11 +98,13 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
                                                           SaveMessagingProviderRequest request, User currentUser) {
         authorize(currentUser, organizationId);
         verifyOrganizationExists(organizationId);
-        if (!request.isEnabled()) {
-            requireNoCampaignsDependOn(channel, organizationId, force, "switched off");
+        MessagingProvider provider = findOrNew(MessageUsage.CAMPAIGN, channel, organizationId);
+        if (provider.isEnabled() && !request.isEnabled()) {
+            requireNoCampaignsDependOn(channel, organizationId, force, "switch off");
         }
-        MessagingProvider saved = upsert(MessageUsage.CAMPAIGN, channel, organizationId, request);
+        MessagingProvider saved = upsert(provider, request);
         evictCampaign(channel, organizationId);
+        logWrite("message.provider_saved", saved);
         return toResponse(saved);
     }
 
@@ -110,9 +113,14 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
     public void deleteCampaignProvider(MessageChannel channel, Long organizationId, boolean force, User currentUser) {
         authorize(currentUser, organizationId);
         verifyOrganizationExists(organizationId);
-        requireNoCampaignsDependOn(channel, organizationId, force, "removed");
-        providerRepository.delete(findOrThrow(MessageUsage.CAMPAIGN, channel, organizationId));
+        MessagingProvider provider = findOrThrow(MessageUsage.CAMPAIGN, channel, organizationId);
+        // A disabled sender is already bypassed, so removing it changes nothing for armed campaigns.
+        if (provider.isEnabled()) {
+            requireNoCampaignsDependOn(channel, organizationId, force, "remove");
+        }
+        providerRepository.delete(provider);
         evictCampaign(channel, organizationId);
+        logWrite("message.provider_deleted", provider);
     }
 
     // Intentionally non-transactional: the real gateway call must not run inside a DB transaction.
@@ -132,19 +140,21 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
                 .message(request.getMessage())
                 .variables(request.getVariables())
                 .build());
+        logWrite("message.provider_test_sent", provider);
         return toResponse(provider);
     }
 
     // ---- shared core ----
 
-    // Upsert by the (usage, channel, organizationId) key, so a platform default is never duplicated
+    // Looked up by the (usage, channel, organizationId) key, so a platform default is never duplicated
     // despite MySQL treating NULL organization ids as distinct in the unique index.
-    private MessagingProvider upsert(MessageUsage usage, MessageChannel channel, Long organizationId,
-                                     SaveMessagingProviderRequest request) {
-        MessagingProvider provider = findExisting(usage, channel, organizationId)
+    private MessagingProvider findOrNew(MessageUsage usage, MessageChannel channel, Long organizationId) {
+        return findExisting(usage, channel, organizationId)
                 .orElseGet(() -> MessagingProvider.builder()
                         .channel(channel).usage(usage).organizationId(organizationId).build());
+    }
 
+    private MessagingProvider upsert(MessagingProvider provider, SaveMessagingProviderRequest request) {
         provider.setBaseUrl(request.getBaseUrl());
         provider.setHttpMethod(request.getHttpMethod());
         provider.setAuthType(request.getAuthType());
@@ -189,15 +199,19 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
             return;
         }
         if (organizationId == null && force) {
-            log.error("Platform default {} sender {} with {} campaign(s) still armed, by explicit override",
-                    channel, verb, active);
+            log.atError()
+                    .addKeyValue("event", "message.provider_forced")
+                    .addKeyValue("channel", channel)
+                    .addKeyValue("action", verb)
+                    .addKeyValue("activeCampaigns", active)
+                    .log("Platform default sender changed while campaigns are still armed");
             return;
         }
         throw new MessagingProviderInUseException(organizationId == null
-                ? "This sender cannot be " + verb + " while " + active + " campaign(s) are still armed across the "
-                        + "platform — disarm them, or repeat the request with force to override."
-                : "This sender cannot be " + verb + " while " + active + " of your campaign(s) are still armed — "
-                        + "disarm them first.");
+                ? "You cannot " + verb + " this sender while " + active + " campaign(s) across the platform are "
+                        + "still armed, so disarm them or force the change."
+                : "You cannot " + verb + " this sender while " + active + " of your campaign(s) are still armed, "
+                        + "so disarm them first.");
     }
 
     private void evictCampaign(MessageChannel channel, Long organizationId) {
@@ -226,7 +240,7 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
             return;
         }
         if (organizationId == null) {
-            throw new AccessForbiddenException("Only the root user can manage the default campaign providers.");
+            throw new AccessForbiddenException("You do not have access to the default campaign providers.");
         }
         if (role == UserRole.ADMIN) {
             return;
@@ -245,6 +259,16 @@ public class MessagingProviderAdminServiceImpl implements MessagingProviderAdmin
 
     private boolean isPresent(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private void logWrite(String eventName, MessagingProvider provider) {
+        log.atInfo()
+                .addKeyValue("event", eventName)
+                .addKeyValue("usage", provider.getUsage())
+                .addKeyValue("channel", provider.getChannel())
+                .addKeyValue("organizationId", provider.getOrganizationId())
+                .addKeyValue("enabled", provider.isEnabled())
+                .log("Messaging provider changed");
     }
 
     private MessagingProviderResponse toResponse(MessagingProvider provider) {

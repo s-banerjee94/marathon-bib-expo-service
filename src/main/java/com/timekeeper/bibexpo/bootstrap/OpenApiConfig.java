@@ -43,9 +43,10 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("Marathon Bib Expo Service API")
                         .version("1.0.0")
-                        .description("BIB Expo Management Service - Handles user authentication, authorization, and user lifecycle management for organizers, organizer users, and distributors")
+                        .description("Marathon bib expo service: organizations, users, events, participants, "
+                                + "bib and goody distribution, messaging, billing and inventory.")
                         .contact(new Contact()
-                                .name("Bibliographic Expo Team")
+                                .name("Bib Expo Team")
                                 .email("support@bibexpo.com")))
                 .addServersItem(new Server()
                         .url("/")
@@ -153,11 +154,6 @@ public class OpenApiConfig {
     public GroupedOpenApi systemMessagingDoc() {
         return group("15-system-messaging", "System Messaging (Root)",
                 "/api/system/messaging-providers/**", "/api/system/message-templates/**");
-    }
-
-    @Bean
-    public GroupedOpenApi devOperationsDoc() {
-        return group("16-dev-operations", "Dev Operations (Dev Profile Only)", "/api/dev/**");
     }
 
     @Bean

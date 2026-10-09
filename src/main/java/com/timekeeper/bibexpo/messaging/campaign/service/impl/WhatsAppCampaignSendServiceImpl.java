@@ -32,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,14 +58,14 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
     public void sendCampaignAsync(Long campaignId) {
         WhatsAppCampaign campaign = campaignRepository.findByIdWithDetails(campaignId).orElse(null);
         if (campaign == null) {
-            log.warn("WhatsApp campaign ID: {} not found during async send — skipping", campaignId);
+            logSkipped(campaignId, "campaign_not_found");
             return;
         }
 
         // The slice stores plain IDs; the event is fetched only for template-variable rendering
         Event event = eventStore.findById(campaign.getEventId()).orElse(null);
         if (event == null) {
-            log.warn("Event ID: {} not found for WhatsApp campaign ID: {} — skipping", campaign.getEventId(), campaignId);
+            logSkipped(campaignId, "event_not_found");
             return;
         }
         WhatsAppTemplate template = campaign.getWhatsAppTemplate();
@@ -75,7 +76,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
         } catch (MessagingProviderException e) {
             campaign.setStatus(CampaignStatus.FAILED);
             campaignRepository.save(campaign);
-            log.error("WhatsApp campaign ID: {} failed: {}", campaignId, e.getMessage());
+            logFailed(campaign, e.getMessage());
             campaignNotifier.notifyFailed(campaignId, campaign.getName(), campaign.getOrganizationId(), "WhatsApp");
             return;
         }
@@ -92,13 +93,11 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
         if (incompatible.isPresent()) {
             campaign.setStatus(CampaignStatus.FAILED);
             campaignRepository.save(campaign);
-            log.error("WhatsApp campaign ID: {} not sent — {}", campaignId, incompatible.get());
+            logFailed(campaign, incompatible.get());
             campaignNotifier.notifyFailed(campaignId, campaign.getName(), campaign.getOrganizationId(), "WhatsApp",
                     incompatible.get());
             return;
         }
-
-        log.info("Starting async WhatsApp send for campaign ID: {} event ID: {}", campaignId, event.getId());
 
         EventNames names = nameResolver.forEvent(event.getId());
 
@@ -123,7 +122,7 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
                             .build());
                     return null;
                 })
-                .checkpoint(sentCount -> saveSentCount(campaign, sentCount))
+                .checkpoint(sentCount -> campaignRepository.saveProgress(campaignId, sentCount, Instant.now()))
                 .abortExceptionFactory(failures -> new WhatsAppSendException(
                         "Campaign " + campaignId + " aborted: " + failures + " consecutive gateway failures"))
                 .build());
@@ -135,13 +134,33 @@ public class WhatsAppCampaignSendServiceImpl implements WhatsAppCampaignSendServ
         campaign.setStatus(CampaignStatus.SENT);
         campaign.setSentCount(outcome.getSentCount());
         campaignRepository.save(campaign);
-        log.info("WhatsApp campaign ID: {} completed — {} messages sent", campaignId, outcome.getSentCount());
+        log.atInfo()
+                .addKeyValue("event", "campaign.completed")
+                .addKeyValue("channel", MessageChannel.WHATSAPP)
+                .addKeyValue("eventId", event.getId())
+                .addKeyValue("campaignId", campaignId)
+                .addKeyValue("sentCount", outcome.getSentCount())
+                .log("Campaign completed");
         campaignNotifier.notifyCompleted(campaignId, campaign.getName(), campaign.getOrganizationId(), "WhatsApp", outcome.getSentCount());
     }
 
-    private void saveSentCount(WhatsAppCampaign campaign, int sentCount) {
-        campaign.setSentCount(sentCount);
-        campaignRepository.save(campaign);
+    private void logSkipped(Long campaignId, String reason) {
+        log.atWarn()
+                .addKeyValue("event", "campaign.send_skipped")
+                .addKeyValue("channel", MessageChannel.WHATSAPP)
+                .addKeyValue("campaignId", campaignId)
+                .addKeyValue("reason", reason)
+                .log("Campaign send skipped");
+    }
+
+    private void logFailed(WhatsAppCampaign campaign, String reason) {
+        log.atError()
+                .addKeyValue("event", "campaign.failed")
+                .addKeyValue("channel", MessageChannel.WHATSAPP)
+                .addKeyValue("eventId", campaign.getEventId())
+                .addKeyValue("campaignId", campaign.getId())
+                .addKeyValue("reason", reason)
+                .log("Campaign failed");
     }
 
     private boolean matchesFilter(ParticipantDDB participant, CampaignTargetFilter filter) {

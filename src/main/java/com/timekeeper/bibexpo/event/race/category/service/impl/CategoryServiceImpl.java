@@ -18,7 +18,6 @@ import com.timekeeper.bibexpo.event.race.category.model.dto.request.UpdateCatego
 import com.timekeeper.bibexpo.event.race.category.model.dto.response.CategoryResponse;
 import com.timekeeper.bibexpo.event.race.category.model.entity.Category;
 import com.timekeeper.bibexpo.event.model.entity.Event;
-import com.timekeeper.bibexpo.event.race.category.model.enums.Gender;
 import com.timekeeper.bibexpo.event.race.model.entity.Race;
 import com.timekeeper.bibexpo.event.model.enums.EventOperation;
 import com.timekeeper.bibexpo.event.race.category.repository.CategoryRepository;
@@ -56,9 +55,6 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponse createCategory(Long eventId, Long raceId, CreateCategoryRequest request, User currentUser) {
-        log.info("Creating category: {} for race ID: {} in event ID: {} by user: {}",
-                request.getCategoryName(), raceId, eventId, currentUser.getUsername());
-
         Race race = validateRaceAndEvent(eventId, raceId, currentUser);
         eventOperationGuard.requireAllowed(race.getEvent(), EventOperation.CATEGORY_WRITE);
 
@@ -81,8 +77,12 @@ public class CategoryServiceImpl implements CategoryService {
 
         Category savedCategory = categoryRepository.save(category);
         nameResolver.evict(eventId);
-        log.info("Successfully created category with ID: {} by user: {}",
-                savedCategory.getId(), currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "category.created")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("categoryId", savedCategory.getId())
+                .addKeyValue("raceId", raceId)
+                .log("Category created");
 
         return CategoryResponse.fromEntity(savedCategory);
     }
@@ -92,9 +92,6 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public CategoryResponse updateCategory(Long eventId, Long raceId, Long categoryId,
                                           UpdateCategoryRequest request, User currentUser) {
-        log.info("Updating category with ID: {} for race ID: {} in event ID: {} by user: {}",
-                categoryId, raceId, eventId, currentUser.getUsername());
-
         Race updateRace = validateRaceAndEvent(eventId, raceId, currentUser);
         eventOperationGuard.requireAllowed(updateRace.getEvent(), EventOperation.CATEGORY_WRITE);
 
@@ -114,9 +111,12 @@ public class CategoryServiceImpl implements CategoryService {
 
         Category updatedCategory = categoryRepository.save(category);
         nameResolver.evict(eventId);
-
-        log.info("Successfully updated category with ID: {} by user: {}",
-                updatedCategory.getId(), currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "category.updated")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("categoryId", categoryId)
+                .addKeyValue("raceId", raceId)
+                .log("Category updated");
 
         return CategoryResponse.fromEntity(updatedCategory);
     }
@@ -124,46 +124,25 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional(readOnly = true)
     public CategoryResponse getCategoryById(Long eventId, Long raceId, Long categoryId, User currentUser) {
-        log.info("Fetching category by ID: {} for race ID: {} in event ID: {} for user: {}",
-                categoryId, raceId, eventId, currentUser.getUsername());
-
         validateRaceAndEvent(eventId, raceId, currentUser);
 
-        Category category = loadCategoryOfRace(categoryId, raceId);
-
-        log.info("Successfully fetched category with ID: {} for user: {}",
-                category.getId(), currentUser.getUsername());
-
-        return CategoryResponse.fromEntity(category);
+        return CategoryResponse.fromEntity(loadCategoryOfRace(categoryId, raceId));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CategoryResponse> getCategoriesByRaceId(Long eventId, Long raceId, Gender gender, User currentUser) {
-        log.info("Fetching categories for race ID: {} in event ID: {} by user: {}",
-                raceId, eventId, currentUser.getUsername());
-
+    public List<CategoryResponse> getCategoriesByRaceId(Long eventId, Long raceId, User currentUser) {
         validateRaceAndEvent(eventId, raceId, currentUser);
 
-        List<Category> categories = categoryRepository.findByRaceId(raceId);
-
-        List<CategoryResponse> categoryResponses = categories.stream()
+        return categoryRepository.findByRaceId(raceId).stream()
                 .map(CategoryResponse::fromEntity)
                 .toList();
-
-        log.info("Successfully fetched {} categories for race ID: {} by user: {}",
-                categoryResponses.size(), raceId, currentUser.getUsername());
-
-        return categoryResponses;
     }
 
     @Auditable(entityType = AuditEntityType.CATEGORY, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteCategory(Long eventId, Long raceId, Long categoryId, User currentUser) {
-        log.info("Deleting category with ID: {} for race ID: {} in event ID: {} by user: {}",
-                categoryId, raceId, eventId, currentUser.getUsername());
-
         Race race = validateRaceAndEvent(eventId, raceId, currentUser);
         eventOperationGuard.requireAllowed(race.getEvent(), EventOperation.CATEGORY_WRITE);
 
@@ -171,9 +150,8 @@ public class CategoryServiceImpl implements CategoryService {
 
         long participantCount = categoryUsage.countParticipants(eventId, categoryId);
         if (participantCount > 0) {
-            log.warn("Cannot delete category with ID: {} - has {} assigned participants", categoryId, participantCount);
-            throw new CategoryInUseException(
-                    "Cannot delete this category. It has " + participantCount + " participant(s) assigned. Reassign or remove them first.");
+            throw new CategoryInUseException("You cannot delete this category while " + participantCount
+                    + " participant(s) are assigned to it. Reassign or remove them first.");
         }
 
         Long orgId = race.getEvent() != null && race.getEvent().getOrganization() != null
@@ -184,8 +162,12 @@ public class CategoryServiceImpl implements CategoryService {
 
         categoryRepository.delete(category);
         nameResolver.evict(eventId);
-        log.info("Successfully deleted category with ID: {} by user: {}",
-                categoryId, currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "category.deleted")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("categoryId", categoryId)
+                .addKeyValue("raceId", raceId)
+                .log("Category deleted");
     }
 
     private Race validateRaceAndEvent(Long eventId, Long raceId, User currentUser) {
@@ -194,7 +176,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
 
-        Race race = raceRepository.findById(raceId)
+        Race race = raceRepository.findByIdAndDeletedFalse(raceId)
                 .orElseThrow(RaceNotFoundException::new);
 
         if (!race.getEvent().getId().equals(eventId)) {

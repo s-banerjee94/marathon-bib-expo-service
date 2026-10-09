@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.user.model.dto.response;
 
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.model.enums.LockReason;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -58,6 +59,10 @@ public class UserResponse {
     @Schema(description = "Whether the account is non-locked", example = "true")
     private Boolean accountNonLocked;
 
+    @Schema(description = "Why the account is locked: MANUAL (by a platform administrator) or ORGANIZATION_DISABLED; "
+            + "null when not locked", example = "ORGANIZATION_DISABLED")
+    private LockReason lockReason;
+
     @Schema(description = "When the user was created", example = "2026-01-15T10:30:00Z")
     private Instant createdAt;
 
@@ -86,6 +91,7 @@ public class UserResponse {
                 .eventId(user.getEvent() != null ? user.getEvent().getId() : null)
                 .enabled(user.getEnabled())
                 .accountNonLocked(user.getAccountNonLocked())
+                .lockReason(user.getLockReason())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .createdBy(user.getCreatedBy())

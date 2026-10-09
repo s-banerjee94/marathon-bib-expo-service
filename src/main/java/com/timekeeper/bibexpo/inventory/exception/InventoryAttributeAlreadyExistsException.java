@@ -5,7 +5,7 @@ import org.springframework.http.HttpStatus;
 
 public class InventoryAttributeAlreadyExistsException extends ApiException {
 
-    public static final String DEFAULT_MESSAGE = "An attribute with this name already exists in this scope.";
+    public static final String DEFAULT_MESSAGE = "Your organization already has an attribute with this name.";
 
     public InventoryAttributeAlreadyExistsException() {
         super(HttpStatus.CONFLICT, DEFAULT_MESSAGE);

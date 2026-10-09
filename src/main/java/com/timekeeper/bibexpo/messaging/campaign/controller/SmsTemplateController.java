@@ -37,12 +37,7 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
             @PathVariable Long eventId,
             @Valid @RequestBody CreateSmsTemplateRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to create SMS template for event ID: {} by user: {}",
-                eventId, currentUser.getUsername());
-
-        SmsTemplateResponse response = smsTemplateService.createSmsTemplate(eventId, request, currentUser);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(smsTemplateService.createSmsTemplate(eventId, request, currentUser));
     }
 
     @Override
@@ -51,12 +46,7 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
             @PathVariable Long templateId,
             @Valid @RequestBody UpdateSmsTemplateRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update SMS template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
-        SmsTemplateResponse response = smsTemplateService.updateSmsTemplate(eventId, templateId, request, currentUser);
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(smsTemplateService.updateSmsTemplate(eventId, templateId, request, currentUser));
     }
 
     @Override
@@ -64,9 +54,6 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
             @PathVariable Long eventId,
             @RequestParam(required = false) String search,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get SMS templates for event ID: {} search: {} by user: {}",
-                eventId, search, currentUser.getUsername());
-
         return ResponseEntity.ok(smsTemplateService.getSmsTemplatesByEvent(eventId, search, currentUser));
     }
 
@@ -75,12 +62,7 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
             @PathVariable Long eventId,
             @PathVariable Long templateId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get SMS template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
-        SmsTemplateResponse response = smsTemplateService.getSmsTemplateById(eventId, templateId, currentUser);
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(smsTemplateService.getSmsTemplateById(eventId, templateId, currentUser));
     }
 
     @Override
@@ -88,12 +70,7 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
             @PathVariable Long eventId,
             @PathVariable String smsTemplateId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to get SMS template by DLT ID: {} for event ID: {} by user: {}",
-                smsTemplateId, eventId, currentUser.getUsername());
-
-        SmsTemplateResponse response = smsTemplateService.getSmsTemplateBySmsTemplateId(eventId, smsTemplateId, currentUser);
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(smsTemplateService.getSmsTemplateBySmsTemplateId(eventId, smsTemplateId, currentUser));
     }
 
     @Override
@@ -101,18 +78,14 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
             @PathVariable Long eventId,
             @PathVariable Long templateId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to delete SMS template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
         smsTemplateService.deleteSmsTemplate(eventId, templateId, currentUser);
-
         return ResponseEntity.noContent().build();
     }
 
     @ExceptionHandler(InvalidSmsTemplateException.class)
     public ResponseEntity<ErrorResponse> handleInvalidSmsTemplate(
             InvalidSmsTemplateException ex, WebRequest request) {
-        log.warn("Invalid SMS template: {}", ex.getMessage());
+        logRejected(HttpStatus.BAD_REQUEST, ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }
@@ -120,8 +93,17 @@ public class SmsTemplateController implements SmsTemplateControllerApi {
     @ExceptionHandler(SmsTemplateAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleSmsTemplateAlreadyExists(
             SmsTemplateAlreadyExistsException ex, WebRequest request) {
-        log.warn("SMS template conflict: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
+    }
+
+    private void logRejected(HttpStatus status, Exception ex) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
     }
 }

@@ -36,12 +36,13 @@ public class BatchJobTimeoutSweeper {
                 .filter(j -> j.getImportedAt() != null && j.getImportedAt().isBefore(threshold))
                 .toList();
 
-        if (stuck.isEmpty()) {
-            return;
-        }
-        log.warn("Sweeper found {} import job(s) exceeding {} minutes", stuck.size(), maxDurationMinutes);
-
         for (ImportJob job : stuck) {
+            log.atWarn()
+                    .addKeyValue("event", "import.timed_out")
+                    .addKeyValue("eventId", job.getEventId())
+                    .addKeyValue("importId", job.getImportId())
+                    .addKeyValue("maxMinutes", maxDurationMinutes)
+                    .log("Import exceeded its maximum duration and was failed");
             stopSpringBatchExecution(job);
             job.setStatus(ImportJob.ImportStatus.FAILED);
             job.setErrorSummary(
@@ -55,16 +56,17 @@ public class BatchJobTimeoutSweeper {
     private void stopSpringBatchExecution(ImportJob job) {
         Long executionId = job.getJobExecutionId();
         if (executionId == null) {
-            log.warn("Import job {} has no jobExecutionId; cannot signal Spring Batch to stop", job.getImportId());
             return;
         }
         try {
-            boolean stopped = jobOperator.stop(executionId);
-            log.info("Requested stop on jobExecutionId={} for import {} (result={})",
-                    executionId, job.getImportId(), stopped);
+            jobOperator.stop(executionId);
         } catch (Exception e) {
-            log.warn("Failed to stop Spring Batch execution {} for import {}: {}",
-                    executionId, job.getImportId(), e.getMessage());
+            log.atWarn()
+                    .setCause(e)
+                    .addKeyValue("event", "import.stop_failed")
+                    .addKeyValue("eventId", job.getEventId())
+                    .addKeyValue("jobExecutionId", executionId)
+                    .log("Import stop could not be signalled");
         }
     }
 }

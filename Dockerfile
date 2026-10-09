@@ -1,14 +1,20 @@
-# Build stage
-FROM maven:3.9-eclipse-temurin-17 AS builder
-WORKDIR /app
-COPY pom.xml .
-RUN mvn dependency:go-offline
-COPY . .
-RUN mvn clean package -DskipTests
+# Built for arm64 (the box is Graviton); CodeBuild must run an ARM image.
+# Base images come from ECR Public, not Docker Hub, which rate-limits anonymous pulls.
+FROM public.ecr.aws/docker/library/eclipse-temurin:17-jre-jammy AS extract
+WORKDIR /build
+COPY target/*.jar application.jar
+RUN java -Djarmode=tools -jar application.jar extract --layers --destination extracted
 
-# Runtime stage
-FROM eclipse-temurin:17-jre
+FROM public.ecr.aws/docker/library/eclipse-temurin:17-jre-jammy
 WORKDIR /app
-COPY --from=builder /app/target/*.jar app.jar
+RUN useradd --system --uid 1001 --no-create-home bibexpo
+
+# Least to most likely to change: only the application layer is rebuilt and pushed per deploy.
+COPY --from=extract /build/extracted/dependencies/ ./
+COPY --from=extract /build/extracted/spring-boot-loader/ ./
+COPY --from=extract /build/extracted/snapshot-dependencies/ ./
+COPY --from=extract /build/extracted/application/ ./
+
+USER 1001
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "application.jar"]

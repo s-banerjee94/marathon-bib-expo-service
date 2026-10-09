@@ -43,6 +43,8 @@ public interface InventoryItemControllerApi {
     @Operation(
             summary = "List items",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     One page of the organization's items. Each row carries the item alone — its name, \
                     category, unit, note and how many variants it has — but not the attributes or the
                     variants themselves. Fetch one item to see those.
@@ -90,7 +92,7 @@ public interface InventoryItemControllerApi {
 
     @Operation(
             summary = "Get one item",
-            description = "Returns one item with its own attribute values, its variants and theirs."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nReturns one item with its own attribute values, its variants and theirs."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Item retrieved successfully",
@@ -110,6 +112,8 @@ public interface InventoryItemControllerApi {
     @Operation(
             summary = "Add an item",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Adds a new item. Its category and unit must be terms this organization can see, \
                     and names must be unique within the organization. An item with no variants given \
                     gets one plain variant, so there is always something to count stock against."""
@@ -123,7 +127,7 @@ public interface InventoryItemControllerApi {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization or term not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "An item with this name already exists",
+            @ApiResponse(responseCode = "409", description = "An item with this name already exists, two variants carry the same values, or a plan limit is reached",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping
@@ -136,6 +140,8 @@ public interface InventoryItemControllerApi {
     @Operation(
             summary = "Update an item",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Updates an item's name, category, unit, low-stock threshold, or note. Fields left out \
                     of the request are unchanged, and an empty note clears the one already there.
                     Variants are changed through their own endpoints."""
@@ -190,6 +196,8 @@ public interface InventoryItemControllerApi {
     @Operation(
             summary = "Add a variant",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Adds one more variant to an existing item. Every variant of an item must vary by \
                     the same attributes, no two may carry the same combination of values, and both the \
                     number of variants and the number of attributes they vary by are capped by the \
@@ -249,6 +257,8 @@ public interface InventoryItemControllerApi {
     @Operation(
             summary = "Get a presigned URL to upload a variant image",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Returns a short-lived presigned S3 PUT URL. The client uploads the file bytes \
                     directly to that URL with the given Content-Type, then calls the attach endpoint \
                     with the returned objectKey."""
@@ -275,6 +285,8 @@ public interface InventoryItemControllerApi {
     @Operation(
             summary = "Attach an uploaded variant image",
             description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
                     Attaches a previously uploaded object as the variant's image, replacing and \
                     deleting any existing one."""
     )
@@ -299,7 +311,7 @@ public interface InventoryItemControllerApi {
 
     @Operation(
             summary = "Remove a variant image",
-            description = "Deletes the variant's image from storage, if any."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nDeletes the variant's image from storage, if any."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Image removed successfully",

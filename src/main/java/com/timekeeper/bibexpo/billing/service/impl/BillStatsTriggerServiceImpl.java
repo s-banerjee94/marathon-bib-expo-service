@@ -22,7 +22,8 @@ public class BillStatsTriggerServiceImpl implements BillStatsTriggerService {
     public void recomputeAsync(String reason) {
         String arn = billingProperties.getStatsLambda().getArn();
         if (arn == null || arn.isBlank()) {
-            log.warn("[bill-stats] no stats Lambda ARN configured — skipping {} recompute", reason);
+            log.atWarn().addKeyValue("event", "billing.stats.not_configured").addKeyValue("reason", reason)
+                    .log("No bill-stats Lambda is configured; recompute skipped");
             return;
         }
         String payload = String.format("{\"reason\":\"%s\"}", reason);
@@ -34,10 +35,12 @@ public class BillStatsTriggerServiceImpl implements BillStatsTriggerService {
                     .invocationType(InvocationType.EVENT)
                     .payload(SdkBytes.fromUtf8String(payload))
                     .build());
-            log.info("[bill-stats] triggered {} recompute", reason);
+            log.atInfo().addKeyValue("event", "billing.stats.triggered").addKeyValue("reason", reason)
+                    .log("Bill-stats recompute triggered");
         } catch (Exception e) {
             // Best-effort: the snapshot stays as-is until the next trigger or a manual refresh.
-            log.error("[bill-stats] could not trigger {} recompute: {}", reason, e.getMessage());
+            log.atError().addKeyValue("event", "billing.stats.trigger_failed").addKeyValue("reason", reason)
+                    .setCause(e).log("Bill-stats recompute could not be triggered");
         }
     }
 }

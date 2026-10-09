@@ -14,6 +14,8 @@ import com.timekeeper.bibexpo.event.repository.EventRepository;
 import com.timekeeper.bibexpo.event.race.repository.RaceRepository;
 import com.timekeeper.bibexpo.event.api.EventCampaignUsage;
 import com.timekeeper.bibexpo.event.limit.service.EventLimitService;
+import com.timekeeper.bibexpo.event.model.enums.EventOperation;
+import com.timekeeper.bibexpo.event.service.validator.EventOperationGuard;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,7 @@ public class EventLimitServiceImpl implements EventLimitService {
     private final CategoryRepository categoryRepository;
     private final EventCampaignUsage eventCampaignUsage;
     private final EventStatsQuery eventStatsQuery;
+    private final EventOperationGuard eventOperationGuard;
 
     @Override
     public EventLimitResponse getEventLimits(Long eventId, User currentUser) {
@@ -51,9 +54,10 @@ public class EventLimitServiceImpl implements EventLimitService {
     public EventLimitResponse updateEventLimits(Long eventId, UpdateEventLimitRequest request, User currentUser) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(EventNotFoundException::new);
+        eventOperationGuard.requireAllowed(event, EventOperation.LIMIT_WRITE);
 
         EventLimit limits = eventLimitRepository.findByEventId(eventId)
-                .orElseGet(() -> EventLimit.builder().build());
+                .orElseGet(() -> EventLimit.builder().event(event).build());
 
         applyLimit(request.getMaxParticipants(),
                 () -> eventStatsQuery.participantCount(eventId),
@@ -96,7 +100,10 @@ public class EventLimitServiceImpl implements EventLimitService {
                 "You cannot set the add-on limit below the number of add-on imports already run (%d).");
 
         EventLimit saved = eventLimitRepository.save(limits);
-        log.info("Updated limits for event {} by user {}", eventId, currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "event.limits.updated")
+                .addKeyValue("eventId", eventId)
+                .log("Event limits updated");
         return EventLimitResponse.fromEntity(saved);
     }
 

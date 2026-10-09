@@ -41,6 +41,8 @@ public class SmsTemplateServiceImpl
         extends AbstractTemplateService<SmsTemplate, SmsTemplateResponse>
         implements SmsTemplateService {
 
+    private static final String DUPLICATE_DLT_ID = "This event already has an SMS template with that DLT template ID.";
+
     private final SmsTemplateRepository smsTemplateRepository;
     private final SmsCampaignRepository smsCampaignRepository;
     private final EventQuota eventQuota;
@@ -53,7 +55,7 @@ public class SmsTemplateServiceImpl
                                   EventQuota eventQuota,
                                   EventOperationGuard eventOperationGuard,
                                   TemplateSenderStamp senderStamp) {
-        super("SMS", smsTemplateRepository, eventStore, eventAccessValidator, eventOperationGuard);
+        super(MessageChannel.SMS, smsTemplateRepository, eventStore, eventAccessValidator, eventOperationGuard);
         this.smsTemplateRepository = smsTemplateRepository;
         this.smsCampaignRepository = smsCampaignRepository;
         this.eventQuota = eventQuota;
@@ -64,8 +66,6 @@ public class SmsTemplateServiceImpl
     @Override
     @Transactional
     public SmsTemplateResponse createSmsTemplate(Long eventId, CreateSmsTemplateRequest request, User currentUser) {
-        log.info("Creating SMS template for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
         Event event = validateEventAccess(eventId, currentUser);
         requireTemplateWriteAllowed(event);
 
@@ -77,8 +77,7 @@ public class SmsTemplateServiceImpl
         // Only a template that carries a provider template id can collide on one.
         if (request.getSmsTemplateId() != null && !request.getSmsTemplateId().isBlank()
                 && smsTemplateRepository.existsBySmsTemplateIdAndEventId(request.getSmsTemplateId(), eventId)) {
-            throw new SmsTemplateAlreadyExistsException(
-                    "SMS template with ID '" + request.getSmsTemplateId() + "' already exists for this event");
+            throw new SmsTemplateAlreadyExistsException(DUPLICATE_DLT_ID);
         }
 
         TemplateSenderStamp.Stamp stamp = senderStamp.resolveForSave(MessageChannel.SMS,
@@ -104,8 +103,7 @@ public class SmsTemplateServiceImpl
                 .build();
 
         SmsTemplate savedTemplate = smsTemplateRepository.save(smsTemplate);
-        log.info("Successfully created SMS template with ID: {} for event ID: {} by user: {}",
-                savedTemplate.getId(), eventId, currentUser.getUsername());
+        logWrite("campaign.template.created", eventId, savedTemplate.getId());
 
         return SmsTemplateResponse.fromEntity(savedTemplate);
     }
@@ -114,9 +112,6 @@ public class SmsTemplateServiceImpl
     @Override
     @Transactional
     public SmsTemplateResponse updateSmsTemplate(Long eventId, Long templateId, UpdateSmsTemplateRequest request, User currentUser) {
-        log.info("Updating SMS template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
         Event updateEvent = validateEventAccess(eventId, currentUser);
         requireTemplateWriteAllowed(updateEvent);
 
@@ -135,8 +130,7 @@ public class SmsTemplateServiceImpl
         if (request.getSmsTemplateId() != null && !request.getSmsTemplateId().isBlank() &&
                 !request.getSmsTemplateId().equals(smsTemplate.getSmsTemplateId())) {
             if (smsTemplateRepository.existsBySmsTemplateIdAndEventIdAndIdNot(request.getSmsTemplateId(), eventId, templateId)) {
-                throw new SmsTemplateAlreadyExistsException(
-                        "SMS template with ID '" + request.getSmsTemplateId() + "' already exists for this event");
+                throw new SmsTemplateAlreadyExistsException(DUPLICATE_DLT_ID);
             }
             smsTemplate.setSmsTemplateId(request.getSmsTemplateId());
         }
@@ -161,8 +155,7 @@ public class SmsTemplateServiceImpl
         TextUtils.applyIfSent(request.getNote(), smsTemplate::setNote);
 
         SmsTemplate updatedTemplate = smsTemplateRepository.saveAndFlush(smsTemplate);
-        log.info("Successfully updated SMS template ID: {} for event ID: {} by user: {}",
-                updatedTemplate.getId(), eventId, currentUser.getUsername());
+        logWrite("campaign.template.updated", eventId, templateId);
 
         return SmsTemplateResponse.fromEntity(updatedTemplate);
     }
@@ -176,34 +169,18 @@ public class SmsTemplateServiceImpl
     @Override
     @Transactional(readOnly = true)
     public SmsTemplateResponse getSmsTemplateById(Long eventId, Long templateId, User currentUser) {
-        log.info("Fetching SMS template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
         validateEventAccess(eventId, currentUser);
 
-        SmsTemplate smsTemplate = findTemplateOrThrow(templateId, eventId);
-
-        log.info("Successfully fetched SMS template ID: {} by user: {}",
-                smsTemplate.getId(), currentUser.getUsername());
-
-        return SmsTemplateResponse.fromEntity(smsTemplate);
+        return SmsTemplateResponse.fromEntity(findTemplateOrThrow(templateId, eventId));
     }
 
     @Override
     @Transactional(readOnly = true)
     public SmsTemplateResponse getSmsTemplateBySmsTemplateId(Long eventId, String smsTemplateId, User currentUser) {
-        log.info("Fetching SMS template by DLT ID: {} for event ID: {} by user: {}",
-                smsTemplateId, eventId, currentUser.getUsername());
-
         validateEventAccess(eventId, currentUser);
 
-        SmsTemplate smsTemplate = smsTemplateRepository.findBySmsTemplateIdAndEventId(smsTemplateId, eventId)
-                .orElseThrow(SmsTemplateNotFoundException::new);
-
-        log.info("Successfully fetched SMS template by DLT ID: {} by user: {}",
-                smsTemplateId, currentUser.getUsername());
-
-        return SmsTemplateResponse.fromEntity(smsTemplate);
+        return SmsTemplateResponse.fromEntity(smsTemplateRepository.findBySmsTemplateIdAndEventId(smsTemplateId, eventId)
+                .orElseThrow(SmsTemplateNotFoundException::new));
     }
 
     @Auditable(entityType = AuditEntityType.SMS_TEMPLATE, action = AuditAction.DELETE)

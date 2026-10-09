@@ -86,7 +86,11 @@ public class EventStatsDDBRepository {
         try {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         } catch (Exception ex) {
-            log.warn("Counter delta batch had failures for event {}: {}", eventId, ex.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "event.stats.update_failed")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("error", ex.getMessage())
+                    .log("Counter delta batch had failures");
         }
     }
 
@@ -115,8 +119,13 @@ public class EventStatsDDBRepository {
 
             dynamoDbClient.updateItem(request);
         } catch (Exception ex) {
-            log.warn("Counter update failed eventId={} statKey={} delta={} err={}",
-                    eventId, statKey, delta.delta(), ex.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "event.stats.update_failed")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("statKey", statKey)
+                    .addKeyValue("delta", delta.delta())
+                    .addKeyValue("error", ex.getMessage())
+                    .log("Counter update failed");
         }
     }
 
@@ -143,7 +152,6 @@ public class EventStatsDDBRepository {
                 result -> result.unprocessedPutItemsForTable(getTable()),
                 getTable()::putItem
         );
-        log.debug("Put {} stats rows", rows.size());
     }
 
     public void deleteAllByEventId(String eventId) {
@@ -154,9 +162,13 @@ public class EventStatsDDBRepository {
                 all,
                 WriteBatch.Builder::addDeleteItem,
                 result -> result.unprocessedDeleteItemsForTable(getTable()),
-                null
+                key -> getTable().deleteItem(key)
         );
-        log.info("Deleted {} stats rows for event {}", deleted, eventId);
+        log.atInfo()
+                .addKeyValue("event", "event.stats.deleted")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("count", deleted)
+                .log("Event stats rows deleted");
     }
 
     private <U> int chunkedBatchWrite(
@@ -183,7 +195,6 @@ public class EventStatsDDBRepository {
             processed += batch.size() - unprocessed.size();
 
             if (retryFn != null && !unprocessed.isEmpty()) {
-                log.warn("Stats batch had {} unprocessed items, retrying individually", unprocessed.size());
                 unprocessed.forEach(retryFn);
                 processed += unprocessed.size();
             }

@@ -81,14 +81,18 @@ public interface ParticipantStore {
                                   Predicate<ParticipantDDB> keep);
 
     /**
-     * Writes one participant, overwriting any record with the same event and bib number.
+     * Writes changes to a participant, replacing the whole record held under its event and bib number.
+     * The write lands only if the record still exists and nobody has written it since it was read.
      *
-     * @param participant the record to write
+     * @param participant the changed record, as read and then modified
+     * @throws com.timekeeper.bibexpo.participant.exception.ParticipantChangedException if the record was
+     *         changed or deleted since it was read; read it again and reapply the change
      */
-    void save(ParticipantDDB participant);
+    void update(ParticipantDDB participant);
 
     /**
      * Writes many participants in batches, retrying individually whatever DynamoDB leaves unprocessed.
+     * A batch write cannot be conditional, so it replaces whatever is stored under each bib.
      *
      * @param participants the records to write; null or empty is a no-op
      */
@@ -104,7 +108,7 @@ public interface ParticipantStore {
 
     /**
      * Sets only the verify short code, leaving every other attribute untouched so a concurrent edit
-     * is not overwritten.
+     * is not overwritten. A participant deleted meanwhile is skipped.
      *
      * @param eventId   the owning event
      * @param bibNumber the participant's bib number

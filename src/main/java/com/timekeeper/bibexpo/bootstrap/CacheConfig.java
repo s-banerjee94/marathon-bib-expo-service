@@ -73,9 +73,8 @@ public class CacheConfig {
     }
 
     /**
-     * Dedicated native cache for pending invites. A native Caffeine cache (not the
-     * CacheManager) is used so the store can atomically remove-and-return on accept.
-     * The write-expiry is the invite link lifetime.
+     * Dedicated native cache for pending invites, kept out of the CacheManager so it has its own
+     * size and expiry. The write-expiry is the invite link lifetime.
      */
     @Bean
     public Cache<String, Invitation> invitationCache(InviteProperties inviteProperties) {
@@ -86,9 +85,8 @@ public class CacheConfig {
     }
 
     /**
-     * Dedicated native cache for pending password resets. A native Caffeine cache (not the
-     * CacheManager) is used so the store can atomically remove-and-return on completion.
-     * The write-expiry is the reset link lifetime.
+     * Dedicated native cache for pending password resets, kept out of the CacheManager so it has
+     * its own size and expiry. The write-expiry is the reset link lifetime.
      */
     @Bean
     public Cache<String, PasswordResetToken> passwordResetCache(PasswordResetProperties passwordResetProperties) {

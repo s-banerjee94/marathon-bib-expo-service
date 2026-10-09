@@ -6,6 +6,7 @@ import com.timekeeper.bibexpo.audit.api.AuditAction;
 import com.timekeeper.bibexpo.audit.api.AuditContextHolder;
 import com.timekeeper.bibexpo.audit.api.AuditEntityType;
 import com.timekeeper.bibexpo.event.limit.exception.EventLimitExceededException;
+import com.timekeeper.bibexpo.importer.batch.CsvItemReader;
 import com.timekeeper.bibexpo.importer.batch.CsvPreflightScanner;
 import com.timekeeper.bibexpo.importer.exception.CsvImportException;
 import com.timekeeper.bibexpo.importer.exception.ImportAlreadyRunningException;
@@ -21,6 +22,7 @@ import com.timekeeper.bibexpo.importer.model.dto.response.ImportFieldResponse;
 import com.timekeeper.bibexpo.importer.model.entity.ImportJob;
 import com.timekeeper.bibexpo.importer.model.entity.ImportRowError;
 import com.timekeeper.bibexpo.importer.model.enums.ImportMode;
+import com.timekeeper.bibexpo.participant.model.dynamodb.ParticipantDDB;
 import com.timekeeper.bibexpo.importer.model.enums.ParticipantImportField;
 import com.timekeeper.bibexpo.importer.repository.ImportJobRepository;
 import com.timekeeper.bibexpo.importer.repository.ImportRowErrorRepository;
@@ -157,29 +159,50 @@ public class BatchImportServiceImpl implements BatchImportService {
                 .addLong("run", System.currentTimeMillis())
                 .toJobParameters();
 
+        JobExecution execution;
         try {
-            JobExecution execution = asyncJobLauncher.run(csvImportJob, params);
-            pendingJob.setJobExecutionId(execution.getId());
-            importJobRepository.save(pendingJob);
-            log.info("Launched batch import job {} for event {}", execution.getId(), eventId);
-            AuditContextHolder.setEntityLabel(event.getEventName());
-            if (event.getOrganization() != null) {
-                AuditContextHolder.setOrganizationId(event.getOrganization().getId());
-            }
-            return new BatchImportResponse(execution.getId(), execution.getStatus().toString());
+            execution = asyncJobLauncher.run(csvImportJob, params);
         } catch (Exception e) {
+            log.atError()
+                    .setCause(e)
+                    .addKeyValue("event", "import.launch_failed")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("importId", importId)
+                    .log("Import could not be launched");
+            deleteQuietly(tempFile);
+            deleteQuietly(mappingFile);
             pendingJob.setStatus(ImportJob.ImportStatus.FAILED);
             pendingJob.setErrorSummary("{\"reason\":\"Failed to launch the import job\"}");
             importJobRepository.save(pendingJob);
             throw new CsvImportException("Failed to start the import. Please try again.", e);
         }
+
+        // Only the id column: a short file can finish before this line, and saving the whole
+        // placeholder would put the finished row back to IN_PROGRESS and lock the event.
+        importJobRepository.setJobExecutionId(importId, execution.getId());
+        log.atInfo()
+                .addKeyValue("event", "import.launched")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("importId", importId)
+                .addKeyValue("jobExecutionId", execution.getId())
+                .addKeyValue("mode", effectiveMode)
+                .log("Import launched");
+        AuditContextHolder.setEntityLabel(event.getEventName());
+        if (event.getOrganization() != null) {
+            AuditContextHolder.setOrganizationId(event.getOrganization().getId());
+        }
+        return new BatchImportResponse(execution.getId(), execution.getStatus().toString());
     }
 
     private void deleteQuietly(Path path) {
         try {
             Files.deleteIfExists(path);
         } catch (IOException e) {
-            log.warn("Failed to delete temp file: {}", path, e);
+            log.atWarn()
+                    .setCause(e)
+                    .addKeyValue("event", "import.temp_file_left")
+                    .addKeyValue("path", path)
+                    .log("Temp file could not be deleted");
         }
     }
 
@@ -231,6 +254,7 @@ public class BatchImportServiceImpl implements BatchImportService {
 
         validateExtraColumns(mapping.getGoodies(), usedIndexes);
         validateExtraColumns(mapping.getOther(), usedIndexes);
+        validateAdditionalColumns(mapping.getOther());
 
         return mapping;
     }
@@ -257,6 +281,20 @@ public class BatchImportServiceImpl implements BatchImportService {
         }
     }
 
+    // Retained columns become each participant's additional fields, which hold the same limits as a
+    // participant added by hand.
+    private void validateAdditionalColumns(List<ImportMappingRequest.ExtraColumn> columns) {
+        if (columns == null) return;
+        if (columns.size() > ParticipantDDB.MAX_ADDITIONAL_FIELDS) {
+            throw new InvalidCsvFormatException(
+                    "You can keep at most " + ParticipantDDB.MAX_ADDITIONAL_FIELDS + " additional columns.");
+        }
+        if (columns.stream().anyMatch(c -> c.getCsvColumn().length() > ParticipantDDB.MAX_ADDITIONAL_FIELD_NAME)) {
+            throw new InvalidCsvFormatException("A retained column name cannot be longer than "
+                    + ParticipantDDB.MAX_ADDITIONAL_FIELD_NAME + " characters.");
+        }
+    }
+
     @Override
     public BatchJobStatusResponse stopImport(Long eventId, Long jobExecutionId, User currentUser) {
         Event event = eventStore.requireById(eventId);
@@ -270,11 +308,19 @@ public class BatchImportServiceImpl implements BatchImportService {
         }
 
         try {
-            boolean stopped = jobOperator.stop(jobExecutionId);
-            log.info("Stop requested for jobExecutionId={} by user {} (signalled={})",
-                    jobExecutionId, currentUser.getId(), stopped);
+            jobOperator.stop(jobExecutionId);
+            log.atInfo()
+                    .addKeyValue("event", "import.stop_requested")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("jobExecutionId", jobExecutionId)
+                    .log("Import stop requested");
         } catch (Exception e) {
-            log.warn("Failed to signal stop for jobExecutionId={}: {}", jobExecutionId, e.getMessage());
+            log.atWarn()
+                    .setCause(e)
+                    .addKeyValue("event", "import.stop_failed")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("jobExecutionId", jobExecutionId)
+                    .log("Import stop could not be signalled");
         }
 
         return getJobStatus(eventId, jobExecutionId, currentUser);
@@ -304,9 +350,10 @@ public class BatchImportServiceImpl implements BatchImportService {
         response.setEndTime(execution.getEndTime());
 
         execution.getStepExecutions().stream().findFirst().ifPresent(step -> {
-            response.setReadCount(step.getReadCount());
+            int duplicateRows = step.getExecutionContext().getInt(CsvItemReader.DUPLICATE_ROWS_KEY, 0);
+            response.setReadCount(step.getReadCount() + duplicateRows);
             response.setWriteCount(step.getWriteCount());
-            response.setSkipCount(step.getSkipCount());
+            response.setSkipCount(step.getSkipCount() + duplicateRows);
         });
 
         return response;

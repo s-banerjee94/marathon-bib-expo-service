@@ -84,9 +84,6 @@ public class ParticipantMessageServiceImpl implements ParticipantMessageService 
         MessageChannel channel = MessageChannel.valueOf(request.getChannel());
         List<String> bibNumbers = request.getBibNumbers().stream().map(String::trim).distinct().toList();
 
-        log.info("Sending {} to {} participant(s) of event ID: {} by user: {}",
-                channel, bibNumbers.size(), eventId, currentUser.getUsername());
-
         Event event = eventStore.requireById(eventId);
         eventAccessValidator.validateUserAuthorizationForEvent(currentUser, event);
         eventOperationGuard.requireAllowed(event, EventOperation.CAMPAIGN_WRITE);
@@ -118,7 +115,10 @@ public class ParticipantMessageServiceImpl implements ParticipantMessageService 
         AuditContextHolder.setEntityLabel(channel + " to " + String.join(", ", bibNumbers));
         AuditContextHolder.setOrganizationId(organizationId);
 
-        log.info("{} send finished for event ID: {} — {} sent, {} failed", channel, eventId, sentCount, failedCount);
+        log.atInfo().addKeyValue("event", "message.direct_sent").addKeyValue("eventId", eventId)
+                .addKeyValue("channel", channel).addKeyValue("templateId", plan.templateId())
+                .addKeyValue("sent", sentCount).addKeyValue("failed", failedCount)
+                .log("Message sent to named participants");
 
         return ParticipantMessagesResponse.builder()
                 .channel(channel)
@@ -145,18 +145,18 @@ public class ParticipantMessageServiceImpl implements ParticipantMessageService 
                     names.reportingTime(participant.getRaceId()));
             messagingProviderClient.send(provider, plan.payload().apply(context).recipientPhone(phone).build());
 
-            log.info("{} sent to bib {} in event {}", channel, bibNumber, event.getId());
             return ParticipantMessageResult.builder()
                     .bibNumber(bibNumber)
                     .status(ParticipantMessageStatus.SENT)
                     .build();
 
         } catch (ParticipantNotFoundException | MessagingProviderException e) {
-            log.warn("{} not sent to bib {} in event {}: {}", channel, bibNumber, event.getId(), e.getMessage());
             return failed(bibNumber, e.getMessage());
 
         } catch (RuntimeException e) {
-            log.error("{} failed unexpectedly for bib {} in event {}", channel, bibNumber, event.getId(), e);
+            log.atError().addKeyValue("event", "message.direct_failed").addKeyValue("eventId", event.getId())
+                    .addKeyValue("channel", channel).addKeyValue("bibNumber", bibNumber).setCause(e)
+                    .log("Message to a named participant failed unexpectedly");
             return failed(bibNumber, SEND_FAILED);
         }
     }

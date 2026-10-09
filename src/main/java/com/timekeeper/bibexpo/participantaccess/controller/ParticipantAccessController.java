@@ -32,7 +32,6 @@ public class ParticipantAccessController implements ParticipantAccessControllerA
     public ResponseEntity<Void> generateShortUrls(
             @PathVariable Long eventId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Short URL generation requested for event {} by user {}", eventId, currentUser.getUsername());
         participantAccessService.generateShortUrls(eventId, currentUser);
         return ResponseEntity.accepted().build();
     }
@@ -42,7 +41,6 @@ public class ParticipantAccessController implements ParticipantAccessControllerA
             @PathVariable Long eventId,
             @PathVariable String bibNumber,
             @AuthenticationPrincipal User currentUser) {
-        log.info("QR code requested for bib {} in event {} by user {}", bibNumber, eventId, currentUser.getUsername());
         byte[] png = participantAccessService.getParticipantQr(eventId, bibNumber, currentUser);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"bib-" + bibNumber + "-qr.png\"")
@@ -55,16 +53,18 @@ public class ParticipantAccessController implements ParticipantAccessControllerA
             @PathVariable Long eventId,
             @RequestBody ScanQrRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("QR scan request for event {} by user {}", eventId, currentUser.getUsername());
-        ParticipantDistributionResponse response = participantAccessService.scanQr(eventId, request.getCode(), currentUser);
-        log.info("QR scan resolved bib {} in event {}", response.getBibNumber(), eventId);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(participantAccessService.scanQr(eventId, request.getCode(), currentUser));
     }
 
     @ExceptionHandler(InvalidQrCodeException.class)
     public ResponseEntity<ErrorResponse> handleInvalidQrCode(
             InvalidQrCodeException ex, WebRequest request) {
-        log.warn("Invalid QR code: {}", ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.BAD_REQUEST.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
     }

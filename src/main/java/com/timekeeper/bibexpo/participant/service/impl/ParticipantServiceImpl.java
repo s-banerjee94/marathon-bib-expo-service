@@ -7,6 +7,7 @@ import com.timekeeper.bibexpo.event.api.EventLimits;
 import com.timekeeper.bibexpo.participant.exception.BibNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.participant.exception.ChipNumberAlreadyExistsException;
 import com.timekeeper.bibexpo.participant.exception.ParticipantDeletionFailedException;
+import com.timekeeper.bibexpo.participant.exception.ParticipantModificationNotAllowedException;
 import com.timekeeper.bibexpo.participant.exception.RaceCategoryMismatchException;
 import com.timekeeper.bibexpo.participant.model.dto.request.BulkDeleteParticipantsRequest;
 import com.timekeeper.bibexpo.participant.model.dto.request.CreateParticipantRequest;
@@ -34,12 +35,12 @@ import com.timekeeper.bibexpo.shared.util.TextUtils;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.model.Page;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -71,10 +72,8 @@ public class ParticipantServiceImpl implements ParticipantService {
     public ParticipantResponse createParticipant(Long eventId, CreateParticipantRequest request, User currentUser) {
         trimStringFields(request);
 
-        log.info("Creating participant with BIB {} for event ID: {} by user: {}",
-                request.getBibNumber(), eventId, currentUser.getUsername());
-
-        accessGuard.forWrite(eventId, currentUser);
+        Event event = accessGuard.forWrite(eventId, currentUser);
+        Map<String, String> goodies = onEventGoodyList(event, request.getGoodies());
 
         EventLimits limits = eventQuota.forEvent(eventId);
         long currentCount = eventStatsQuery.participantCount(eventId);
@@ -111,7 +110,7 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .raceCategoryKey(ParticipantDDB.compositeKey(
                         request.getRaceId().toString(), request.getCategoryId().toString()))
                 .bibCollectedAt(request.getBibCollectedAt())
-                .goodies(request.getGoodies() != null ? new HashMap<>(request.getGoodies()) : new HashMap<>())
+                .goodies(goodies)
                 .additionalFields(request.getAdditionalFields() != null ? new HashMap<>(request.getAdditionalFields()) : new HashMap<>())
                 .emergencyContactName(request.getEmergencyContactName())
                 .emergencyContactPhone(request.getEmergencyContactPhone())
@@ -122,39 +121,34 @@ public class ParticipantServiceImpl implements ParticipantService {
                 .updatedBy(currentUser.getUsername())
                 .build();
 
-        participantRepository.save(participant);
+        participantRepository.create(participant);
         eventStatsRecorder.onParticipantCreated(ParticipantCountersMapper.of(participant));
 
-        log.info("Successfully created participant with BIB {} for event ID: {}", request.getBibNumber(), eventId);
+        log.atInfo()
+                .addKeyValue("event", "participant.created")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("bibNumber", participant.getBibNumber())
+                .log("Participant created");
 
         return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
 
     @Override
     public ParticipantListResponse getParticipantsByEvent(Long eventId, Integer limit, String lastEvaluatedKey, User currentUser) {
-        log.info("Fetching participants for event ID: {} with limit: {} by user: {}",
-                eventId, limit, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
 
+        String scope = "participants|" + eventId;
         Page<ParticipantDDB> page = participantRepository.findPage(
-                eventId, normalizeLimit(limit), decodeCursor(lastEvaluatedKey), null);
+                eventId, normalizeLimit(limit), paginationCodec.decode(lastEvaluatedKey, scope), null);
 
-        return toListResponse(page, eventId);
+        return toListResponse(page, eventId, scope);
     }
 
     @Override
     public ParticipantResponse getParticipantByBibNumber(Long eventId, String bibNumber, User currentUser) {
-        log.info("Fetching participant with bib {} for event ID: {} by user: {}",
-                bibNumber, eventId, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
-
-        log.info("Retrieved participant BIB {} from DynamoDB with {} goodies: {}",
-                bibNumber, participant.getGoodies() != null ? participant.getGoodies().size() : 0,
-                participant.getGoodies());
 
         return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
@@ -163,9 +157,6 @@ public class ParticipantServiceImpl implements ParticipantService {
     public ParticipantResponse updateParticipant(Long eventId, String bibNumber,
                                                   UpdateParticipantRequest request, User currentUser) {
         trimStringFields(request);
-
-        log.info("Updating participant BIB {} for event ID: {} by user: {}",
-                bibNumber, eventId, currentUser.getUsername());
 
         accessGuard.forWrite(eventId, currentUser);
 
@@ -180,12 +171,14 @@ public class ParticipantServiceImpl implements ParticipantService {
             newBibNumber = request.getNewBibNumber();
             bibNumberChanged = true;
 
+            // Hand-out history is logged under the old bib and would not follow it.
+            if (participant.getBibCollectedAt() != null) {
+                throw new ParticipantModificationNotAllowedException(
+                        "You can't change the bib number after the bib was handed out; undo the collection first.");
+            }
             if (participantRepository.findByEventAndBib(eventId, newBibNumber) != null) {
                 throw new BibNumberAlreadyExistsException();
             }
-
-            log.warn("BIB number change requested: {} -> {} for event {}",
-                    bibNumber, newBibNumber, eventId);
         }
 
         if (StringUtils.hasText(request.getRaceId()) || StringUtils.hasText(request.getCategoryId())) {
@@ -223,33 +216,30 @@ public class ParticipantServiceImpl implements ParticipantService {
         participant.setUpdatedBy(currentUser.getUsername());
 
         if (bibNumberChanged) {
-            participantRepository.deleteByEventAndBib(eventId, bibNumber);
             participant.setBibNumber(newBibNumber);
-            participantRepository.save(participant);
-
-            log.info("BIB number changed from {} to {} for event ID: {}",
-                    bibNumber, newBibNumber, eventId);
+            participantRepository.changeBib(participant, bibNumber);
         } else {
-            participantRepository.save(participant);
-
-            log.info("Successfully updated participant BIB {} for event ID: {}", bibNumber, eventId);
+            participantRepository.update(participant);
         }
 
         eventStatsRecorder.onParticipantUpdated(beforeSnapshot, ParticipantCountersMapper.of(participant));
+
+        LoggingEventBuilder updated = log.atInfo()
+                .addKeyValue("event", "participant.updated")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("bibNumber", bibNumber);
+        if (bibNumberChanged) {
+            updated.addKeyValue("newBibNumber", newBibNumber);
+        }
+        updated.log("Participant updated");
 
         return mapParticipantToResponse(participant, nameResolver.forEvent(eventId));
     }
 
     @Override
     public Long getParticipantCount(Long eventId, User currentUser) {
-        log.info("Counting participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
         accessGuard.forRead(eventId, currentUser);
-
-        long count = eventStatsQuery.participantCount(eventId);
-
-        log.info("Found {} participants for event ID: {}", count, eventId);
-        return count;
+        return eventStatsQuery.participantCount(eventId);
     }
 
     private ParticipantResponse mapParticipantToResponse(ParticipantDDB participant, EventNames names) {
@@ -287,7 +277,7 @@ public class ParticipantServiceImpl implements ParticipantService {
     }
 
     /** Maps a query page to a paginated response, enriching each row with current names. */
-    private ParticipantListResponse toListResponse(Page<ParticipantDDB> page, Long eventId) {
+    private ParticipantListResponse toListResponse(Page<ParticipantDDB> page, Long eventId, String scope) {
         if (page == null) {
             return emptyListResponse();
         }
@@ -295,7 +285,7 @@ public class ParticipantServiceImpl implements ParticipantService {
         List<ParticipantResponse> participants = page.items().stream()
                 .map(participant -> mapParticipantToResponse(participant, names))
                 .toList();
-        String lastKey = encodeCursor(page.lastEvaluatedKey());
+        String lastKey = paginationCodec.encode(page.lastEvaluatedKey(), scope);
         return ParticipantListResponse.builder()
                 .participants(participants)
                 .lastEvaluatedKey(lastKey)
@@ -314,8 +304,6 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @Override
     public DeleteParticipantsResponse deleteParticipant(Long eventId, String bibNumber, User currentUser) {
-        log.info("Deleting participant with bib {} for event ID: {} by user: {}", bibNumber, eventId, currentUser.getUsername());
-
         Event event = accessGuard.forDelete(eventId, currentUser);
 
         ParticipantDDB participant = participantRepository.findByEventAndBibOrThrow(eventId, bibNumber);
@@ -323,8 +311,13 @@ public class ParticipantServiceImpl implements ParticipantService {
         participantRepository.deleteByEventAndBib(eventId, bibNumber);
         eventStatsRecorder.onParticipantDeleted(ParticipantCountersMapper.of(participant));
 
+        log.atInfo()
+                .addKeyValue("event", "participant.deleted")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("bibNumber", bibNumber)
+                .log("Participant deleted");
+
         String message = String.format("Successfully deleted participant with bib %s from event '%s'", bibNumber, event.getEventName());
-        log.info(message);
 
         return DeleteParticipantsResponse.builder()
                 .eventId(eventId)
@@ -337,15 +330,18 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @Override
     public DeleteParticipantsResponse deleteAllParticipants(Long eventId, User currentUser) {
-        log.info("Deleting all participants for event ID: {} by user: {}", eventId, currentUser.getUsername());
-
         Event event = accessGuard.forDelete(eventId, currentUser);
 
         int deletedCount = participantRepository.deleteAllByEventId(eventId.toString());
         eventStatsRecorder.onAllDeleted(eventId);
 
+        log.atInfo()
+                .addKeyValue("event", "participant.all_deleted")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("deletedCount", deletedCount)
+                .log("All participants of the event deleted");
+
         String message = String.format("Successfully deleted %d participants for event '%s'", deletedCount, event.getEventName());
-        log.info(message);
 
         return DeleteParticipantsResponse.builder()
                 .eventId(eventId)
@@ -358,8 +354,6 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @Override
     public DeleteParticipantsResponse deleteBulkParticipants(Long eventId, List<String> bibNumbers, User currentUser) {
-        log.info("Deleting {} participants for event ID: {} by user: {}", bibNumbers.size(), eventId, currentUser.getUsername());
-
         Event event = accessGuard.forDelete(eventId, currentUser);
 
         // The request DTO carries the same bound, so over HTTP this never fires; it holds the line
@@ -389,10 +383,22 @@ public class ParticipantServiceImpl implements ParticipantService {
                 failedCount += participantsToDelete.size() - deletedCount;
                 eventStatsRecorder.onBulkDeleted(ParticipantCountersMapper.of(participantsToDelete));
             } catch (Exception e) {
-                log.error("Failed to delete participants in bulk for event {}", eventId, e);
+                log.atError()
+                        .addKeyValue("event", "participant.bulk_delete_failed")
+                        .addKeyValue("eventId", eventId)
+                        .addKeyValue("requested", participantsToDelete.size())
+                        .setCause(e)
+                        .log("Bulk participant delete failed");
                 throw new ParticipantDeletionFailedException(e);
             }
         }
+
+        log.atInfo()
+                .addKeyValue("event", "participant.bulk_deleted")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("deletedCount", deletedCount)
+                .addKeyValue("failedCount", failedCount)
+                .log("Participants deleted in bulk");
 
         StringBuilder messageBuilder = new StringBuilder();
         messageBuilder.append(String.format("Successfully deleted %d participants for event '%s'", deletedCount, event.getEventName()));
@@ -405,7 +411,6 @@ public class ParticipantServiceImpl implements ParticipantService {
         }
 
         String message = messageBuilder.toString();
-        log.info(message);
 
         return DeleteParticipantsResponse.builder()
                 .eventId(eventId)
@@ -453,7 +458,34 @@ public class ParticipantServiceImpl implements ParticipantService {
                 current.put(key, value);
             }
         });
+        if (current.size() > ParticipantDDB.MAX_ADDITIONAL_FIELDS) {
+            throw new InvalidUserDataException(
+                    "A participant can have at most " + ParticipantDDB.MAX_ADDITIONAL_FIELDS + " additional fields.");
+        }
         participant.setAdditionalFields(current);
+    }
+
+    /**
+     * Keys each goody by its name on the event's goody list, so a typed "t-shirt" counts with the listed
+     * "T-Shirt", and refuses a name the list does not hold: it would start counters for a goody the event
+     * does not know and cannot remove.
+     */
+    private static Map<String, String> onEventGoodyList(Event event, Map<String, String> requested) {
+        Map<String, String> goodies = new HashMap<>();
+        if (requested == null || requested.isEmpty()) {
+            return goodies;
+        }
+        Map<String, String> listed = new HashMap<>();
+        event.getEventGoodies().forEach(goodie -> listed.put(TextUtils.toMatchKey(goodie.name()), goodie.name()));
+        requested.forEach((name, value) -> {
+            String listedName = listed.get(TextUtils.toMatchKey(name));
+            if (listedName == null) {
+                throw new InvalidUserDataException(
+                        "'" + name + "' is not one of this event's goodies; add it to the event first.");
+            }
+            goodies.put(listedName, value);
+        });
+        return goodies;
     }
 
     @Override
@@ -464,9 +496,6 @@ public class ParticipantServiceImpl implements ParticipantService {
             Integer limit,
             String lastEvaluatedKey,
             User currentUser) {
-
-        log.info("Lookup participants for event ID: {} with searchType: {}, searchValue: '{}' by user: {}",
-                eventId, searchType, searchValue, currentUser.getUsername());
 
         accessGuard.forRead(eventId, currentUser);
 
@@ -479,18 +508,14 @@ public class ParticipantServiceImpl implements ParticipantService {
         }
 
         String indexName = getIndexNameForSearchType(searchType);
+        String scope = "participants|" + eventId + "|" + indexName;
         Page<ParticipantDDB> page = participantRepository.findPageByIndex(
                 indexName,
                 buildLookupConditional(eventId, searchType, searchValue.trim()),
                 Math.min(normalizeLimit(limit), MAX_LOOKUP_PAGE_SIZE),
-                decodeCursor(lastEvaluatedKey));
+                paginationCodec.decode(lastEvaluatedKey, scope));
 
-        ParticipantListResponse response = toListResponse(page, eventId);
-
-        log.info("Lookup completed for event ID: {} using index {}. Found {} participants, hasMore: {}",
-                eventId, indexName, response.getCount(), response.getHasMore());
-
-        return response;
+        return toListResponse(page, eventId, scope);
     }
 
     private ParticipantListResponse lookupByBibNumber(Long eventId, String bibNumber) {
@@ -561,25 +586,6 @@ public class ParticipantServiceImpl implements ParticipantService {
             throw new InvalidUserDataException("Please ask for at least one entry per page.");
         }
         return limit;
-    }
-
-    private Map<String, AttributeValue> decodeCursor(String lastEvaluatedKey) {
-        if (lastEvaluatedKey == null || lastEvaluatedKey.isEmpty()) {
-            return null;
-        }
-        try {
-            return paginationCodec.decode(lastEvaluatedKey);
-        } catch (Exception e) {
-            log.error("Failed to decode pagination key", e);
-            throw new InvalidUserDataException("Invalid page token. Please start from the first page.");
-        }
-    }
-
-    // The shared codec returns "" for an exhausted page rather than null, and hasMore is derived
-    // from the cursor being null — see the same guard in distribution.
-    private String encodeCursor(Map<String, AttributeValue> lastEvaluatedKey) {
-        String encoded = paginationCodec.encode(lastEvaluatedKey);
-        return (encoded == null || encoded.isEmpty()) ? null : encoded;
     }
 
     private static void trimStringFields(CreateParticipantRequest r) {

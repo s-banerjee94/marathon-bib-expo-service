@@ -5,7 +5,6 @@ import com.timekeeper.bibexpo.reporting.model.enums.EventActivityRange;
 import com.timekeeper.bibexpo.reporting.service.EventDashboardService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,7 +16,6 @@ import java.util.concurrent.TimeUnit;
  */
 @RestController
 @RequiredArgsConstructor
-@Slf4j
 public class EventDashboardController implements EventDashboardControllerApi {
 
     private final EventDashboardService eventDashboardService;
@@ -34,7 +32,6 @@ public class EventDashboardController implements EventDashboardControllerApi {
     @Override
     public ResponseEntity<EventDashboardResponse> reconcileEventDashboard(
             Long eventId, EventActivityRange range, User currentUser) {
-        log.info("POST /events/{}/dashboard/reconcile by user {}", eventId, currentUser.getUsername());
         return ResponseEntity.ok(eventDashboardService.reconcileDashboard(eventId, range, currentUser));
     }
 }

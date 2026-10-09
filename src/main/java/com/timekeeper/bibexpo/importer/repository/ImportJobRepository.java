@@ -1,8 +1,6 @@
 package com.timekeeper.bibexpo.importer.repository;
 
 import com.timekeeper.bibexpo.importer.model.entity.ImportJob;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -16,20 +14,18 @@ import java.util.Optional;
 @Repository
 public interface ImportJobRepository extends JpaRepository<ImportJob, String> {
 
-    Page<ImportJob> findByEventIdOrderByImportedAtDesc(Long eventId, Pageable pageable);
-
     Optional<ImportJob> findFirstByEventIdOrderByImportedAtDesc(Long eventId);
 
-    Optional<ImportJob> findByImportIdAndEventId(String importId, Long eventId);
-
     boolean existsByEventIdAndStatus(Long eventId, ImportJob.ImportStatus status);
-
-    Optional<ImportJob> findByEventIdAndStatus(Long eventId, ImportJob.ImportStatus status);
 
     Optional<ImportJob> findByJobExecutionIdAndEventId(Long jobExecutionId, Long eventId);
 
     List<ImportJob> findByStatus(ImportJob.ImportStatus status);
 
+    @Modifying
+    @Transactional
+    @Query("update ImportJob j set j.jobExecutionId = :jobExecutionId where j.importId = :importId")
+    void setJobExecutionId(@Param("importId") String importId, @Param("jobExecutionId") Long jobExecutionId);
 
     /**
      * Clears an event's import history. The event id is a plain column with no association

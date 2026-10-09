@@ -12,7 +12,7 @@
 #   --> different ORIGIN, same SITE (example.com), both HTTPS
 #
 # >>> Replace every "example.com" below with your real domain. <<<
-# Secrets (JWT_SECRET, DB_PASSWORD, AWS keys, QR secret) MUST come from env vars
+# Secrets (JWT_SECRET, DB_PASSWORD, AWS keys, QR secret, messaging key) MUST come from env vars
 # and are intentionally left without insecure defaults so the app fails fast if
 # they are not provided.
 # ============================================================================
@@ -58,6 +58,10 @@ app:
     base-url:    ${PASSWORD_RESET_BASE_URL:https://example.com}
     reset-path:  ${PASSWORD_RESET_PATH:/reset-password}
     ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:10}
+  # Encrypts the messaging provider secrets at rest. No default: the base file's dev key is public,
+  # and provider secrets saved under one key cannot be read under another.
+  system-messaging:
+    secret-key: ${SYSTEM_MESSAGING_SECRET_KEY}
 
 # --- Datasource -------------------------------------------------------------
 # Host/credentials come from env in production. DB_PASSWORD has no default so a
@@ -88,9 +92,14 @@ aws:
     endpoint: ${AWS_S3_ENDPOINT:}
 
 # --- Logging ----------------------------------------------------------------
-# Adds a rolling file on top of the console; levels/patterns are inherited from
-# application.yaml (root INFO). Override the path with the LOG_FILE env var.
+# Structured JSON on console + rolling file. CloudWatch Agent tails the file;
+# each JSON line becomes a searchable event in Logs Insights.
+# MDC fields (requestId, userId, username, role, orgId) are included automatically.
 logging:
+  structured:
+    format:
+      console: logstash
+      file: logstash
   file:
     name: ${LOG_FILE:/var/log/marathon/app.log}
   logback:

@@ -1,6 +1,7 @@
 package com.timekeeper.bibexpo.messaging.system.model.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -23,9 +24,11 @@ public class SaveSystemMessageTemplateRequest {
             example = "#{role}\n#{organizationName}\n#{inviteUrl}")
     private String variables;
 
+    @Size(max = 64, message = "Template id must not exceed 64 characters")
     @Schema(description = "Registered template id: DLT template id (SMS) or provider Content SID (WhatsApp)", example = "1707171234567890123")
     private String dltTemplateId;
 
+    @Size(max = 32, message = "Sender ID must not exceed 32 characters")
     @Schema(description = "Registered DLT header / sender id", example = "BIBEXP")
     private String senderId;
 

@@ -32,6 +32,7 @@ public interface ParticipantMessageControllerApi {
     @Operation(
             summary = "Send a message to named participants",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN, ORGANIZER_USER. \
                     Sends one SMS or WhatsApp template to the bib numbers you list, instead of to the whole event. \
                     Use it when a participant reports never receiving an automatic message and asks for it again. \
                     Omit templateId to reuse the template of the event's active bib collection campaign for the channel. \

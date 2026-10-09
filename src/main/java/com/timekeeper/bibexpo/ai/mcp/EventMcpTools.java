@@ -8,7 +8,6 @@ import com.timekeeper.bibexpo.event.service.EventService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.data.domain.Page;
@@ -20,7 +19,6 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class EventMcpTools implements McpToolGroup {
 
     private static final int SEARCH_LIMIT = 20;
@@ -42,7 +40,6 @@ public class EventMcpTools implements McpToolGroup {
 
         String search = McpToolSupport.normalizeSearch(query);
         Pageable pageable = PageRequest.of(0, SEARCH_LIMIT);
-        log.info("MCP search_events - query '{}', status {}, by {}", search, status, currentUser.getUsername());
 
         Page<EventResponse> page = switch (currentUser.getRole()) {
             case ROOT, ADMIN -> eventService.getAllEvents(null, status, search, pageable, currentUser);
@@ -66,8 +63,6 @@ public class EventMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP create_event - name '{}', org {}, by {}",
-                request.getEventName(), request.getOrganizationId(), currentUser.getUsername());
         return eventService.createEvent(request, currentUser);
     }
 
@@ -83,7 +78,6 @@ public class EventMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP update_event - event {}, by {}", eventId, currentUser.getUsername());
         return eventService.updateEvent(eventId, request, currentUser);
     }
 }

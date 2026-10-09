@@ -109,6 +109,25 @@ class ProviderRequestBuilder {
         return replaceSecret(result, basicAuthSecret(provider));
     }
 
+    /**
+     * {@link #redact} plus the recipient's number and the message text, for provider output that is about to
+     * be logged: a provider's error or response often echoes them, and logs must not carry participants' data.
+     */
+    String scrub(String text, MessagingProvider provider, OutboundMessage message) {
+        String result = redact(text, provider);
+        result = replaceSecret(result, nationalNumber(message.getRecipientPhone()));
+        return replaceSecret(result, message.getMessage());
+    }
+
+    // The last ten digits match the number whether a provider echoes it bare, with 91, or with +91.
+    private static String nationalNumber(String phone) {
+        if (phone == null) {
+            return null;
+        }
+        String digits = phone.replaceAll("\\D", "");
+        return digits.length() > 10 ? digits.substring(digits.length() - 10) : digits;
+    }
+
     private Map<String, String> redactMap(Map<String, String> source, MessagingProvider provider) {
         Map<String, String> out = new LinkedHashMap<>();
         source.forEach((key, value) -> out.put(key, redact(value, provider)));

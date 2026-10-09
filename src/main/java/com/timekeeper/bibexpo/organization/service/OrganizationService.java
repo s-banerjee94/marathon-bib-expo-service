@@ -2,6 +2,8 @@ package com.timekeeper.bibexpo.organization.service;
 
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationSubscriptionRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.MembersUnlockedResponse;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.user.api.CurrentActor;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
@@ -30,7 +32,8 @@ public interface OrganizationService {
     OrganizationResponse createOrganization(CreateOrganizationRequest request);
 
     /**
-     * Update an existing organization with partial data
+     * Update an existing organization with partial data. ROOT and ADMIN may update any organization,
+     * an ORGANIZER_ADMIN only their own; every other role is refused.
      * @param id The organization ID
      * @param request The update request with optional fields
      * @param actor The authenticated user
@@ -39,9 +42,30 @@ public interface OrganizationService {
     OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, CurrentActor actor);
 
     /**
+     * Changes an organization's plan: its subscription tier and its user and inventory caps. Only
+     * what the request carries is changed, and no cap may drop below what is already in use.
+     * Callers must be ROOT or ADMIN; organizers never change their own plan.
+     * @param id The organization ID
+     * @param request The tier and caps to change
+     * @return The updated organization response
+     * @throws com.timekeeper.bibexpo.organization.exception.LimitReductionException if a cap would drop below usage
+     */
+    OrganizationResponse updateSubscription(Long id, UpdateOrganizationSubscriptionRequest request);
+
+    /**
+     * Unlocks the organization's users that were locked because it was disabled. Users locked
+     * manually stay locked.
+     * @param id The organization ID
+     * @return How many users were unlocked
+     * @throws com.timekeeper.bibexpo.organization.exception.OrganizationDisabledException if the organization is still disabled
+     */
+    MembersUnlockedResponse unlockMembers(Long id);
+
+    /**
      * Enable or disable an organization
-     * When an organization is disabled, all its users will be automatically disabled.
-     * When an organization is enabled, its users will NOT be automatically enabled.
+     * When an organization is disabled, all its users are locked and cannot be re-enabled, unlocked,
+     * reassigned or reset until it is enabled again. Enabling it does NOT unlock them; see
+     * {@link #unlockMembers(Long)}.
      * @param id The organization ID
      * @param enabled The new enabled status (true to enable, false to disable)
      * @return The updated organization response

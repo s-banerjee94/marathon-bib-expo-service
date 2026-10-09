@@ -4,8 +4,10 @@ import com.timekeeper.bibexpo.inventory.model.entity.InventoryItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -91,4 +93,33 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     long countByUnitId(Long unitId);
 
     boolean existsByOrganizationIdAndName(Long organizationId, String name);
+
+    /**
+     * Flags the item once its stock across all locations is at or below its low-stock threshold (zero
+     * when it has none). Returns 1 only for the call that flagged it, which is the one to raise the
+     * alert. Runs in a transaction of its own, off the request's thread, once the stock change has
+     * committed: inside that change two counters would each wait on the other's shelf.
+     */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE InventoryItem i SET i.lowStockAlerted = true
+            WHERE i.id = :itemId AND i.lowStockAlerted = false
+              AND (SELECT COALESCE(SUM(s.onHand), 0) FROM InventoryStock s
+                   WHERE s.variantId IN (SELECT v.id FROM InventoryVariant v WHERE v.itemId = :itemId)
+                  ) <= COALESCE(i.lowStockThreshold, 0)
+            """)
+    int markLowStockAlerted(@Param("itemId") Long itemId);
+
+    /** Clears the flag once the item's stock is back above its threshold, so the next drop to it alerts again. */
+    @Modifying
+    @Transactional
+    @Query("""
+            UPDATE InventoryItem i SET i.lowStockAlerted = false
+            WHERE i.id = :itemId AND i.lowStockAlerted = true
+              AND (SELECT COALESCE(SUM(s.onHand), 0) FROM InventoryStock s
+                   WHERE s.variantId IN (SELECT v.id FROM InventoryVariant v WHERE v.itemId = :itemId)
+                  ) > COALESCE(i.lowStockThreshold, 0)
+            """)
+    int clearLowStockAlert(@Param("itemId") Long itemId);
 }

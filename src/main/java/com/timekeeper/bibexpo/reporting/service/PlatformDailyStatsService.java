@@ -40,7 +40,8 @@ public class PlatformDailyStatsService {
                 liveStatsQueries.countActiveEvents(),
                 liveStatsQueries.countTotalUsers(),
                 liveStatsQueries.countDistinctCities());
-        log.info("Platform daily snapshot saved — date: {}", date);
+        log.atInfo().addKeyValue("event", "reporting.platform_snapshot.saved").addKeyValue("date", date)
+                .log("Platform daily snapshot saved");
     }
 
     /** Seeds rows for any missing historical day (createdAt-derived). Never overwrites existing rows. */
@@ -48,7 +49,6 @@ public class PlatformDailyStatsService {
     public void backfillHistory() {
         Instant earliest = reportingOrganizationRepository.findMinCreatedAt();
         if (earliest == null) {
-            log.info("Platform stats backfill skipped — no organizations yet");
             return;
         }
 
@@ -76,6 +76,7 @@ public class PlatformDailyStatsService {
                     liveStatsQueries.countDistinctCitiesAsOf(asOf));
             filled++;
         }
-        log.info("Platform stats backfill complete — filled {} day(s) from {} to {}", filled, from, yesterday);
+        log.atInfo().addKeyValue("event", "reporting.platform_backfill.completed").addKeyValue("filled", filled)
+                .addKeyValue("from", from).addKeyValue("to", yesterday).log("Platform stats backfill done");
     }
 }

@@ -2,7 +2,6 @@ package com.timekeeper.bibexpo.identity.service;
 
 import com.timekeeper.bibexpo.user.model.event.PasswordChangedEvent;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -19,14 +18,12 @@ import org.springframework.transaction.event.TransactionalEventListener;
  */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class PasswordChangeSessionListener {
 
     private final SessionService sessionService;
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void onPasswordChanged(PasswordChangedEvent event) {
-        log.info("Password changed for {} — signing out every device", event.getUsername());
-        sessionService.endAllSessions(event.getUsername());
+        sessionService.endAllSessions(event.username());
     }
 }

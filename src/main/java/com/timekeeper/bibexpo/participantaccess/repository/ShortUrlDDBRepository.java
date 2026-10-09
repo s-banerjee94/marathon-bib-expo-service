@@ -4,7 +4,6 @@ import com.timekeeper.bibexpo.participantaccess.exception.ShortUrlNotFoundExcept
 import com.timekeeper.bibexpo.participantaccess.model.dynamodb.ShortUrlDDB;
 import com.timekeeper.bibexpo.shared.persistence.DynamoDbProperties;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
@@ -16,7 +15,6 @@ import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedExce
 
 @Repository
 @RequiredArgsConstructor
-@Slf4j
 public class ShortUrlDDBRepository {
 
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
@@ -42,8 +40,6 @@ public class ShortUrlDDBRepository {
                             .expression("attribute_not_exists(shortCode)")
                             .build())
                     .build());
-            log.debug("Saved short URL {} for event {} bib {}", shortUrl.getShortCode(),
-                    shortUrl.getEventId(), shortUrl.getBibNumber());
             return true;
         } catch (ConditionalCheckFailedException e) {
             return false;

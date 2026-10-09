@@ -8,11 +8,14 @@ import com.timekeeper.bibexpo.organization.api.OrganizationMemberPurger;
 import com.timekeeper.bibexpo.organization.exception.LimitReductionException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationAlreadyExistsException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationDeletionNotAllowedException;
+import com.timekeeper.bibexpo.organization.exception.OrganizationDisabledException;
 import com.timekeeper.bibexpo.organization.exception.OrganizationNotFoundException;
 import com.timekeeper.bibexpo.organization.model.dto.request.CreateOrganizationRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.InventoryQuotaRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationRequest;
+import com.timekeeper.bibexpo.organization.model.dto.request.UpdateOrganizationSubscriptionRequest;
 import com.timekeeper.bibexpo.organization.model.dto.request.UserQuotaRequest;
+import com.timekeeper.bibexpo.organization.model.dto.response.MembersUnlockedResponse;
 import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationResponse;
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.organization.model.entity.OrganizationLimit;
@@ -52,14 +55,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class OrganizationServiceImpl implements OrganizationService {
 
-    public static final String THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST = "The organization you requested does not exist.";
-
     // Legacy stored tier value tolerated as baseline; current tiers are in SubscriptionTier.
     private static final String LEGACY_FREE_TIER = "FREE";
     private static final String STATUS_ACTIVE = "ACTIVE";
-    // Reserved for the automatic expiry job (deferred): a lapsed term flips ACTIVE -> EXPIRED,
-    // then the organization falls back to the PAY_AS_YOU_GO baseline.
-    private static final String STATUS_EXPIRED = "EXPIRED";
     private static final String STATUS_FREE = "FREE";
     private static final int SUBSCRIPTION_TERM_YEARS = 1;
 
@@ -74,21 +72,12 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Transactional(readOnly = true)
     public Page<OrganizationResponse> getAllOrganizations(
             Boolean enabled, String search, Pageable pageable, CurrentActor actor) {
-        log.info("Fetching all organizations with filters - enabled: {}, search: {}, user: {}",
-                enabled, search, actor.username());
-
-        // Only ROOT and ADMIN can access this method (enforced by @PreAuthorize in controller)
-        // But we'll add an additional check here for extra security
         if (actor.role() != UserRole.ROOT && actor.role() != UserRole.ADMIN) {
-            throw new AccessForbiddenException(
-                    "You are not allowed to view all organizations.");
+            throw new AccessForbiddenException("You are not allowed to view all organizations.");
         }
 
-        // Build dynamic specification for filtering
-        Specification<Organization> spec = buildOrganizationSpecification(enabled, search);
-
-        // Fetch organizations with pagination
-        Page<Organization> organizationsPage = organizationRepository.findAll(spec, pageable);
+        Page<Organization> organizationsPage =
+                organizationRepository.findAll(buildOrganizationSpecification(enabled, search), pageable);
 
         // Batch-load limits for this page in one query to avoid N+1
         List<Long> orgIds = organizationsPage.getContent().stream()
@@ -97,60 +86,24 @@ public class OrganizationServiceImpl implements OrganizationService {
         Map<Long, OrganizationLimit> limitsByOrgId = organizationLimitRepository.findAllById(orgIds).stream()
                 .collect(Collectors.toMap(OrganizationLimit::getOrganizationId, Function.identity()));
 
-        // Convert to response DTOs
-        Page<OrganizationResponse> responsePage = organizationsPage.map(
-                org -> buildResponse(org, limitsByOrgId.get(org.getId())));
-
-        log.info("Successfully fetched {} organizations (page {} of {})",
-                responsePage.getNumberOfElements(),
-                responsePage.getNumber() + 1,
-                responsePage.getTotalPages());
-
-        return responsePage;
+        return organizationsPage.map(org -> buildResponse(org, limitsByOrgId.get(org.getId())));
     }
 
-    /**
-     * Build dynamic specification for filtering organizations
-     */
-    private Specification<Organization> buildOrganizationSpecification(
-            Boolean enabled, String search) {
-        return (root, query, criteriaBuilder) -> {
+    /** Filters by enabled status and matches the search text against name, email or phone. */
+    private Specification<Organization> buildOrganizationSpecification(Boolean enabled, String search) {
+        return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-
-            // Filter by enabled status if provided
             if (enabled != null) {
-                predicates.add(criteriaBuilder.equal(root.get("enabled"), enabled));
+                predicates.add(cb.equal(root.get("enabled"), enabled));
             }
-
-            // Multi-field search across organizerName, email, and phoneNumber
-            // Uses OR logic - matches if ANY field contains the search term
             if (search != null && !search.isBlank()) {
-                String searchPattern = "%" + search.toLowerCase() + "%";
-
-                Predicate organizerNamePredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("organizerName")),
-                        searchPattern
-                );
-
-                Predicate emailPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("email")),
-                        searchPattern
-                );
-
-                Predicate phoneNumberPredicate = criteriaBuilder.like(
-                        criteriaBuilder.lower(root.get("phoneNumber")),
-                        searchPattern
-                );
-
-                // Combine the three predicates with OR
-                predicates.add(criteriaBuilder.or(
-                        organizerNamePredicate,
-                        emailPredicate,
-                        phoneNumberPredicate
-                ));
+                String pattern = "%" + search.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("organizerName")), pattern),
+                        cb.like(cb.lower(root.get("email")), pattern),
+                        cb.like(cb.lower(root.get("phoneNumber")), pattern)));
             }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+            return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
 
@@ -158,36 +111,8 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional
     public OrganizationResponse createOrganization(CreateOrganizationRequest request) {
-        log.info("Creating organization with email: {}", request.getEmail());
-
-        // Check if organization with email already exists
-        if (organizationRepository.existsByEmail(request.getEmail())) {
-            throw new OrganizationAlreadyExistsException(
-                    "An organization with this email already exists."
-            );
-        }
-
-        // Check if organization with name already exists
-        if (organizationRepository.existsByOrganizerName(request.getOrganizerName())) {
-            throw new OrganizationAlreadyExistsException(
-                    "An organization with this name already exists."
-            );
-        }
-
-        // Check if organization with phone number already exists (if provided)
-        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank() && organizationRepository.existsByPhoneNumber(request.getPhoneNumber())) {
-            throw new OrganizationAlreadyExistsException(
-                    "An organization with this phone number already exists."
-            );
-        }
-
-        // Check if organization with taxId already exists (if taxId is provided)
-        if (request.getTaxId() != null && !request.getTaxId().isBlank() && organizationRepository.existsByTaxId(request.getTaxId())) {
-                throw new OrganizationAlreadyExistsException(
-                        "An organization with this tax ID already exists."
-                );
-            }
-
+        validateUniqueness(request.getOrganizerName(), request.getEmail(),
+                request.getPhoneNumber(), request.getTaxId(), null);
 
         Organization organization = Organization.builder()
                 .organizerName(request.getOrganizerName())
@@ -210,18 +135,21 @@ public class OrganizationServiceImpl implements OrganizationService {
         // New organizations start from no prior subscription, so a paid tier opens a fresh term.
         reconcileSubscriptionState(organization, null);
 
-        // Save the organization
         Organization savedOrganization = organizationRepository.save(organization);
 
-        // Create the organization's limits row: entity defaults apply, request caps override
+        // Entity defaults apply, request caps override
         OrganizationLimit limit = OrganizationLimit.builder()
                 .organization(savedOrganization)
                 .build();
         applyQuotaCaps(limit, request.getUserQuota());
         applyInventoryCaps(limit, request.getInventoryQuota());
         OrganizationLimit savedLimit = organizationLimitRepository.save(limit);
-        log.info("Successfully created organization with ID: {}", savedOrganization.getId());
 
+        log.atInfo()
+                .addKeyValue("event", "organization.created")
+                .addKeyValue("targetOrgId", savedOrganization.getId())
+                .addKeyValue("subscriptionTier", savedOrganization.getSubscriptionTier())
+                .log("Organization created");
         return buildResponse(savedOrganization, savedLimit);
     }
 
@@ -229,31 +157,52 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional
     public OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, CurrentActor actor) {
-        log.info("Updating organization with ID: {} by user: {}", id, actor.username());
+        requireOwnOrganization(actor, id);
+        UserRole role = actor.role();
+        if (role != UserRole.ROOT && role != UserRole.ADMIN && role != UserRole.ORGANIZER_ADMIN) {
+            throw new AccessForbiddenException("You are not allowed to change your organization's details.");
+        }
+        Organization organization = requireOrganization(id);
+        validateUniqueness(request.getOrganizerName(), request.getEmail(),
+                request.getPhoneNumber(), request.getTaxId(), organization);
 
-        Organization organization = organizationRepository.findById(id)
-                .orElseThrow(() -> new OrganizationNotFoundException(
-                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
-                ));
-
-        OrganizationLimit limit = getOrCreateLimit(organization);
-
-        validateUpdateAuthorization(actor, id);
-        validateOrganizerNameUniqueness(request.getOrganizerName(), organization.getOrganizerName());
-        validateEmailUniqueness(request.getEmail(), organization.getEmail());
-        validatePhoneNumberUniqueness(request.getPhoneNumber(), organization.getPhoneNumber());
-        validateTaxIdUniqueness(request.getTaxId(), organization.getTaxId());
-        validateUserLimits(limit, request);
-        validateInventoryLimits(limit, request);
         applyOrganizationUpdates(organization, request);
+        Organization updatedOrganization = organizationRepository.save(organization);
+        organizationCache.evict(id);
+
+        log.atInfo()
+                .addKeyValue("event", "organization.updated")
+                .addKeyValue("targetOrgId", id)
+                .log("Organization updated");
+        return toResponse(updatedOrganization);
+    }
+
+    @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.UPDATE)
+    @Override
+    @Transactional
+    public OrganizationResponse updateSubscription(Long id, UpdateOrganizationSubscriptionRequest request) {
+        Organization organization = requireOrganization(id);
+        OrganizationLimit limit = getOrCreateLimit(organization);
+        validateUserLimits(limit, request.getUserQuota());
+        validateInventoryLimits(limit, request.getInventoryQuota());
+
+        String previousTier = organization.getSubscriptionTier();
+        TextUtils.applyIfSent(request.getSubscriptionTier(), organization::setSubscriptionTier);
+        reconcileSubscriptionState(organization, previousTier);
         applyQuotaCaps(limit, request.getUserQuota());
         applyInventoryCaps(limit, request.getInventoryQuota());
 
         Organization updatedOrganization = organizationRepository.save(organization);
         OrganizationLimit updatedLimit = organizationLimitRepository.save(limit);
-        organizationCache.evict(updatedOrganization.getId());
-        log.info("Successfully updated organization with ID: {}", updatedOrganization.getId());
+        organizationCache.evict(id);
 
+        log.atInfo()
+                .addKeyValue("event", "organization.subscription.changed")
+                .addKeyValue("targetOrgId", id)
+                .addKeyValue("fromTier", previousTier)
+                .addKeyValue("toTier", updatedOrganization.getSubscriptionTier())
+                .addKeyValue("limitsChanged", request.getUserQuota() != null || request.getInventoryQuota() != null)
+                .log("Organization subscription changed");
         return buildResponse(updatedOrganization, updatedLimit);
     }
 
@@ -261,41 +210,40 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional
     public OrganizationResponse toggleOrganizationStatus(Long id, Boolean enabled) {
-        log.info("Toggling organization status for ID: {} to enabled={}", id, enabled);
-
-        Organization organization = organizationRepository.findById(id)
-                .orElseThrow(() -> new OrganizationNotFoundException(
-                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST
-                ));
-
-        // Update organization's enabled status
+        Organization organization = requireOrganization(id);
         organization.setEnabled(enabled);
         Organization updatedOrganization = organizationRepository.save(organization);
         organizationCache.evict(updatedOrganization.getId());
 
-        // Cascading behavior: Only disable users when organization is being disabled
+        // Disabling locks the members; enabling leaves them locked until unlockMembers is called.
         if (Boolean.FALSE.equals(enabled)) {
-            memberPurger.disableMembers(id);
-        } else {
-            // When enabling organization, do NOT automatically enable users
-            log.info("Organization ID: {} enabled. Users remain in their current state (not automatically enabled).", id);
+            memberPurger.lockMembers(id);
         }
 
-        log.info("Successfully {} organization with ID: {}",
-                Boolean.TRUE.equals(enabled) ? "enabled" : "disabled", updatedOrganization.getId());
-
+        log.atInfo()
+                .addKeyValue("event", "organization.enabled.changed")
+                .addKeyValue("targetOrgId", id)
+                .addKeyValue("enabled", enabled)
+                .log("Organization status changed");
         return toResponse(updatedOrganization);
+    }
+
+    @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.STATUS_CHANGE)
+    @Override
+    @Transactional
+    public MembersUnlockedResponse unlockMembers(Long id) {
+        Organization organization = requireOrganization(id);
+        if (Boolean.FALSE.equals(organization.getEnabled())) {
+            throw new OrganizationDisabledException("Enable this organization before unlocking its users.");
+        }
+        return new MembersUnlockedResponse(memberPurger.unlockMembersLockedByOrganization(id));
     }
 
     @Auditable(entityType = AuditEntityType.ORGANIZATION, action = AuditAction.DELETE)
     @Override
     @Transactional
     public void deleteOrganization(Long id, CurrentActor actor) {
-        log.info("Deleting organization with ID: {} by user: {}", id, actor.username());
-
-        Organization organization = organizationRepository.findById(id)
-                .orElseThrow(() -> new OrganizationNotFoundException(
-                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
+        Organization organization = requireOrganization(id);
 
         if (eventStore.countByOrganizationId(id) > 0) {
             throw new OrganizationDeletionNotAllowedException(
@@ -306,7 +254,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         AuditContextHolder.setOrganizationId(organization.getId());
 
         String logoKey = organization.getLogoKey();
-        memberPurger.purgeMembers(id);
+        int membersPurged = memberPurger.purgeMembers(id);
 
         // The organization_limits row shares the organization's PK via an FK with no cascade, so it
         // must be removed (and flushed) before the organization itself to avoid a constraint violation.
@@ -315,54 +263,46 @@ public class OrganizationServiceImpl implements OrganizationService {
         organizationRepository.delete(organization);
         organizationCache.evict(id);
         deleteQuietly(logoKey);
-        log.info("Successfully deleted organization with ID: {} by user: {}", id, actor.username());
+        log.atInfo()
+                .addKeyValue("event", "organization.deleted")
+                .addKeyValue("targetOrgId", id)
+                .addKeyValue("membersPurged", membersPurged)
+                .log("Organization deleted");
     }
 
-    private void validateUpdateAuthorization(CurrentActor actor, Long organizationId) {
-        if (actor.role() == UserRole.ORGANIZER_ADMIN && (actor.organizationId() == null ||
-                    !actor.organizationId().equals(organizationId))) {
-                throw new AccessForbiddenException(
-                        "You can only update your own organization.");
-            }
-
-    }
-
-    private void validateEmailUniqueness(String newEmail, String currentEmail) {
-        if (newEmail != null && !newEmail.isBlank() && !newEmail.equals(currentEmail) && organizationRepository.existsByEmail(newEmail)) {
-                throw new OrganizationAlreadyExistsException(
-                        "An organization with this email already exists."
-                );
-            }
-
-    }
-
-    private void validateTaxIdUniqueness(String newTaxId, String currentTaxId) {
-        if (newTaxId != null && !newTaxId.isBlank() && !newTaxId.equals(currentTaxId) && organizationRepository.existsByTaxId(newTaxId)) {
-                throw new OrganizationAlreadyExistsException(
-                        "An organization with this tax ID already exists."
-                );
-            }
-
-    }
-
-    private void validateOrganizerNameUniqueness(String newName, String currentName) {
-        if (newName != null && !newName.isBlank() && !newName.equals(currentName) && organizationRepository.existsByOrganizerName(newName)) {
-            throw new OrganizationAlreadyExistsException(
-                    "An organization with this name already exists."
-            );
+    // Runs before the organization is loaded, and answers another organization's id exactly like a
+    // missing one, so an organization-scoped caller cannot learn which ids exist.
+    private void requireOwnOrganization(CurrentActor actor, Long organizationId) {
+        if (actor.role() != UserRole.ROOT && actor.role() != UserRole.ADMIN
+                && !organizationId.equals(actor.organizationId())) {
+            log.atWarn()
+                    .addKeyValue("event", "authz.denied")
+                    .addKeyValue("reason", "organization_not_own")
+                    .addKeyValue("targetOrgId", organizationId)
+                    .log("Organization access hidden as not found");
+            throw new OrganizationNotFoundException();
         }
     }
 
-    private void validatePhoneNumberUniqueness(String newPhone, String currentPhone) {
-        if (newPhone != null && !newPhone.isBlank() && !newPhone.equals(currentPhone) && organizationRepository.existsByPhoneNumber(newPhone)) {
-            throw new OrganizationAlreadyExistsException(
-                    "An organization with this phone number already exists."
-            );
+    /** Rejects each sent identifying value another organization already holds; {@code current} is null on create. */
+    private void validateUniqueness(String name, String email, String phone, String taxId, Organization current) {
+        rejectIfTaken(name, current == null ? null : current.getOrganizerName(),
+                organizationRepository::existsByOrganizerName, "An organization with this name already exists.");
+        rejectIfTaken(email, current == null ? null : current.getEmail(),
+                organizationRepository::existsByEmail, "An organization with this email already exists.");
+        rejectIfTaken(phone, current == null ? null : current.getPhoneNumber(),
+                organizationRepository::existsByPhoneNumber, "An organization with this phone number already exists.");
+        rejectIfTaken(taxId, current == null ? null : current.getTaxId(),
+                organizationRepository::existsByTaxId, "An organization with this tax ID already exists.");
+    }
+
+    private void rejectIfTaken(String value, String currentValue, java.util.function.Predicate<String> exists, String message) {
+        if (value != null && !value.isBlank() && !value.equals(currentValue) && exists.test(value)) {
+            throw new OrganizationAlreadyExistsException(message);
         }
     }
 
-    private void validateUserLimits(OrganizationLimit limit, UpdateOrganizationRequest request) {
-        UserQuotaRequest quota = request.getUserQuota();
+    private void validateUserLimits(OrganizationLimit limit, UserQuotaRequest quota) {
         if (quota == null) {
             return;
         }
@@ -374,11 +314,10 @@ public class OrganizationServiceImpl implements OrganizationService {
                 "You cannot reduce the distributor limit below the current number of distributors (%d).");
     }
 
-    // Only the two counted caps can be checked against usage. The other three are ceilings on a
+    // Only the four counted caps can be checked against usage. The other three are ceilings on a
     // single item or attribute: lowering one leaves the rows already over it alone and simply
     // stops them growing, which is the intended effect of tightening a plan.
-    private void validateInventoryLimits(OrganizationLimit limit, UpdateOrganizationRequest request) {
-        InventoryQuotaRequest quota = request.getInventoryQuota();
+    private void validateInventoryLimits(OrganizationLimit limit, InventoryQuotaRequest quota) {
         if (quota == null) {
             return;
         }
@@ -386,6 +325,10 @@ public class OrganizationServiceImpl implements OrganizationService {
                 "You cannot reduce the inventory vocabulary limit below the number of entries in use (%d).");
         rejectIfBelowUsage(quota.getLocations(), limit.getUsedInventoryLocations(),
                 "You cannot reduce the inventory location limit below the number of locations in use (%d).");
+        rejectIfBelowUsage(quota.getItems(), limit.getUsedInventoryItems(),
+                "You cannot reduce the inventory item limit below the number of items in use (%d).");
+        rejectIfBelowUsage(quota.getAttributes(), limit.getUsedInventoryAttributes(),
+                "You cannot reduce the inventory attribute limit below the number of attributes in use (%d).");
     }
 
     /**
@@ -399,52 +342,22 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
     }
 
-    // Update is full-state: the request carries the organization's complete desired state, so
-    // optional fields are written unconditionally — a null/blank clears them (the frontend
-    // removing a value sends null, which must reach the DB). Required fields (organizerName,
-    // email) are the exception: they are only overwritten when a non-blank value is supplied,
-    // so they can never be wiped.
+    // Absent (null) fields are left as they are and a blank optional field clears it; the required
+    // name and email can never be cleared.
     private void applyOrganizationUpdates(Organization organization, UpdateOrganizationRequest request) {
-        updateBasicInfo(organization, request);
-        updateContactInfo(organization, request);
-        updateAddressInfo(organization, request);
-        updateBusinessInfo(organization, request);
-        updateSubscriptionInfo(organization, request);
-    }
-
-    private void updateBasicInfo(Organization organization, UpdateOrganizationRequest request) {
-        if (hasText(request.getOrganizerName())) {
-            organization.setOrganizerName(request.getOrganizerName());
-        }
-    }
-
-    private void updateContactInfo(Organization organization, UpdateOrganizationRequest request) {
-        if (hasText(request.getEmail())) {
-            organization.setEmail(request.getEmail());
-        }
+        TextUtils.applyRequiredIfSent(request.getOrganizerName(), organization::setOrganizerName);
+        TextUtils.applyRequiredIfSent(request.getEmail(), organization::setEmail);
         TextUtils.applyIfSent(request.getPhoneNumber(), organization::setPhoneNumber);
         TextUtils.applyIfSent(request.getWebsite(), organization::setWebsite);
-    }
-
-    private void updateAddressInfo(Organization organization, UpdateOrganizationRequest request) {
         TextUtils.applyIfSent(request.getAddressLine1(), organization::setAddressLine1);
         TextUtils.applyIfSent(request.getAddressLine2(), organization::setAddressLine2);
         TextUtils.applyIfSent(request.getCity(), organization::setCity);
         TextUtils.applyIfSent(request.getStateProvince(), organization::setStateProvince);
         TextUtils.applyIfSent(request.getPostalCode(), organization::setPostalCode);
         TextUtils.applyIfSent(request.getCountry(), organization::setCountry);
-    }
-
-    private void updateBusinessInfo(Organization organization, UpdateOrganizationRequest request) {
         TextUtils.applyIfSent(request.getTaxId(), organization::setTaxId);
         TextUtils.applyIfSent(request.getRegistrationNumber(), organization::setRegistrationNumber);
-    }
-
-    private void updateSubscriptionInfo(Organization organization, UpdateOrganizationRequest request) {
-        String previousTier = organization.getSubscriptionTier();
-        TextUtils.applyIfSent(request.getSubscriptionTier(), organization::setSubscriptionTier);
         TextUtils.applyIfSent(request.getBillingEmail(), organization::setBillingEmail);
-        reconcileSubscriptionState(organization, previousTier);
     }
 
     /**
@@ -482,51 +395,27 @@ public class OrganizationServiceImpl implements OrganizationService {
                 || LEGACY_FREE_TIER.equalsIgnoreCase(tier.trim());
     }
 
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
-
     @Override
     @Transactional(readOnly = true)
     public OrganizationResponse getOrganizationById(Long id, CurrentActor actor) {
-        log.info("Fetching organization by ID: {} for user: {}", id, actor.username());
-
+        requireOwnOrganization(actor, id);
         Organization organization = organizationCache.findById(id);
         if (organization == null) {
-            throw new OrganizationNotFoundException(THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST);
+            throw new OrganizationNotFoundException();
         }
-
-        if ((actor.role() != UserRole.ROOT && actor.role() != UserRole.ADMIN) &&
-                (actor.organizationId() == null || !actor.organizationId().equals(id))) {
-            throw new AccessForbiddenException(
-                    "You can only view your own organization.");
-        }
-
-        log.info("Successfully retrieved organization with ID: {} for user: {}",
-                id, actor.username());
-
         return toResponse(organization);
     }
 
     @Override
     @Transactional(readOnly = true)
     public OrganizationResponse getCurrentUserOrganization(CurrentActor actor) {
-        log.info("Fetching organization for user: {}", actor.username());
-
         if (actor.organizationId() == null) {
             throw new AccessForbiddenException("Your account is not assigned to an organization.");
         }
-
-        Long organizationId = actor.organizationId();
-
-        Organization organization = organizationCache.findById(organizationId);
+        Organization organization = organizationCache.findById(actor.organizationId());
         if (organization == null) {
-            throw new OrganizationNotFoundException(THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST);
+            throw new OrganizationNotFoundException();
         }
-
-        log.info("Successfully retrieved organization with ID: {} for user: {}",
-                organizationId, actor.username());
-
         return toResponse(organization);
     }
 
@@ -577,6 +466,8 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
         applyCap(quota.getTerms(), limit::setMaxInventoryTerms);
         applyCap(quota.getLocations(), limit::setMaxInventoryLocations);
+        applyCap(quota.getItems(), limit::setMaxInventoryItems);
+        applyCap(quota.getAttributes(), limit::setMaxInventoryAttributes);
         applyCap(quota.getOptionsPerAttribute(), limit::setMaxInventoryAttributeOptions);
         applyCap(quota.getVariantAttributesPerItem(), limit::setMaxVariantAttributesPerItem);
         applyCap(quota.getVariantsPerItem(), limit::setMaxItemVariants);
@@ -599,17 +490,16 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Override
     @Transactional(readOnly = true)
     public PresignUploadResponse createLogoUploadUrl(Long id, String contentType, CurrentActor actor) {
-        Organization organization = getActiveOrganizationOrThrow(id);
-        validateUpdateAuthorization(actor, id);
+        requireOwnOrganization(actor, id);
+        Organization organization = requireOrganization(id);
         return storageService.createUploadUrl(UploadCategory.ORGANIZATION_LOGO, organization.getId(), contentType);
     }
 
     @Override
     @Transactional
     public OrganizationResponse attachLogo(Long id, String objectKey, CurrentActor actor) {
-        log.info("Attaching logo for organization ID: {} by user: {}", id, actor.username());
-        Organization organization = getActiveOrganizationOrThrow(id);
-        validateUpdateAuthorization(actor, id);
+        requireOwnOrganization(actor, id);
+        Organization organization = requireOrganization(id);
 
         if (UploadCategory.ORGANIZATION_LOGO.isForeignKeyFor(organization.getId(), objectKey)) {
             throw new InvalidFileException("This upload does not belong to this organization.");
@@ -625,30 +515,35 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (previousKey != null && !previousKey.equals(objectKey)) {
             deleteQuietly(previousKey);
         }
-        log.info("Successfully attached logo for organization ID: {}", id);
+        logLogoChanged(id, "attached");
         return toResponse(saved);
     }
 
     @Override
     @Transactional
     public OrganizationResponse removeLogo(Long id, CurrentActor actor) {
-        log.info("Removing logo for organization ID: {} by user: {}", id, actor.username());
-        Organization organization = getActiveOrganizationOrThrow(id);
-        validateUpdateAuthorization(actor, id);
+        requireOwnOrganization(actor, id);
+        Organization organization = requireOrganization(id);
 
         String previousKey = organization.getLogoKey();
         organization.setLogoKey(null);
         Organization saved = organizationRepository.saveAndFlush(organization);
         organizationCache.evict(saved.getId());
         deleteQuietly(previousKey);
-        log.info("Successfully removed logo for organization ID: {}", id);
+        logLogoChanged(id, "removed");
         return toResponse(saved);
     }
 
-    private Organization getActiveOrganizationOrThrow(Long id) {
-        return organizationRepository.findById(id)
-                .orElseThrow(() -> new OrganizationNotFoundException(
-                        THE_ORGANIZATION_YOU_REQUESTED_DOES_NOT_EXIST));
+    private void logLogoChanged(Long id, String action) {
+        log.atInfo()
+                .addKeyValue("event", "organization.logo.changed")
+                .addKeyValue("targetOrgId", id)
+                .addKeyValue("action", action)
+                .log("Organization logo changed");
+    }
+
+    private Organization requireOrganization(Long id) {
+        return organizationRepository.findById(id).orElseThrow(OrganizationNotFoundException::new);
     }
 
     /** Best-effort object deletion: orphaned objects are tolerable, a failed cleanup must not roll back the entity change. */
@@ -656,7 +551,11 @@ public class OrganizationServiceImpl implements OrganizationService {
         try {
             storageService.delete(objectKey);
         } catch (Exception e) {
-            log.warn("Failed to delete object {}: {}", objectKey, e.getMessage());
+            log.atWarn()
+                    .addKeyValue("event", "storage.delete.failed")
+                    .addKeyValue("objectKey", objectKey)
+                    .addKeyValue("exception", e.getClass().getSimpleName())
+                    .log("Stored object could not be deleted");
         }
     }
 }

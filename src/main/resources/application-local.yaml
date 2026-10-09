@@ -1,0 +1,58 @@
+# LOCAL profile — MySQL and LocalStack on the LAN box 192.168.0.113, plain-text logs.
+
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST:192.168.0.113}:${DB_PORT:3306}/${DB_NAME:marathon_bib_expo}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+  jpa:
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:*}   # matches any origin pattern (localhost + LAN IP over WiFi); works with allow-credentials via setAllowedOriginPatterns
+  allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+
+# Gitignored dev keypair under keys/ (generate with openssl). Plain HTTP, so cookies are not Secure.
+jwt:
+  private-key-location: ${JWT_PRIVATE_KEY_LOCATION:file:keys/jwt-private-dev.pem}
+  public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:keys/jwt-public-dev.pem}
+  cookie-domain: ${JWT_COOKIE_DOMAIN:}
+  cookie-secure: ${JWT_COOKIE_SECURE:false}
+
+logging:
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd hh:mm:ss.SSS a}){faint} %clr(%-5p) %clr([%t]){faint} %clr(%logger{36}){cyan} %clr(-){faint} %msg %kvp%n"
+    file: "%d{yyyy-MM-dd hh:mm:ss.SSS a} %-5p [%t] %logger{36} - %msg %kvp%n"
+  # The assembled provider request (recipient, message) is DEBUG so it never reaches prod logs; shown here only.
+  level:
+    com.timekeeper.bibexpo.messaging.provider.service.impl.StubMessagingProviderClient: DEBUG
+    com.timekeeper.bibexpo.messaging.provider.service.impl.MessagingProviderClientImpl: DEBUG
+
+app:
+  participant-access:
+    base-url: ${PARTICIPANT_ACCESS_BASE_URL:http://localhost:8080}
+    qr-secret: ${PARTICIPANT_ACCESS_QR_SECRET:default-qr-secret-change-in-production}
+  invite:
+    base-url: ${INVITE_BASE_URL:http://192.168.0.107:4200}
+  password-reset:
+    base-url: ${PASSWORD_RESET_BASE_URL:http://192.168.0.110:4200}
+
+# LocalStack accepts any static keys; they are only used when an endpoint is set.
+aws:
+  region: ${AWS_REGION:us-east-1}
+  access-key-id: ${AWS_ACCESS_KEY_ID:test}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
+  dynamodb:
+    endpoint: ${AWS_DYNAMODB_ENDPOINT:http://192.168.0.113:4566}
+  s3:
+    bucket: ${AWS_S3_BUCKET:marathon-bib-expo-media}
+    endpoint: ${AWS_S3_ENDPOINT:http://192.168.0.113:4566}
+
+billing:
+  scheduler:
+    endpoint: ${AWS_SCHEDULER_ENDPOINT:http://192.168.0.113:4566}
+  lambda:
+    endpoint: ${AWS_LAMBDA_ENDPOINT:http://192.168.0.113:4566}
+  stats-lambda:
+    endpoint: ${AWS_LAMBDA_ENDPOINT:http://192.168.0.113:4566}

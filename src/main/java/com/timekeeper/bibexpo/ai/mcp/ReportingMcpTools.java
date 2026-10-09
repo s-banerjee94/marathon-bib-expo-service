@@ -5,14 +5,12 @@ import com.timekeeper.bibexpo.reporting.model.enums.EventActivityRange;
 import com.timekeeper.bibexpo.reporting.service.EventDashboardService;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class ReportingMcpTools implements McpToolGroup {
 
     private final EventDashboardService eventDashboardService;
@@ -31,7 +29,6 @@ public class ReportingMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         EventActivityRange window = range != null ? range : EventActivityRange.FULL_EXPO;
 
-        log.info("MCP get_event_dashboard - event {}, range {}, by {}", eventId, window, currentUser.getUsername());
         return eventDashboardService.loadDashboard(eventId, window, currentUser);
     }
 }

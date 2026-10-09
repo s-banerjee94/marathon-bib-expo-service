@@ -83,7 +83,11 @@ public class EventGoodieServiceImpl implements EventGoodieService {
         EventGoodie goodie = new EventGoodie(name, GoodieSource.MANUAL);
         goodies.add(goodie);
         eventStore.saveGoodies(eventId, goodies);
-        log.info("Added goody '{}' to event {} by user {}", name, eventId, currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "goodie.added")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("goodie", name)
+                .log("Goody added");
         return EventGoodieResponse.from(goodie);
     }
 
@@ -136,8 +140,12 @@ public class EventGoodieServiceImpl implements EventGoodieService {
         if (!carrying.isEmpty()) {
             rebuildCounters(event);
         }
-        log.info("Removed goody '{}' from event {} and {} participant record(s) by user {}",
-                goodie.name(), eventId, carrying.size(), currentUser.getUsername());
+        log.atInfo()
+                .addKeyValue("event", "goodie.removed")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("goodie", goodie.name())
+                .addKeyValue("participantsUpdated", carrying.size())
+                .log("Goody removed");
     }
 
     @Override
@@ -145,7 +153,11 @@ public class EventGoodieServiceImpl implements EventGoodieService {
     public void addImportedGoodies(Long eventId, List<String> names) {
         Event event = eventStore.findById(eventId).orElse(null);
         if (event == null) {
-            log.warn("Event {} not found when adding imported goodies", eventId);
+            log.atWarn()
+                    .addKeyValue("event", "goodie.import_skipped")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("reason", "event_not_found")
+                    .log("Imported goodies skipped");
             return;
         }
 
@@ -172,8 +184,14 @@ public class EventGoodieServiceImpl implements EventGoodieService {
 
         int limit = eventQuota.forEvent(eventId).maxGoodies();
         if (goodies.size() + fresh.size() > limit) {
-            log.warn("Skipping new goodies {} for event {}: the list would hold {} but the limit is {}",
-                    fresh.stream().map(EventGoodie::name).toList(), eventId, goodies.size() + fresh.size(), limit);
+            log.atWarn()
+                    .addKeyValue("event", "goodie.import_skipped")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("reason", "limit_exceeded")
+                    .addKeyValue("goodies", fresh.stream().map(EventGoodie::name).toList())
+                    .addKeyValue("wouldHold", goodies.size() + fresh.size())
+                    .addKeyValue("limit", limit)
+                    .log("Imported goodies skipped");
             fresh.clear();
         }
         if (fresh.isEmpty() && !upgraded) {
@@ -181,16 +199,22 @@ public class EventGoodieServiceImpl implements EventGoodieService {
         }
         goodies.addAll(fresh);
         eventStore.saveGoodies(eventId, goodies);
-        log.info("Updated goodies of event {} from an import, adding {}",
-                eventId, fresh.stream().map(EventGoodie::name).toList());
+        log.atInfo()
+                .addKeyValue("event", "goodie.imported")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("added", fresh.stream().map(EventGoodie::name).toList())
+                .log("Goodies updated from an import");
     }
 
     private void rebuildCounters(Event event) {
         try {
             participantStatisticsService.rebuild(event);
         } catch (Exception e) {
-            log.warn("Counters of event {} were not rebuilt after a goody removal; the next reconcile will "
-                    + "rebuild them", event.getId(), e);
+            log.atWarn()
+                    .addKeyValue("event", "event.stats.rebuild_failed")
+                    .addKeyValue("eventId", event.getId())
+                    .setCause(e)
+                    .log("Counters not rebuilt after a goody removal; the next reconcile will rebuild them");
         }
     }
 

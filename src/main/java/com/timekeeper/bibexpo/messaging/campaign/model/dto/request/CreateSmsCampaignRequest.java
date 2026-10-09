@@ -22,12 +22,12 @@ import lombok.NoArgsConstructor;
         If triggerType is present the campaign is armed and moves directly to ACTIVE.""")
 public class CreateSmsCampaignRequest implements CampaignWriteRequest {
 
-    @NotBlank(message = "Campaign name is required")
-    @Size(max = 100, message = "Campaign name must not exceed 100 characters")
+    @NotBlank(message = "Campaign name is required.")
+    @Size(max = 100, message = "Campaign name must not exceed 100 characters.")
     @Schema(description = "Human readable name for the campaign", example = "Bib Collection Confirmation")
     private String name;
 
-    @NotNull(message = "SMS template ID is required")
+    @NotNull(message = "SMS template ID is required.")
     @Schema(description = "ID of the SMS template to use", example = "12345")
     private Long smsTemplateId;
 

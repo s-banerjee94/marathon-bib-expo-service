@@ -21,7 +21,7 @@ public class DistributionLogResponse {
     @Schema(description = "Bib number", example = "3001")
     private String bibNumber;
 
-    @Schema(description = "Action type: BIB_COLLECTED, BIB_UNDONE, GOODIES_DISTRIBUTED, GOODIES_UNDONE",
+    @Schema(description = "Action type: BIB_COLLECTED, BIB_UNDONE or GOODIES_DISTRIBUTED",
             example = "BIB_COLLECTED")
     private String action;
 
@@ -35,7 +35,7 @@ public class DistributionLogResponse {
     @Schema(description = "Name of person who collected (for bib actions)", example = "John Doe")
     private String collectorName;
 
-    @Schema(description = "Phone number of person who collected (for bib actions)", example = "+919876543210")
+    @Schema(description = "Phone number of person who collected (for bib actions)", example = "9876543210")
     private String collectorPhone;
 
     @Schema(description = "Additional details about the action", example = "Bib collection undone. All goodies distribution reset.")

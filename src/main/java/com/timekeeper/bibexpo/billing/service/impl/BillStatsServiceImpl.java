@@ -46,7 +46,6 @@ public class BillStatsServiceImpl implements BillStatsService {
                 .findByScopeAndScopeKey(BillingStatsSnapshot.SCOPE_GLOBAL, BillingStatsSnapshot.GLOBAL_SCOPE_SENTINEL)
                 .orElse(null);
         if (snapshot == null) {
-            log.debug("No bill-stats snapshot yet — returning empty {} slice", range);
             return empty(range);
         }
 
@@ -54,7 +53,8 @@ public class BillStatsServiceImpl implements BillStatsService {
         try {
             data = objectMapper.readValue(snapshot.getSnapshotData(), BillStatsSnapshotData.class);
         } catch (JacksonException e) {
-            log.warn("Could not parse bill-stats snapshot (id: {}) — returning empty slice", snapshot.getId(), e);
+            log.atWarn().addKeyValue("event", "billing.stats.unreadable").addKeyValue("snapshotId", snapshot.getId())
+                    .setCause(e).log("Bill-stats snapshot could not be read; an empty slice was returned");
             return empty(range);
         }
 

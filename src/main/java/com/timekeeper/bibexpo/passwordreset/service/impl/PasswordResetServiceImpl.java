@@ -29,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Instant;
@@ -56,8 +57,6 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     @Override
     @Transactional(readOnly = true)
     public PasswordResetLinkResponse issueForUser(Long userId, IssueResetLinkRequest request, CurrentActor actor) {
-        log.info("Password reset link requested for user ID: {} by: {}", userId, actor.username());
-
         userService.assertCanUpdateUser(userId, actor);
         User target = userDirectory.requireById(userId);
 
@@ -77,7 +76,8 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         List<DeliveryResult> deliveries = deliverResetLink(target, channels, resetUrl);
 
         auditLinkIssued(actor, target);
-        log.info("Password reset link issued for user ID: {} by: {} — channels: {}", userId, actor.username(), channels);
+        log.atInfo().addKeyValue("event", "password_reset.link.issued").addKeyValue("targetUserId", userId)
+                .addKeyValue("channels", channels).log("Password reset link issued");
         return PasswordResetLinkResponse.builder()
                 .resetUrl(resetUrl)
                 .deliveries(deliveries)
@@ -92,7 +92,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         // that an account exists.
         Optional<User> match = userDirectory.findByLoginIdentifier(request.getIdentifier());
         if (match.isEmpty()) {
-            log.info("Forgot-password request did not match any account");
+            logForgotIgnored("no_account", null);
             return;
         }
 
@@ -100,17 +100,24 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         // A disabled or locked account is a deliberate administrative hold: never facilitate a
         // self-service password change for it (login enforces the same status regardless).
         if (!user.isEnabled() || !user.isAccountNonLocked()) {
-            log.info("Forgot-password request for inactive (disabled/locked) account ID: {} — ignored", user.getId());
+            logForgotIgnored("account_inactive", user.getId());
             return;
         }
-        if (isBlank(user.getPhoneNumber())) {
-            log.info("Forgot-password request for account ID: {} with no phone on file — cannot deliver", user.getId());
+        if (!StringUtils.hasText(user.getPhoneNumber())) {
+            logForgotIgnored("no_phone", user.getId());
             return;
         }
 
         String resetUrl = issueLink(user, null);
-        deliverResetLink(user, FORGOT_PASSWORD_CHANNELS, resetUrl);
-        log.info("Forgot-password link issued and delivered for account ID: {}", user.getId());
+        boolean sent = deliverResetLink(user, FORGOT_PASSWORD_CHANNELS, resetUrl).stream()
+                .anyMatch(DeliveryResult::isSent);
+        if (sent) {
+            log.atInfo().addKeyValue("event", "password_reset.forgot.sent").addKeyValue("targetUserId", user.getId())
+                    .log("Forgot-password link sent");
+        } else {
+            log.atWarn().addKeyValue("event", "password_reset.forgot.undelivered")
+                    .addKeyValue("targetUserId", user.getId()).log("Forgot-password link not sent on any channel");
+        }
     }
 
     @Override
@@ -135,7 +142,14 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         passwordResetStore.consume(token);
 
         auditResetCompleted(user, reset.getIssuedBy());
-        log.info("Password reset completed for user ID: {} (issuedBy {})", user.getId(), reset.getIssuedBy());
+        log.atInfo().addKeyValue("event", "password_reset.completed").addKeyValue("targetUserId", user.getId())
+                .addKeyValue("origin", reset.getIssuedBy() == null ? "forgot_password" : "admin_link")
+                .log("Password reset completed");
+    }
+
+    private void logForgotIgnored(String reason, Long userId) {
+        log.atInfo().addKeyValue("event", "password_reset.forgot.ignored").addKeyValue("reason", reason)
+                .addKeyValue("targetUserId", userId).log("Forgot-password request ignored");
     }
 
     /** Issue a token for the user and build the link the user opens to set a new password. */
@@ -217,11 +231,6 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     }
 
     private String labelOf(User user) {
-        return !isBlank(user.getFullName())
-                ? user.getFullName() : user.getUsername();
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
+        return StringUtils.hasText(user.getFullName()) ? user.getFullName() : user.getUsername();
     }
 }

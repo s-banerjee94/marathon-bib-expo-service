@@ -23,7 +23,7 @@ public class BibDistributionResponse {
     @Schema(description = "Name of person who collected the bib", example = "John Doe")
     private String collectedByName;
 
-    @Schema(description = "Phone number of person who collected the bib", example = "+919876543210")
+    @Schema(description = "Phone number of person who collected the bib", example = "9876543210")
     private String collectedByPhone;
 
     @Schema(description = "User ID of staff member who distributed the bib", example = "1")

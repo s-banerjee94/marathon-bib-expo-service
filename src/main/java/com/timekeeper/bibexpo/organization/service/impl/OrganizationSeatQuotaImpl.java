@@ -43,7 +43,11 @@ public class OrganizationSeatQuotaImpl implements OrganizationSeatQuota {
         }
 
         if (!reserved) {
-            log.error("Organization {} has reached its {} limit", organizationId, role);
+            log.atInfo()
+                    .addKeyValue("event", "organization.quota.exhausted")
+                    .addKeyValue("targetOrgId", organizationId)
+                    .addKeyValue("quota", role)
+                    .log("Organization seat quota exhausted");
             throw new InvalidUserDataException(limitMessage);
         }
     }

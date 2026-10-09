@@ -27,6 +27,7 @@ import com.timekeeper.bibexpo.event.service.validator.EventAccessValidator;
 import com.timekeeper.bibexpo.shared.security.UserRole;
 import com.timekeeper.bibexpo.storage.service.StorageService;
 import com.timekeeper.bibexpo.user.model.entity.User;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,10 +63,10 @@ public class BillingServiceImpl implements BillingService {
     private final BillingQuotaService billingQuotaService;
     private final BillingScheduleService billingScheduleService;
     private final BillStatsTriggerService billStatsTriggerService;
+    private final EntityManager entityManager;
 
     @Override
     public List<BillResponse> listBills(Long eventId, User currentUser) {
-        log.info("Listing bills for event ID: {} by user: {}", eventId, currentUser.getUsername());
         loadAndAuthorize(eventId, currentUser);
         return toResponses(invoiceRepository.findByEventIdOrderByCreatedAtDesc(eventId));
     }
@@ -73,8 +74,6 @@ public class BillingServiceImpl implements BillingService {
     @Override
     @Auditable(entityType = AuditEntityType.INVOICE, action = AuditAction.GENERATE)
     public BillGenerationResponse generateBill(Long eventId, InvoiceStatus mode, User currentUser) {
-        log.info("Manual {} bill requested for event ID: {} by user: {}", mode, eventId, currentUser.getUsername());
-
         Event event = loadAndAuthorize(eventId, currentUser);
         if (!isTerminal(event.getStatus())) {
             throw new BillNotAllowedException(
@@ -111,7 +110,7 @@ public class BillingServiceImpl implements BillingService {
                     case "SKIPPED_DUPLICATE" -> "A bill already exists for the current participant count.";
                     case "SKIPPED_NOT_BILLABLE" -> "This event is not eligible for billing.";
                     case "ALREADY_FINAL" -> "This event has already been finalized and cannot be billed again.";
-                    default -> throw new BillGenerationException("Bill generation failed. Please try again.");
+                    default -> throw new BillGenerationException("The bill could not be generated, please try again.");
                 };
             } catch (BillGenerationException e) {
                 // No bill was produced — return the slot the caller just spent.
@@ -127,6 +126,12 @@ public class BillingServiceImpl implements BillingService {
             billingScheduleService.cancel(eventId);
         }
 
+        log.atInfo()
+                .addKeyValue("event", "billing.bill.generated")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("mode", effectiveMode)
+                .addKeyValue("status", status)
+                .log("Bill requested");
         return BillGenerationResponse.builder()
                 .status(status)
                 .message(message)
@@ -166,18 +171,29 @@ public class BillingServiceImpl implements BillingService {
         }
         if (!"CREATED_FINAL".equals(status)) {
             revertToDraft(draft);
-            throw new BillGenerationException("Bill generation failed. Please try again.");
+            throw new BillGenerationException("The bill could not be generated, please try again.");
         }
+        // The Lambda wrote the number, totals and PDF key straight to the database; drop the copy
+        // this request still holds so the response reads the issued bill, not the marked draft.
+        entityManager.detach(draft);
         // The bill is now a FINAL receivable — recompute the stats snapshot (async, best-effort).
         billStatsTriggerService.recomputeAsync("FINALIZE");
         return status;
     }
 
-    /** Undo the FINAL mark when the Lambda did not issue the final, returning the bill to an editable draft. */
+    /**
+     * Undo the FINAL mark when this request did not see the final issued. A conditional update, not a
+     * save of this request's copy: that copy predates the Lambda, and writing it back would erase an
+     * invoice number the Lambda issued anyway.
+     */
     private void revertToDraft(Invoice invoice) {
-        invoice.setStatus(InvoiceStatus.DRAFT);
-        invoice.setUpdatedAt(Instant.now());
-        invoiceRepository.save(invoice);
+        boolean reverted = invoiceRepository.revertUnissuedFinal(invoice.getBillId(), Instant.now()) == 1;
+        log.atWarn()
+                .addKeyValue("event", reverted ? "billing.final.reverted" : "billing.final.kept")
+                .addKeyValue("billId", invoice.getBillId())
+                .addKeyValue("eventId", invoice.getEventId())
+                .log(reverted ? "Final mark undone; the bill is a draft again"
+                        : "Final mark kept; the billing Lambda already issued this bill");
     }
 
     /** Invoke the billing Lambda synchronously and return the {@code status} it reports. */
@@ -192,23 +208,32 @@ public class BillingServiceImpl implements BillingService {
                     .payload(SdkBytes.fromUtf8String(payload))
                     .build());
         } catch (SdkException e) {
-            log.error("[billing] Lambda invoke failed for event {}: {}", eventId, e.getMessage());
-            throw new BillGenerationException("Bill generation is currently unavailable. Please try again later.");
+            logLambdaFailure(eventId, mode, "invoke", e.getMessage());
+            throw new BillGenerationException("Bill generation is unavailable right now, please try again later.");
         }
 
         if (response.functionError() != null) {
-            log.error("[billing] Lambda reported an error for event {}: {}",
-                    eventId, response.payload().asUtf8String());
-            throw new BillGenerationException("Bill generation failed. Please try again.");
+            logLambdaFailure(eventId, mode, "function_error", response.payload().asUtf8String());
+            throw new BillGenerationException("The bill could not be generated, please try again.");
         }
 
         try {
             JsonNode node = OBJECT_MAPPER.readTree(response.payload().asUtf8String());
             return node.path("status").asText("");
         } catch (Exception e) {
-            log.error("[billing] could not parse Lambda response for event {}: {}", eventId, e.getMessage());
-            throw new BillGenerationException("Bill generation failed. Please try again.");
+            logLambdaFailure(eventId, mode, "unreadable_response", e.getMessage());
+            throw new BillGenerationException("The bill could not be generated, please try again.");
         }
+    }
+
+    private static void logLambdaFailure(Long eventId, InvoiceStatus mode, String failure, String detail) {
+        log.atError()
+                .addKeyValue("event", "billing.lambda.failed")
+                .addKeyValue("eventId", eventId)
+                .addKeyValue("mode", mode)
+                .addKeyValue("failure", failure)
+                .addKeyValue("detail", detail)
+                .log("Billing Lambda gave no usable result");
     }
 
     private Event loadAndAuthorize(Long eventId, User currentUser) {

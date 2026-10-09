@@ -1,7 +1,6 @@
 package com.timekeeper.bibexpo.importer.controller;
 
 import com.timekeeper.bibexpo.importer.exception.ImportAlreadyRunningException;
-import com.timekeeper.bibexpo.importer.exception.ImportNotAllowedException;
 import com.timekeeper.bibexpo.importer.exception.ImportNotRunningException;
 import com.timekeeper.bibexpo.importer.exception.InvalidCsvFormatException;
 import com.timekeeper.bibexpo.importer.model.dto.response.BatchImportResponse;
@@ -35,44 +34,24 @@ public class BatchImportController implements BatchImportControllerApi {
     @Override
     public ResponseEntity<BatchImportResponse> launchBatchImport(
             Long eventId, MultipartFile file, String mapping, ImportMode mode, User currentUser) {
-
-        log.info("Batch import request - event: {}, file: {}, mode: {}, user: {}",
-                eventId, file.getOriginalFilename(), mode, currentUser.getUsername());
-
-        BatchImportResponse response = batchImportService.launchImport(eventId, file, mapping, mode, currentUser);
-
-        log.info("Batch import job {} launched for event {} (mode {})",
-                response.getJobExecutionId(), eventId, mode);
-
-        return ResponseEntity.accepted().body(response);
+        return ResponseEntity.accepted().body(batchImportService.launchImport(eventId, file, mapping, mode, currentUser));
     }
 
     @Override
     public ResponseEntity<BatchJobStatusResponse> getBatchImportStatus(
             Long eventId, Long jobExecutionId, User currentUser) {
-
-        log.info("Status check - jobExecutionId: {}, event: {}, user: {}",
-                jobExecutionId, eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(batchImportService.getJobStatus(eventId, jobExecutionId, currentUser));
     }
 
     @Override
     public ResponseEntity<BatchJobStatusResponse> stopBatchImport(
             Long eventId, Long jobExecutionId, User currentUser) {
-
-        log.info("Stop request - jobExecutionId: {}, event: {}, user: {}",
-                jobExecutionId, eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(batchImportService.stopImport(eventId, jobExecutionId, currentUser));
     }
 
     @Override
     public ResponseEntity<ImportErrorListResponse> getLatestBatchImportErrors(
             Long eventId, int limit, String lastEvaluatedKey, User currentUser) {
-
-        log.info("Latest errors request - event: {}, limit: {}, user: {}", eventId, limit, currentUser.getUsername());
-
         return ResponseEntity.ok(batchImportService.getLatestBatchImportErrors(eventId, limit, lastEvaluatedKey, currentUser));
     }
 
@@ -81,18 +60,10 @@ public class BatchImportController implements BatchImportControllerApi {
         return ResponseEntity.ok(batchImportService.getImportFields(eventId, currentUser));
     }
 
-    @ExceptionHandler(ImportNotAllowedException.class)
-    public ResponseEntity<ErrorResponse> handleImportNotAllowed(
-            ImportNotAllowedException ex, WebRequest request) {
-        log.info("Import not allowed: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
-    }
-
     @ExceptionHandler(ImportAlreadyRunningException.class)
     public ResponseEntity<ErrorResponse> handleImportAlreadyRunning(
             ImportAlreadyRunningException ex, WebRequest request) {
-        log.info("Concurrent import rejected: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
@@ -100,7 +71,7 @@ public class BatchImportController implements BatchImportControllerApi {
     @ExceptionHandler(ImportNotRunningException.class)
     public ResponseEntity<ErrorResponse> handleImportNotRunning(
             ImportNotRunningException ex, WebRequest request) {
-        log.info("Stop rejected: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
@@ -108,8 +79,17 @@ public class BatchImportController implements BatchImportControllerApi {
     @ExceptionHandler(InvalidCsvFormatException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCsvFormat(
             InvalidCsvFormatException ex, WebRequest request) {
-        log.info("Invalid CSV format: {}", ex.getMessage());
+        logRejected(HttpStatus.BAD_REQUEST, ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Invalid CSV Format", ex.getMessage(), request));
+    }
+
+    private void logRejected(HttpStatus status, Exception ex) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
     }
 }

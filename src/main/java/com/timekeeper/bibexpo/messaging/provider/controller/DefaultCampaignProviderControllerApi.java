@@ -32,16 +32,24 @@ import java.util.List;
 @SecurityRequirement(name = "bearerAuth")
 public interface DefaultCampaignProviderControllerApi {
 
-    @Operation(summary = "List the platform-default campaign providers")
-    @ApiResponse(responseCode = "200", description = "Providers retrieved")
+    @Operation(summary = "List the platform-default campaign providers",
+            description = "**Roles:** `ROOT`\n\nEvery channel's platform-default campaign sender, secrets masked.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Providers retrieved"),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT')")
     ResponseEntity<List<MessagingProviderResponse>> list(@AuthenticationPrincipal User currentUser);
 
-    @Operation(summary = "Get one channel's platform-default campaign provider")
+    @Operation(summary = "Get one channel's platform-default campaign provider",
+            description = "**Roles:** `ROOT`\n\nThe channel's platform-default campaign sender, secrets masked.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Provider retrieved",
                     content = @Content(schema = @Schema(implementation = MessagingProviderResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "No default configured",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
@@ -52,11 +60,20 @@ public interface DefaultCampaignProviderControllerApi {
             @AuthenticationPrincipal User currentUser);
 
     @Operation(summary = "Create or replace a channel's platform-default campaign provider",
-            description = "Secret fields (authToken, password) are write-only — leave blank to keep the stored value.")
+            description = """
+                    **Roles:** `ROOT`
+
+                    Secret fields (authToken, password) are write-only — leave them blank to keep the stored value. \
+                    An enabled provider must have an endpoint and a request mapping that matches its templateMode. \
+                    Switching an enabled sender off is refused while campaigns are armed, unless force is set.""")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Provider saved",
                     content = @Content(schema = @Schema(implementation = MessagingProviderResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Validation failure",
+            @ApiResponse(responseCode = "400", description = "Validation failed, or the request mapping does not match the provider's mode",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Campaigns are still armed on the sender being switched off, and force is not set",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PutMapping("/{channel}")
@@ -69,8 +86,17 @@ public interface DefaultCampaignProviderControllerApi {
             @Valid @RequestBody SaveMessagingProviderRequest request,
             @AuthenticationPrincipal User currentUser);
 
-    @Operation(summary = "Delete a channel's platform-default campaign provider")
-    @ApiResponse(responseCode = "204", description = "Provider removed")
+    @Operation(summary = "Delete a channel's platform-default campaign provider",
+            description = "**Roles:** `ROOT`\n\nRemoving an enabled sender is refused while campaigns are armed, unless force is set.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Provider removed"),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "No default configured",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Campaigns are still armed on the sender, and force is not set",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
     @DeleteMapping("/{channel}")
     @PreAuthorize("hasAnyRole('ROLE_ROOT')")
     ResponseEntity<Void> delete(
@@ -80,10 +106,17 @@ public interface DefaultCampaignProviderControllerApi {
             @RequestParam(defaultValue = "false") boolean force,
             @AuthenticationPrincipal User currentUser);
 
-    @Operation(summary = "Send a test message to verify the platform-default provider")
+    @Operation(summary = "Send a test message to verify the platform-default provider",
+            description = "**Roles:** `ROOT`\n\nSends one real message through the stored provider, even while it is switched off.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Test message accepted by the provider",
                     content = @Content(schema = @Schema(implementation = MessagingProviderResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Validation failed",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "No default configured",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "502", description = "Provider call failed",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })

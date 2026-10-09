@@ -36,11 +36,7 @@ public class WhatsAppTemplateController implements WhatsAppTemplateControllerApi
             @PathVariable Long eventId,
             @RequestBody CreateWhatsAppTemplateRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to create WhatsApp template for event ID: {} by user: {}",
-                eventId, currentUser.getUsername());
-
-        WhatsAppTemplateResponse response = templateService.createTemplate(eventId, request, currentUser);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(templateService.createTemplate(eventId, request, currentUser));
     }
 
     @Override
@@ -48,9 +44,6 @@ public class WhatsAppTemplateController implements WhatsAppTemplateControllerApi
             @PathVariable Long eventId,
             @RequestParam(required = false) String search,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to list WhatsApp templates for event ID: {} by user: {}",
-                eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(templateService.getTemplatesByEvent(eventId, search, currentUser));
     }
 
@@ -60,9 +53,6 @@ public class WhatsAppTemplateController implements WhatsAppTemplateControllerApi
             @PathVariable Long templateId,
             @RequestBody UpdateWhatsAppTemplateRequest request,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to update WhatsApp template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
         return ResponseEntity.ok(templateService.updateTemplate(eventId, templateId, request, currentUser));
     }
 
@@ -71,9 +61,6 @@ public class WhatsAppTemplateController implements WhatsAppTemplateControllerApi
             @PathVariable Long eventId,
             @PathVariable Long templateId,
             @AuthenticationPrincipal User currentUser) {
-        log.info("Received request to delete WhatsApp template ID: {} for event ID: {} by user: {}",
-                templateId, eventId, currentUser.getUsername());
-
         templateService.deleteTemplate(eventId, templateId, currentUser);
         return ResponseEntity.noContent().build();
     }
@@ -81,15 +68,24 @@ public class WhatsAppTemplateController implements WhatsAppTemplateControllerApi
     // Template not-found is also raised from the campaign service, so it is global (ApiException).
     @ExceptionHandler(WhatsAppTemplateAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleTemplateAlreadyExists(WhatsAppTemplateAlreadyExistsException ex, WebRequest request) {
-        log.warn("WhatsApp template conflict: {}", ex.getMessage());
+        logRejected(HttpStatus.CONFLICT, ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request));
     }
 
     @ExceptionHandler(InvalidWhatsAppTemplateException.class)
     public ResponseEntity<ErrorResponse> handleInvalidTemplate(InvalidWhatsAppTemplateException ex, WebRequest request) {
-        log.warn("Invalid WhatsApp template: {}", ex.getMessage());
+        logRejected(HttpStatus.BAD_REQUEST, ex);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request));
+    }
+
+    private void logRejected(HttpStatus status, Exception ex) {
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", status.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
     }
 }

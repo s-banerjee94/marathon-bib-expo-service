@@ -31,7 +31,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface DashboardControllerApi {
 
     @Operation(summary = "Get org dashboard snapshot",
-            description = "Returns a single rollup of org profile, event stats, user counts, and trend sparklines. " +
+            description = "**Roles:** ORGANIZER_ADMIN, ORGANIZER_USER. " +
+                    "Returns a single rollup of org profile, event stats, user counts, and trend sparklines. " +
                     "Range applies to stat cards, byStatus, and byCity. User counts are always all-time.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Dashboard snapshot returned",
@@ -75,7 +76,8 @@ public interface DashboardControllerApi {
     );
 
     @Operation(summary = "Force-refresh the org dashboard snapshot",
-            description = "Evicts the cached snapshot and recomputes it. Returns the fresh result.")
+            description = "**Roles:** ORGANIZER_ADMIN, ORGANIZER_USER. "
+                    + "Evicts the cached snapshot and recomputes it. Returns the fresh result.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Dashboard snapshot refreshed",
                     content = @Content(mediaType = "application/json",

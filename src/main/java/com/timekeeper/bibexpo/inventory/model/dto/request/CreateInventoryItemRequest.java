@@ -28,7 +28,7 @@ public class CreateInventoryItemRequest {
     private Long unitId;
 
     @Min(value = 0, message = "Low stock threshold cannot be negative")
-    @Schema(description = "Balance at or below which the item is considered low on stock", example = "50",
+    @Schema(description = "Balance across all locations at or below which the item is low on stock. Organization admins and users are told once when stock drops to it", example = "50",
             requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private Integer lowStockThreshold;
 

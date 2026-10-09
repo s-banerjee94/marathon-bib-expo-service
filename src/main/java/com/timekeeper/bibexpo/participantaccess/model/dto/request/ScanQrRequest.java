@@ -8,7 +8,7 @@ import lombok.Data;
 @Schema(description = "QR scan payload from the distribution counter")
 public class ScanQrRequest {
 
-    @NotBlank
+    @NotBlank(message = "QR code is required")
     @Schema(description = "Encrypted QR token from the participant's QR code", example = "aGVsbG8...")
     private String code;
 }

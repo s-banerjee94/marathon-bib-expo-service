@@ -29,6 +29,7 @@ public interface OrganizationBillingControllerApi {
     @Operation(
             summary = "List an organization's bills",
             description = """
+                    **Roles:** ROOT, ADMIN, ORGANIZER_ADMIN. \
                     Return every bill generated across all of an organization's events.
 
                     **Response (`OrganizationBillingResponse`):** `organizationId`, `currency`, \

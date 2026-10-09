@@ -11,7 +11,6 @@ import com.timekeeper.bibexpo.messaging.campaign.service.WhatsAppCampaignService
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -20,7 +19,6 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class MessagingCampaignMcpTools implements McpToolGroup {
 
     private final SmsCampaignService smsCampaignService;
@@ -35,7 +33,6 @@ public class MessagingCampaignMcpTools implements McpToolGroup {
             @ToolParam(description = "The id of the event whose campaigns to list. Resolve it from the event name with search_events") Long eventId) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-        log.info("MCP list_sms_campaigns - event {}, by {}", eventId, currentUser.getUsername());
         return smsCampaignService.getCampaignsByEvent(eventId, currentUser);
     }
 
@@ -51,8 +48,6 @@ public class MessagingCampaignMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP create_sms_campaign - name '{}', event {}, trigger {}, by {}",
-                request.getName(), eventId, request.getTriggerType(), currentUser.getUsername());
         return smsCampaignService.createCampaign(eventId, request, currentUser);
     }
 
@@ -70,8 +65,6 @@ public class MessagingCampaignMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP update_sms_campaign - campaign {}, event {}, by {}",
-                campaignId, eventId, currentUser.getUsername());
         return smsCampaignService.updateCampaign(eventId, campaignId, request, currentUser);
     }
 
@@ -83,7 +76,6 @@ public class MessagingCampaignMcpTools implements McpToolGroup {
             @ToolParam(description = "The id of the event whose campaigns to list. Resolve it from the event name with search_events") Long eventId) {
 
         User currentUser = McpToolSupport.requireCurrentUser();
-        log.info("MCP list_whatsapp_campaigns - event {}, by {}", eventId, currentUser.getUsername());
         return whatsAppCampaignService.getCampaignsByEvent(eventId, currentUser);
     }
 
@@ -99,8 +91,6 @@ public class MessagingCampaignMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP create_whatsapp_campaign - name '{}', event {}, trigger {}, by {}",
-                request.getName(), eventId, request.getTriggerType(), currentUser.getUsername());
         return whatsAppCampaignService.createCampaign(eventId, request, currentUser);
     }
 
@@ -118,8 +108,6 @@ public class MessagingCampaignMcpTools implements McpToolGroup {
         User currentUser = McpToolSupport.requireCurrentUser();
         McpToolSupport.validate(validator, request);
 
-        log.info("MCP update_whatsapp_campaign - campaign {}, event {}, by {}",
-                campaignId, eventId, currentUser.getUsername());
         return whatsAppCampaignService.updateCampaign(eventId, campaignId, request, currentUser);
     }
 }

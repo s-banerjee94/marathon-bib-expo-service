@@ -33,7 +33,6 @@ public class SessionController implements SessionControllerApi {
 
     @Override
     public ResponseEntity<Void> endMySession(String sessionId, User currentUser) {
-        log.info("Request to sign out device {} by: {}", sessionId, currentUser.getUsername());
         if (!sessionService.endSession(currentUser.getUsername(), sessionId)) {
             throw new SessionNotFoundException("That device is not signed in.");
         }
@@ -42,7 +41,6 @@ public class SessionController implements SessionControllerApi {
 
     @Override
     public ResponseEntity<Void> endMyOtherSessions(User currentUser, HttpServletRequest httpRequest) {
-        log.info("Request to sign out all other devices by: {}", currentUser.getUsername());
         sessionService.endOtherSessions(currentUser.getUsername(), currentSid(httpRequest));
         return ResponseEntity.noContent().build();
     }
@@ -58,7 +56,12 @@ public class SessionController implements SessionControllerApi {
     // distinguished, so a caller cannot probe for other accounts' session ids.
     @ExceptionHandler(SessionNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleSessionNotFound(SessionNotFoundException ex, WebRequest request) {
-        log.warn("Session sign-out rejected: {}", ex.getMessage());
+        log.atWarn()
+                .addKeyValue("event", "request.rejected")
+                .addKeyValue("status", HttpStatus.NOT_FOUND.value())
+                .addKeyValue("exception", ex.getClass().getSimpleName())
+                .addKeyValue("reason", ex.getMessage())
+                .log("Request rejected");
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request));
     }

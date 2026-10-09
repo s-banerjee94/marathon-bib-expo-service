@@ -34,9 +34,6 @@ public class InventoryAttributeResponse {
     @Schema(description = "True if choosing a value splits stock into a separate variant", example = "true")
     private boolean variantAttribute;
 
-    @Schema(description = "Whether an item using this attribute must supply a value", example = "true")
-    private boolean required;
-
     @Schema(description = "Allowed choices, populated for SELECT attributes")
     private List<InventoryAttributeOptionResponse> values;
 
@@ -60,7 +57,6 @@ public class InventoryAttributeResponse {
                 .name(attribute.getName())
                 .type(attribute.getType())
                 .variantAttribute(attribute.isVariantAttribute())
-                .required(attribute.isRequired())
                 .values(values.stream()
                         .map(InventoryAttributeOptionResponse::fromEntity)
                         .toList())

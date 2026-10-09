@@ -57,9 +57,6 @@ public class EventDashboardService {
      * @return the assembled rollup
      */
     public EventDashboardResponse loadDashboard(Long eventId, EventActivityRange range, User currentUser) {
-        log.info("Loading event dashboard — event: {}, range: {}, user: {}",
-                eventId, range, currentUser.getUsername());
-
         ParticipantStatisticsResponse stats = participantStatisticsService.getParticipantStatistics(eventId, currentUser);
         Event event = reportingEventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
         EventNames names = nameResolver.forEvent(eventId);
@@ -116,6 +113,8 @@ public class EventDashboardService {
     public EventDashboardResponse reconcileDashboard(Long eventId, EventActivityRange range,
                                                      User currentUser) {
         participantStatisticsService.reconcile(eventId, currentUser);
+        log.atInfo().addKeyValue("event", "reporting.event.reconciled").addKeyValue("eventId", eventId)
+                .log("Event counters recounted from the roster");
         return loadDashboard(eventId, range, currentUser);
     }
 

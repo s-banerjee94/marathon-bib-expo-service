@@ -3,6 +3,7 @@ package com.timekeeper.bibexpo.user.service.impl;
 import com.timekeeper.bibexpo.notification.service.NotificationService;
 import com.timekeeper.bibexpo.organization.api.OrganizationMemberPurger;
 import com.timekeeper.bibexpo.user.model.entity.User;
+import com.timekeeper.bibexpo.user.model.enums.LockReason;
 import com.timekeeper.bibexpo.user.repository.UserArchiveRepository;
 import com.timekeeper.bibexpo.user.repository.UserRepository;
 import com.timekeeper.bibexpo.user.service.cache.AuthUserCache;
@@ -27,25 +28,46 @@ public class OrganizationMemberPurgerImpl implements OrganizationMemberPurger {
 
     @Override
     @Transactional
-    public void disableMembers(Long organizationId) {
-        List<User> organizationUsers = userRepository.findByOrganizationId(organizationId);
-
-        if (organizationUsers.isEmpty()) {
-            log.info("No users found for organization ID: {}", organizationId);
-            return;
-        }
-
-        log.info("Disabling {} users for organization ID: {}", organizationUsers.size(), organizationId);
-
-        organizationUsers.forEach(user -> {
-            user.setEnabled(false);
-            log.debug("Disabling user: {} (ID: {})", user.getUsername(), user.getId());
+    public void lockMembers(Long organizationId) {
+        List<User> toLock = userRepository.findByOrganizationId(organizationId).stream()
+                .filter(User::isAccountNonLocked)
+                .toList();
+        toLock.forEach(user -> {
+            user.setAccountNonLocked(false);
+            user.setLockReason(LockReason.ORGANIZATION_DISABLED);
         });
+        saveAndEvict(toLock);
+        log.atInfo()
+                .addKeyValue("event", "user.org_members.locked")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("count", toLock.size())
+                .log("Organization members locked");
+    }
 
-        userRepository.saveAll(organizationUsers);
-        // Drop the disabled users from the auth cache so they cannot keep authenticating.
-        organizationUsers.forEach(user -> authUserCache.evict(user.getUsername()));
-        log.info("Successfully disabled all users for organization ID: {}", organizationId);
+    @Override
+    @Transactional
+    public int unlockMembersLockedByOrganization(Long organizationId) {
+        List<User> toUnlock = userRepository.findByOrganizationId(organizationId).stream()
+                .filter(user -> !user.isAccountNonLocked()
+                        && user.getLockReason() == LockReason.ORGANIZATION_DISABLED)
+                .toList();
+        toUnlock.forEach(user -> {
+            user.setAccountNonLocked(true);
+            user.setLockReason(null);
+        });
+        saveAndEvict(toUnlock);
+        log.atInfo()
+                .addKeyValue("event", "user.org_members.unlocked")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("count", toUnlock.size())
+                .log("Organization members unlocked");
+        return toUnlock.size();
+    }
+
+    // Evicting drops the cached principal, so the new status applies from the next request.
+    private void saveAndEvict(List<User> users) {
+        userRepository.saveAll(users);
+        users.forEach(user -> authUserCache.evict(user.getUsername()));
     }
 
     @Override
@@ -61,7 +83,11 @@ public class OrganizationMemberPurgerImpl implements OrganizationMemberPurger {
         // Archived (former) users still FK the organization, so drop those rows before it is removed.
         userArchiveRepository.deleteByOrganizationId(organizationId);
         userRepository.flush();
-        log.info("Purged {} users for organization ID: {}", users.size(), organizationId);
+        log.atInfo()
+                .addKeyValue("event", "user.org_members.purged")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("count", users.size())
+                .log("Organization members purged");
         return users.size();
     }
 }

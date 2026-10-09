@@ -30,13 +30,13 @@ public class OrgDashboardService {
 
     @Cacheable(value = DASHBOARD_CACHE, key = CACHE_KEY)
     public OrgDashboardResponse loadFor(OrgDashboardQuery query) {
-        log.debug("Cache miss — computing dashboard for orgId: {}", query.getOrgId());
         return compute(query);
     }
 
     @CachePut(value = DASHBOARD_CACHE, key = CACHE_KEY)
     public OrgDashboardResponse refreshFor(OrgDashboardQuery query) {
-        log.info("Force refresh — recomputing dashboard for orgId: {}", query.getOrgId());
+        log.atInfo().addKeyValue("event", "reporting.org_dashboard.refreshed").addKeyValue("orgId", query.getOrgId())
+                .log("Organization dashboard recomputed on request");
         return compute(query);
     }
 

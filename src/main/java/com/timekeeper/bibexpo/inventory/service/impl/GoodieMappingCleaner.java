@@ -22,7 +22,11 @@ public class GoodieMappingCleaner implements EventDeletionCleaner {
     public void purgeForEvent(Long eventId) {
         int removed = mappingRepository.deleteByEventId(eventId);
         if (removed > 0) {
-            log.info("Deleted {} goody link(s) for event {}", removed, eventId);
+            log.atInfo()
+                    .addKeyValue("event", "inventory.goodie_links_purged")
+                    .addKeyValue("eventId", eventId)
+                    .addKeyValue("count", removed)
+                    .log("Goody links removed with their event");
         }
     }
 }

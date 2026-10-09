@@ -4,6 +4,7 @@ import com.timekeeper.bibexpo.billing.config.BillingProperties;
 import com.timekeeper.bibexpo.billing.service.BillingScheduleService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.core.exception.SdkException;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.scheduler.SchedulerClient;
 import software.amazon.awssdk.services.scheduler.model.ActionAfterCompletion;
@@ -14,7 +15,6 @@ import software.amazon.awssdk.services.scheduler.model.FlexibleTimeWindow;
 import software.amazon.awssdk.services.scheduler.model.FlexibleTimeWindowMode;
 import software.amazon.awssdk.services.scheduler.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.scheduler.model.RetryPolicy;
-import software.amazon.awssdk.services.scheduler.model.SchedulerException;
 import software.amazon.awssdk.services.scheduler.model.Target;
 import software.amazon.awssdk.services.scheduler.model.UpdateScheduleRequest;
 
@@ -48,7 +48,8 @@ public class BillingScheduleServiceImpl implements BillingScheduleService {
     @Override
     public void schedule(Long eventId) {
         if (!billingProperties.getScheduling().isEnabled()) {
-            log.info("[billing] scheduling disabled — skipping auto-bill schedule for event {}", eventId);
+            log.atDebug().addKeyValue("event", "billing.autobill.skipped").addKeyValue("eventId", eventId)
+                    .log("Billing schedules are disabled; no auto-bill armed");
             return;
         }
 
@@ -69,35 +70,39 @@ public class BillingScheduleServiceImpl implements BillingScheduleService {
                 .build();
 
         try {
-            schedulerClient.createSchedule(CreateScheduleRequest.builder()
-                    .name(name)
-                    .scheduleExpression("at(" + fireAt + ")")
-                    .scheduleExpressionTimezone("UTC")
-                    .flexibleTimeWindow(window)
-                    .actionAfterCompletion(ActionAfterCompletion.DELETE)
-                    .target(target)
-                    .build());
-            log.info("[billing] armed auto-bill for event {} at {} UTC", eventId, fireAt);
-        } catch (ConflictException existing) {
-            // Re-completion before the previous timer fired: re-arm the existing schedule.
-            schedulerClient.updateSchedule(UpdateScheduleRequest.builder()
-                    .name(name)
-                    .scheduleExpression("at(" + fireAt + ")")
-                    .scheduleExpressionTimezone("UTC")
-                    .flexibleTimeWindow(window)
-                    .actionAfterCompletion(ActionAfterCompletion.DELETE)
-                    .target(target)
-                    .build());
-            log.info("[billing] re-armed auto-bill for event {} at {} UTC", eventId, fireAt);
-        } catch (SchedulerException e) {
-            log.error("[billing] failed to arm auto-bill for event {}: {}", eventId, e.getMessage());
+            try {
+                schedulerClient.createSchedule(CreateScheduleRequest.builder()
+                        .name(name)
+                        .scheduleExpression("at(" + fireAt + ")")
+                        .scheduleExpressionTimezone("UTC")
+                        .flexibleTimeWindow(window)
+                        .actionAfterCompletion(ActionAfterCompletion.DELETE)
+                        .target(target)
+                        .build());
+            } catch (ConflictException existing) {
+                // Re-completion before the previous timer fired: re-arm the existing schedule.
+                schedulerClient.updateSchedule(UpdateScheduleRequest.builder()
+                        .name(name)
+                        .scheduleExpression("at(" + fireAt + ")")
+                        .scheduleExpressionTimezone("UTC")
+                        .flexibleTimeWindow(window)
+                        .actionAfterCompletion(ActionAfterCompletion.DELETE)
+                        .target(target)
+                        .build());
+            }
+            log.atInfo().addKeyValue("event", "billing.autobill.armed").addKeyValue("eventId", eventId)
+                    .addKeyValue("fireAt", fireAt).log("Auto-bill armed");
+        } catch (SdkException e) {
+            log.atError().addKeyValue("event", "billing.autobill.arm_failed").addKeyValue("eventId", eventId)
+                    .setCause(e).log("Auto-bill could not be armed");
         }
     }
 
     @Override
     public void cancel(Long eventId) {
         if (!billingProperties.getScheduling().isEnabled()) {
-            log.info("[billing] scheduling disabled — skipping auto-bill cancel for event {}", eventId);
+            log.atDebug().addKeyValue("event", "billing.autobill.skipped").addKeyValue("eventId", eventId)
+                    .log("Billing schedules are disabled; no auto-bill to cancel");
             return;
         }
 
@@ -105,11 +110,13 @@ public class BillingScheduleServiceImpl implements BillingScheduleService {
             schedulerClient.deleteSchedule(DeleteScheduleRequest.builder()
                     .name(scheduleName(eventId))
                     .build());
-            log.info("[billing] cancelled pending auto-bill for event {}", eventId);
+            log.atInfo().addKeyValue("event", "billing.autobill.cancelled").addKeyValue("eventId", eventId)
+                    .log("Pending auto-bill cancelled");
         } catch (ResourceNotFoundException none) {
             // No pending timer — nothing to cancel.
-        } catch (SchedulerException e) {
-            log.error("[billing] failed to cancel auto-bill for event {}: {}", eventId, e.getMessage());
+        } catch (SdkException e) {
+            log.atError().addKeyValue("event", "billing.autobill.cancel_failed").addKeyValue("eventId", eventId)
+                    .setCause(e).log("Pending auto-bill could not be cancelled");
         }
     }
 
