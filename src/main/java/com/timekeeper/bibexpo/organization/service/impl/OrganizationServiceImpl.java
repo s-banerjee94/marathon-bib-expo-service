@@ -158,6 +158,10 @@ public class OrganizationServiceImpl implements OrganizationService {
     @Transactional
     public OrganizationResponse updateOrganization(Long id, UpdateOrganizationRequest request, CurrentActor actor) {
         requireOwnOrganization(actor, id);
+        UserRole role = actor.role();
+        if (role != UserRole.ROOT && role != UserRole.ADMIN && role != UserRole.ORGANIZER_ADMIN) {
+            throw new AccessForbiddenException("You are not allowed to change your organization's details.");
+        }
         Organization organization = requireOrganization(id);
         validateUniqueness(request.getOrganizerName(), request.getEmail(),
                 request.getPhoneNumber(), request.getTaxId(), organization);

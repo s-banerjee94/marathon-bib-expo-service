@@ -65,7 +65,9 @@ public class SecurityConfig {
                 .securityMatcher("/sse", "/mcp/message")
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                // Distributors have no AI access, and the tools call services without the REST role checks.
+                .authorizeHttpRequests(auth -> auth.anyRequest()
+                        .hasAnyRole("ROOT", "ADMIN", "ORGANIZER_ADMIN", "ORGANIZER_USER"))
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )

@@ -32,7 +32,8 @@ public interface OrganizationService {
     OrganizationResponse createOrganization(CreateOrganizationRequest request);
 
     /**
-     * Update an existing organization with partial data
+     * Update an existing organization with partial data. ROOT and ADMIN may update any organization,
+     * an ORGANIZER_ADMIN only their own; every other role is refused.
      * @param id The organization ID
      * @param request The update request with optional fields
      * @param actor The authenticated user
