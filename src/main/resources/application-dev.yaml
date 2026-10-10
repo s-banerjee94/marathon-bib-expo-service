@@ -93,9 +93,9 @@ aws:
     endpoint: ${AWS_S3_ENDPOINT:}
 
 # --- Logging ----------------------------------------------------------------
-# Structured JSON on console + rolling file. CloudWatch Agent tails the file;
+# Structured JSON on console + rolling file. Docker's awslogs driver ships the console;
 # each JSON line becomes a searchable event in Logs Insights.
-# MDC fields (requestId, userId, username, role, orgId) are included automatically.
+# MDC fields (requestId, httpMethod, uri, actorId, actorUsername, actorRole, actorOrgId) are included automatically.
 logging:
   structured:
     format:
