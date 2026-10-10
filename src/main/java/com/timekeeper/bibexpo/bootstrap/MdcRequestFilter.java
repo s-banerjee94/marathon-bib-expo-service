@@ -27,18 +27,20 @@ public class MdcRequestFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
+        // Structured logging writes MDC and per-call key-values into one flat object and drops the
+        // whole line on a duplicate name, so these keys must never match a log call's own keys.
         try {
             MDC.put("requestId", UUID.randomUUID().toString().substring(0, 8));
-            MDC.put("method", request.getMethod());
+            MDC.put("httpMethod", request.getMethod());
             MDC.put("uri", request.getRequestURI());
 
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getPrincipal() instanceof User user) {
-                MDC.put("userId", String.valueOf(user.getId()));
-                MDC.put("username", user.getUsername());
-                MDC.put("role", user.getRole().name());
+                MDC.put("actorId", String.valueOf(user.getId()));
+                MDC.put("actorUsername", user.getUsername());
+                MDC.put("actorRole", user.getRole().name());
                 if (user.getOrganization() != null) {
-                    MDC.put("orgId", String.valueOf(user.getOrganization().getId()));
+                    MDC.put("actorOrgId", String.valueOf(user.getOrganization().getId()));
                 }
             }
 
