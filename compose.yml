@@ -15,8 +15,12 @@ services:
       # (chown 1001:1001, mode 400) or the JWT service cannot read them and startup fails.
       - ${KEYS_DIR:-/etc/bibexpo/keys}:/keys:ro
     mem_limit: 2g
+    # Needs logs:CreateLogStream/PutLogEvents on the instance role; the group must already exist.
     logging:
-      driver: json-file
+      driver: awslogs
       options:
-        max-size: "10m"
-        max-file: "3"
+        awslogs-region: ap-south-1
+        awslogs-group: /bibexpo/app
+        awslogs-stream: bibexpo-app
+        mode: non-blocking
+        max-buffer-size: 4m
