@@ -1,11 +1,16 @@
 package com.timekeeper.bibexpo.inventory.controller;
 
 import com.timekeeper.bibexpo.inventory.model.dto.request.AdjustStockRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.request.CreateStockPostingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.ReceiveStockRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.request.ReverseStockPostingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.TransferStockRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.ItemStockResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockBalanceResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockItemResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockMovementResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.StockPostingConflictResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.StockPostingResponse;
 import com.timekeeper.bibexpo.inventory.model.enums.MovementReason;
 import com.timekeeper.bibexpo.inventory.model.enums.MovementType;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
@@ -30,6 +35,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.Instant;
@@ -228,5 +234,127 @@ public interface InventoryStockControllerApi {
     ResponseEntity<StockBalanceResponse> adjustStock(
             @PathVariable Long organizationId,
             @Valid @RequestBody AdjustStockRequest request,
+            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
+
+    @Operation(
+            summary = "Get one item's stock grid",
+            description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    Everything one item's stock screen needs in one call: every variant of the item, in \
+                    the order its attribute values were defined, every location of the organization, by \
+                    name, and the balances between them. A cell with no balance holds 0.
+
+                    <code>allowedActions</code> lists what the caller may do, so the screen shows only \
+                    the buttons that will work. <code>ORGANIZER_ADMIN</code>, <code>ADMIN</code> and \
+                    <code>ROOT</code> get every action. <code>ORGANIZER_USER</code> gets \
+                    <code>RECEIPT</code>, <code>TRANSFER</code>, <code>COUNT</code> and \
+                    <code>REVERSE</code>, the last for their own postings from the last 24 hours. The \
+                    posting endpoints enforce the same rule."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Grid retrieved successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ItemStockResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization or item not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/items/{itemId}/stock")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<ItemStockResponse> getItemStock(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
+
+    @Operation(
+            summary = "Post a stock change",
+            description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    Posts up to 200 lines as one change, all or none. Each line writes ledger lines \
+                    carrying the new posting's id. The fields a line needs depend on the type:
+
+                    - <code>RECEIPT</code>: variantId, toLocationId, quantity.
+                    - <code>TRANSFER</code>: variantId, fromLocationId, toLocationId, quantity.
+                    - <code>ADJUSTMENT</code> count: variantId, locationId, reason <code>CORRECTION</code>, \
+                    countedOnHand, expectedOnHand. The server writes the difference. When the shelf no \
+                    longer holds <code>expectedOnHand</code> it answers 409 rather than overwrite it.
+                    - <code>ADJUSTMENT</code> write-off: variantId, locationId, reason <code>DAMAGED</code> \
+                    or <code>LOST</code>, quantity.
+
+                    A transfer, damage or loss can never take a shelf below zero. A count can raise an \
+                    overdrawn one. Every variant and location must belong to this organization, and a \
+                    variant at a location appears once per posting.
+
+                    **Idempotency-Key** is required: a new random string per click. Sending the same key \
+                    again posts nothing and answers with that posting and the balances as they stand now. \
+                    The same key with a different body answers 422.
+
+                    An <code>ORGANIZER_USER</code> may receive, transfer and count, but not write off."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Posted, with every balance it changed",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = StockPostingResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Missing Idempotency-Key, an unsupported type, or a line missing what its type needs",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden, or the caller's role may not take this action",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization, variant, or location not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Lines the stock could not take; nothing was posted",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = StockPostingConflictResponse.class))),
+            @ApiResponse(responseCode = "422", description = "The Idempotency-Key already posted a different request",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/postings")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<StockPostingResponse> postStock(
+            @PathVariable Long organizationId,
+            @Parameter(description = "A new random string per click; a repeat answers with what it already posted",
+                    required = true, example = "6f1c2a9e-4b7d-4e15-9c1a-2f0d8e3b5a77")
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody CreateStockPostingRequest request,
+            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
+
+    @Operation(
+            summary = "Undo a stock change",
+            description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    Writes the opposite of every line of the posting as one new posting of type \
+                    <code>REVERSAL</code>, which carries <code>reversesPostingId</code>. The original \
+                    then carries <code>reversedByPostingId</code>. Nothing is deleted from the ledger.
+
+                    Answers 409 when the posting was already undone, when it is itself an undo, or when \
+                    undoing it would take a shelf below zero. The last case lists the lines, as posting \
+                    does. For example, a receipt whose stock was already handed out.
+
+                    **Idempotency-Key** is required and works as it does for posting. An \
+                    <code>ORGANIZER_USER</code> may undo only their own postings from the last 24 hours."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Undone, with every balance it changed",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = StockPostingResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Missing Idempotency-Key, or a note that is too long",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden, or the caller may not undo this posting",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization or posting not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Already undone, itself an undo, or lines the stock could not take",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = StockPostingConflictResponse.class))),
+            @ApiResponse(responseCode = "422", description = "The Idempotency-Key already posted a different request",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/postings/{postingId}/reverse")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<StockPostingResponse> reversePosting(
+            @PathVariable Long organizationId,
+            @PathVariable Long postingId,
+            @Parameter(description = "A new random string per click; a repeat answers with what it already posted",
+                    required = true, example = "0b8e4d2c-7a1f-4c3e-8d5b-9e6f1a2b3c4d")
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody(required = false) ReverseStockPostingRequest request,
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 }

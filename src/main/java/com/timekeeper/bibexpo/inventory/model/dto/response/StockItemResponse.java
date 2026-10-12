@@ -22,6 +22,9 @@ public class StockItemResponse {
     @Schema(description = "Item name", example = "T-Shirt")
     private String itemName;
 
+    @Schema(description = "The item's photo, else the first variant photo, else null")
+    private String imageUrl;
+
     @Schema(description = "Total on hand across the rows below, so a filtered list totals what it shows",
             example = "2400")
     private Integer onHand;

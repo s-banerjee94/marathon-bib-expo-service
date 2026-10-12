@@ -82,6 +82,10 @@ public class InventoryItem implements Serializable {
     @Column(length = 500)
     private String note;
 
+    // S3 object key under UploadCategory.INVENTORY_ITEM_IMAGE, null until a photo is attached
+    @Column(name = "image_key", length = 512)
+    private String imageKey;
+
     // Kept in step by InventoryItemService, the only writer of variants, so the item list can show
     // the count without querying the variants of every row.
     @Column(name = "variant_count", nullable = false)

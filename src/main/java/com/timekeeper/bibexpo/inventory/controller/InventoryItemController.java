@@ -138,6 +138,33 @@ public class InventoryItemController implements InventoryItemControllerApi {
         return ResponseEntity.ok(itemService.removeVariantImage(organizationId, itemId, variantId, currentUser));
     }
 
+    @Override
+    public ResponseEntity<PresignUploadResponse> createItemImageUploadUrl(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @Valid @RequestBody PresignUploadRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(itemService.createItemImageUploadUrl(organizationId, itemId,
+                request.getContentType(), currentUser));
+    }
+
+    @Override
+    public ResponseEntity<InventoryItemResponse> attachItemImage(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @Valid @RequestBody AttachUploadRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(itemService.attachItemImage(organizationId, itemId, request.getObjectKey(), currentUser));
+    }
+
+    @Override
+    public ResponseEntity<InventoryItemResponse> removeItemImage(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(itemService.removeItemImage(organizationId, itemId, currentUser));
+    }
+
     @ExceptionHandler({InventoryItemLimitReachedException.class, InventoryVariantLimitReachedException.class})
     public ResponseEntity<ErrorResponse> handleLimitReached(RuntimeException ex, WebRequest request) {
         log.atWarn()

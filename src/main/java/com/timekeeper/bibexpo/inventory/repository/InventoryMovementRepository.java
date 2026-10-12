@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Read access to the ledger. Rows are never updated or deleted through this repository — writes go
@@ -48,6 +49,8 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
                                    @Param("occurredFrom") Instant occurredFrom,
                                    @Param("occurredTo") Instant occurredTo,
                                    Pageable pageable);
+
+    List<InventoryMovement> findByPostingIdOrderById(Long postingId);
 
     /**
      * Whether any line ever touched this location, as either end of a move. Asked before a location

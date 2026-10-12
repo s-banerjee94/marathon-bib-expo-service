@@ -328,4 +328,76 @@ public interface InventoryItemControllerApi {
             @PathVariable Long itemId,
             @PathVariable Long variantId,
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
+
+    @Operation(
+            summary = "Get a presigned URL to upload the item's photo",
+            description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    Returns a short-lived presigned S3 PUT URL for the item's own photo. The client uploads                     the file bytes directly to that URL with the given Content-Type, then calls the attach                     endpoint with the returned objectKey. Variant photos are separate and stay as they are."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Presigned upload URL created",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PresignUploadResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Unsupported file type",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization or item not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/{itemId}/image/upload-url")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<PresignUploadResponse> createItemImageUploadUrl(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @Valid @RequestBody PresignUploadRequest request,
+            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
+
+    @Operation(
+            summary = "Attach an uploaded item photo",
+            description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    Attaches a previously uploaded object as the item's own photo, replacing and deleting                     any existing one. The item's <code>imageUrl</code> then shows it in every list."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Photo attached successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryItemResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Object key invalid or file missing",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization or item not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PutMapping("/{itemId}/image")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<InventoryItemResponse> attachItemImage(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @Valid @RequestBody AttachUploadRequest request,
+            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
+
+    @Operation(
+            summary = "Remove the item photo",
+            description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    Deletes the item's own photo from storage, if any. The item's <code>imageUrl</code> then                     falls back to the first variant photo."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Photo removed successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryItemResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization or item not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @DeleteMapping("/{itemId}/image")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<InventoryItemResponse> removeItemImage(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 }

@@ -59,25 +59,6 @@ public interface InventoryTermControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
-            summary = "Get one term",
-            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nReturns one of this organization's terms."
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Term retrieved successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryTermResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization or term not found",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @GetMapping("/{termId}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<InventoryTermResponse> getTerm(
-            @PathVariable Long organizationId,
-            @PathVariable Long termId,
-            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
-
-    @Operation(
             summary = "Add a term",
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`

@@ -21,14 +21,23 @@ import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class InventoryTermServiceImpl implements InventoryTermService {
+
+    private static final Map<TermKind, List<String>> STARTER_TERMS = new EnumMap<>(Map.of(
+            TermKind.ITEM_CATEGORY, List.of("Apparel", "Medals", "Bags & Kits", "Bottles & Sippers",
+                    "Nutrition", "Race Essentials", "Merchandise"),
+            TermKind.LOCATION_TYPE, List.of("Warehouse", "Expo Counter", "Race-Day Zone", "In Transit"),
+            TermKind.UNIT, List.of("Piece", "Pair", "Pack", "Set", "Box", "Carton")));
 
     private final InventoryTermRepository termRepository;
     private final InventoryItemRepository itemRepository;
@@ -46,13 +55,6 @@ public class InventoryTermServiceImpl implements InventoryTermService {
                         .map(InventoryTermResponse::fromEntity)
                         .toList())
                 .build();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public InventoryTermResponse getTerm(Long organizationId, Long termId, User currentUser) {
-        accessGuard.requireOrgAccess(currentUser, organizationId);
-        return InventoryTermResponse.fromEntity(requireTermInScope(termId, organizationId));
     }
 
     @Override
@@ -111,6 +113,31 @@ public class InventoryTermServiceImpl implements InventoryTermService {
         termRepository.delete(term);
         inventoryQuota.releaseTerm(organizationId);
         logTerm("inventory.term_deleted", "Inventory term deleted", term);
+    }
+
+    // Called after the organization commits, so it needs a transaction of its own.
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void seedStarterTerms(Long organizationId) {
+        List<InventoryTerm> terms = STARTER_TERMS.entrySet().stream()
+                .flatMap(entry -> entry.getValue().stream().map(name -> InventoryTerm.builder()
+                        .kind(entry.getKey())
+                        .organizationId(organizationId)
+                        .name(name)
+                        .build()))
+                .toList();
+
+        int slots = 0;
+        while (slots < terms.size() && inventoryQuota.tryReserveTerm(organizationId)) {
+            slots++;
+        }
+        termRepository.saveAll(terms.subList(0, slots));
+
+        log.atInfo()
+                .addKeyValue("event", "inventory.starter_terms_created")
+                .addKeyValue("targetOrgId", organizationId)
+                .addKeyValue("count", slots)
+                .log("Starter inventory terms created");
     }
 
     // ---- lookups ----------------------------------------------------------------

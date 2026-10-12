@@ -57,25 +57,6 @@ public interface InventoryAttributeControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
-            summary = "Get one attribute",
-            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nReturns one of this organization's attributes with its allowed values."
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Attribute retrieved successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryAttributeResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization or attribute not found",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @GetMapping("/{attributeId}")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<InventoryAttributeResponse> getAttribute(
-            @PathVariable Long organizationId,
-            @PathVariable Long attributeId,
-            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
-
-    @Operation(
             summary = "Add an attribute",
             description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nAdds an attribute to this organization's own set. Names must be unique, and only a SELECT attribute may define variants."
     )

@@ -31,13 +31,6 @@ public interface InventoryAttributeService {
     InventoryAttributeListResponse listVisible(Long organizationId, User currentUser);
 
     /**
-     * Fetches one of this organization's attributes with its allowed values.
-     *
-     * @throws InventoryAttributeNotFoundException if no such attribute exists in this organization
-     */
-    InventoryAttributeResponse getAttribute(Long organizationId, Long attributeId, User currentUser);
-
-    /**
      * Adds a new attribute.
      *
      * @throws InventoryAttributeAlreadyExistsException if an attribute with this name already exists in scope

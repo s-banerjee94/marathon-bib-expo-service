@@ -25,13 +25,6 @@ public interface InventoryTermService {
     InventoryTermListResponse listVisible(Long organizationId, TermKind kind, User currentUser);
 
     /**
-     * Fetches one term.
-     *
-     * @throws InventoryTermNotFoundException if no such term exists in this scope
-     */
-    InventoryTermResponse getTerm(Long organizationId, Long termId, User currentUser);
-
-    /**
      * Adds a new term.
      *
      * @throws InventoryTermAlreadyExistsException if a term of this kind with this name already exists in scope
@@ -53,4 +46,11 @@ public interface InventoryTermService {
      * @throws InventoryTermInUseException if an item or location still references this term
      */
     void deleteTerm(Long organizationId, Long termId, User currentUser);
+
+    /**
+     * Gives a new organization a starter set of categories, location types and units, so it can create
+     * its first item and location straight away. They are the organization's own rows, renamed or deleted
+     * like any other. Each one takes a term slot, and seeding stops quietly once the cap is reached.
+     */
+    void seedStarterTerms(Long organizationId);
 }

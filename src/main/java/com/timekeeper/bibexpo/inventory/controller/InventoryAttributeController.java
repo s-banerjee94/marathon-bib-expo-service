@@ -40,14 +40,6 @@ public class InventoryAttributeController implements InventoryAttributeControlle
     }
 
     @Override
-    public ResponseEntity<InventoryAttributeResponse> getAttribute(
-            @PathVariable Long organizationId,
-            @PathVariable Long attributeId,
-            @AuthenticationPrincipal User currentUser) {
-        return ResponseEntity.ok(attributeService.getAttribute(organizationId, attributeId, currentUser));
-    }
-
-    @Override
     public ResponseEntity<InventoryAttributeResponse> createAttribute(
             @PathVariable Long organizationId,
             @Valid @RequestBody CreateInventoryAttributeRequest request,

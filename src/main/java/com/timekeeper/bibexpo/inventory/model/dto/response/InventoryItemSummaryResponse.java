@@ -41,6 +41,9 @@ public class InventoryItemSummaryResponse {
     @Schema(description = "How many variants this item has", example = "3")
     private Integer variantCount;
 
+    @Schema(description = "The item's photo, else the first variant photo, else null")
+    private String imageUrl;
+
     @Schema(description = "When this item was added")
     private Instant createdAt;
 
@@ -53,7 +56,7 @@ public class InventoryItemSummaryResponse {
     @Schema(description = "Who last changed this item", example = "organizer1")
     private String updatedBy;
 
-    public static InventoryItemSummaryResponse fromEntity(InventoryItem item) {
+    public static InventoryItemSummaryResponse fromEntity(InventoryItem item, String imageUrl) {
         return InventoryItemSummaryResponse.builder()
                 .id(item.getId())
                 .organizationId(item.getOrganizationId())
@@ -63,6 +66,7 @@ public class InventoryItemSummaryResponse {
                 .lowStockThreshold(item.getLowStockThreshold())
                 .note(item.getNote())
                 .variantCount(item.getVariantCount())
+                .imageUrl(imageUrl)
                 .createdAt(item.getCreatedAt())
                 .createdBy(item.getCreatedBy())
                 .updatedAt(item.getUpdatedAt())

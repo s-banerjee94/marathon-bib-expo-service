@@ -122,4 +122,26 @@ public interface InventoryItemService {
      * @throws InventoryVariantNotFoundException if the variant does not belong to this item
      */
     InventoryItemResponse removeVariantImage(Long organizationId, Long itemId, Long variantId, User currentUser);
+
+    /**
+     * Generates a presigned upload URL for the item's own photo.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     */
+    PresignUploadResponse createItemImageUploadUrl(Long organizationId, Long itemId, String contentType, User currentUser);
+
+    /**
+     * Attaches a previously uploaded photo to the item, replacing any existing one.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the object does not belong to this item or was not uploaded
+     */
+    InventoryItemResponse attachItemImage(Long organizationId, Long itemId, String objectKey, User currentUser);
+
+    /**
+     * Removes the item's own photo, if any. Variant photos stay.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     */
+    InventoryItemResponse removeItemImage(Long organizationId, Long itemId, User currentUser);
 }

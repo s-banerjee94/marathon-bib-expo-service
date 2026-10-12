@@ -15,5 +15,6 @@ public enum AuditEntityType {
     PARTICIPANT_MESSAGE,
     INVOICE,
     INVENTORY_ITEM,
-    STOCK_MOVEMENT
+    STOCK_MOVEMENT,
+    STOCK_POSTING
 }

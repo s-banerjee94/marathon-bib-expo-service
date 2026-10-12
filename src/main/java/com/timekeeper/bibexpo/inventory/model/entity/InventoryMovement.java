@@ -39,7 +39,8 @@ import java.time.Instant;
                 @Index(name = "idx_inventory_movement_org_item_occurred",
                         columnList = "organization_id, item_id, occurred_at"),
                 @Index(name = "idx_inventory_movement_variant_occurred",
-                        columnList = "variant_id, occurred_at")
+                        columnList = "variant_id, occurred_at"),
+                @Index(name = "idx_inventory_movement_posting", columnList = "posting_id")
         })
 @EntityListeners(AuditingEntityListener.class)
 @Data
@@ -87,6 +88,10 @@ public class InventoryMovement implements Serializable {
     // bib number, issue slip id, PO id — whatever caused this line
     @Column(length = 100)
     private String reference;
+
+    // The posting that wrote this line; null for counter hand-outs and lines from before postings existed
+    @Column(name = "posting_id")
+    private Long postingId;
 
     @Column(name = "beyond_entitlement", nullable = false)
     @Builder.Default

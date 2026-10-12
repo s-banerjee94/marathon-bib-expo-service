@@ -1,15 +1,24 @@
 package com.timekeeper.bibexpo.inventory.service;
 
+import com.timekeeper.bibexpo.inventory.exception.IdempotencyKeyReusedException;
 import com.timekeeper.bibexpo.inventory.exception.InsufficientStockException;
+import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.StockCapacityExceededException;
+import com.timekeeper.bibexpo.inventory.exception.StockPostingConflictException;
+import com.timekeeper.bibexpo.inventory.exception.StockPostingNotFoundException;
+import com.timekeeper.bibexpo.inventory.exception.StockPostingNotReversibleException;
 import com.timekeeper.bibexpo.inventory.model.dto.request.AdjustStockRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.request.CreateStockPostingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.ReceiveStockRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.request.ReverseStockPostingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.TransferStockRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.ItemStockResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockBalanceResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockItemResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockMovementResponse;
+import com.timekeeper.bibexpo.inventory.model.dto.response.StockPostingResponse;
 import com.timekeeper.bibexpo.inventory.model.enums.MovementReason;
 import com.timekeeper.bibexpo.inventory.model.enums.MovementType;
 import com.timekeeper.bibexpo.shared.error.InvalidUserDataException;
@@ -97,4 +106,38 @@ public interface StockService {
      * @throws StockCapacityExceededException if the location would hold more than 1,000,000 units
      */
     StockBalanceResponse adjustStock(Long organizationId, AdjustStockRequest request, User currentUser);
+
+    /**
+     * One item's stock as a grid: every variant of the item, every location of the organization, the
+     * balances that exist between them, and the stock actions the caller may take.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     */
+    ItemStockResponse getItemStock(Long organizationId, Long itemId, User currentUser);
+
+    /**
+     * Posts many lines as one action, all or none. A repeat of the idempotency key answers with what that
+     * key already posted and writes nothing; the same key on a different request is refused. A count
+     * whose shelf no longer holds what the counter expected is refused rather than overwriting it.
+     *
+     * @throws InvalidUserDataException if the key is missing or a line lacks what its type needs
+     * @throws com.timekeeper.bibexpo.shared.error.AccessForbiddenException if the caller's role may not take this action
+     * @throws IdempotencyKeyReusedException if the key already posted a different request
+     * @throws InventoryVariantNotFoundException if a variant does not belong to this organization
+     * @throws InventoryLocationNotFoundException if a location does not belong to this organization
+     * @throws StockPostingConflictException listing every line the stock could not take
+     */
+    StockPostingResponse postStock(Long organizationId, String idempotencyKey, CreateStockPostingRequest request,
+                                   User currentUser);
+
+    /**
+     * Undoes a posting by writing the opposite of each of its lines as one new posting. Nothing is
+     * deleted from the ledger. An organizer user may undo only their own postings from the last 24 hours.
+     *
+     * @throws StockPostingNotFoundException if the posting does not belong to this organization
+     * @throws StockPostingNotReversibleException if it was already undone, or is itself an undo
+     * @throws StockPostingConflictException if undoing it would take a shelf below zero
+     */
+    StockPostingResponse reversePosting(Long organizationId, Long postingId, String idempotencyKey,
+                                        ReverseStockPostingRequest request, User currentUser);
 }

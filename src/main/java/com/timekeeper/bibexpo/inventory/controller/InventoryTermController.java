@@ -40,14 +40,6 @@ public class InventoryTermController implements InventoryTermControllerApi {
     }
 
     @Override
-    public ResponseEntity<InventoryTermResponse> getTerm(
-            @PathVariable Long organizationId,
-            @PathVariable Long termId,
-            @AuthenticationPrincipal User currentUser) {
-        return ResponseEntity.ok(termService.getTerm(organizationId, termId, currentUser));
-    }
-
-    @Override
     public ResponseEntity<InventoryTermResponse> createTerm(
             @PathVariable Long organizationId,
             @RequestParam TermKind kind,
