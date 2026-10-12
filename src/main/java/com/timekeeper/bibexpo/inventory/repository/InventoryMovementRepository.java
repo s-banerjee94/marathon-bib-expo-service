@@ -52,6 +52,35 @@ public interface InventoryMovementRepository extends JpaRepository<InventoryMove
 
     List<InventoryMovement> findByPostingIdOrderById(Long postingId);
 
+    List<InventoryMovement> findByPostingIdInOrderById(List<Long> postingIds);
+
+    /** One entry of an item's history: a posting, or a line no posting wrote, which is its own entry. */
+    interface ActivityEntry {
+        Long getPostingId();
+
+        /** The posting's first line of this item, or the lone line itself. */
+        Long getFirstLineId();
+    }
+
+    /**
+     * One page of an item's history, newest first, counting postings rather than the lines they wrote.
+     */
+    @Query(value = """
+            SELECT m.posting_id AS postingId, MIN(m.id) AS firstLineId
+            FROM inventory_movements m
+            WHERE m.organization_id = :organizationId AND m.item_id = :itemId
+            GROUP BY m.posting_id, CASE WHEN m.posting_id IS NULL THEN m.id END
+            ORDER BY MAX(m.occurred_at) DESC, MAX(m.id) DESC
+            """,
+            countQuery = """
+                    SELECT COUNT(DISTINCT m.posting_id) + COALESCE(SUM(m.posting_id IS NULL), 0)
+                    FROM inventory_movements m
+                    WHERE m.organization_id = :organizationId AND m.item_id = :itemId
+                    """,
+            nativeQuery = true)
+    Page<ActivityEntry> findItemActivity(@Param("organizationId") Long organizationId, @Param("itemId") Long itemId,
+                                         Pageable pageable);
+
     /**
      * Whether any line ever touched this location, as either end of a move. Asked before a location
      * is deleted.

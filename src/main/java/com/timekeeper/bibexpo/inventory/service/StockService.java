@@ -1,21 +1,16 @@
 package com.timekeeper.bibexpo.inventory.service;
 
 import com.timekeeper.bibexpo.inventory.exception.IdempotencyKeyReusedException;
-import com.timekeeper.bibexpo.inventory.exception.InsufficientStockException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantNotFoundException;
-import com.timekeeper.bibexpo.inventory.exception.StockCapacityExceededException;
 import com.timekeeper.bibexpo.inventory.exception.StockPostingConflictException;
 import com.timekeeper.bibexpo.inventory.exception.StockPostingNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.StockPostingNotReversibleException;
-import com.timekeeper.bibexpo.inventory.model.dto.request.AdjustStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateStockPostingRequest;
-import com.timekeeper.bibexpo.inventory.model.dto.request.ReceiveStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.ReverseStockPostingRequest;
-import com.timekeeper.bibexpo.inventory.model.dto.request.TransferStockRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.ItemActivityResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.ItemStockResponse;
-import com.timekeeper.bibexpo.inventory.model.dto.response.StockBalanceResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockItemResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockMovementResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockPostingResponse;
@@ -27,18 +22,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
-import java.util.List;
 
 /**
  * The only class allowed to write {@code inventory_stock} and {@code inventory_movements} —
  * always together, in one transaction, so the ledger and the balance it derives never disagree.
  *
- * <p>Every write here posts exactly one new movement per location it touches (a transfer posts
- * two) and moves the balance through {@code InventoryStockRepository.deduct}/{@code add}, the
- * single conditional-update pair that stops two concurrent writers from double-spending the same
- * units. A shortage under the {@code BLOCK} policy used here never overdraws a location — it
- * throws instead. Only a counter hand-over, posted through
- * {@link com.timekeeper.bibexpo.inventory.api.GoodieIssueRecorder}, may.
+ * <p>Every write here is a posting whose lines each post one movement per location they touch (a
+ * transfer posts two) and move the balance through {@code InventoryStockRepository.deduct}/{@code add},
+ * the single conditional-update pair that stops two concurrent writers from double-spending the same
+ * units. A posting never overdraws a location; it is refused instead. An undo may, but only as far as
+ * the shelf stood just before the posting it undoes, and a counter hand-over, posted through
+ * {@link com.timekeeper.bibexpo.inventory.api.GoodieIssueRecorder}, always may.
  */
 public interface StockService {
 
@@ -77,43 +71,22 @@ public interface StockService {
                                               Pageable pageable, User currentUser);
 
     /**
-     * Records stock arriving at a location from outside the system — an opening balance or a
-     * manual receipt. A receipt can never be short, but a location holds at most 1,000,000 units of
-     * one variant.
-     *
-     * @throws InventoryVariantNotFoundException if the variant does not belong to this organization
-     * @throws InventoryLocationNotFoundException if the location does not belong to this organization
-     * @throws StockCapacityExceededException if the location would hold more than 1,000,000 units
-     */
-    StockBalanceResponse receiveStock(Long organizationId, ReceiveStockRequest request, User currentUser);
-
-    /**
-     * Moves stock from one location to another. Posts two ledger lines, one per location, and
-     * returns the resulting balance at each — source first, then destination.
-     *
-     * @throws InsufficientStockException if the source location does not hold enough stock
-     * @throws StockCapacityExceededException if the destination would hold more than 1,000,000 units
-     */
-    List<StockBalanceResponse> transferStock(Long organizationId, TransferStockRequest request, User currentUser);
-
-    /**
-     * Corrects the counted quantity at a location. {@code DAMAGED} and {@code LOST} always remove
-     * stock, whatever sign the quantity carries; {@code CORRECTION} follows the sign. An adjustment
-     * can never take the balance below zero or above 1,000,000.
-     *
-     * @throws InvalidUserDataException if the quantity is zero, or the reason does not explain a recount
-     * @throws InsufficientStockException if the adjustment removes more than is on hand
-     * @throws StockCapacityExceededException if the location would hold more than 1,000,000 units
-     */
-    StockBalanceResponse adjustStock(Long organizationId, AdjustStockRequest request, User currentUser);
-
-    /**
      * One item's stock as a grid: every variant of the item, every location of the organization, the
      * balances that exist between them, and the stock actions the caller may take.
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
      */
     ItemStockResponse getItemStock(Long organizationId, Long itemId, User currentUser);
+
+    /**
+     * One page of an item's history, newest first, where each entry is one stock change as the person made
+     * it: a posting with this item's lines under it, or a single counter hand-out. The page size counts
+     * entries, not ledger lines, so a move of four sizes is one entry. Each entry says whether the caller
+     * could undo it right now.
+     *
+     * @throws InventoryItemNotFoundException if the item does not belong to this organization
+     */
+    Page<ItemActivityResponse> listItemActivity(Long organizationId, Long itemId, Pageable pageable, User currentUser);
 
     /**
      * Posts many lines as one action, all or none. A repeat of the idempotency key answers with what that
@@ -133,10 +106,12 @@ public interface StockService {
     /**
      * Undoes a posting by writing the opposite of each of its lines as one new posting. Nothing is
      * deleted from the ledger. An organizer user may undo only their own postings from the last 24 hours.
+     * An undo may take a shelf below zero only as far as it stood just before the original posting, so a
+     * count that lifted an overdrawn shelf can always be undone while nothing has left that shelf since.
      *
      * @throws StockPostingNotFoundException if the posting does not belong to this organization
      * @throws StockPostingNotReversibleException if it was already undone, or is itself an undo
-     * @throws StockPostingConflictException if undoing it would take a shelf below zero
+     * @throws StockPostingConflictException naming the first shelf that cannot take the undo
      */
     StockPostingResponse reversePosting(Long organizationId, Long postingId, String idempotencyKey,
                                         ReverseStockPostingRequest request, User currentUser);

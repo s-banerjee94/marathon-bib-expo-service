@@ -54,6 +54,10 @@ public class StockMovementResponse {
     @Schema(description = "Quantity moved", example = "900")
     private Integer quantity;
 
+    @Schema(description = "What the shelf this line touched held right after it, or null on lines from before it was kept",
+            example = "35")
+    private Integer balanceAfter;
+
     @Schema(description = "What caused this line — a bib number, an issue slip id, a PO id", example = "Opening balance")
     private String reference;
 
@@ -82,6 +86,7 @@ public class StockMovementResponse {
                 .fromLocationId(movement.getFromLocationId())
                 .toLocationId(movement.getToLocationId())
                 .quantity(movement.getQuantity())
+                .balanceAfter(movement.getBalanceAfter())
                 .reference(movement.getReference())
                 .beyondEntitlement(movement.getBeyondEntitlement())
                 .performedBy(movement.getCreatedBy())

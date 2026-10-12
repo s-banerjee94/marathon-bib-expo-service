@@ -31,7 +31,8 @@ public class StockPostingConflictResponse {
     @AllArgsConstructor
     @Builder
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @Schema(description = "One failed line: a count whose shelf changed carries expectedOnHand, a short shelf carries requested")
+    @Schema(name = "StockPostingConflictLine",
+            description = "One failed line: a count whose shelf changed carries expectedOnHand, a short shelf carries requested")
     public static class Line {
 
         @Schema(description = "Position of the line in the request, from 0; for an undo, the ledger line being undone",

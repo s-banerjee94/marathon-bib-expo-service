@@ -1,12 +1,9 @@
 package com.timekeeper.bibexpo.inventory.controller;
 
-import com.timekeeper.bibexpo.inventory.model.dto.request.AdjustStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateStockPostingRequest;
-import com.timekeeper.bibexpo.inventory.model.dto.request.ReceiveStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.ReverseStockPostingRequest;
-import com.timekeeper.bibexpo.inventory.model.dto.request.TransferStockRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.ItemActivityResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.ItemStockResponse;
-import com.timekeeper.bibexpo.inventory.model.dto.response.StockBalanceResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockItemResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockMovementResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockPostingConflictResponse;
@@ -18,7 +15,6 @@ import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -64,8 +60,7 @@ public interface InventoryStockControllerApi {
                     In item-name order unless a <code>sort</code> is given, which replaces it."""
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Stock retrieved successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PageableResponse.class))),
+            @ApiResponse(responseCode = "200", description = "Stock retrieved successfully"),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization not found",
@@ -95,7 +90,10 @@ public interface InventoryStockControllerApi {
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
-                    One page of the organization's append-only stock ledger.
+                    One page of the organization's append-only stock ledger, one row per ledger line. \
+                    Each line carries <code>balanceAfter</code>, what its shelf held right after it, \
+                    null on lines from before that was kept. For one item's history grouped by \
+                    change, use <code>GET /items/{itemId}/activity</code>.
 
                     Every filter is optional and they combine. Filtering happens in the database, so \
                     the page totals describe the filtered set, not the whole ledger.
@@ -105,8 +103,7 @@ public interface InventoryStockControllerApi {
                     <code>sort</code> is given, which replaces it."""
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Movements retrieved successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PageableResponse.class))),
+            @ApiResponse(responseCode = "200", description = "Movements retrieved successfully"),
             @ApiResponse(responseCode = "400", description = "The date range starts after it ends",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
@@ -151,92 +148,6 @@ public interface InventoryStockControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
-            summary = "Receive stock",
-            description = """
-                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
-
-                    Records stock arriving at a location from outside the system — an opening balance or a \
-                    manual receipt. A receipt can never be short, but a location holds at most 1,000,000 units of one variant. The variant and the
-                    location must both belong to this organization."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Stock received successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = StockBalanceResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid request body",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization, variant, or location not found",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "The location would hold more than 1,000,000 units of the variant",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @PostMapping("/receipts")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<StockBalanceResponse> receiveStock(
-            @PathVariable Long organizationId,
-            @Valid @RequestBody ReceiveStockRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
-
-    @Operation(
-            summary = "Transfer stock between locations",
-            description = """
-                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
-
-                    Moves stock from one location to another. Posts two ledger lines, one per location, and \
-                    returns the resulting balance at each — source first, then destination. Answers 409
-                    when the source location does not hold enough stock."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Stock transferred successfully",
-                    content = @Content(mediaType = "application/json",
-                            array = @ArraySchema(schema = @Schema(implementation = StockBalanceResponse.class)))),
-            @ApiResponse(responseCode = "400", description = "Invalid request body",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization, variant, or location not found",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Not enough stock at the source location, or the destination would hold more than 1,000,000 units",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @PostMapping("/transfers")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<List<StockBalanceResponse>> transferStock(
-            @PathVariable Long organizationId,
-            @Valid @RequestBody TransferStockRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
-
-    @Operation(
-            summary = "Adjust a counted quantity",
-            description = """
-                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
-
-                    Corrects the counted quantity at a location. The reason must say whether the stock was
-                    damaged, lost, or simply miscounted. DAMAGED and LOST always remove stock, whatever sign the
-                    quantity carries; CORRECTION adds or removes according to the sign. An adjustment can never
-                    take the balance below zero or above 1,000,000."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Stock adjusted successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = StockBalanceResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Zero quantity, a quantity beyond 1,000,000 either way, or a reason that does not explain a recount",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization, variant, or location not found",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "The adjustment would take the balance below zero or above 1,000,000",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @PostMapping("/adjustments")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<StockBalanceResponse> adjustStock(
-            @PathVariable Long organizationId,
-            @Valid @RequestBody AdjustStockRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
-
-    @Operation(
             summary = "Get one item's stock grid",
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
@@ -265,6 +176,40 @@ public interface InventoryStockControllerApi {
     ResponseEntity<ItemStockResponse> getItemStock(
             @PathVariable Long organizationId,
             @PathVariable Long itemId,
+            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
+
+    @Operation(
+            summary = "List one item's activity",
+            description = """
+                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
+
+                    One page of an item's history, newest first. Each entry is one change as the person \
+                    made it: a posting, with this item's lines under it, or a single counter hand-out, \
+                    whose <code>postingId</code> is null. The page <code>size</code> counts entries, not \
+                    ledger lines, so a move of four sizes is one entry of eight lines. A posting that also \
+                    moved other items shows only this item's lines. Each line carries \
+                    <code>balanceAfter</code>, what its shelf held right after it.
+
+                    <code>canReverse</code> says whether the caller could undo the entry right now: their \
+                    role allows it (an <code>ORGANIZER_USER</code> only their own postings from the last \
+                    24 hours), it is a posting that is neither undone nor an undo, and every shelf it \
+                    touched can take the undo. A hand-out is undone at the counter, never here.
+
+                    Always newest first; a <code>sort</code> is ignored."""
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Activity retrieved successfully"),
+            @ApiResponse(responseCode = "403", description = "Access forbidden",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Organization or item not found",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/items/{itemId}/activity")
+    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
+    ResponseEntity<PageableResponse<ItemActivityResponse>> listItemActivity(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @Parameter(description = "Page number and size; size counts entries") Pageable pageable,
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
@@ -326,9 +271,16 @@ public interface InventoryStockControllerApi {
                     <code>REVERSAL</code>, which carries <code>reversesPostingId</code>. The original \
                     then carries <code>reversedByPostingId</code>. Nothing is deleted from the ledger.
 
-                    Answers 409 when the posting was already undone, when it is itself an undo, or when \
-                    undoing it would take a shelf below zero. The last case lists the lines, as posting \
-                    does. For example, a receipt whose stock was already handed out.
+                    An undo may take a shelf below zero only as far as it stood just before the original \
+                    posting, which is the original line's <code>balanceAfter</code> minus its quantity. \
+                    A count that lifted an overdrawn shelf to 0 can be undone back to where it was, while \
+                    a receipt whose stock was handed out since cannot. A line from before \
+                    <code>balanceAfter</code> was kept may not take a shelf below zero at all.
+
+                    Answers 409 when the posting was already undone, when it is itself an undo, or when a \
+                    shelf cannot take the undo. The last case names the first such shelf in the message, \
+                    for example <i>T-Shirt L at Warehouse would go to -1</i>, and lists every refused line \
+                    in <code>lines</code>.
 
                     **Idempotency-Key** is required and works as it does for posting. An \
                     <code>ORGANIZER_USER</code> may undo only their own postings from the last 24 hours."""

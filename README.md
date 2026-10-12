@@ -155,7 +155,7 @@ Swagger UI has every endpoint with its roles, request and response. The main gro
 | Events | `/api/events`, with `/races`, `/goodies`, `/limits`, `/dashboard`, `/billing` under an event |
 | Participants | `/api/events/{eventId}/participants` (CRUD, lookup, export, `/batch-import`) |
 | Counter | `/api/events/{eventId}/distribution` (collect, goodies, bulk, pending, logs) |
-| Inventory | `/api/organizations/{organizationId}/inventory` (items, locations, stock, receipts, transfers, adjustments, event goodie links and shortfall) |
+| Inventory | `/api/organizations/{organizationId}/inventory` (items, locations, stock, postings and their undo, item activity, event goodie links and shortfall) |
 | Messaging | `/api/events/{eventId}/sms-campaigns`, `/whatsapp-campaigns`, templates, `/participant-messages` |
 | Dashboards and billing | `/api/dashboard/organization`, `/api/dashboard/platform`, `/api/billing` |
 | Other | `/api/audit-logs`, `/api/notifications`, `/api/public/**` (no login), `/sse` + `/mcp/message` (MCP) |

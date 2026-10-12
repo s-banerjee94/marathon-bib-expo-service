@@ -7,20 +7,16 @@ import com.timekeeper.bibexpo.audit.api.Auditable;
 import com.timekeeper.bibexpo.inventory.api.GoodieIssue;
 import com.timekeeper.bibexpo.inventory.api.GoodieIssueRecorder;
 import com.timekeeper.bibexpo.inventory.exception.IdempotencyKeyReusedException;
-import com.timekeeper.bibexpo.inventory.exception.InsufficientStockException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryLocationNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantNotFoundException;
-import com.timekeeper.bibexpo.inventory.exception.StockCapacityExceededException;
 import com.timekeeper.bibexpo.inventory.exception.StockPostingConflictException;
 import com.timekeeper.bibexpo.inventory.exception.StockPostingNotFoundException;
 import com.timekeeper.bibexpo.inventory.exception.StockPostingNotReversibleException;
-import com.timekeeper.bibexpo.inventory.model.dto.request.AdjustStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateStockPostingRequest;
-import com.timekeeper.bibexpo.inventory.model.dto.request.ReceiveStockRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.ReverseStockPostingRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.StockPostingLineRequest;
-import com.timekeeper.bibexpo.inventory.model.dto.request.TransferStockRequest;
+import com.timekeeper.bibexpo.inventory.model.dto.response.ItemActivityResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.ItemStockResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockBalanceResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockItemResponse;
@@ -280,156 +276,6 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         });
     }
 
-    @Auditable(entityType = AuditEntityType.STOCK_MOVEMENT, action = AuditAction.CREATE)
-    @Override
-    @Transactional
-    public StockBalanceResponse receiveStock(Long organizationId, ReceiveStockRequest request, User currentUser) {
-        accessGuard.requireOrgAccess(currentUser, organizationId);
-        InventoryVariant variant = requireVariant(request.getVariantId());
-        requireItemInOrg(variant.getItemId(), organizationId);
-        InventoryLocation location = requireLocationInOrg(request.getLocationId(), organizationId);
-
-        InventoryStock stock = findOrCreateStock(variant.getId(), location.getId(), currentUser.getUsername());
-        addOrThrow(stock.getId(), request.getQuantity(), currentUser);
-
-        InventoryMovement movement = movementRepository.save(InventoryMovement.builder()
-                .organizationId(organizationId)
-                .itemId(variant.getItemId())
-                .variantId(variant.getId())
-                .type(MovementType.RECEIPT)
-                .toLocationId(location.getId())
-                .quantity(request.getQuantity())
-                .reference(request.getReference())
-                .occurredAt(Instant.now())
-                .build());
-        auditAgainst(organizationId, movement.getId());
-        stockAlerts.rearm(variant.getItemId());
-
-        log.atInfo()
-                .addKeyValue("event", "inventory.stock_received")
-                .addKeyValue("targetOrgId", organizationId)
-                .addKeyValue("variantId", variant.getId())
-                .addKeyValue("locationId", location.getId())
-                .addKeyValue("quantity", request.getQuantity())
-                .log("Stock received");
-        return StockBalanceResponse.fromEntity(reload(stock.getId()));
-    }
-
-    @Auditable(entityType = AuditEntityType.STOCK_MOVEMENT, action = AuditAction.CREATE)
-    @Override
-    @Transactional
-    public List<StockBalanceResponse> transferStock(Long organizationId, TransferStockRequest request, User currentUser) {
-        accessGuard.requireOrgAccess(currentUser, organizationId);
-        if (request.getFromLocationId().equals(request.getToLocationId())) {
-            throw new InvalidUserDataException("The source and destination locations must be different.");
-        }
-
-        InventoryVariant variant = requireVariant(request.getVariantId());
-        requireItemInOrg(variant.getItemId(), organizationId);
-        InventoryLocation fromLocation = requireLocationInOrg(request.getFromLocationId(), organizationId);
-        InventoryLocation toLocation = requireLocationInOrg(request.getToLocationId(), organizationId);
-
-        InventoryStock sourceStock = requireStockForDeduction(variant.getId(), fromLocation.getId());
-        deductOrThrow(sourceStock.getId(), request.getQuantity(), currentUser);
-
-        InventoryStock destStock = findOrCreateStock(variant.getId(), toLocation.getId(), currentUser.getUsername());
-        addOrThrow(destStock.getId(), request.getQuantity(), currentUser);
-
-        // A transfer is two ledger lines, not one row with both locations set, so each location's
-        // own history reads as a plain list of what arrived or left it.
-        Instant now = Instant.now();
-        InventoryMovement out = movementRepository.save(InventoryMovement.builder()
-                .organizationId(organizationId)
-                .itemId(variant.getItemId())
-                .variantId(variant.getId())
-                .type(MovementType.TRANSFER)
-                .fromLocationId(fromLocation.getId())
-                .quantity(request.getQuantity())
-                .reference(request.getReference())
-                .occurredAt(now)
-                .build());
-        movementRepository.save(InventoryMovement.builder()
-                .organizationId(organizationId)
-                .itemId(variant.getItemId())
-                .variantId(variant.getId())
-                .type(MovementType.TRANSFER)
-                .toLocationId(toLocation.getId())
-                .quantity(request.getQuantity())
-                .reference(request.getReference())
-                .occurredAt(now)
-                .build());
-        auditAgainst(organizationId, out.getId());
-
-        log.atInfo()
-                .addKeyValue("event", "inventory.stock_transferred")
-                .addKeyValue("targetOrgId", organizationId)
-                .addKeyValue("variantId", variant.getId())
-                .addKeyValue("fromLocationId", fromLocation.getId())
-                .addKeyValue("toLocationId", toLocation.getId())
-                .addKeyValue("quantity", request.getQuantity())
-                .log("Stock transferred");
-        return List.of(
-                StockBalanceResponse.fromEntity(reload(sourceStock.getId())),
-                StockBalanceResponse.fromEntity(reload(destStock.getId())));
-    }
-
-    @Auditable(entityType = AuditEntityType.STOCK_MOVEMENT, action = AuditAction.CREATE)
-    @Override
-    @Transactional
-    public StockBalanceResponse adjustStock(Long organizationId, AdjustStockRequest request, User currentUser) {
-        accessGuard.requireOrgAccess(currentUser, organizationId);
-        int delta = request.getQuantity();
-        if (delta == 0) {
-            throw new InvalidUserDataException("The adjustment quantity cannot be zero.");
-        }
-        if (!ADJUSTMENT_REASONS.contains(request.getReason())) {
-            throw new InvalidUserDataException("Choose whether the stock was damaged, lost, or simply miscounted.");
-        }
-        // Damage and loss can only take stock away, so their sign is not the caller's to choose.
-        if (request.getReason() != MovementReason.CORRECTION) {
-            delta = -Math.abs(delta);
-        }
-
-        InventoryVariant variant = requireVariant(request.getVariantId());
-        requireItemInOrg(variant.getItemId(), organizationId);
-        InventoryLocation location = requireLocationInOrg(request.getLocationId(), organizationId);
-
-        InventoryMovement.InventoryMovementBuilder movement = InventoryMovement.builder()
-                .organizationId(organizationId)
-                .itemId(variant.getItemId())
-                .variantId(variant.getId())
-                .type(MovementType.ADJUSTMENT)
-                .reason(request.getReason())
-                .quantity(Math.abs(delta))
-                .occurredAt(Instant.now());
-
-        Long stockId;
-        if (delta > 0) {
-            InventoryStock stock = findOrCreateStock(variant.getId(), location.getId(), currentUser.getUsername());
-            addOrThrow(stock.getId(), delta, currentUser);
-            stockId = stock.getId();
-            movement.toLocationId(location.getId());
-            stockAlerts.rearm(variant.getItemId());
-        } else {
-            InventoryStock stock = requireStockForDeduction(variant.getId(), location.getId());
-            deductOrThrow(stock.getId(), Math.abs(delta), currentUser);
-            stockId = stock.getId();
-            movement.fromLocationId(location.getId());
-            stockAlerts.stockDropped(variant.getItemId());
-        }
-
-        auditAgainst(organizationId, movementRepository.save(movement.build()).getId());
-        log.atInfo()
-                .addKeyValue("event", "inventory.stock_adjusted")
-                .addKeyValue("targetOrgId", organizationId)
-                .addKeyValue("variantId", variant.getId())
-                .addKeyValue("locationId", location.getId())
-                .addKeyValue("delta", delta)
-                .addKeyValue("reason", request.getReason())
-                .log("Stock adjusted");
-        return StockBalanceResponse.fromEntity(reload(stockId));
-    }
-
     @Override
     @Transactional(readOnly = true)
     public ItemStockResponse getItemStock(Long organizationId, Long itemId, User currentUser) {
@@ -472,6 +318,109 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                                         Collectors.joining("|"))));
         return Comparator.comparing((InventoryVariant v) -> keys.getOrDefault(v.getId(), ""))
                 .thenComparing(InventoryVariant::getId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ItemActivityResponse> listItemActivity(Long organizationId, Long itemId, Pageable pageable,
+                                                       User currentUser) {
+        accessGuard.requireOrgAccess(currentUser, organizationId);
+        itemRepository.findByIdAndOrganizationId(itemId, organizationId)
+                .orElseThrow(InventoryItemNotFoundException::new);
+        Page<InventoryMovementRepository.ActivityEntry> entries = movementRepository.findItemActivity(organizationId,
+                itemId, PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
+
+        List<Long> postingIds = entries.stream().map(InventoryMovementRepository.ActivityEntry::getPostingId)
+                .filter(Objects::nonNull).toList();
+        Map<Long, InventoryPosting> postings = postingRepository.findAllById(postingIds).stream()
+                .collect(Collectors.toMap(InventoryPosting::getId, Function.identity()));
+        // Other items' lines too: an undo takes back the whole posting, so all of it decides canReverse.
+        Map<Long, List<InventoryMovement>> postingLines = postingIds.isEmpty() ? Map.of()
+                : movementRepository.findByPostingIdInOrderById(postingIds).stream()
+                        .collect(Collectors.groupingBy(InventoryMovement::getPostingId));
+        Map<Long, InventoryMovement> loneLines = movementRepository.findAllById(entries.stream()
+                        .filter(e -> e.getPostingId() == null)
+                        .map(InventoryMovementRepository.ActivityEntry::getFirstLineId).toList()).stream()
+                .collect(Collectors.toMap(InventoryMovement::getId, Function.identity()));
+
+        List<InventoryMovement> allLines = Stream.concat(postingLines.values().stream().flatMap(List::stream),
+                loneLines.values().stream()).toList();
+        List<Long> variantIds = allLines.stream().map(InventoryMovement::getVariantId).distinct().toList();
+        Map<Long, String> labels = variantLabels(variantIds);
+        Map<Long, String> locationNames = locationRepository.findAllById(allLines.stream()
+                        .flatMap(m -> Stream.of(m.getFromLocationId(), m.getToLocationId()))
+                        .filter(Objects::nonNull).distinct().toList()).stream()
+                .collect(Collectors.toMap(InventoryLocation::getId, InventoryLocation::getName));
+        Set<Long> liveVariants = variantRepository.findAllById(variantIds).stream().map(InventoryVariant::getId)
+                .collect(Collectors.toSet());
+        Map<String, Integer> onHand = variantIds.isEmpty() ? Map.of()
+                : stockRepository.findByVariantIdIn(variantIds).stream()
+                        .collect(Collectors.toMap(b -> b.getVariantId() + ":" + b.getLocationId(), InventoryStock::getOnHand));
+
+        return entries.map(entry -> {
+            if (entry.getPostingId() == null) {
+                InventoryMovement m = loneLines.get(entry.getFirstLineId());
+                return ItemActivityResponse.builder()
+                        .type(m.getType())
+                        .reason(m.getReason())
+                        .reference(m.getReference())
+                        .performedBy(m.getCreatedBy())
+                        .occurredAt(m.getOccurredAt())
+                        .lines(List.of(activityLine(m, labels, locationNames)))
+                        .build();
+            }
+            InventoryPosting posting = postings.get(entry.getPostingId());
+            List<InventoryMovement> lines = postingLines.get(posting.getId());
+            List<InventoryMovement> mine = lines.stream().filter(m -> itemId.equals(m.getItemId())).toList();
+            Set<MovementReason> reasons = mine.stream().map(InventoryMovement::getReason).collect(Collectors.toSet());
+            return ItemActivityResponse.builder()
+                    .postingId(posting.getId())
+                    .type(posting.getType())
+                    .reason(reasons.size() == 1 ? reasons.iterator().next() : null)
+                    .reference(posting.getReference())
+                    .performedBy(posting.getCreatedBy())
+                    .occurredAt(mine.get(0).getOccurredAt())
+                    .reversesPostingId(posting.getReversesPostingId())
+                    .reversedByPostingId(posting.getReversedByPostingId())
+                    .canReverse(canReverse(currentUser, posting, lines, liveVariants, onHand))
+                    .lines(mine.stream().map(m -> activityLine(m, labels, locationNames)).toList())
+                    .build();
+        });
+    }
+
+    private static ItemActivityResponse.Line activityLine(InventoryMovement m, Map<Long, String> labels,
+                                                          Map<Long, String> locationNames) {
+        return ItemActivityResponse.Line.builder()
+                .variantId(m.getVariantId())
+                .variantLabel(labels.get(m.getVariantId()))
+                .reason(m.getReason())
+                .fromLocationId(m.getFromLocationId())
+                .fromLocationName(locationNames.get(m.getFromLocationId()))
+                .toLocationId(m.getToLocationId())
+                .toLocationName(locationNames.get(m.getToLocationId()))
+                .quantity(m.getQuantity())
+                .balanceAfter(m.getBalanceAfter())
+                .build();
+    }
+
+    // The undo rule read without writing anything: false for whatever reversePosting would refuse.
+    private boolean canReverse(User user, InventoryPosting posting, List<InventoryMovement> lines,
+                               Set<Long> liveVariants, Map<String, Integer> onHand) {
+        if (posting.getType() == MovementType.REVERSAL || posting.getReversedByPostingId() != null
+                || !mayReverse(user, posting)) {
+            return false;
+        }
+        return lines.stream().allMatch(line -> {
+            if (!liveVariants.contains(line.getVariantId())) {
+                return false;
+            }
+            if (line.getToLocationId() != null) {
+                return onHand.getOrDefault(line.getVariantId() + ":" + line.getToLocationId(), 0)
+                        - line.getQuantity() >= undoFloor(line);
+            }
+            return onHand.getOrDefault(line.getVariantId() + ":" + line.getFromLocationId(), 0)
+                    + line.getQuantity() <= 1_000_000;
+        });
     }
 
     @Auditable(entityType = AuditEntityType.STOCK_POSTING, action = AuditAction.CREATE)
@@ -518,7 +467,8 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                     }
                 }
                 case TRANSFER -> {
-                    if (stockOut(run, i, variant, line.getFromLocationId(), line.getQuantity(), MovementType.TRANSFER, null)) {
+                    if (stockOut(run, i, variant, line.getFromLocationId(), line.getQuantity(), MovementType.TRANSFER, null,
+                            0)) {
                         stockIn(run, i, variant, line.getToLocationId(), line.getQuantity(), MovementType.TRANSFER, null);
                     }
                 }
@@ -533,7 +483,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
     private void adjustLine(Run run, int index, InventoryVariant variant, StockPostingLineRequest line) {
         if (line.getReason() != MovementReason.CORRECTION) {
             if (stockOut(run, index, variant, line.getLocationId(), line.getQuantity(), MovementType.ADJUSTMENT,
-                    line.getReason())) {
+                    line.getReason(), 0)) {
                 run.dropped().add(variant.getItemId());
             }
             return;
@@ -549,7 +499,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 MovementReason.CORRECTION)) {
             run.raised().add(variant.getItemId());
         } else if (delta < 0 && stockOut(run, index, variant, line.getLocationId(), -delta, MovementType.ADJUSTMENT,
-                MovementReason.CORRECTION)) {
+                MovementReason.CORRECTION, 0)) {
             run.dropped().add(variant.getItemId());
         }
     }
@@ -601,14 +551,46 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
             if (variant == null) {
                 run.conflicts().add(conflict(i, line.getVariantId(), locationId, 0, null, line.getQuantity()));
             } else if (cameIn) {
-                if (stockOut(run, i, variant, locationId, line.getQuantity(), MovementType.REVERSAL, null)) {
+                if (stockOut(run, i, variant, locationId, line.getQuantity(), MovementType.REVERSAL, null,
+                        undoFloor(line))) {
                     run.dropped().add(variant.getItemId());
                 }
             } else if (stockIn(run, i, variant, locationId, line.getQuantity(), MovementType.REVERSAL, null)) {
                 run.raised().add(variant.getItemId());
             }
         }
+        if (!run.conflicts().isEmpty()) {
+            throw new StockPostingConflictException(undoRefusal(run.conflicts(), lines, variants), run.conflicts());
+        }
         return finish(run);
+    }
+
+    // An undo may take a shelf below zero only as far as it stood just before the line it takes back, so a
+    // count that lifted an overdrawn shelf can be undone and a receipt whose stock was handed out cannot.
+    // A line from before balances were kept may not take it below zero at all.
+    private static int undoFloor(InventoryMovement line) {
+        return line.getBalanceAfter() == null ? 0 : Math.min(0, line.getBalanceAfter() - line.getQuantity());
+    }
+
+    // The screen showing this has no lines to mark, so the message names the first shelf that refused.
+    private String undoRefusal(List<StockPostingConflictResponse.Line> conflicts, List<InventoryMovement> lines,
+                               Map<Long, InventoryVariant> variants) {
+        StockPostingConflictResponse.Line first = conflicts.get(0);
+        InventoryMovement line = lines.get(first.getIndex());
+        if (!variants.containsKey(line.getVariantId())) {
+            return "You can't undo this change because a variant it moved has since been deleted.";
+        }
+        String item = itemRepository.findById(line.getItemId()).map(InventoryItem::getName).orElse("This item");
+        String label = variantLabels(List.of(line.getVariantId())).get(line.getVariantId());
+        String location = locationRepository.findById(first.getLocationId()).map(InventoryLocation::getName)
+                .orElse("its location");
+        String outcome = line.getToLocationId() != null
+                ? "would go to " + (first.getOnHand() - first.getRequested())
+                : "would hold more than 1,000,000 units";
+        int others = conflicts.size() - 1;
+        return "You can't undo this change because " + item + (label == null ? "" : " " + label) + " at " + location
+                + " " + outcome + (others == 0 ? "." : ", and so would " + others
+                + (others == 1 ? " other shelf." : " other shelves."));
     }
 
     // ---- postings ----------------------------------------------------------------
@@ -629,20 +611,24 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
             run.conflicts().add(conflict(index, variant.getId(), locationId, stock.getOnHand(), null, quantity));
             return false;
         }
-        movementRepository.save(movement(run, variant, type, reason, quantity).toLocationId(locationId).build());
+        movementRepository.save(movement(run, variant, type, reason, quantity).toLocationId(locationId)
+                .balanceAfter(stock.getOnHand() + quantity).build());
         return true;
     }
 
-    // Takes units off a shelf, never below zero. False, with the line marked, when the shelf holds too few.
+    // Takes units off a shelf, never below the floor: 0, except for an undo. False, with the line marked, when
+    // the shelf holds too few. The balance is locked, so what it read is what the shelf holds.
     private boolean stockOut(Run run, int index, InventoryVariant variant, Long locationId, int quantity,
-                             MovementType type, MovementReason reason) {
+                             MovementType type, MovementReason reason, int floor) {
         InventoryStock stock = stockRepository.lockByVariantIdAndLocationId(variant.getId(), locationId);
-        if (stock == null || stockRepository.deduct(stock.getId(), quantity, false, run.now(), run.actor()) == 0) {
+        if (stock == null || stock.getOnHand() - quantity < floor) {
             run.conflicts().add(conflict(index, variant.getId(), locationId, stock == null ? 0 : stock.getOnHand(),
                     null, quantity));
             return false;
         }
-        movementRepository.save(movement(run, variant, type, reason, quantity).fromLocationId(locationId).build());
+        stockRepository.deduct(stock.getId(), quantity, true, run.now(), run.actor());
+        movementRepository.save(movement(run, variant, type, reason, quantity).fromLocationId(locationId)
+                .balanceAfter(stock.getOnHand() - quantity).build());
         return true;
     }
 
@@ -823,14 +809,19 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         }
     }
 
-    // An organizer user may undo only their own postings, and only within a day of posting them.
     private static void requireMayReverse(User user, InventoryPosting posting) {
         requireAllowed(user, StockAction.REVERSE);
-        if (user.getRole() == UserRole.ORGANIZER_USER
-                && (!user.getUsername().equals(posting.getCreatedBy())
-                || posting.getCreatedAt().isBefore(Instant.now().minus(Duration.ofDays(1))))) {
+        if (!mayReverse(user, posting)) {
             throw new AccessForbiddenException("You can only undo your own stock changes from the last 24 hours.");
         }
+    }
+
+    // An organizer user may undo only their own postings, and only within a day of posting them.
+    private static boolean mayReverse(User user, InventoryPosting posting) {
+        return allowedActions(user).contains(StockAction.REVERSE)
+                && (user.getRole() != UserRole.ORGANIZER_USER
+                || (user.getUsername().equals(posting.getCreatedBy())
+                && !posting.getCreatedAt().isBefore(Instant.now().minus(Duration.ofDays(1)))));
     }
 
     @Override
@@ -855,11 +846,11 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
         InventoryStock stock = findOrCreateStock(variant.getId(), issue.locationId(), actor);
         Instant now = Instant.now();
         boolean out = type == MovementType.ISSUE;
+        int balanceAfter = stock.getOnHand() + (out ? -1 : 1);
         if (out) {
             stockRepository.deduct(stock.getId(), 1, true, now, actor);
-            // The deduct holds this balance row until commit, so the number read back is this hand-over's
-            // own. One unit at a time lands on -1 only on the hand-over that crossed below zero.
-            if (reload(stock.getId()).getOnHand() == -1) {
+            // One unit at a time lands on -1 only on the hand-over that crossed below zero.
+            if (balanceAfter == -1) {
                 stockAlerts.shelfOverdrawn(item, issue, bibNumber);
             }
             stockAlerts.stockDropped(item.getId());
@@ -876,6 +867,7 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .fromLocationId(out ? issue.locationId() : null)
                 .toLocationId(out ? null : issue.locationId())
                 .quantity(1)
+                .balanceAfter(balanceAfter)
                 .reference(bibNumber)
                 .occurredAt(now)
                 .build());
@@ -888,16 +880,6 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                 .orElseThrow(InventoryVariantNotFoundException::new);
     }
 
-    private void requireItemInOrg(Long itemId, Long organizationId) {
-        itemRepository.findByIdAndOrganizationId(itemId, organizationId)
-                .orElseThrow(InventoryVariantNotFoundException::new);
-    }
-
-    private InventoryLocation requireLocationInOrg(Long locationId, Long organizationId) {
-        return locationRepository.findByIdAndOrganizationId(locationId, organizationId)
-                .orElseThrow(InventoryLocationNotFoundException::new);
-    }
-
     // ---- balance updates ----------------------------------------------------------------
 
     // Two counters can post the first unit of a variant at a location at the same instant, so the row is
@@ -905,29 +887,6 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
     private InventoryStock findOrCreateStock(Long variantId, Long locationId, String actor) {
         stockRepository.insertIfMissing(variantId, locationId, Instant.now(), actor);
         return stockRepository.lockByVariantIdAndLocationId(variantId, locationId);
-    }
-
-    private InventoryStock requireStockForDeduction(Long variantId, Long locationId) {
-        return stockRepository.findByVariantIdAndLocationId(variantId, locationId)
-                .orElseThrow(InsufficientStockException::new);
-    }
-
-    private void addOrThrow(Long stockId, int qty, User currentUser) {
-        int updated = stockRepository.add(stockId, qty, false, Instant.now(), currentUser.getUsername());
-        if (updated == 0) {
-            throw new StockCapacityExceededException();
-        }
-    }
-
-    private void deductOrThrow(Long stockId, int qty, User currentUser) {
-        int updated = stockRepository.deduct(stockId, qty, false, Instant.now(), currentUser.getUsername());
-        if (updated == 0) {
-            throw new InsufficientStockException();
-        }
-    }
-
-    private InventoryStock reload(Long stockId) {
-        return stockRepository.findById(stockId).orElseThrow();
     }
 
     // A balance response carries no organization, and the aspect would otherwise fall back to the

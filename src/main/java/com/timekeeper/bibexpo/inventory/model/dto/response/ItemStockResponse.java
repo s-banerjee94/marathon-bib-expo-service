@@ -50,6 +50,7 @@ public class ItemStockResponse {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Schema(name = "ItemStockVariant", description = "One variant of the item")
     public static class Variant {
 
         @Schema(description = "Variant ID", example = "11")
@@ -65,6 +66,7 @@ public class ItemStockResponse {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Schema(name = "ItemStockLocation", description = "One location of the organization")
     public static class Location {
 
         @Schema(description = "Location ID", example = "2")

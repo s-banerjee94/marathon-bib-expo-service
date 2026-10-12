@@ -7,7 +7,8 @@ import java.util.List;
 
 /**
  * Lines of a posting the stock could not take. Nothing of the posting is written, and the controller
- * answers 409 with every failed line so the screen can mark them.
+ * answers 409 with every failed line so the screen can mark them. An undo names the shelf in its message
+ * instead, since the screen it comes from has no lines to mark.
  */
 @Getter
 public class StockPostingConflictException extends RuntimeException {
@@ -20,6 +21,11 @@ public class StockPostingConflictException extends RuntimeException {
 
     public StockPostingConflictException(List<StockPostingConflictResponse.Line> lines) {
         super(lines.stream().anyMatch(l -> l.getExpectedOnHand() != null) ? COUNT_CHANGED : NOT_ENOUGH);
+        this.lines = lines;
+    }
+
+    public StockPostingConflictException(String message, List<StockPostingConflictResponse.Line> lines) {
+        super(message);
         this.lines = lines;
     }
 }

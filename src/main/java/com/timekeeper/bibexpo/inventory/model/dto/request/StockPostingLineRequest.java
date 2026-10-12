@@ -30,6 +30,7 @@ public class StockPostingLineRequest {
     private Long locationId;
 
     @Schema(description = "ADJUSTMENT only: CORRECTION for a count, DAMAGED or LOST for a write-off", example = "CORRECTION",
+            implementation = String.class, allowableValues = {"DAMAGED", "LOST", "CORRECTION"},
             requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     private MovementReason reason;
 

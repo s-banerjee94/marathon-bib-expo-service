@@ -15,7 +15,8 @@ import java.util.List;
 public class CreateStockPostingRequest {
 
     @NotNull(message = "Type is required")
-    @Schema(description = "What the lines do", example = "RECEIPT", allowableValues = {"RECEIPT", "TRANSFER", "ADJUSTMENT"})
+    @Schema(description = "What the lines do", example = "RECEIPT", implementation = String.class,
+            allowableValues = {"RECEIPT", "TRANSFER", "ADJUSTMENT"})
     private MovementType type;
 
     @Size(max = 100, message = "Reference must be at most 100 characters")

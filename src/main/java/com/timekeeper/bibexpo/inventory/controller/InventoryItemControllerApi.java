@@ -56,8 +56,7 @@ public interface InventoryItemControllerApi {
                     is given, which replaces it."""
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Items retrieved successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PageableResponse.class))),
+            @ApiResponse(responseCode = "200", description = "Items retrieved successfully"),
             @ApiResponse(responseCode = "400", description = "The date range starts after it ends",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",

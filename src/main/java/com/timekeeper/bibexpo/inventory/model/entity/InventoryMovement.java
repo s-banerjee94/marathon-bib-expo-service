@@ -85,6 +85,10 @@ public class InventoryMovement implements Serializable {
     @Column(nullable = false)
     private Integer quantity;
 
+    // What the shelf this line touched held right after it; null on lines written before it was kept
+    @Column(name = "balance_after")
+    private Integer balanceAfter;
+
     // bib number, issue slip id, PO id — whatever caused this line
     @Column(length = 100)
     private String reference;
