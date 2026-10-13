@@ -14,7 +14,7 @@ services:
       # The container runs as uid 1001, so the key files must be owned by 1001 on the host
       # (chown 1001:1001, mode 400) or the JWT service cannot read them and startup fails.
       - ${KEYS_DIR:-/etc/bibexpo/keys}:/keys:ro
-    mem_limit: 2g
+    mem_limit: 3g
     # Needs logs:CreateLogStream/PutLogEvents on the instance role; the group must already exist.
     logging:
       driver: awslogs
@@ -24,3 +24,69 @@ services:
         awslogs-stream: bibexpo-app
         mode: non-blocking
         max-buffer-size: 4m
+
+  # Monitoring. Prometheus reaches the app and node-exporter over the compose network; only Grafana
+  # is published, on loopback, and the host nginx serves it at /bibexpo-grafana/.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: bibexpo-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=300MB
+    configs:
+      - source: prometheus
+        target: /etc/prometheus/prometheus.yml
+    volumes:
+      - prometheus-data:/prometheus
+    mem_limit: 512m
+
+  # Host RAM, CPU and disk, read from the host's /proc and /sys.
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: bibexpo-node-exporter
+    restart: unless-stopped
+    command: --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    mem_limit: 64m
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    container_name: bibexpo-grafana
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    # Holds GF_SECURITY_ADMIN_PASSWORD; lives on the host only, never in the repo.
+    env_file:
+      - path: /etc/bibexpo/grafana.env
+        required: false
+    environment:
+      GF_SERVER_ROOT_URL: https://api.connectwithsandeepan.in/bibexpo-grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    mem_limit: 512m
+
+configs:
+  prometheus:
+    content: |
+      global:
+        scrape_interval: 15s
+      scrape_configs:
+        - job_name: marathon-bib-expo
+          metrics_path: /actuator/prometheus
+          static_configs:
+            - targets: ['app:8080']
+        - job_name: node
+          static_configs:
+            - targets: ['node-exporter:9100']
+
+volumes:
+  prometheus-data:
+  grafana-data:

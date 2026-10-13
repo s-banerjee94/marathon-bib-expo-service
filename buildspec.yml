@@ -32,6 +32,7 @@ artifacts:
     - appspec.yml
     - compose.yml
     - deploy/*
+    - grafana/**/*
 
 cache:
   paths:
