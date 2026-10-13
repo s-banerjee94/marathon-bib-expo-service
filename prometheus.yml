@@ -11,6 +11,6 @@ scrape_configs:
     metrics_path: '/actuator/prometheus'
     scrape_interval: 5s
     static_configs:
-      - targets: ['host.docker.internal:8080']
+      - targets: ['192.168.0.108:8080']
         labels:
           application: 'marathon-bib-expo-service'
