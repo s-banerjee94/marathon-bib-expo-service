@@ -20,6 +20,7 @@ import com.timekeeper.bibexpo.organization.model.dto.response.OrganizationRespon
 import com.timekeeper.bibexpo.organization.model.entity.Organization;
 import com.timekeeper.bibexpo.organization.model.entity.OrganizationLimit;
 import com.timekeeper.bibexpo.organization.model.enums.SubscriptionTier;
+import com.timekeeper.bibexpo.organization.model.event.OrganizationCreatedEvent;
 import com.timekeeper.bibexpo.organization.repository.OrganizationLimitRepository;
 import com.timekeeper.bibexpo.organization.repository.OrganizationRepository;
 import com.timekeeper.bibexpo.organization.service.cache.OrganizationCache;
@@ -36,6 +37,7 @@ import com.timekeeper.bibexpo.storage.service.StorageService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -67,6 +69,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private final OrganizationMemberPurger memberPurger;
     private final StorageService storageService;
     private final OrganizationCache organizationCache;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -144,6 +147,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         applyQuotaCaps(limit, request.getUserQuota());
         applyInventoryCaps(limit, request.getInventoryQuota());
         OrganizationLimit savedLimit = organizationLimitRepository.save(limit);
+        eventPublisher.publishEvent(new OrganizationCreatedEvent(savedOrganization.getId()));
 
         log.atInfo()
                 .addKeyValue("event", "organization.created")

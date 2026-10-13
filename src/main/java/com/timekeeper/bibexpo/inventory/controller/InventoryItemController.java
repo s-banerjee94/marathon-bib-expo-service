@@ -2,6 +2,7 @@ package com.timekeeper.bibexpo.inventory.controller;
 
 import com.timekeeper.bibexpo.inventory.exception.InventoryItemLimitReachedException;
 import com.timekeeper.bibexpo.inventory.exception.InventoryVariantLimitReachedException;
+import com.timekeeper.bibexpo.inventory.model.dto.request.ApplyVariantImageRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryItemRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryVariantRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryItemRequest;
@@ -9,7 +10,6 @@ import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemResponse
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemSummaryResponse;
 import com.timekeeper.bibexpo.inventory.service.InventoryItemService;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
-import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
@@ -17,7 +17,6 @@ import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,7 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.WebRequest;
 
-import java.time.Instant;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/organizations/{organizationId}/inventory/items")
@@ -39,16 +38,10 @@ public class InventoryItemController implements InventoryItemControllerApi {
     private final InventoryItemService itemService;
 
     @Override
-    public ResponseEntity<PageableResponse<InventoryItemSummaryResponse>> listItems(
+    public ResponseEntity<List<InventoryItemSummaryResponse>> listItems(
             @PathVariable Long organizationId,
-            String name,
-            Long categoryId,
-            Instant createdFrom,
-            Instant createdTo,
-            Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
-        return ResponseEntity.ok(PageableResponse.of(itemService.listItems(
-                organizationId, name, categoryId, createdFrom, createdTo, pageable, currentUser)));
+        return ResponseEntity.ok(itemService.listItems(organizationId, currentUser));
     }
 
     @Override
@@ -106,27 +99,13 @@ public class InventoryItemController implements InventoryItemControllerApi {
     }
 
     @Override
-    public ResponseEntity<PresignUploadResponse> createVariantImageUploadUrl(
+    public ResponseEntity<InventoryItemResponse> applyVariantImage(
             @PathVariable Long organizationId,
             @PathVariable Long itemId,
-            @PathVariable Long variantId,
-            @Valid @RequestBody PresignUploadRequest request,
+            @Valid @RequestBody ApplyVariantImageRequest request,
             @AuthenticationPrincipal User currentUser) {
-        PresignUploadResponse response = itemService.createVariantImageUploadUrl(
-                organizationId, itemId, variantId, request.getContentType(), currentUser);
-        return ResponseEntity.ok(response);
-    }
-
-    @Override
-    public ResponseEntity<InventoryItemResponse> attachVariantImage(
-            @PathVariable Long organizationId,
-            @PathVariable Long itemId,
-            @PathVariable Long variantId,
-            @Valid @RequestBody AttachUploadRequest request,
-            @AuthenticationPrincipal User currentUser) {
-        InventoryItemResponse response = itemService.attachVariantImage(
-                organizationId, itemId, variantId, request.getObjectKey(), currentUser);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(itemService.applyVariantImage(organizationId, itemId, request.getObjectKey(),
+                request.getVariantIds(), currentUser));
     }
 
     @Override
@@ -136,6 +115,33 @@ public class InventoryItemController implements InventoryItemControllerApi {
             @PathVariable Long variantId,
             @AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(itemService.removeVariantImage(organizationId, itemId, variantId, currentUser));
+    }
+
+    @Override
+    public ResponseEntity<PresignUploadResponse> createItemImageUploadUrl(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @Valid @RequestBody PresignUploadRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(itemService.createItemImageUploadUrl(organizationId, itemId,
+                request.getContentType(), currentUser));
+    }
+
+    @Override
+    public ResponseEntity<InventoryItemResponse> attachItemImage(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @Valid @RequestBody AttachUploadRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(itemService.attachItemImage(organizationId, itemId, request.getObjectKey(), currentUser));
+    }
+
+    @Override
+    public ResponseEntity<InventoryItemResponse> removeItemImage(
+            @PathVariable Long organizationId,
+            @PathVariable Long itemId,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(itemService.removeItemImage(organizationId, itemId, currentUser));
     }
 
     @ExceptionHandler({InventoryItemLimitReachedException.class, InventoryVariantLimitReachedException.class})

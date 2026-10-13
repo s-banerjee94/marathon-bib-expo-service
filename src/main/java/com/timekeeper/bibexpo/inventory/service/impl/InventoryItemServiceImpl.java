@@ -46,6 +46,7 @@ import com.timekeeper.bibexpo.inventory.repository.InventoryVariantAttributeValu
 import com.timekeeper.bibexpo.inventory.repository.InventoryVariantRepository;
 import com.timekeeper.bibexpo.inventory.service.InventoryItemService;
 import com.timekeeper.bibexpo.inventory.service.util.InventoryLimitLog;
+import com.timekeeper.bibexpo.inventory.service.util.ItemImages;
 import com.timekeeper.bibexpo.inventory.service.util.StockAlerts;
 import com.timekeeper.bibexpo.inventory.service.validator.InventoryAccessGuard;
 import com.timekeeper.bibexpo.organization.api.InventoryLimits;
@@ -61,15 +62,10 @@ import com.timekeeper.bibexpo.user.model.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.spi.LoggingEventBuilder;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -80,6 +76,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -101,6 +98,7 @@ public class InventoryItemServiceImpl implements InventoryItemService {
     private final InventoryAccessGuard accessGuard;
     private final StorageService storageService;
     private final StockAlerts stockAlerts;
+    private final ItemImages itemImages;
 
     // A resolved attribute value ready to persist, either an optionId (SELECT) or a rawValue (any other type).
     private record ResolvedAttributeValue(Long attributeId, Long optionId, String rawValue) {
@@ -108,20 +106,11 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<InventoryItemSummaryResponse> listItems(Long organizationId, String name, Long categoryId,
-                                                        Instant createdFrom, Instant createdTo,
-                                                        Pageable pageable, User currentUser) {
+    public List<InventoryItemSummaryResponse> listItems(Long organizationId, User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        if (createdFrom != null && createdTo != null && createdFrom.isAfter(createdTo)) {
-            throw new InvalidUserDataException("The start of the date range must come before its end.");
-        }
-        // Without an order the database may return the same rows in a different order on the next
-        // request, so a row could land on two pages or on none. The id breaks ties on the instant.
-        Pageable effective = pageable.getSort().isSorted() ? pageable
-                : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
-                        Sort.by(Sort.Direction.DESC, "createdAt", "id"));
-        return itemRepository.search(organizationId, TextUtils.trimToNull(name), categoryId, createdFrom, createdTo, effective)
-                .map(InventoryItemSummaryResponse::fromEntity);
+        return itemRepository.findByOrganizationIdOrderByName(organizationId).stream()
+                .map(InventoryItemSummaryResponse::fromEntity)
+                .toList();
     }
 
     @Override
@@ -194,8 +183,8 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         variants.forEach(variant -> {
             stockRepository.deleteAll(stockRepository.findByVariantId(variant.getId()));
             variantAttributeValueRepository.deleteAll(variantAttributeValueRepository.findByVariantId(variant.getId()));
-            deleteImageQuietly(variant.getImageKey());
         });
+        keysInUse(item, variants).forEach(this::deleteImageQuietly);
         variantRepository.deleteAll(variants);
         itemAttributeValueRepository.deleteAll(itemAttributeValueRepository.findByItemId(itemId));
         variantAliasRepository.deleteByItemId(itemId);
@@ -233,7 +222,6 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         saveVariantAttributeValues(variant.getId(), resolved);
 
         List<InventoryVariant> variants = variantRepository.findByItemId(itemId);
-        syncVariantCount(item, variants);
 
         change("inventory.variant_added", organizationId, itemId).addKeyValue("variantId", variant.getId())
                 .log("Inventory variant added");
@@ -260,52 +248,39 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         stockRepository.deleteAll(stockRepository.findByVariantId(variantId));
         variantAttributeValueRepository.deleteAll(variantAttributeValueRepository.findByVariantId(variantId));
         variantRepository.delete(variant);
-        deleteImageQuietly(variant.getImageKey());
 
         List<InventoryVariant> remaining = variantRepository.findByItemId(itemId);
-        syncVariantCount(item, remaining);
+        releaseImage(item, remaining, variant.getImageKey());
 
         change("inventory.variant_removed", organizationId, itemId).addKeyValue("variantId", variantId)
                 .log("Inventory variant removed");
         return toItemResponse(item, remaining);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public PresignUploadResponse createVariantImageUploadUrl(Long organizationId, Long itemId, Long variantId,
-                                                               String contentType, User currentUser) {
-        accessGuard.requireOrgAccess(currentUser, organizationId);
-        requireItemInOrg(itemId, organizationId);
-        requireVariantOfItem(variantId, itemId);
-        return storageService.createUploadUrl(UploadCategory.INVENTORY_VARIANT_IMAGE, variantId, contentType);
-    }
-
     @Auditable(entityType = AuditEntityType.INVENTORY_ITEM, action = AuditAction.UPDATE)
     @Override
     @Transactional
-    public InventoryItemResponse attachVariantImage(Long organizationId, Long itemId, Long variantId, String objectKey,
-                                                      User currentUser) {
+    public InventoryItemResponse applyVariantImage(Long organizationId, Long itemId, String objectKey,
+                                                   List<Long> variantIds, User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
         InventoryItem item = requireItemInOrg(itemId, organizationId);
-        InventoryVariant variant = requireVariantOfItem(variantId, itemId);
-
-        if (UploadCategory.INVENTORY_VARIANT_IMAGE.isForeignKeyFor(variantId, objectKey)) {
-            throw new InvalidFileException("This upload does not belong to this variant.");
+        List<InventoryVariant> variants = variantRepository.findByItemId(itemId);
+        Set<Long> wanted = Set.copyOf(variantIds);
+        List<InventoryVariant> targets = variants.stream().filter(v -> wanted.contains(v.getId())).toList();
+        if (targets.size() != wanted.size()) {
+            throw new InventoryVariantNotFoundException();
         }
-        if (!storageService.objectExists(objectKey)) {
-            throw new InvalidFileException("The uploaded file could not be found.");
-        }
+        requireItemImage(item, variants, objectKey);
 
-        String previousKey = variant.getImageKey();
-        variant.setImageKey(objectKey);
-        variantRepository.saveAndFlush(variant);
-        if (previousKey != null && !previousKey.equals(objectKey)) {
-            deleteImageQuietly(previousKey);
-        }
+        Set<String> previousKeys = targets.stream().map(InventoryVariant::getImageKey)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        targets.forEach(variant -> variant.setImageKey(objectKey));
+        variantRepository.saveAllAndFlush(targets);
+        previousKeys.forEach(key -> releaseImage(item, variants, key));
 
-        change("inventory.variant_image_attached", organizationId, itemId).addKeyValue("variantId", variantId)
-                .log("Inventory variant image attached");
-        return toItemResponse(item, variantRepository.findByItemId(itemId));
+        change("inventory.variant_image_applied", organizationId, itemId).addKeyValue("variantCount", targets.size())
+                .log("Inventory variant image applied");
+        return toItemResponse(item, variants);
     }
 
     @Auditable(entityType = AuditEntityType.INVENTORY_ITEM, action = AuditAction.UPDATE)
@@ -319,11 +294,82 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         String previousKey = variant.getImageKey();
         variant.setImageKey(null);
         variantRepository.saveAndFlush(variant);
-        deleteImageQuietly(previousKey);
+        List<InventoryVariant> variants = variantRepository.findByItemId(itemId);
+        releaseImage(item, variants, previousKey);
 
         change("inventory.variant_image_removed", organizationId, itemId).addKeyValue("variantId", variantId)
                 .log("Inventory variant image removed");
-        return toItemResponse(item, variantRepository.findByItemId(itemId));
+        return toItemResponse(item, variants);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PresignUploadResponse createItemImageUploadUrl(Long organizationId, Long itemId, String contentType,
+                                                          User currentUser) {
+        accessGuard.requireOrgAccess(currentUser, organizationId);
+        requireItemInOrg(itemId, organizationId);
+        return storageService.createUploadUrl(UploadCategory.INVENTORY_ITEM_IMAGE, itemId, contentType);
+    }
+
+    @Auditable(entityType = AuditEntityType.INVENTORY_ITEM, action = AuditAction.UPDATE)
+    @Override
+    @Transactional
+    public InventoryItemResponse attachItemImage(Long organizationId, Long itemId, String objectKey, User currentUser) {
+        accessGuard.requireOrgAccess(currentUser, organizationId);
+        InventoryItem item = requireItemInOrg(itemId, organizationId);
+        List<InventoryVariant> variants = variantRepository.findByItemId(itemId);
+        requireItemImage(item, variants, objectKey);
+
+        String previousKey = item.getImageKey();
+        item.setImageKey(objectKey);
+        itemRepository.saveAndFlush(item);
+        releaseImage(item, variants, previousKey);
+
+        change("inventory.item_image_attached", organizationId, itemId).log("Inventory item image attached");
+        return toItemResponse(item, variants);
+    }
+
+    @Auditable(entityType = AuditEntityType.INVENTORY_ITEM, action = AuditAction.UPDATE)
+    @Override
+    @Transactional
+    public InventoryItemResponse removeItemImage(Long organizationId, Long itemId, User currentUser) {
+        accessGuard.requireOrgAccess(currentUser, organizationId);
+        InventoryItem item = requireItemInOrg(itemId, organizationId);
+
+        List<InventoryVariant> variants = variantRepository.findByItemId(itemId);
+        String previousKey = item.getImageKey();
+        item.setImageKey(null);
+        itemRepository.saveAndFlush(item);
+        releaseImage(item, variants, previousKey);
+
+        change("inventory.item_image_removed", organizationId, itemId).log("Inventory item image removed");
+        return toItemResponse(item, variants);
+    }
+
+    // A key from this item's upload URL, or one the item or a variant of it already shows, so a photo can be
+    // shared without a second upload while another item's file can never be attached.
+    private void requireItemImage(InventoryItem item, List<InventoryVariant> variants, String objectKey) {
+        if (UploadCategory.INVENTORY_ITEM_IMAGE.isForeignKeyFor(item.getId(), objectKey)
+                && !keysInUse(item, variants).contains(objectKey)) {
+            throw new InvalidFileException("This upload does not belong to this item.");
+        }
+        if (!storageService.objectExists(objectKey)) {
+            throw new InvalidFileException("The uploaded file could not be found.");
+        }
+    }
+
+    // The item and its variants can share one file, so unlinking a photo deletes the file only once
+    // nothing in the item shows it any more.
+    private void releaseImage(InventoryItem item, List<InventoryVariant> variants, String objectKey) {
+        if (objectKey != null && !keysInUse(item, variants).contains(objectKey)) {
+            deleteImageQuietly(objectKey);
+        }
+    }
+
+    private static Set<String> keysInUse(InventoryItem item, List<InventoryVariant> variants) {
+        return Stream.concat(Stream.of(item.getImageKey()), variants.stream().map(InventoryVariant::getImageKey))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
     }
 
     private void deleteImageQuietly(String objectKey) {
@@ -373,7 +419,6 @@ public class InventoryItemServiceImpl implements InventoryItemService {
         saveItemAttributes(item.getId(), itemAttributes);
 
         List<InventoryVariant> variants = createVariants(item.getId(), organizationId, request.getVariants());
-        syncVariantCount(item, variants);
 
         change("inventory.item_created", organizationId, item.getId()).log("Inventory item created");
         return toItemResponse(item, variants);
@@ -544,13 +589,6 @@ public class InventoryItemServiceImpl implements InventoryItemService {
 
     // ---- response assembly ----------------------------------------------------------------
 
-    // Set from the variants just read, never incremented, so the stored count cannot drift away
-    // from the rows it counts.
-    private void syncVariantCount(InventoryItem item, List<InventoryVariant> variants) {
-        item.setVariantCount(variants.size());
-        itemRepository.saveAndFlush(item);
-    }
-
     private InventoryItemResponse toItemResponse(InventoryItem item, List<InventoryVariant> variants) {
         List<InventoryItemAttributeValue> itemAttributes = itemAttributeValueRepository.findByItemId(item.getId());
         List<Long> variantIds = variants.stream().map(InventoryVariant::getId).toList();
@@ -586,7 +624,8 @@ public class InventoryItemServiceImpl implements InventoryItemService {
                         .toList(), storageService.createDownloadUrl(v.getImageKey())))
                 .toList();
 
-        return InventoryItemResponse.fromEntity(item, variantResponses, itemAttributeResponses);
+        return InventoryItemResponse.fromEntity(item, variantResponses, itemAttributeResponses,
+                itemImages.urlFor(item, variants));
     }
 
     private ItemAttributeValueResponse toAttributeValueResponse(Long attributeId, Long optionId, String rawValue,

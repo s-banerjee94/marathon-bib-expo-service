@@ -70,7 +70,7 @@ public interface AuditLogControllerApi {
                     <table border="1" cellpadding="6" cellspacing="0">
                       <thead><tr><th>Value</th><th>Meaning</th><th>Emitted when</th></tr></thead>
                       <tbody>
-                        <tr><td><code>CREATE</code></td><td>A new entity was created</td><td>Any create endpoint of the entity types below; a stock receipt, transfer or adjustment creates a <code>STOCK_MOVEMENT</code></td></tr>
+                        <tr><td><code>CREATE</code></td><td>A new entity was created</td><td>Any create endpoint of the entity types below; a stock posting or its undo creates a <code>STOCK_POSTING</code></td></tr>
                         <tr><td><code>UPDATE</code></td><td>An existing entity was modified</td><td>Any update endpoint of the entity types below</td></tr>
                         <tr><td><code>DELETE</code></td><td>An entity was deleted</td><td>Any delete endpoint of the entity types below</td></tr>
                         <tr><td><code>STATUS_CHANGE</code></td><td>An entity's status / enabled flag flipped</td><td>enable-or-disable on org / event / user, a campaign disarm (ACTIVE → DRAFT), or an invoice's payment status</td></tr>
@@ -100,7 +100,8 @@ public interface AuditLogControllerApi {
                         <tr><td><code>PARTICIPANT_MESSAGE</code></td><td>A targeted SMS / WhatsApp send to named participants; <code>entityLabel</code> carries the channel and bib numbers</td><td>SEND</td></tr>
                         <tr><td><code>INVOICE</code></td><td>A usage-based bill raised against an event</td><td>GENERATE, UPDATE, STATUS_CHANGE</td></tr>
                         <tr><td><code>INVENTORY_ITEM</code></td><td>A stock item in the organization's inventory catalogue</td><td>CREATE, UPDATE, DELETE</td></tr>
-                        <tr><td><code>STOCK_MOVEMENT</code></td><td>A stock receipt, transfer or adjustment</td><td>CREATE</td></tr>
+                        <tr><td><code>STOCK_MOVEMENT</code></td><td>A stock receipt, transfer or adjustment made before postings existed</td><td>CREATE</td></tr>
+                        <tr><td><code>STOCK_POSTING</code></td><td>A stock posting of many lines, or the undo of one</td><td>CREATE</td></tr>
                       </tbody>
                     </table>
                     <p><em>Note:</em> Individual participant create / update / delete actions and distribution events (bib collected, goodies given) are <strong>not</strong> recorded in this audit log — distribution has its own dedicated log. Bulk CSV imports <strong>are</strong> recorded as <code>entityType=PARTICIPANT</code>, <code>action=IMPORT</code>, with the <code>entityId</code> set to the event id and the <code>entityLabel</code> set to the event name.</p>

@@ -96,5 +96,25 @@ public class InventoryGoodieShortfallResponse {
 
         @Schema(description = "How many sit at the organization's other locations", example = "300")
         private long elsewhere;
+
+        @Schema(description = "The other locations holding this variant, most first, to move stock from; "
+                + "a shelf at zero or below is left out")
+        private List<Source> sources;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(name = "InventoryGoodieShortfallSource", description = "One other location holding the variant")
+    public static class Source {
+
+        @Schema(description = "Location ID", example = "2")
+        private Long locationId;
+
+        @Schema(description = "Location name", example = "Warehouse")
+        private String locationName;
+
+        @Schema(description = "How many it holds", example = "180")
+        private long onHand;
     }
 }

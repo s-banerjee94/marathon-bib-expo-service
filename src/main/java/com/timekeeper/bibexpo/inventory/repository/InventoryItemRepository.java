@@ -9,53 +9,35 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
- * Access to item rows, scoped by organization. Paging is one query, and the two indexes declared
- * on {@link InventoryItem} let the database walk straight to the page instead of sorting the
- * catalogue: {@code idx_inventory_item_org_created} for the plain list and the date range,
- * {@code idx_inventory_item_org_category_created} when a category narrows it.
+ * Access to item rows, scoped by organization. Both lists read one organization's items in name order,
+ * which {@code uk_inventory_item_org_name} serves without a sort.
  *
- * <p>The one shape no index can serve is the name search, because a fragment matched anywhere in
+ * <p>The one shape no index can serve is the stock search, because a fragment matched anywhere in
  * the name has no starting point to seek to. It reads the organization's index entries and keeps
  * what matches, which stays cheap while a catalogue is thousands of items rather than millions.
  */
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, Long> {
 
-    /**
-     * One page of an organization's items, narrowed by whichever filters were given — a null
-     * filter narrows nothing. Narrowing happens here rather than after the fetch, so the page
-     * totals describe the filtered set instead of the whole catalogue.
-     */
-    @Query("""
-            SELECT i FROM InventoryItem i
-            WHERE i.organizationId = :organizationId
-              AND (:name IS NULL OR LOWER(i.name) LIKE LOWER(CONCAT('%', :name, '%')))
-              AND (:categoryId IS NULL OR i.categoryId = :categoryId)
-              AND (:createdFrom IS NULL OR i.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR i.createdAt <= :createdTo)
-            """)
-    Page<InventoryItem> search(@Param("organizationId") Long organizationId,
-                               @Param("name") String name,
-                               @Param("categoryId") Long categoryId,
-                               @Param("createdFrom") Instant createdFrom,
-                               @Param("createdTo") Instant createdTo,
-                               Pageable pageable);
+    List<InventoryItem> findByOrganizationIdOrderByName(Long organizationId);
 
     /**
      * One page of an organization's items for the stock list. An item is kept when the search
      * text matches its own name, one of its variants' attribute values, or the name of a location
-     * holding it — so a single box searches all three. The location filter keeps only items with a
-     * balance row there, and {@code lowOnly} keeps only those whose total has fallen to their
-     * threshold; an item with no threshold set is low only when it holds nothing.
+     * holding it — so a single box searches all three. The category filter keeps only items in that
+     * category, the location filter only items with a balance row there, and {@code lowOnly} only
+     * those whose total has fallen to their threshold; an item with no threshold set is low only
+     * when it holds nothing.
      *
      * <p>Paging counts items rather than balance rows, so an item is never split across two pages.
      */
     @Query("""
             SELECT i FROM InventoryItem i
             WHERE i.organizationId = :organizationId
+              AND (:categoryId IS NULL OR i.categoryId = :categoryId)
               AND (:locationId IS NULL OR EXISTS (
                     SELECT 1 FROM InventoryStock s
                     WHERE s.locationId = :locationId
@@ -82,6 +64,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
             """)
     Page<InventoryItem> searchWithStock(@Param("organizationId") Long organizationId,
                                        @Param("search") String search,
+                                       @Param("categoryId") Long categoryId,
                                        @Param("locationId") Long locationId,
                                        @Param("lowOnly") Boolean lowOnly,
                                        Pageable pageable);

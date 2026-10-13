@@ -59,8 +59,8 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
 
     /**
      * Deducts {@code qty} from {@code onHand} in one statement. Succeeds only if enough stock is on
-     * hand, or {@code allowNegative} is true. Returns 0 rows affected when a {@code BLOCK} policy
-     * shortage occurs — the caller must then throw {@code InsufficientStockException}.
+     * hand, or {@code allowNegative} is true. Returns 0 rows affected on a shortage, which the caller
+     * reports as a conflict.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE InventoryStock s SET s.onHand = s.onHand - :qty, s.updatedAt = :now, s.lastModifiedBy = :actor "
@@ -71,7 +71,7 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
     /**
      * Adds {@code qty} to {@code onHand} in one statement, stamping the change onto the balance. Succeeds
      * only if the balance stays at or below 1,000,000, or {@code allowAboveCap} is true. Returns 0 rows
-     * affected otherwise — the caller must then throw {@code StockCapacityExceededException}.
+     * affected otherwise, which the caller reports as a conflict.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE InventoryStock s SET s.onHand = s.onHand + :qty, s.updatedAt = :now, s.lastModifiedBy = :actor "

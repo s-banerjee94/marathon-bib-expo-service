@@ -19,5 +19,5 @@ public class S3Properties {
     private long uploadUrlExpirySeconds = 600;
 
     /** Validity of presigned download (GET) URLs in seconds. */
-    private long downloadUrlExpirySeconds = 3600;
+    private long downloadUrlExpirySeconds = 86400;
 }

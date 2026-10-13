@@ -59,13 +59,6 @@ public class InventoryAttributeServiceImpl implements InventoryAttributeService 
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public InventoryAttributeResponse getAttribute(Long organizationId, Long attributeId, User currentUser) {
-        accessGuard.requireOrgAccess(currentUser, organizationId);
-        return toResponse(requireAttributeInScope(attributeId, organizationId));
-    }
-
-    @Override
     @Transactional
     public InventoryAttributeResponse createAttribute(Long organizationId,
                                                                    CreateInventoryAttributeRequest request,

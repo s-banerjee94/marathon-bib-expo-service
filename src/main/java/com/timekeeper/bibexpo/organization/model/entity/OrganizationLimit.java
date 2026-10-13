@@ -91,8 +91,8 @@ public class OrganizationLimit implements Serializable {
     private Integer usedDistributors = 0;
 
     // Only the four organization-wide inventory caps get a counter. The other three are ceilings on
-    // a single item or a single attribute, so their usage lives on that row, not on this one:
-    // inventory_items.variant_count and inventory_attributes.option_count.
+    // a single item or a single attribute, so they are checked against that item's variant rows or
+    // inventory_attributes.option_count, not counted here.
     @Column(name = "used_inventory_terms", nullable = false)
     @Builder.Default
     private Integer usedInventoryTerms = 0;

@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -218,9 +219,10 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
         Map<Long, List<InventoryStock>> balances = wanted.isEmpty() ? Map.of()
                 : stockRepository.findByVariantIdIn(wanted).stream()
                 .collect(Collectors.groupingBy(InventoryStock::getVariantId));
-        Map<Long, String> locationNames = locationRepository.findAllById(
-                        links.values().stream().map(InventoryGoodieMapping::getLocationId)
-                                .filter(Objects::nonNull).distinct().toList()).stream()
+        Map<Long, String> locationNames = locationRepository.findAllById(Stream.concat(
+                                links.values().stream().map(InventoryGoodieMapping::getLocationId),
+                                balances.values().stream().flatMap(List::stream).map(InventoryStock::getLocationId))
+                        .filter(Objects::nonNull).distinct().toList()).stream()
                 .collect(Collectors.toMap(InventoryLocation::getId, InventoryLocation::getName));
 
         return resolved.stream()
@@ -273,14 +275,20 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
             long variantNeeded = entry.getValue();
             long variantOnHand = 0;
             long variantElsewhere = 0;
+            List<InventoryGoodieShortfallResponse.Source> sources = new ArrayList<>();
             for (InventoryStock balance : balances.getOrDefault(variantId, List.of())) {
                 long held = balance.getOnHand() == null ? 0 : balance.getOnHand();
                 if (locationId != null && locationId.equals(balance.getLocationId())) {
                     variantOnHand += held;
                 } else {
                     variantElsewhere += held;
+                    if (held > 0) {
+                        sources.add(new InventoryGoodieShortfallResponse.Source(balance.getLocationId(),
+                                locationNames.get(balance.getLocationId()), held));
+                    }
                 }
             }
+            sources.sort(Comparator.comparingLong(InventoryGoodieShortfallResponse.Source::getOnHand).reversed());
             long variantShortfall = Math.max(0, variantNeeded - variantOnHand);
 
             needed += variantNeeded;
@@ -294,6 +302,7 @@ public class InventoryGoodieMappingServiceImpl implements InventoryGoodieMapping
                     .onHand(variantOnHand)
                     .shortfall(variantShortfall)
                     .elsewhere(variantElsewhere)
+                    .sources(sources)
                     .build());
         }
         variants.sort(Comparator.comparingLong(InventoryGoodieShortfallResponse.Variant::getShortfall)

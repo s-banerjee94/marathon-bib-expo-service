@@ -133,7 +133,9 @@ public interface InventoryGoodieMappingControllerApi {
                     Several spellings routinely mean one variant, so `M`, `Medium` and `38` are \
                     totalled onto a single row. Each row also reports `elsewhere`, how many sit at \
                     the organization's other locations, because a shortfall covered from another \
-                    shelf is a transfer rather than a purchase. Rows come worst shortfall first.
+                    shelf is a transfer rather than a purchase, and `sources` lists those \
+                    locations with what each holds, most first, so a move can be planned from them. \
+                    Rows come worst shortfall first.
 
                     A goody nothing has been linked to appears with no rows."""
     )

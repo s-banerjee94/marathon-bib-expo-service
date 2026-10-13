@@ -39,6 +39,13 @@ public class InventoryItemResponse {
             example = "Reserved for the sponsor lounge — do not hand out at the counter.")
     private String note;
 
+    @Schema(description = "The item's photo, else the first variant photo, else null")
+    private String imageUrl;
+
+    @Schema(description = "The stored key of the item's primary photo, or null when it has none. A variant whose imageKey equals it shows the primary photo.",
+            example = "inventory-items/22/image/3f2c1d8e-....png")
+    private String primaryImageKey;
+
     @Schema(description = "Values for this item's non-variant-defining attributes, applied once to the whole item")
     private List<ItemAttributeValueResponse> attributes;
 
@@ -58,7 +65,7 @@ public class InventoryItemResponse {
     private String updatedBy;
 
     public static InventoryItemResponse fromEntity(InventoryItem item, List<InventoryVariantResponse> variants,
-                                                     List<ItemAttributeValueResponse> attributes) {
+                                                     List<ItemAttributeValueResponse> attributes, String imageUrl) {
         return InventoryItemResponse.builder()
                 .id(item.getId())
                 .organizationId(item.getOrganizationId())
@@ -67,6 +74,8 @@ public class InventoryItemResponse {
                 .unitId(item.getUnitId())
                 .lowStockThreshold(item.getLowStockThreshold())
                 .note(item.getNote())
+                .imageUrl(imageUrl)
+                .primaryImageKey(item.getImageKey())
                 .attributes(attributes)
                 .variants(variants)
                 .createdAt(item.getCreatedAt())
