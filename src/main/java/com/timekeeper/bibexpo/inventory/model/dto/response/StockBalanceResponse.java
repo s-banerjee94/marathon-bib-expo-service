@@ -7,17 +7,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @Schema(description = "Stock balance for one variant at one location")
 public class StockBalanceResponse {
-
-    @Schema(description = "Stock row ID", example = "1")
-    private Long id;
 
     @Schema(description = "Variant ID", example = "1")
     private Long variantId;
@@ -28,28 +23,7 @@ public class StockBalanceResponse {
     @Schema(description = "Quantity on hand", example = "1300")
     private Integer onHand;
 
-    @Schema(description = "When this variant first held stock at this location")
-    private Instant createdAt;
-
-    @Schema(description = "Who first brought stock of this variant to this location", example = "organizer1")
-    private String createdBy;
-
-    @Schema(description = "When this balance last changed")
-    private Instant updatedAt;
-
-    @Schema(description = "Who last changed this balance", example = "organizer1")
-    private String updatedBy;
-
     public static StockBalanceResponse fromEntity(InventoryStock stock) {
-        return StockBalanceResponse.builder()
-                .id(stock.getId())
-                .variantId(stock.getVariantId())
-                .locationId(stock.getLocationId())
-                .onHand(stock.getOnHand())
-                .createdAt(stock.getCreatedAt())
-                .createdBy(stock.getCreatedBy())
-                .updatedAt(stock.getUpdatedAt())
-                .updatedBy(stock.getLastModifiedBy())
-                .build();
+        return new StockBalanceResponse(stock.getVariantId(), stock.getLocationId(), stock.getOnHand());
     }
 }

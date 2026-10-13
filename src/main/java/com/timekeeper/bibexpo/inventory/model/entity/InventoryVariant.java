@@ -53,7 +53,8 @@ public class InventoryVariant implements Serializable {
     @Column(name = "combination_key", length = 255)
     private String combinationKey;
 
-    // S3 object key under UploadCategory.INVENTORY_VARIANT_IMAGE, null until an image is attached
+    // S3 object key, null until a photo is applied. Usually one of the item's uploads, shared with other
+    // variants or the item itself; older variants may hold a key from the retired per-variant upload.
     @Column(name = "image_key", length = 512)
     private String imageKey;
 

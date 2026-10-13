@@ -43,12 +43,13 @@ public class InventoryStockController implements InventoryStockControllerApi {
     public ResponseEntity<PageableResponse<StockItemResponse>> listStock(
             @PathVariable Long organizationId,
             String search,
+            Long categoryId,
             Long locationId,
             Boolean lowOnly,
             Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(PageableResponse.of(stockService.listStock(organizationId, search,
-                locationId, lowOnly, pageable, currentUser)));
+                categoryId, locationId, lowOnly, pageable, currentUser)));
     }
 
     @Override

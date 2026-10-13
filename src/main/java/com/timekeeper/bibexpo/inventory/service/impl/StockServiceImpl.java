@@ -23,7 +23,6 @@ import com.timekeeper.bibexpo.inventory.model.dto.response.StockItemResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockMovementResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockPostingConflictResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.StockPostingResponse;
-import com.timekeeper.bibexpo.inventory.model.dto.response.StockRowResponse;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryAttributeOption;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryItem;
 import com.timekeeper.bibexpo.inventory.model.entity.InventoryLocation;
@@ -72,11 +71,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -110,89 +107,31 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<StockItemResponse> listStock(Long organizationId, String search, Long locationId, Boolean lowOnly,
-                                             Pageable pageable, User currentUser) {
+    public Page<StockItemResponse> listStock(Long organizationId, String search, Long categoryId, Long locationId,
+                                             Boolean lowOnly, Pageable pageable, User currentUser) {
         accessGuard.requireOrgAccess(currentUser, organizationId);
-        String needle = TextUtils.trimToNull(search);
         Pageable effective = pageable.getSort().isSorted() ? pageable
                 : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by("name"));
 
         // The database decides which items the page holds, so the page counts describe the filtered
         // set and no item is ever split across two pages.
-        Page<InventoryItem> items = itemRepository.searchWithStock(organizationId, needle, locationId,
-                Boolean.TRUE.equals(lowOnly) ? Boolean.TRUE : null, effective);
-        Map<Long, List<StockRowResponse>> rows = rowsFor(items.getContent(), needle, locationId);
-        Map<Long, String> imageUrls = itemImages.urlsFor(items.getContent());
-        return items.map(item -> toStockItem(item, rows.getOrDefault(item.getId(), List.of()),
-                imageUrls.get(item.getId())));
-    }
-
-    /** The balance rows behind one page of items, keyed by item, in five queries however long the page. */
-    private Map<Long, List<StockRowResponse>> rowsFor(List<InventoryItem> items, String needle, Long locationId) {
-        List<Long> itemIds = items.stream().map(InventoryItem::getId).toList();
+        Page<InventoryItem> items = itemRepository.searchWithStock(organizationId, TextUtils.trimToNull(search),
+                categoryId, locationId, Boolean.TRUE.equals(lowOnly) ? Boolean.TRUE : null, effective);
+        List<Long> itemIds = items.getContent().stream().map(InventoryItem::getId).toList();
         List<InventoryVariant> variants = itemIds.isEmpty() ? List.of() : variantRepository.findByItemIdIn(itemIds);
-        List<Long> variantIds = variants.stream().map(InventoryVariant::getId).toList();
-        List<InventoryStock> balances = variantIds.isEmpty() ? List.of()
-                : stockRepository.findByVariantIdIn(variantIds).stream()
-                        .filter(b -> locationId == null || locationId.equals(b.getLocationId()))
-                        .toList();
-        if (balances.isEmpty()) {
-            return Map.of();
-        }
-
+        Map<Long, List<InventoryVariant>> variantsByItem = variants.stream()
+                .collect(Collectors.groupingBy(InventoryVariant::getItemId));
         Map<Long, Long> itemIdByVariant = variants.stream()
                 .collect(Collectors.toMap(InventoryVariant::getId, InventoryVariant::getItemId));
-        Map<Long, String> locationNames = locationRepository.findAllById(balances.stream()
-                        .map(InventoryStock::getLocationId).distinct().toList()).stream()
-                .collect(Collectors.toMap(InventoryLocation::getId, InventoryLocation::getName));
-        Map<Long, String> variantLabels = variantLabels(variantIds);
 
-        Map<Long, List<StockRowResponse>> byItem = new HashMap<>();
-        for (InventoryStock balance : balances) {
-            byItem.computeIfAbsent(itemIdByVariant.get(balance.getVariantId()), k -> new ArrayList<>())
-                    .add(StockRowResponse.builder()
-                            .id(balance.getId())
-                            .variantId(balance.getVariantId())
-                            .variantLabel(variantLabels.get(balance.getVariantId()))
-                            .locationId(balance.getLocationId())
-                            .locationName(locationNames.get(balance.getLocationId()))
-                            .onHand(balance.getOnHand())
-                            .updatedAt(balance.getUpdatedAt())
-                            .updatedBy(balance.getLastModifiedBy())
-                            .build());
-        }
-        byItem.values().forEach(list -> list.sort(
-                Comparator.comparing(StockRowResponse::getVariantLabel, Comparator.nullsFirst(Comparator.naturalOrder()))
-                        .thenComparing(StockRowResponse::getLocationName, Comparator.nullsLast(Comparator.naturalOrder()))));
-        narrowToSearch(items, byItem, needle);
-        return byItem;
-    }
-
-    // A search that matched a variant value or a location name should leave only the rows it matched,
-    // so the total describes what is on screen. An item matched by its own name keeps all of its rows,
-    // and so does one the database matched on something this pass cannot see — the collation ignores
-    // accents where Java does not, and an item with no rows at all would read as a bug.
-    private static void narrowToSearch(List<InventoryItem> items, Map<Long, List<StockRowResponse>> byItem,
-                                       String needle) {
-        if (needle == null) {
-            return;
-        }
-        String lower = needle.toLowerCase(Locale.ROOT);
-        for (InventoryItem item : items) {
-            List<StockRowResponse> rows = byItem.get(item.getId());
-            if (rows == null || item.getName().toLowerCase(Locale.ROOT).contains(lower)) {
-                continue;
-            }
-            List<StockRowResponse> kept = rows.stream().filter(r -> contains(r.getVariantLabel(), lower)
-                    || contains(r.getLocationName(), lower)).toList();
-            if (!kept.isEmpty()) {
-                byItem.put(item.getId(), kept);
-            }
-        }
-    }
-
-    private static boolean contains(String value, String lower) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(lower);
+        // The search only picks which items show and the totals stay the whole item's, so they agree with
+        // lowOnly and with the item's own grid. Only the location filter narrows them.
+        Map<Long, List<InventoryStock>> balances = variants.isEmpty() ? Map.of()
+                : stockRepository.findByVariantIdIn(List.copyOf(itemIdByVariant.keySet())).stream()
+                        .filter(b -> locationId == null || locationId.equals(b.getLocationId()))
+                        .collect(Collectors.groupingBy(b -> itemIdByVariant.get(b.getVariantId())));
+        return items.map(item -> toStockItem(item, balances.getOrDefault(item.getId(), List.of()),
+                itemImages.urlFor(item, variantsByItem.getOrDefault(item.getId(), List.of()))));
     }
 
     // "S / Yellow" — the variant's attribute values in attribute order. Absent for the single
@@ -215,20 +154,16 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                                 Collectors.joining(" / "))));
     }
 
-    private static StockItemResponse toStockItem(InventoryItem item, List<StockRowResponse> rows, String imageUrl) {
-        int onHand = rows.stream().mapToInt(StockRowResponse::getOnHand).sum();
+    private static StockItemResponse toStockItem(InventoryItem item, List<InventoryStock> balances, String imageUrl) {
+        int onHand = balances.stream().mapToInt(InventoryStock::getOnHand).sum();
         return StockItemResponse.builder()
                 .itemId(item.getId())
                 .itemName(item.getName())
                 .imageUrl(imageUrl)
                 .onHand(onHand)
-                .locationCount((int) rows.stream().map(StockRowResponse::getLocationId).distinct().count())
-                .lowStockThreshold(item.getLowStockThreshold())
+                .locationCount((int) balances.stream().map(InventoryStock::getLocationId).distinct().count())
                 // An item with no threshold of its own is low only once the shelf is empty.
                 .low(onHand <= (item.getLowStockThreshold() == null ? 0 : item.getLowStockThreshold()))
-                .updatedAt(rows.stream().map(StockRowResponse::getUpdatedAt).filter(Objects::nonNull)
-                        .max(Comparator.naturalOrder()).orElse(null))
-                .rows(rows)
                 .build();
     }
 
@@ -260,10 +195,6 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
                         .flatMap(m -> Stream.of(m.getFromLocationId(), m.getToLocationId()))
                         .filter(Objects::nonNull).distinct().toList()).stream()
                 .collect(Collectors.toMap(InventoryLocation::getId, InventoryLocation::getName));
-        Map<Long, Long> reversedBy = postingRepository.findAllById(rows.stream().map(InventoryMovement::getPostingId)
-                        .filter(Objects::nonNull).distinct().toList()).stream()
-                .filter(p -> p.getReversedByPostingId() != null)
-                .collect(Collectors.toMap(InventoryPosting::getId, InventoryPosting::getReversedByPostingId));
 
         return page.map(m -> {
             StockMovementResponse row = StockMovementResponse.fromEntity(m);
@@ -271,7 +202,6 @@ public class StockServiceImpl implements StockService, GoodieIssueRecorder {
             row.setVariantLabel(variantLabels.get(m.getVariantId()));
             row.setFromLocationName(locationNames.get(m.getFromLocationId()));
             row.setToLocationName(locationNames.get(m.getToLocationId()));
-            row.setReversedByPostingId(reversedBy.get(m.getPostingId()));
             return row;
         });
     }

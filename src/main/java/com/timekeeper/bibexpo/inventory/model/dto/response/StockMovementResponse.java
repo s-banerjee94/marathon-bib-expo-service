@@ -73,9 +73,6 @@ public class StockMovementResponse {
     @Schema(description = "The posting that wrote this line, or null for counter hand-outs and older lines", example = "57")
     private Long postingId;
 
-    @Schema(description = "The undo of that posting, or null while it stands", example = "58")
-    private Long reversedByPostingId;
-
     public static StockMovementResponse fromEntity(InventoryMovement movement) {
         return StockMovementResponse.builder()
                 .id(movement.getId())

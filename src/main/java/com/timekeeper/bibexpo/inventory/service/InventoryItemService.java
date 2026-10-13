@@ -17,10 +17,8 @@ import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemResponse
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemSummaryResponse;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
 import com.timekeeper.bibexpo.user.model.entity.User;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
-import java.time.Instant;
+import java.util.List;
 
 /**
  * Manages items (the things an organization stocks) and their variants (size, colour, flavour).
@@ -31,22 +29,8 @@ import java.time.Instant;
  */
 public interface InventoryItemService {
 
-    /**
-     * One page of the organization's items, without their attributes or variants — those grow with
-     * the catalogue and belong to {@link #getItem}, which fetches them for a single item.
-     *
-     * <p>Every filter is optional and they combine: a name fragment matched anywhere in the name
-     * and ignoring case, one category, and a closed range over the day the item was added. Each
-     * one left out narrows nothing.
-     *
-     * <p>Newest first unless the caller asks for another order, so paging through the list twice
-     * sees the same rows in the same places.
-     *
-     * @throws com.timekeeper.bibexpo.shared.error.InvalidUserDataException if the range starts after it ends
-     */
-    Page<InventoryItemSummaryResponse> listItems(Long organizationId, String name, Long categoryId,
-                                                 Instant createdFrom, Instant createdTo,
-                                                 Pageable pageable, User currentUser);
+    /** Every item of the organization as id and name, in name order. The item quota bounds the list. */
+    List<InventoryItemSummaryResponse> listItems(Long organizationId, User currentUser);
 
     /** One item with its attributes, its variants and their attribute values. */
     InventoryItemResponse getItem(Long organizationId, Long itemId, User currentUser);
@@ -98,25 +82,19 @@ public interface InventoryItemService {
     InventoryItemResponse removeVariant(Long organizationId, Long itemId, Long variantId, User currentUser);
 
     /**
-     * Generates a presigned upload URL for a variant's image.
+     * Shows one photo on several variants of the item, so they share one stored file. The key must come
+     * from the item's upload URL or already be used by this item or one of its variants. Each variant's
+     * previous photo is unlinked, and its file deleted once nothing in the item uses it.
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
-     * @throws InventoryVariantNotFoundException if the variant does not belong to this item
+     * @throws InventoryVariantNotFoundException if a listed variant does not belong to this item
+     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the key does not belong to this item or was not uploaded
      */
-    PresignUploadResponse createVariantImageUploadUrl(Long organizationId, Long itemId, Long variantId,
-                                                        String contentType, User currentUser);
+    InventoryItemResponse applyVariantImage(Long organizationId, Long itemId, String objectKey, List<Long> variantIds,
+                                            User currentUser);
 
     /**
-     * Attaches a previously uploaded image to a variant, replacing any existing one.
-     *
-     * @throws InventoryItemNotFoundException if the item does not belong to this organization
-     * @throws InventoryVariantNotFoundException if the variant does not belong to this item
-     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the object does not belong to this variant or was not uploaded
-     */
-    InventoryItemResponse attachVariantImage(Long organizationId, Long itemId, Long variantId, String objectKey, User currentUser);
-
-    /**
-     * Removes a variant's image, if any.
+     * Unlinks a variant's photo, if any. Its file is deleted once nothing in the item uses it.
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
      * @throws InventoryVariantNotFoundException if the variant does not belong to this item
@@ -124,22 +102,24 @@ public interface InventoryItemService {
     InventoryItemResponse removeVariantImage(Long organizationId, Long itemId, Long variantId, User currentUser);
 
     /**
-     * Generates a presigned upload URL for the item's own photo.
+     * Generates a presigned upload URL for a photo of this item, for its primary photo, its variants, or both.
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
      */
     PresignUploadResponse createItemImageUploadUrl(Long organizationId, Long itemId, String contentType, User currentUser);
 
     /**
-     * Attaches a previously uploaded photo to the item, replacing any existing one.
+     * Makes a photo the item's primary photo. The key must come from the item's upload URL or already be
+     * used by one of its variants. The previous primary photo is unlinked, and its file deleted once no
+     * variant uses it.
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
-     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the object does not belong to this item or was not uploaded
+     * @throws com.timekeeper.bibexpo.storage.exception.InvalidFileException if the key does not belong to this item or was not uploaded
      */
     InventoryItemResponse attachItemImage(Long organizationId, Long itemId, String objectKey, User currentUser);
 
     /**
-     * Removes the item's own photo, if any. Variant photos stay.
+     * Unlinks the item's primary photo, if any; its file is deleted once no variant uses it. Variant photos stay.
      *
      * @throws InventoryItemNotFoundException if the item does not belong to this organization
      */

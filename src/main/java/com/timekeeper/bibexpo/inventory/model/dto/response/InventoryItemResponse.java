@@ -42,6 +42,10 @@ public class InventoryItemResponse {
     @Schema(description = "The item's photo, else the first variant photo, else null")
     private String imageUrl;
 
+    @Schema(description = "The stored key of the item's primary photo, or null when it has none. A variant whose imageKey equals it shows the primary photo.",
+            example = "inventory-items/22/image/3f2c1d8e-....png")
+    private String primaryImageKey;
+
     @Schema(description = "Values for this item's non-variant-defining attributes, applied once to the whole item")
     private List<ItemAttributeValueResponse> attributes;
 
@@ -71,6 +75,7 @@ public class InventoryItemResponse {
                 .lowStockThreshold(item.getLowStockThreshold())
                 .note(item.getNote())
                 .imageUrl(imageUrl)
+                .primaryImageKey(item.getImageKey())
                 .attributes(attributes)
                 .variants(variants)
                 .createdAt(item.getCreatedAt())

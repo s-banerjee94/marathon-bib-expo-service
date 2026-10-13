@@ -32,16 +32,10 @@ import java.time.Instant;
                 @UniqueConstraint(name = "uk_inventory_item_org_name",
                         columnNames = {"organization_id", "name"})
         },
-        // The list is always one organization's, newest first, so both indexes end on created_at:
-        // the database walks them backwards and stops at the page size instead of sorting the
-        // whole catalogue. The second one carries the category filter into the same walk.
-        // The last two answer "is this term still in use?" before a term is deleted. That count is
-        // keyed by the term alone, so neither can ride on an index that leads with organization_id.
+        // Both item lists read one organization's items in name order, which the unique key already
+        // serves. These two answer "is this term still in use?" before a term is deleted. That count
+        // is keyed by the term alone, so neither can ride on an index that leads with organization_id.
         indexes = {
-                @Index(name = "idx_inventory_item_org_created",
-                        columnList = "organization_id, created_at"),
-                @Index(name = "idx_inventory_item_org_category_created",
-                        columnList = "organization_id, category_id, created_at"),
                 @Index(name = "idx_inventory_item_category", columnList = "category_id"),
                 @Index(name = "idx_inventory_item_unit", columnList = "unit_id")
         })
@@ -82,15 +76,9 @@ public class InventoryItem implements Serializable {
     @Column(length = 500)
     private String note;
 
-    // S3 object key under UploadCategory.INVENTORY_ITEM_IMAGE, null until a photo is attached
+    // S3 object key of the primary photo, null until one is chosen; variants may share the same file
     @Column(name = "image_key", length = 512)
     private String imageKey;
-
-    // Kept in step by InventoryItemService, the only writer of variants, so the item list can show
-    // the count without querying the variants of every row.
-    @Column(name = "variant_count", nullable = false)
-    @Builder.Default
-    private Integer variantCount = 0;
 
     @CreatedDate
     @Column(updatable = false)

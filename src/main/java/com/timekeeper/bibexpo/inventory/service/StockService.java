@@ -37,21 +37,22 @@ import java.time.Instant;
 public interface StockService {
 
     /**
-     * One page of what the organization has on hand, one entry per item, carrying the
-     * variant-and-location rows behind its total.
+     * One page of what the organization has on hand, one entry per item with its total and how many
+     * locations hold it.
      *
      * <p>Every filter is optional and they combine: free text matched against an item name, a
-     * variant's attribute values or a location name; one location; and whether to keep only what
-     * has run low. Each one left out narrows nothing.
+     * variant's attribute values or a location name; one category; one location; and whether to
+     * keep only what has run low. Each one left out narrows nothing.
      *
-     * <p>A search or a location also narrows the rows under each item, and the item's total then
-     * counts only the rows still shown — a filtered list totals what it displays. An item holding
-     * no stock at all still appears, with no rows, unless a location filter rules it out.
+     * <p>The search and the category only pick which items appear; the total is always the whole
+     * item's. The location filter is the one that narrows the total, to what that location holds.
+     * An item holding no stock at all still appears with a total of 0, unless a location filter
+     * rules it out.
      *
      * <p>In name order unless the caller asks for another.
      */
-    Page<StockItemResponse> listStock(Long organizationId, String search, Long locationId, Boolean lowOnly,
-                                      Pageable pageable, User currentUser);
+    Page<StockItemResponse> listStock(Long organizationId, String search, Long categoryId, Long locationId,
+                                      Boolean lowOnly, Pageable pageable, User currentUser);
 
     /**
      * One page of the organization's ledger.

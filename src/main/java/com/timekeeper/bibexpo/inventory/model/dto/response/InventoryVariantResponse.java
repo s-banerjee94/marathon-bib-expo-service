@@ -29,6 +29,10 @@ public class InventoryVariantResponse {
     @Schema(description = "Short-lived download URL for this variant's image, or null if none is attached")
     private String imageUrl;
 
+    @Schema(description = "The stored key of this variant's photo, or null. Send it back to make the photo primary or show it on other variants without a second upload.",
+            example = "inventory-items/22/image/3f2c1d8e-....png")
+    private String imageKey;
+
     @Schema(description = "When this variant was added")
     private Instant createdAt;
 
@@ -48,6 +52,7 @@ public class InventoryVariantResponse {
                 .itemId(variant.getItemId())
                 .attributeValues(attributeValues)
                 .imageUrl(imageUrl)
+                .imageKey(variant.getImageKey())
                 .createdAt(variant.getCreatedAt())
                 .createdBy(variant.getCreatedBy())
                 .updatedAt(variant.getUpdatedAt())

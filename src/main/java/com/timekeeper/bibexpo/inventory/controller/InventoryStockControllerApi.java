@@ -46,16 +46,17 @@ public interface InventoryStockControllerApi {
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
-                    One page of what the organization has on hand, one entry per item, carrying the \
-                    variant-and-location rows behind its total.
+                    One page of what the organization has on hand, one entry per item with its total \
+                    and how many locations hold it. The per-variant grid comes from \
+                    <code>GET /items/{itemId}/stock</code>.
 
                     Every filter is optional and they combine, and filtering happens in the \
-                    database. The page counts items rather than balance rows, so an item is never \
-                    split across two pages and the page totals describe the filtered set.
+                    database, so the page totals describe the filtered set.
 
-                    A search or a location narrows the rows under each item too, and the item's \
-                    total then counts only the rows still shown. An item holding no stock at all \
-                    still appears, with an empty row list, unless a location filter rules it out.
+                    The search and the category only pick which items appear; an item's total is \
+                    always the whole item's. A location filter narrows the total to what that \
+                    location holds. An item holding no stock at all still appears with a total of 0, \
+                    unless a location filter rules it out.
 
                     In item-name order unless a <code>sort</code> is given, which replaces it."""
     )
@@ -75,7 +76,11 @@ public interface InventoryStockControllerApi {
                     example = "bottle")
             @RequestParam(required = false) String search,
 
-            @Parameter(description = "Keep only stock sitting at this location.", example = "9")
+            @Parameter(description = "Keep only items in this category term.", example = "12")
+            @RequestParam(required = false) Long categoryId,
+
+            @Parameter(description = "Keep only items with stock at this location, and total only what it holds.",
+                    example = "9")
             @RequestParam(required = false) Long locationId,
 
             @Parameter(description = "Keep only items that have run low. An item with no threshold of its own counts as low once the shelf is empty.",
@@ -232,6 +237,9 @@ public interface InventoryStockControllerApi {
                     overdrawn one. Every variant and location must belong to this organization, and a \
                     variant at a location appears once per posting.
 
+                    The response carries the posting's <code>id</code>, its <code>type</code>, and the \
+                    balance now at every variant and location it changed, for patching the grid.
+
                     **Idempotency-Key** is required: a new random string per click. Sending the same key \
                     again posts nothing and answers with that posting and the balances as they stand now. \
                     The same key with a different body answers 422.
@@ -268,8 +276,10 @@ public interface InventoryStockControllerApi {
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
                     Writes the opposite of every line of the posting as one new posting of type \
-                    <code>REVERSAL</code>, which carries <code>reversesPostingId</code>. The original \
-                    then carries <code>reversedByPostingId</code>. Nothing is deleted from the ledger.
+                    <code>REVERSAL</code>, and answers like a posting does: its <code>id</code>, its \
+                    <code>type</code> and the balances it changed. In the item's activity the undo then \
+                    carries <code>reversesPostingId</code> and the original <code>reversedByPostingId</code>. \
+                    Nothing is deleted from the ledger.
 
                     An undo may take a shelf below zero only as far as it stood just before the original \
                     posting, which is the original line's <code>balanceAfter</code> minus its quantity. \

@@ -1,12 +1,12 @@
 package com.timekeeper.bibexpo.inventory.controller;
 
+import com.timekeeper.bibexpo.inventory.model.dto.request.ApplyVariantImageRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryItemRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.CreateInventoryVariantRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.request.UpdateInventoryItemRequest;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemResponse;
 import com.timekeeper.bibexpo.inventory.model.dto.response.InventoryItemSummaryResponse;
 import com.timekeeper.bibexpo.shared.error.ErrorResponse;
-import com.timekeeper.bibexpo.shared.web.PageableResponse;
 import com.timekeeper.bibexpo.storage.model.dto.request.AttachUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.request.PresignUploadRequest;
 import com.timekeeper.bibexpo.storage.model.dto.response.PresignUploadResponse;
@@ -20,8 +20,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Pageable;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -32,9 +30,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 
-import java.time.Instant;
+import java.util.List;
 
 @Tag(name = "Inventory Items", description = "The things an organization stocks, and their variants")
 @SecurityRequirement(name = "bearerAuth")
@@ -45,20 +42,12 @@ public interface InventoryItemControllerApi {
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
-                    One page of the organization's items. Each row carries the item alone — its name, \
-                    category, unit, note and how many variants it has — but not the attributes or the
-                    variants themselves. Fetch one item to see those.
-
-                    Every filter is optional and they combine. Filtering happens in the database, so \
-                    the page totals describe the filtered set, not the whole catalogue.
-
-                    Newest first — by <code>createdAt</code> descending — unless a <code>sort</code> \
-                    is given, which replaces it."""
+                    Every item of the organization as <code>{id, name}</code>, in name order, for the \
+                    item pickers. Not paged: the organization's item quota bounds the list. Fetch one \
+                    item for its attributes and variants, or <code>GET /stock</code> for stock."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Items retrieved successfully"),
-            @ApiResponse(responseCode = "400", description = "The date range starts after it ends",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Organization not found",
@@ -66,32 +55,13 @@ public interface InventoryItemControllerApi {
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<PageableResponse<InventoryItemSummaryResponse>> listItems(
+    ResponseEntity<List<InventoryItemSummaryResponse>> listItems(
             @PathVariable Long organizationId,
-
-            @Parameter(description = "Name fragment, matched anywhere in the name and ignoring case.",
-                    example = "shirt")
-            @RequestParam(required = false) String name,
-
-            @Parameter(description = "Keep only items in this category term.", example = "12")
-            @RequestParam(required = false) Long categoryId,
-
-            @Parameter(description = "Keep only items added on or after this instant, ISO-8601.",
-                    example = "2026-09-01T00:00:00Z")
-            @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
-
-            @Parameter(description = "Keep only items added on or before this instant, ISO-8601. Must not be before <code>createdFrom</code>.",
-                    example = "2026-09-30T23:59:59Z")
-            @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo,
-
-            @Parameter(description = "Pagination parameters") Pageable pageable,
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
             summary = "Get one item",
-            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nReturns one item with its own attribute values, its variants and theirs."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nReturns one item with its own attribute values, its variants and theirs. Every item write answers the same shape. Besides the short-lived <code>imageUrl</code>s, it carries the stored keys: <code>primaryImageKey</code> on the item and <code>imageKey</code> on each variant, so a photo already there can be made primary or shown on other variants without a second upload."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Item retrieved successfully",
@@ -254,63 +224,40 @@ public interface InventoryItemControllerApi {
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
-            summary = "Get a presigned URL to upload a variant image",
+            summary = "Show one photo on several variants",
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
-                    Returns a short-lived presigned S3 PUT URL. The client uploads the file bytes \
-                    directly to that URL with the given Content-Type, then calls the attach endpoint \
-                    with the returned objectKey."""
+                    Shows one uploaded photo on every listed variant, for example all four sizes of the \
+                    Red T-Shirt, so they share one stored file. Upload it first through the item's \
+                    <code>image/upload-url</code>. A key this item or one of its variants already uses \
+                    is accepted too, so a photo already on one variant can be spread without a second \
+                    upload; any other key is refused.
+
+                    A variant's previous photo is only unlinked. Its file is deleted once no variant and \
+                    not the item itself use it any more."""
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Presigned upload URL created",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = PresignUploadResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Unsupported file type",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Access forbidden",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization, item, or variant not found",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @PostMapping("/{itemId}/variants/{variantId}/image/upload-url")
-    @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<PresignUploadResponse> createVariantImageUploadUrl(
-            @PathVariable Long organizationId,
-            @PathVariable Long itemId,
-            @PathVariable Long variantId,
-            @Valid @RequestBody PresignUploadRequest request,
-            @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
-
-    @Operation(
-            summary = "Attach an uploaded variant image",
-            description = """
-                    **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
-
-                    Attaches a previously uploaded object as the variant's image, replacing and \
-                    deleting any existing one."""
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Image attached successfully",
+            @ApiResponse(responseCode = "200", description = "Photo applied successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryItemResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Object key invalid or file missing",
+            @ApiResponse(responseCode = "400", description = "Invalid request body, an object key that does not belong to this item, or a file that was not uploaded",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Organization, item, or variant not found",
+            @ApiResponse(responseCode = "404", description = "Organization or item not found, or a variant that is not this item's",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
-    @PutMapping("/{itemId}/variants/{variantId}/image")
+    @PutMapping("/{itemId}/variants/image")
     @PreAuthorize("hasAnyRole('ROLE_ROOT', 'ROLE_ADMIN', 'ROLE_ORGANIZER_ADMIN', 'ROLE_ORGANIZER_USER')")
-    ResponseEntity<InventoryItemResponse> attachVariantImage(
+    ResponseEntity<InventoryItemResponse> applyVariantImage(
             @PathVariable Long organizationId,
             @PathVariable Long itemId,
-            @PathVariable Long variantId,
-            @Valid @RequestBody AttachUploadRequest request,
+            @Valid @RequestBody ApplyVariantImageRequest request,
             @Parameter(hidden = true) @AuthenticationPrincipal User currentUser);
 
     @Operation(
             summary = "Remove a variant image",
-            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nDeletes the variant's image from storage, if any."
+            description = "**Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`\n\nUnlinks the variant's photo, if any. Its file is deleted once no variant and not the item itself use it any more."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Image removed successfully",
@@ -333,7 +280,10 @@ public interface InventoryItemControllerApi {
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
-                    Returns a short-lived presigned S3 PUT URL for the item's own photo. The client uploads                     the file bytes directly to that URL with the given Content-Type, then calls the attach                     endpoint with the returned objectKey. Variant photos are separate and stay as they are."""
+                    Returns a short-lived presigned S3 PUT URL for a photo of this item. The client \
+                    uploads the file bytes directly to that URL with the given Content-Type, then uses the \
+                    returned objectKey to make it the item's primary photo, to show it on variants, or \
+                    both, all without a second upload."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Presigned upload URL created",
@@ -358,12 +308,15 @@ public interface InventoryItemControllerApi {
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
-                    Attaches a previously uploaded object as the item's own photo, replacing and deleting                     any existing one. The item's <code>imageUrl</code> then shows it in every list."""
+                    Makes a photo the item's primary photo, which every list's <code>imageUrl</code> then \
+                    shows. The key comes from the item's upload URL, or is one a variant of this item \
+                    already uses, so a variant photo can be made primary without a second upload. The \
+                    previous primary photo is only unlinked; its file is deleted once no variant uses it."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Photo attached successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = InventoryItemResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Object key invalid or file missing",
+            @ApiResponse(responseCode = "400", description = "An object key that does not belong to this item, or a file that was not uploaded",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access forbidden",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
@@ -383,7 +336,8 @@ public interface InventoryItemControllerApi {
             description = """
                     **Roles:** `ROOT`, `ADMIN`, `ORGANIZER_ADMIN`, `ORGANIZER_USER`
 
-                    Deletes the item's own photo from storage, if any. The item's <code>imageUrl</code> then                     falls back to the first variant photo."""
+                    Unlinks the item's primary photo, if any; its file is deleted once no variant uses it. \
+                    The item's <code>imageUrl</code> then falls back to the first variant photo."""
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Photo removed successfully",
