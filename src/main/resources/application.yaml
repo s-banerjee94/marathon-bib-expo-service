@@ -99,6 +99,10 @@ jwt:
   refresh-cookie-name: ${JWT_REFRESH_COOKIE_NAME:refreshToken}
   csrf-cookie-name: ${JWT_CSRF_COOKIE_NAME:csrfToken}
 
+# Sign in with Google: the web app's OAuth client ID. Left empty, every Google sign-in is refused.
+google:
+  client-id: ${GOOGLE_CLIENT_ID:1073555679920-9mmb3o9c6448rq46sbe2vs3bruqhne2c.apps.googleusercontent.com}
+
 # Concurrent signed-in devices per user. Any role not named here gets default-max-devices.
 session:
   default-max-devices: ${SESSION_DEFAULT_MAX_DEVICES:1}

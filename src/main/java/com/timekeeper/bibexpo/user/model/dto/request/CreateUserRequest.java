@@ -26,8 +26,8 @@ public class CreateUserRequest {
 
     @NotBlank(message = "Username is required")
     @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
-    @Pattern(regexp = "^[a-zA-Z0-9_-]+$", message = "Username can only contain letters, numbers, underscores, and hyphens")
-    @Schema(description = "Unique username for the user", example = "john_doe")
+    @Pattern(regexp = "^(?=.*[a-zA-Z])[a-zA-Z0-9_-]+$", message = "Username must contain at least one letter and can only contain letters, numbers, underscores, and hyphens")
+    @Schema(description = "Unique username for the user; at least one letter", example = "john_doe")
     private String username;
 
     @NotBlank(message = "Password is required")

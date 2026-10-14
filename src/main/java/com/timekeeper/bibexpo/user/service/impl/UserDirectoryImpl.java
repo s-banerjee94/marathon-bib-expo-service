@@ -53,6 +53,12 @@ public class UserDirectoryImpl implements UserDirectory {
     }
 
     @Override
+    public Optional<String> findUsernameByEmail(String email) {
+        // A null would match every account without an email.
+        return email == null ? Optional.empty() : userRepository.findByEmail(email).map(User::getUsername);
+    }
+
+    @Override
     public List<User> findByRole(UserRole role) {
         return userRepository.findByRole(role);
     }

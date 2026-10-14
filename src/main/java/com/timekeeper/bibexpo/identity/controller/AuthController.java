@@ -2,7 +2,9 @@ package com.timekeeper.bibexpo.identity.controller;
 
 import com.timekeeper.bibexpo.identity.exception.AccountDisabledException;
 import com.timekeeper.bibexpo.identity.exception.CsrfValidationException;
+import com.timekeeper.bibexpo.identity.exception.GoogleLoginException;
 import com.timekeeper.bibexpo.identity.exception.InvalidCredentialsException;
+import com.timekeeper.bibexpo.identity.model.dto.request.GoogleLoginRequest;
 import com.timekeeper.bibexpo.identity.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.identity.model.dto.response.LoginResponse;
 import com.timekeeper.bibexpo.identity.model.dto.response.RefreshResponse;
@@ -39,7 +41,7 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(
             summary = "User login",
-            description = "Authenticate with username and password. Returns a short-lived access token in the body " +
+            description = "Authenticate with username or email, and password. Returns a short-lived access token in the body " +
                     "and sets refreshToken (HttpOnly) + csrfToken cookies. A new login invalidates any prior session.",
             responses = {
                     @ApiResponse(
@@ -55,6 +57,29 @@ public class AuthController {
                                                HttpServletResponse httpResponse) {
         LoginResponse response = authService.login(request, httpRequest, httpResponse);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/google")
+    @Operation(
+            summary = "Sign in with Google",
+            description = "Authenticate with the ID token Google Identity Services gives the frontend. The token must be " +
+                    "issued for this app's Google client ID and carry a verified email that belongs to an existing " +
+                    "account; no account is ever created. On success it behaves exactly like login: a short-lived " +
+                    "access token in the body and refreshToken (HttpOnly) + csrfToken cookies.",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Login successful",
+                            content = @Content(schema = @Schema(implementation = LoginResponse.class))
+                    ),
+                    @ApiResponse(responseCode = "401", description = "Token invalid or expired, email unverified or " +
+                            "not registered, or account disabled or locked")
+            }
+    )
+    public ResponseEntity<LoginResponse> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request,
+                                                         HttpServletRequest httpRequest,
+                                                         HttpServletResponse httpResponse) {
+        return ResponseEntity.ok(authService.loginWithGoogle(request, httpRequest, httpResponse));
     }
 
     @PostMapping("/refresh")
@@ -101,7 +126,13 @@ public class AuthController {
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex, WebRequest request) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid username or password", request));
+                .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Unauthorized", "Your username, email or password is incorrect.", request));
+    }
+
+    @ExceptionHandler(GoogleLoginException.class)
+    public ResponseEntity<ErrorResponse> handleGoogleLogin(GoogleLoginException ex, WebRequest request) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Unauthorized", ex.getMessage(), request));
     }
 
     @ExceptionHandler(AccountDisabledException.class)
