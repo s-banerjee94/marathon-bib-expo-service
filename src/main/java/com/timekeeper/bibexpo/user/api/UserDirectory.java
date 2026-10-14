@@ -52,8 +52,8 @@ public interface UserDirectory {
      * Returns the username of the account registered with the given email address, matched without
      * regard to case.
      *
-     * @param email the email address
-     * @return the username, or empty when no account uses that email
+     * @param email the email address, may be {@code null}
+     * @return the username, or empty when the email is null or no account uses it
      */
     Optional<String> findUsernameByEmail(String email);
 

@@ -7,9 +7,11 @@ import com.timekeeper.bibexpo.audit.api.AuditPublisher;
 import com.timekeeper.bibexpo.identity.config.JwtConfig;
 import com.timekeeper.bibexpo.identity.exception.AccountDisabledException;
 import com.timekeeper.bibexpo.identity.exception.CsrfValidationException;
+import com.timekeeper.bibexpo.identity.exception.GoogleLoginException;
 import com.timekeeper.bibexpo.identity.exception.InvalidCredentialsException;
 import com.timekeeper.bibexpo.identity.exception.JwtAuthenticationException;
 import com.timekeeper.bibexpo.identity.model.DeviceDetails;
+import com.timekeeper.bibexpo.identity.model.dto.request.GoogleLoginRequest;
 import com.timekeeper.bibexpo.identity.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.identity.model.dto.response.LoginResponse;
 import com.timekeeper.bibexpo.identity.model.dto.response.RefreshResponse;
@@ -37,6 +39,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsChecker;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -51,6 +56,7 @@ public class AuthServiceImpl implements AuthService {
     private static final String ACCOUNT_DISABLED = "Your account has been disabled. Please contact an administrator.";
     private static final String ACCOUNT_LOCKED = "Your account has been locked. Please contact a platform administrator.";
     private static final String INVALID_CREDENTIALS = "Your username, email or password is incorrect.";
+    private static final String GOOGLE = "google";
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -60,6 +66,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuditPublisher auditPublisher;
     private final AuthUserDirectory authUserDirectory;
     private final UserDirectory userDirectory;
+    private final JwtDecoder googleIdTokenDecoder;
     private final UserDetailsChecker accountStatusChecker = new AccountStatusUserDetailsChecker();
 
     @Override
@@ -81,33 +88,7 @@ public class AuthServiceImpl implements AuthService {
             if (user == null) {
                 throw loginFailed(username, loginBy, "user_not_found", new InvalidCredentialsException(INVALID_CREDENTIALS));
             }
-
-            DeviceDetails device = DeviceDetailsResolver.resolve(httpRequest);
-            String sid = sessionService.startSession(user.getUsername(), user.getRole(), device);
-
-            String accessToken = jwtService.generateAccessToken(user, sid);
-            String refreshToken = jwtService.generateRefreshToken(user, sid);
-            String csrfToken = csrfTokenService.generate();
-
-            writeRefreshCookie(httpResponse, refreshToken);
-            writeCsrfCookie(httpResponse, csrfToken);
-
-            log.atInfo()
-                    .addKeyValue("event", "auth.login.succeeded")
-                    .addKeyValue("username", user.getUsername())
-                    .addKeyValue("sessionId", sid)
-                    .log("Login succeeded");
-
-            publishLoginAudit(user);
-
-            return LoginResponse.builder()
-                    .accessToken(accessToken)
-                    .expiresInMs(jwtService.getAccessTokenExpirationMs())
-                    .userId(user.getId())
-                    .username(user.getUsername())
-                    .role(user.getRole().name())
-                    .organizationId(user.getOrganization() != null ? user.getOrganization().getId() : null)
-                    .build();
+            return startLogin(user, loginBy, httpRequest, httpResponse);
 
         } catch (BadCredentialsException e) {
             throw loginFailed(username, loginBy, "bad_credentials", new InvalidCredentialsException(INVALID_CREDENTIALS));
@@ -116,6 +97,73 @@ public class AuthServiceImpl implements AuthService {
         } catch (LockedException e) {
             throw loginFailed(username, loginBy, "account_locked", new AccountDisabledException(ACCOUNT_LOCKED));
         }
+    }
+
+    @Override
+    public LoginResponse loginWithGoogle(GoogleLoginRequest request, HttpServletRequest httpRequest,
+                                         HttpServletResponse httpResponse) {
+        Jwt idToken;
+        try {
+            idToken = googleIdTokenDecoder.decode(request.getIdToken());
+        } catch (JwtException e) {
+            log.atWarn()
+                    .addKeyValue("event", "auth.login.failed")
+                    .addKeyValue("reason", "google_token_invalid")
+                    .addKeyValue("loginBy", GOOGLE)
+                    .addKeyValue("detail", e.getMessage())
+                    .log("Login failed");
+            throw new GoogleLoginException("Your Google sign-in could not be verified. Please try again.");
+        }
+        if (!Boolean.TRUE.equals(idToken.getClaimAsBoolean("email_verified"))) {
+            throw loginFailed(null, GOOGLE, "google_email_unverified",
+                    new GoogleLoginException("Your Google email address is not verified."));
+        }
+        User user = userDirectory.findUsernameByEmail(idToken.getClaimAsString("email"))
+                .map(authUserDirectory::findByUsername)
+                .orElse(null);
+        if (user == null) {
+            throw loginFailed(null, GOOGLE, "google_email_unknown",
+                    new GoogleLoginException("No account is registered with this Google email."));
+        }
+        try {
+            accountStatusChecker.check(user);
+        } catch (AccountStatusException e) {
+            boolean locked = e instanceof LockedException;
+            throw loginFailed(user.getUsername(), GOOGLE, locked ? "account_locked" : "account_disabled",
+                    new AccountDisabledException(locked ? ACCOUNT_LOCKED : ACCOUNT_DISABLED));
+        }
+        return startLogin(user, GOOGLE, httpRequest, httpResponse);
+    }
+
+    private LoginResponse startLogin(User user, String loginBy, HttpServletRequest httpRequest,
+                                     HttpServletResponse httpResponse) {
+        DeviceDetails device = DeviceDetailsResolver.resolve(httpRequest);
+        String sid = sessionService.startSession(user.getUsername(), user.getRole(), device);
+
+        String accessToken = jwtService.generateAccessToken(user, sid);
+        String refreshToken = jwtService.generateRefreshToken(user, sid);
+        String csrfToken = csrfTokenService.generate();
+
+        writeRefreshCookie(httpResponse, refreshToken);
+        writeCsrfCookie(httpResponse, csrfToken);
+
+        log.atInfo()
+                .addKeyValue("event", "auth.login.succeeded")
+                .addKeyValue("loginBy", loginBy)
+                .addKeyValue("username", user.getUsername())
+                .addKeyValue("sessionId", sid)
+                .log("Login succeeded");
+
+        publishLoginAudit(user, loginBy);
+
+        return LoginResponse.builder()
+                .accessToken(accessToken)
+                .expiresInMs(jwtService.getAccessTokenExpirationMs())
+                .userId(user.getId())
+                .username(user.getUsername())
+                .role(user.getRole().name())
+                .organizationId(user.getOrganization() != null ? user.getOrganization().getId() : null)
+                .build();
     }
 
     // username is null for an email that matches no account, so the typed address never reaches the log.
@@ -268,7 +316,7 @@ public class AuthServiceImpl implements AuthService {
         response.addHeader("Set-Cookie", cookie.build().toString());
     }
 
-    private void publishLoginAudit(User user) {
+    private void publishLoginAudit(User user, String loginBy) {
         String label = (user.getFullName() != null && !user.getFullName().isBlank())
                 ? user.getFullName() : user.getUsername();
         auditPublisher.publish(AuditEvent.builder()
@@ -279,7 +327,7 @@ public class AuthServiceImpl implements AuthService {
                 .entityType(AuditEntityType.USER)
                 .entityId(user.getId().toString())
                 .entityLabel(label)
-                .description(label + " logged in")
+                .description(label + (GOOGLE.equals(loginBy) ? " logged in with Google" : " logged in"))
                 .occurredAt(Instant.now())
                 .build());
     }

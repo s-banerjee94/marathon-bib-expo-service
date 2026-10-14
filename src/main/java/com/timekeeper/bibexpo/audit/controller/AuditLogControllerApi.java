@@ -74,7 +74,7 @@ public interface AuditLogControllerApi {
                         <tr><td><code>UPDATE</code></td><td>An existing entity was modified</td><td>Any update endpoint of the entity types below</td></tr>
                         <tr><td><code>DELETE</code></td><td>An entity was deleted</td><td>Any delete endpoint of the entity types below</td></tr>
                         <tr><td><code>STATUS_CHANGE</code></td><td>An entity's status / enabled flag flipped</td><td>enable-or-disable on org / event / user, a campaign disarm (ACTIVE → DRAFT), or an invoice's payment status</td></tr>
-                        <tr><td><code>LOGIN</code></td><td>A user successfully authenticated</td><td><code>POST /api/auth/login</code> after credentials accepted</td></tr>
+                        <tr><td><code>LOGIN</code></td><td>A user successfully authenticated</td><td><code>POST /api/auth/login</code> after credentials accepted, or <code>POST /api/auth/google</code> after the Google token is accepted</td></tr>
                         <tr><td><code>GENERATE</code></td><td>A short-lived artifact was generated</td><td>Participant-access verification short-URLs (QR / SMS) issued in bulk</td></tr>
                         <tr><td><code>IMPORT</code></td><td>A bulk CSV participant import was launched</td><td><code>POST /api/events/{eventId}/participants/batch-import</code> after the mapping is accepted and the job starts</td></tr>
                         <tr><td><code>PASSWORD_RESET</code></td><td>A user's password was reset</td><td>An admin issued a reset link, or a user completed the public forgot-password flow</td></tr>

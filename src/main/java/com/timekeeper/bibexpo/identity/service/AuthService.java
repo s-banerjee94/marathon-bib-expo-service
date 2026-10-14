@@ -1,5 +1,6 @@
 package com.timekeeper.bibexpo.identity.service;
 
+import com.timekeeper.bibexpo.identity.model.dto.request.GoogleLoginRequest;
 import com.timekeeper.bibexpo.identity.model.dto.request.LoginRequest;
 import com.timekeeper.bibexpo.identity.model.dto.response.LoginResponse;
 import com.timekeeper.bibexpo.identity.model.dto.response.RefreshResponse;
@@ -15,6 +16,15 @@ public interface AuthService {
      * @return body containing the short-lived access token + user info
      */
     LoginResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse);
+
+    /**
+     * Signs in with a Google ID token. The token must be valid and issued for this app, and its verified
+     * email must belong to an existing, enabled account; no account is ever created. On success it starts
+     * a session exactly like {@link #login}.
+     *
+     * @return body containing the short-lived access token + user info
+     */
+    LoginResponse loginWithGoogle(GoogleLoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse);
 
     /**
      * Validate the refresh cookie + CSRF double-submit, then rotate the session:
