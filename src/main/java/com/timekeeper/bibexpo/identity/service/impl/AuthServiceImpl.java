@@ -19,6 +19,7 @@ import com.timekeeper.bibexpo.identity.service.JwtService;
 import com.timekeeper.bibexpo.identity.service.SessionService;
 import com.timekeeper.bibexpo.identity.service.util.DeviceDetailsResolver;
 import com.timekeeper.bibexpo.user.api.AuthUserDirectory;
+import com.timekeeper.bibexpo.user.api.UserDirectory;
 import com.timekeeper.bibexpo.user.model.entity.User;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -49,6 +50,7 @@ public class AuthServiceImpl implements AuthService {
     private static final String CSRF_HEADER = "X-CSRF-Token";
     private static final String ACCOUNT_DISABLED = "Your account has been disabled. Please contact an administrator.";
     private static final String ACCOUNT_LOCKED = "Your account has been locked. Please contact a platform administrator.";
+    private static final String INVALID_CREDENTIALS = "Your username, email or password is incorrect.";
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -57,21 +59,27 @@ public class AuthServiceImpl implements AuthService {
     private final CsrfTokenService csrfTokenService;
     private final AuditPublisher auditPublisher;
     private final AuthUserDirectory authUserDirectory;
+    private final UserDirectory userDirectory;
     private final UserDetailsChecker accountStatusChecker = new AccountStatusUserDetailsChecker();
 
     @Override
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String identifier = request.getUsername().trim();
+        // A username can never hold '@', so anything that does is an email address.
+        boolean byEmail = identifier.contains("@");
+        String username = byEmail ? userDirectory.findUsernameByEmail(identifier).orElse(null) : identifier;
+        String loginBy = byEmail ? "email" : "username";
         try {
+            // An unknown email still goes through authentication so it fails in the same time as a wrong password.
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+                    new UsernamePasswordAuthenticationToken(username != null ? username : identifier, request.getPassword())
             );
             accountStatusChecker.check((UserDetails) Objects.requireNonNull(authentication.getPrincipal()));
 
             // Loaded and cached by the authentication above, so this is a hit, not a query.
-            User user = authUserDirectory.findByUsername(request.getUsername());
+            User user = authUserDirectory.findByUsername(username);
             if (user == null) {
-                throw loginFailed(request.getUsername(), "user_not_found",
-                        new InvalidCredentialsException("Invalid username or password"));
+                throw loginFailed(username, loginBy, "user_not_found", new InvalidCredentialsException(INVALID_CREDENTIALS));
             }
 
             DeviceDetails device = DeviceDetailsResolver.resolve(httpRequest);
@@ -102,19 +110,20 @@ public class AuthServiceImpl implements AuthService {
                     .build();
 
         } catch (BadCredentialsException e) {
-            throw loginFailed(request.getUsername(), "bad_credentials",
-                    new InvalidCredentialsException("Invalid username or password"));
+            throw loginFailed(username, loginBy, "bad_credentials", new InvalidCredentialsException(INVALID_CREDENTIALS));
         } catch (DisabledException e) {
-            throw loginFailed(request.getUsername(), "account_disabled", new AccountDisabledException(ACCOUNT_DISABLED));
+            throw loginFailed(username, loginBy, "account_disabled", new AccountDisabledException(ACCOUNT_DISABLED));
         } catch (LockedException e) {
-            throw loginFailed(request.getUsername(), "account_locked", new AccountDisabledException(ACCOUNT_LOCKED));
+            throw loginFailed(username, loginBy, "account_locked", new AccountDisabledException(ACCOUNT_LOCKED));
         }
     }
 
-    private RuntimeException loginFailed(String username, String reason, RuntimeException toThrow) {
+    // username is null for an email that matches no account, so the typed address never reaches the log.
+    private RuntimeException loginFailed(String username, String loginBy, String reason, RuntimeException toThrow) {
         log.atWarn()
                 .addKeyValue("event", "auth.login.failed")
                 .addKeyValue("reason", reason)
+                .addKeyValue("loginBy", loginBy)
                 .addKeyValue("username", username)
                 .log("Login failed");
         return toThrow;

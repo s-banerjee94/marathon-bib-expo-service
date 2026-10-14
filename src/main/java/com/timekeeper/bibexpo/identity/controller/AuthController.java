@@ -39,7 +39,7 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(
             summary = "User login",
-            description = "Authenticate with username and password. Returns a short-lived access token in the body " +
+            description = "Authenticate with username or email, and password. Returns a short-lived access token in the body " +
                     "and sets refreshToken (HttpOnly) + csrfToken cookies. A new login invalidates any prior session.",
             responses = {
                     @ApiResponse(
@@ -101,7 +101,7 @@ public class AuthController {
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex, WebRequest request) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid username or password", request));
+                .body(ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Unauthorized", "Your username, email or password is incorrect.", request));
     }
 
     @ExceptionHandler(AccountDisabledException.class)

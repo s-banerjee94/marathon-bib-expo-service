@@ -53,6 +53,11 @@ public class UserDirectoryImpl implements UserDirectory {
     }
 
     @Override
+    public Optional<String> findUsernameByEmail(String email) {
+        return userRepository.findByEmail(email).map(User::getUsername);
+    }
+
+    @Override
     public List<User> findByRole(UserRole role) {
         return userRepository.findByRole(role);
     }
